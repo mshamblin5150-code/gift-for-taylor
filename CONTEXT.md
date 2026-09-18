@@ -14,6 +14,10 @@ _Avoid_: Roster, rota
 Any edit to a published Schedule, such as marking someone off or swapping a shift. It happens about weekly and has to be made in both Excel and UKG, plus a new printout.
 _Avoid_: Schedule update, revision
 
+**Change announcement**:
+The step where the ED manager lets the staff affected by a Schedule change know it happened. Today it is a new printout in the Schedule book, or a Facebook group post when more than one person is affected. It is the problem the gift tool solves.
+_Avoid_: Notification, schedule update
+
 **UKG**:
 The hospital's workforce system where schedules, timesheets and payroll are completed. Kronos is its former name, and "the state UG thing" in the interview notes means the same system.
 _Avoid_: Kronos, the state system
