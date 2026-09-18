@@ -37,8 +37,12 @@ Any edit to a published Schedule, such as marking someone off or swapping a shif
 _Avoid_: Schedule update, revision
 
 **Change announcement**:
-The step where the ED manager lets the staff affected by a Schedule change know it happened. Today it is a new printout in the Schedule book, or a Facebook group post when more than one person is affected. It is the problem the gift tool solves.
+The step where a scheduler lets the Staff members affected by a Schedule change know it happened: a text to only those people, plus a highlight in the app. Today it is a new printout in the Schedule book, or a Facebook group post when more than one person is affected. It is the problem the gift tool solves.
 _Avoid_: Notification, schedule update
+
+**Month release**:
+The moment the Manager makes a newly built month's Schedule visible to staff. Until then the month is unpublished. It is announced to everyone, unlike a Change announcement.
+_Avoid_: Publish, go-live
 
 **UKG**:
 The hospital's workforce system where schedules, timesheets and payroll are completed. Kronos is its former name, and "the state UG thing" in the interview notes means the same system.
