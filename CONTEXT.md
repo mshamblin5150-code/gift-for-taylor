@@ -10,8 +10,12 @@ The working vocabulary of the ED manager's non-clinical job, as she describes it
 The ED manager: the one person who builds and changes the Schedule, approves Requests off, and sends Change announcements.
 _Avoid_: Admin, owner
 
+**Night scheduler**:
+A Staff member the Manager has allowed to edit specific Sections (today, the night sections). Their edits take effect at once; the Manager can override them.
+_Avoid_: Co-scheduler, assistant manager
+
 **Staff member**:
-A person on the Schedule who can see it and ask for days off, but not change it.
+A person on the Schedule who can see it, ask for a Request off, a Swap or an Open shift pickup, but not change it.
 _Avoid_: User, employee, member
 
 ### The schedule
@@ -53,6 +57,18 @@ _Avoid_: Roster, contacts, directory
 **Request off**:
 A Staff member's request for specific days off. The Manager approves or declines it; an approved day appears on the Schedule as R/O. Today it must arrive by email so it is kept for reference.
 _Avoid_: Days-off request, PTO request, time-off slip
+
+**Swap**:
+An exchange of shifts two Staff members agree to, which takes effect only when the Manager approves it.
+_Avoid_: Trade
+
+**Open shift**:
+A scheduled shift left uncovered (for example by an approved Request off) and offered for pickup. Any nurse, RN or LPN, may pick up a nursing shift; other roles pick up within their own role. A pickup takes effect when the Manager approves it.
+_Avoid_: Hole, vacancy
+
+**Calendar feed**:
+A Staff member's private, self-updating link that puts their working shifts into their phone's calendar.
+_Avoid_: Calendar export, ICS file
 
 ### Checks and supplies
 
