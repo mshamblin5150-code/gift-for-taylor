@@ -4,6 +4,16 @@ The working vocabulary of the ED manager's non-clinical job, as she describes it
 
 ## Language
 
+### People
+
+**Manager**:
+The ED manager: the one person who builds and changes the Schedule, approves Requests off, and sends Change announcements.
+_Avoid_: Admin, owner
+
+**Staff member**:
+A person on the Schedule who can see it and ask for days off, but not change it.
+_Avoid_: User, employee, member
+
 ### The schedule
 
 **Schedule**:
@@ -15,7 +25,7 @@ A labeled group of staff rows on the Schedule, by role and shift type, such as S
 _Avoid_: Department, team, unit
 
 **Shift code**:
-The text in one Schedule cell: what a person is doing that day, such as 7A, 16D, MM, X (off) or R/O (requested off). The printed legend defines the common ones, but the set is open; she writes others as needed.
+The text in one Schedule cell: what a person is doing that day, such as 7A, 16D, MM, X (off), R/O (requested off) or S/L (sick leave). The printed legend defines the common ones, but the set is open; she writes others as needed.
 _Avoid_: Shift type, assignment
 
 **Schedule change**:
@@ -37,12 +47,12 @@ The UKG function that finds a set of shifts by filter (type, date, time, job, la
 The physical binder where the current printed Schedule is kept for staff to read.
 
 **Staff list**:
-The ED staff the ED manager announces changes to: each person's first name, cell number and Section.
+The ED staff the ED manager announces changes to: each person's first name, cell number, email and Section. Only people on the Staff list can sign in.
 _Avoid_: Roster, contacts, directory
 
-**Days-off request**:
-A staff member's request for specific days off. It must arrive by email so it is kept for reference, and it appears on the Schedule as R/O.
-_Avoid_: PTO request, time-off slip
+**Request off**:
+A Staff member's request for specific days off. The Manager approves or declines it; an approved day appears on the Schedule as R/O. Today it must arrive by email so it is kept for reference.
+_Avoid_: Days-off request, PTO request, time-off slip
 
 ### Checks and supplies
 
