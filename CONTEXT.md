@@ -55,8 +55,16 @@ The UKG function that finds a set of shifts by filter (type, date, time, job, la
 The physical binder where the current printed Schedule is kept for staff to read.
 
 **Staff list**:
-The ED staff the ED manager announces changes to: each person's first name, cell number, email and Section. Only people on the Staff list can sign in.
+The ED staff the ED manager announces changes to: each person's name, cell number and Section, plus the personal email they enter themselves when they accept their Invite. A removed person is deactivated, never deleted, and can be reactivated.
 _Avoid_: Roster, contacts, directory
+
+**Invite**:
+A one-time link the Manager texts to a person she has added to the Staff list. Opening it lets them enter their own email and sign in; only invited people can get in.
+_Avoid_: Registration, sign-up
+
+**Last day**:
+The final day a departing Staff member is on the Schedule. Their shifts after it become short days.
+_Avoid_: Termination date, end date
 
 **Request off**:
 A Staff member's request for specific days off. The Manager approves or declines it; an approved day appears on the Schedule as R/O. Today it must arrive by email so it is kept for reference.
