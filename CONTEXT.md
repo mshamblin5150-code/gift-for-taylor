@@ -28,6 +28,10 @@ The UKG function that finds a set of shifts by filter (type, date, time, job, la
 **Schedule book**:
 The physical binder where the current printed Schedule is kept for staff to read.
 
+**Staff list**:
+The ED staff the ED manager announces changes to: each person's first name and cell number. It lives only on her phone, with a backup file she keeps herself.
+_Avoid_: Roster, contacts, directory
+
 **Days-off request**:
 A staff member's request for specific days off. It must arrive by email so it is kept for reference.
 _Avoid_: PTO request, time-off slip
