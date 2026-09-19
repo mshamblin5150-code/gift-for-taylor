@@ -10,6 +10,102 @@ final class SupabaseScheduleStore implements ScheduleStore {
   final SupabaseClient _client;
 
   @override
+  Future<RequestOffEmail> createRequestOff(RequestOffDraft draft) async {
+    final result = await _client.rpc<Map<String, dynamic>>(
+      'submit_request_off',
+      params: {
+        'p_dates': draft.dates.map(_date).toList(),
+        'p_reason': draft.reason,
+      },
+    );
+    final name = result['staff_name'] as String;
+    final days = draft.dates.map(_date).join(', ');
+    final why = draft.reason == null || draft.reason!.isEmpty
+        ? ''
+        : '\nReason: ${draft.reason}';
+    return RequestOffEmail(
+      requestId: result['request_id'] as String,
+      to: result['manager_email'] as String,
+      subject: 'Request off - $name',
+      body: '$name requests off on $days.$why',
+    );
+  }
+
+  @override
+  Future<void> confirmRequestOffEmail(String requestId) => _client.rpc<void>(
+    'confirm_request_off_email',
+    params: {'p_request_id': requestId},
+  );
+
+  @override
+  Future<List<RequestOff>> requestsOff({required bool pendingOnly}) async {
+    final rows = await _allPages((from, to) {
+      var query = _client
+          .from('requests_off')
+          .select(
+            'id, staff_member_id, reason, submitted_at, email_confirmed_at, '
+            'decision, decision_reason, decided_at, '
+            'staff_members!staff_member_id(display_name), request_off_dates(work_date)',
+          );
+      if (pendingOnly) query = query.eq('decision', 'pending');
+      return query.order('submitted_at', ascending: false).range(from, to);
+    });
+    return [
+      for (final row in rows)
+        RequestOff(
+          id: row['id'] as String,
+          staffMemberId: row['staff_member_id'] as String,
+          staffMemberName:
+              (row['staff_members'] as Map<String, dynamic>)['display_name']
+                  as String,
+          dates: [
+            for (final day in row['request_off_dates'] as List<dynamic>)
+              DateTime.parse(
+                (day as Map<String, dynamic>)['work_date'] as String,
+              ),
+          ]..sort(),
+          reason: row['reason'] as String?,
+          submittedAt: DateTime.parse(row['submitted_at'] as String).toLocal(),
+          emailConfirmedAt: row['email_confirmed_at'] == null
+              ? null
+              : DateTime.parse(row['email_confirmed_at'] as String).toLocal(),
+          decision: RequestOffDecision.values.byName(row['decision'] as String),
+          decisionReason: row['decision_reason'] as String?,
+          decidedAt: row['decided_at'] == null
+              ? null
+              : DateTime.parse(row['decided_at'] as String).toLocal(),
+        ),
+    ];
+  }
+
+  @override
+  Future<void> decideRequestOff(
+    String requestId,
+    RequestOffDecision decision,
+    String? reason,
+  ) => _client.rpc<void>(
+    'decide_request_off',
+    params: {
+      'p_request_id': requestId,
+      'p_decision': decision.name,
+      'p_reason': reason,
+    },
+  );
+
+  @override
+  Future<int> unreadRequestOffNotices() async {
+    final rows = await _client
+        .from('in_app_notices')
+        .select('id')
+        .filter('read_at', 'is', null);
+    return rows.length;
+  }
+
+  @override
+  Future<void> acknowledgeRequestOffNotices() =>
+      _client.rpc<void>('acknowledge_request_off_notices');
+
+  @override
   Future<List<ScheduleSection>> sections() async {
     final rows = await _client
         .from('sections')
