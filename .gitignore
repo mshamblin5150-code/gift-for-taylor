@@ -49,3 +49,10 @@ app.*.map.json
 
 # Real staff names and photos of the printed page. Never commit these.
 /private/
+
+# Supabase passwords, API keys and VAPID keys. Never commit these.
+/secrets/
+.env
+.env.*
+supabase/.env
+supabase/.temp/
