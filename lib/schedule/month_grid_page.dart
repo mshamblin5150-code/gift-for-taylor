@@ -167,10 +167,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
         widget.rules.canEditSchedule(),
         widget.rules.editableSections(),
       ).wait;
-      final (grid, announcement, codes) = await _read(month, editable);
-      final staffing =
-          await widget.openShiftRules?.staffingForMonth(month) ??
-          <SectionStaffing>[];
+      final (grid, announcement, codes, staffing) = await _read(
+        month,
+        editable,
+      );
       if (!mounted || month != _month) return;
       setState(() {
         _canEdit = canEdit;
@@ -220,10 +220,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _reload() async {
     try {
       final month = _month;
-      final (grid, announcement, codes) = await _read(month, _editable);
-      final staffing =
-          await widget.openShiftRules?.staffingForMonth(month) ??
-          <SectionStaffing>[];
+      final (grid, announcement, codes, staffing) = await _read(
+        month,
+        _editable,
+      );
       if (!mounted || month != _month) return;
       setState(() {
         _grid = grid;
@@ -241,17 +241,46 @@ class _MonthGridPageState extends State<MonthGridPage> {
     if (mounted) await _reload();
   }
 
-  /// The grid, active Shift codes, and the unannounced tray for an editor.
-  Future<(MonthGrid, ChangeAnnouncement?, List<LegendCode>)> _read(
-    DateTime month,
-    EditableSections editable,
-  ) => (
-    widget.rules.monthGrid(month),
-    editable.isEmpty
+  /// The grid, the unannounced tray for an editor, active Shift codes, and
+  /// Section staffing.
+  ///
+  /// The grid and the tray are the Schedule and the promise to announce its
+  /// changes, so either failing stops the month from opening. Both read the
+  /// same Schedule the grid does, so neither can fail on its own.
+  ///
+  /// The Shift code legend and Section staffing are adjuncts: each is a
+  /// separate backend call a Schedule can be read without, and each has an
+  /// honest empty state — no legend to pick from, no minimums to fall short
+  /// of. An older database missing either must not take the month down with
+  /// it. The tray is deliberately not among them: no tray reads as "everyone
+  /// has been told", which is a claim, not an absence.
+  Future<
+    (MonthGrid, ChangeAnnouncement?, List<LegendCode>, List<SectionStaffing>)
+  >
+  _read(DateTime month, EditableSections editable) async {
+    // Started together so nothing here costs an extra round trip.
+    final gridRead = widget.rules.monthGrid(month);
+    final announcementRead = editable.isEmpty
         ? Future<ChangeAnnouncement?>.value()
-        : widget.rules.changeAnnouncement(month),
-    widget.rules.shiftCodes(),
-  ).wait;
+        : widget.rules.changeAnnouncement(month);
+    final codesRead = _adjunct(widget.rules.shiftCodes, const <LegendCode>[]);
+    final staffingRead = _adjunct(
+      () async =>
+          await widget.openShiftRules?.staffingForMonth(month) ??
+          const <SectionStaffing>[],
+      const <SectionStaffing>[],
+    );
+    // Waits for both required reads whichever fails, so a failure on one side
+    // leaves no unobserved error on the other, and reports the error itself
+    // rather than a wrapper.
+    final required = await Future.wait<Object?>([gridRead, announcementRead]);
+    return (
+      required[0]! as MonthGrid,
+      required[1] as ChangeAnnouncement?,
+      await codesRead,
+      await staffingRead,
+    );
+  }
 
   Future<void> _announce(ChangeAnnouncement announcement) async {
     final marked = await showAnnounceSheet(
@@ -806,12 +835,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
     );
   }
 
+  void _retry() {
+    setState(() => _loadError = null);
+    _load();
+  }
+
   Widget _body(MonthGrid? grid) {
     return switch ((grid, _loadError)) {
       (null, null) => const Center(child: CircularProgressIndicator()),
-      (null, _) => const Center(
-        child: Text("The Schedule couldn't be loaded."),
-      ),
+      (null, final error?) => _LoadFailure(error: error, onRetry: _retry),
       (final MonthGrid grid, _)
           when !_canEdit && grid.status != MonthStatus.released =>
         Center(
@@ -854,6 +886,44 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ),
       },
     };
+  }
+}
+
+/// The month itself could not be read. The reason is shown, quietly, because
+/// the alternative is a dead end for whoever is asked to fix it.
+class _LoadFailure extends StatelessWidget {
+  const _LoadFailure({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("The Schedule couldn't be loaded."),
+            const SizedBox(height: 12),
+            FilledButton.tonal(
+              onPressed: onRetry,
+              child: const Text('Try again'),
+            ),
+            const SizedBox(height: 16),
+            SelectableText(
+              '$error',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1808,6 +1878,20 @@ bool _isToday(DateTime day, DateTime today) =>
     day.year == today.year && day.month == today.month && day.day == today.day;
 
 DateTime _dateOnly(DateTime day) => DateTime(day.year, day.month, day.day);
+
+/// Reads data the Schedule is better with but still readable without, falling
+/// back to [orElse] rather than failing the whole month.
+///
+/// Only for reads whose [orElse] is an honest empty state. Where absence would
+/// instead assert something — that there is nothing left to announce, say —
+/// the read belongs in the month's required set.
+Future<T> _adjunct<T>(Future<T> Function() read, T orElse) async {
+  try {
+    return await read();
+  } catch (_) {
+    return orElse;
+  }
+}
 
 bool _isStaffChange(
   String? staffMemberId,
