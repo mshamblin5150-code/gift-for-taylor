@@ -1095,6 +1095,7 @@ final class InMemoryScheduleDatabase {
   final List<LegendCode> _shiftCodes = [...shiftLegend];
   final Map<String, int> _weekdayMinimums = {};
   final Map<String, int> _dateMinimums = {};
+  final Map<String, String> _manualCoverageSections = {};
   final List<OpenShiftPickup> _openShiftPickups = [];
   final List<StaffChange> _staffChanges = [];
   final List<RequestOff> _requestsOff = [];

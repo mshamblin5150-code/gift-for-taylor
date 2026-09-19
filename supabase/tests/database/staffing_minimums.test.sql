@@ -1,14 +1,15 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(19);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000531', 'minimum-manager@example.test'),
   ('00000000-0000-0000-0000-000000000532', 'minimum-rn@example.test'),
   ('00000000-0000-0000-0000-000000000533', 'minimum-lpn@example.test'),
   ('00000000-0000-0000-0000-000000000534', 'minimum-cna@example.test');
-insert into public.sections(id, name, display_order)
-  values ('00000000-0000-0000-0000-000000000535', 'Minimum nursing', 153);
+insert into public.sections(id, name, display_order) values
+  ('00000000-0000-0000-0000-000000000535', 'Minimum nursing', 153),
+  ('00000000-0000-0000-0000-00000000053b', 'Other nursing', 154);
 insert into public.staff_members(id, display_name, role) values
   ('00000000-0000-0000-0000-000000000536', 'Minimum Manager', 'manager'),
   ('00000000-0000-0000-0000-000000000537', 'Minimum RN', 'staff_member'),
@@ -21,7 +22,7 @@ insert into public.staff_accounts(staff_member_id, auth_user_id, personal_email,
   ('00000000-0000-0000-0000-000000000539', '00000000-0000-0000-0000-000000000534', 'minimum-cna@example.test', now());
 insert into public.staff_section_assignments(staff_member_id, section_id, display_order, effective_from) values
   ('00000000-0000-0000-0000-000000000537', '00000000-0000-0000-0000-000000000535', 0, '2027-03-01'),
-  ('00000000-0000-0000-0000-000000000538', '00000000-0000-0000-0000-000000000535', 1, '2027-03-01'),
+  ('00000000-0000-0000-0000-000000000538', '00000000-0000-0000-0000-00000000053b', 1, '2027-03-01'),
   ('00000000-0000-0000-0000-000000000539', '00000000-0000-0000-0000-000000000535', 2, '2027-03-01');
 insert into public.staff_job_roles(staff_member_id, job_role, effective_from) values
   ('00000000-0000-0000-0000-000000000537', 'rn', '2027-03-01'),
@@ -82,7 +83,10 @@ select lives_ok($$select public.approve_open_shift_pickup((select id from public
   'Manager approves manual pickup');
 select is((select working_count from public.section_staffing_for_month('2027-03-01')
   where section_id = '00000000-0000-0000-0000-000000000535' and work_date = '2027-03-01'), 1,
-  'approved pickup counts as working');
+  'approved pickup covers the posting Section');
+select is((select working_count from public.section_staffing_for_month('2027-03-01')
+  where section_id = '00000000-0000-0000-0000-00000000053b' and work_date = '2027-03-01'), 0,
+  'picker Section is not double counted');
 select is((select open_count from public.section_staffing_for_month('2027-03-01')
   where section_id = '00000000-0000-0000-0000-000000000535' and work_date = '2027-03-01'), 1,
   'other Open shift remains');

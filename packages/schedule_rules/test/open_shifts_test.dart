@@ -11,6 +11,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [
         ScheduleSection(id: 'nursing', name: 'Nursing'),
+        ScheduleSection(id: 'other-nursing', name: 'Other nursing'),
         ScheduleSection(id: 'cna', name: 'CNA'),
         ScheduleSection(id: 'clerk', name: 'Unit clerks'),
       ],
@@ -189,6 +190,38 @@ void main() {
   });
 
   test(
+    'manual pickup covers its posted Section across nursing Sections',
+    () async {
+      await manager.changeSection(
+        ChangeSection(staffMemberId: 'lpn', sectionId: 'other-nursing', from: day),
+      );
+      await managerShifts.setWeekdayMinimum('nursing', day.weekday % 7, 1);
+      await managerShifts.postOpenShifts('nursing', day, '7P', JobRole.rn, 1);
+      final lpn = OpenShiftRules(database.openShiftStoreFor('lpn'));
+      final posted = (await lpn.openShifts())
+          .where((shift) => shift.shiftCode == '7P')
+          .single;
+      await lpn.requestPickup(posted.id);
+      await managerShifts.approvePickup((await lpn.pickups()).single.id);
+      final staffing = await managerShifts.staffingForMonth(day);
+      expect(
+        staffing
+            .singleWhere(
+              (item) => item.sectionId == 'nursing' && item.date == day,
+            )
+            .workingCount,
+        1,
+      );
+      expect(
+        staffing
+            .singleWhere((item) => item.sectionId == 'other-nursing' && item.date == day)
+            .workingCount,
+        0,
+      );
+    },
+  );
+
+  test(
     'a Last day posts later working shifts using the departing role',
     () async {
       final later = DateTime(2026, 10, 13);
@@ -203,8 +236,9 @@ void main() {
       await manager.setLastDay(
         SetLastDay(staffMemberId: 'original', lastDay: day),
       );
-      final visible = await OpenShiftRules(database.openShiftStoreFor('lpn'))
-          .openShifts();
+      final visible = await OpenShiftRules(
+        database.openShiftStoreFor('lpn'),
+      ).openShifts();
       expect(
         visible.where((shift) => shift.date == later).single.shiftCode,
         '7P',

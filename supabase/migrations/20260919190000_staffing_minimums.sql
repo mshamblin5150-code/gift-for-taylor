@@ -71,7 +71,19 @@ language sql stable security definer set search_path = '' as $$
       join public.schedule_months month on month.id = cell.schedule_month_id
       where cell.section_id = section.id and cell.work_date = day.work_date
         and month.release_state in ('unpublished', 'released')
-        and public.is_working_shift(cell.shift_code)),
+        and public.is_working_shift(cell.shift_code)
+        and not exists (select 1 from public.open_shift_pickups pickup
+          join public.short_shifts opened on opened.id = pickup.short_shift_id
+          where pickup.staff_member_id = cell.staff_member_id
+            and pickup.status = 'approved' and opened.reason = 'manual'
+            and opened.work_date = cell.work_date))
+      + (select count(*)::integer from public.open_shift_pickups pickup
+        join public.short_shifts opened on opened.id = pickup.short_shift_id
+        join public.schedule_cells cell on cell.staff_member_id = pickup.staff_member_id
+          and cell.work_date = opened.work_date
+        where pickup.status = 'approved' and opened.reason = 'manual'
+          and opened.section_id = section.id and opened.work_date = day.work_date
+          and public.is_working_shift(cell.shift_code)),
     (select count(*)::integer from public.short_shifts shift
       where shift.section_id = section.id and shift.work_date = day.work_date
         and shift.filled_at is null),

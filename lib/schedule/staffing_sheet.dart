@@ -169,7 +169,7 @@ Future<bool?> showStaffingSheet(
                                     fillGap: true,
                                   );
                                 }),
-                          child: Text('Post ${staffing.unpostedCount} for gap'),
+                child: Text('Post ${staffing.unpostedCount} Open shifts'),
                         ),
                     ],
                   ),

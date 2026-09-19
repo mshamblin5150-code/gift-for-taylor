@@ -241,6 +241,13 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
         shiftCode: shift.shiftCode,
       ),
     );
+    if (shift.originalStaffMemberId == null) {
+      database._manualCoverageSections[_cellKey(
+            pickup.staffMemberId,
+            shift.date,
+          )] =
+          shift.sectionId;
+    }
     database._shortShifts.removeWhere(
       (short) => 'short-${identityHashCode(short)}' == shift.id,
     );
@@ -281,16 +288,35 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
                 database
                     ._weekdayMinimums['${section.id}:${date.weekday % 7}'] ??
                 0,
-            workingCount: grid
-                .rowsIn(section.id)
-                .where(
-                  (row) =>
-                      grid.isOnSchedule(row, date) &&
-                      isWorkingShift(
-                        grid.shiftCodeFor(row.staffMemberId, date) ?? '',
-                      ),
-                )
-                .length,
+            workingCount:
+                grid
+                    .rowsIn(section.id)
+                    .where(
+                      (row) =>
+                          grid.isOnSchedule(row, date) &&
+                          !database._manualCoverageSections.containsKey(
+                            _cellKey(row.staffMemberId, date),
+                          ) &&
+                          isWorkingShift(
+                            grid.shiftCodeFor(row.staffMemberId, date) ?? '',
+                          ),
+                    )
+                    .length +
+                database._manualCoverageSections.entries
+                    .where(
+                      (coverage) =>
+                          coverage.value == section.id &&
+                          grid.rows.any(
+                            (row) =>
+                                _cellKey(row.staffMemberId, date) ==
+                                    coverage.key &&
+                                isWorkingShift(
+                                  grid.shiftCodeFor(row.staffMemberId, date) ??
+                                      '',
+                                ),
+                          ),
+                    )
+                    .length,
             openCount: grid.shortShiftsOn(section.id, date).length,
             weekdayMinimum:
                 database._weekdayMinimums['${section.id}:${date.weekday % 7}'],
@@ -305,10 +331,12 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     int weekday,
     int minimum,
   ) async {
-    if (!_manager)
+    if (!_manager) {
       throw StateError('Only the Manager can set staffing minimums');
-    if (weekday < 0 || weekday > 6 || minimum < 0 || minimum > 100)
+    }
+    if (weekday < 0 || weekday > 6 || minimum < 0 || minimum > 100) {
       throw ArgumentError('Invalid staffing minimum');
+    }
     database._weekdayMinimums['$sectionId:$weekday'] = minimum;
   }
 
@@ -318,10 +346,12 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     DateTime date,
     int? minimum,
   ) async {
-    if (!_manager)
+    if (!_manager) {
       throw StateError('Only the Manager can set staffing minimums');
-    if (minimum != null && (minimum < 0 || minimum > 100))
+    }
+    if (minimum != null && (minimum < 0 || minimum > 100)) {
       throw ArgumentError('Invalid staffing minimum');
+    }
     final key = '$sectionId:${_day(date)}';
     if (minimum == null) {
       database._dateMinimums.remove(key);
@@ -340,8 +370,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     bool fillGap = false,
   }) async {
     if (!_manager) throw StateError('Only the Manager can post Open shifts');
-    if (!isWorkingShift(shiftCode) || count < 1 || count > 100)
+    if (!isWorkingShift(shiftCode) || count < 1 || count > 100) {
       throw ArgumentError('Invalid Open shift');
+    }
     if (fillGap) {
       final staffing = (await staffingForMonth(
         date,
