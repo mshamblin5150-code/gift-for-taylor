@@ -1,6 +1,7 @@
 {
     "name": "ER Schedule",
     "short_name": "Schedule",
+    "id": ".",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F8FAF8",

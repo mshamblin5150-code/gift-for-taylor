@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import '../notifications/notice_gateway.dart';
+import '../notifications/notices_page.dart';
+
 import 'announce_sheet.dart';
 import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
@@ -26,6 +29,7 @@ class MonthGridPage extends StatefulWidget {
     this.onManageStaff,
     this.messagesComposer,
     this.swapRules,
+    this.noticeGateway,
     this.printBookPage,
   });
 
@@ -38,6 +42,7 @@ class MonthGridPage extends StatefulWidget {
   final VoidCallback? onManageStaff;
   final MessagesComposer? messagesComposer;
   final SwapRules? swapRules;
+  final NoticeGateway? noticeGateway;
 
   /// Prints a Schedule book page, given as an HTML document.
   final ValueChanged<String>? printBookPage;
@@ -448,6 +453,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 label: Text('$_pendingSwaps'),
                 child: const Icon(Icons.swap_horiz),
               ),
+            ),
+          if (widget.noticeGateway case final gateway?)
+            IconButton(
+              tooltip: 'Notices',
+              onPressed: () =>
+                  _open((context) => NoticesPage(gateway: gateway)),
+              icon: const Icon(Icons.notifications_outlined),
             ),
           if (widget.onCalendarFeed != null)
             IconButton(
