@@ -190,6 +190,44 @@ void main() {
     expect(find.byKey(const ValueKey('weekend-2026-09-19')), findsNWidgets(2));
   });
 
+  testWidgets('Section bar stays visible and continuous while days scroll', (
+    tester,
+  ) async {
+    await pumpGrid(
+      tester,
+      now: () => DateTime(2026, 8, 1),
+      size: const Size(900, 800),
+    );
+
+    final label = find.text('State dayshift RN');
+    final nameCell = tester.widget<Container>(
+      find.ancestor(of: label, matching: find.byType(Container)).first,
+    );
+    final firstDay = find.byKey(const ValueKey('weekday-2026-09-01')).first;
+    final dayCell = tester.widget<Container>(
+      find.descendant(of: firstDay, matching: find.byType(Container)).first,
+    );
+    expect(nameCell.color, (dayCell.decoration! as BoxDecoration).color);
+    expect(
+      nameCell.color,
+      isNot(Theme.of(tester.element(label)).colorScheme.surface),
+    );
+    expect(
+      tester.widget<Text>(label).style!.color,
+      Theme.of(tester.element(label)).colorScheme.onPrimary,
+    );
+
+    final before = tester.getRect(label);
+    await tester.drag(
+      find.byKey(const ValueKey('month-horizontal-scroll')),
+      const Offset(-500, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(label), before);
+    expect(tester.getRect(label).left, greaterThanOrEqualTo(0));
+    expect(tester.getRect(label).right, lessThanOrEqualTo(900));
+  });
+
   testWidgets(
     'Staff member lands on their changed shifts and opens full grid',
     (tester) async {
@@ -426,6 +464,16 @@ void main() {
         matching: find.text('−1'),
       ),
       findsOneWidget,
+    );
+    final shortMarker = tester.widget<Container>(
+      find.ancestor(
+        of: find.text('−1'),
+        matching: find.byType(Container),
+      ).first,
+    );
+    expect(
+      (shortMarker.decoration! as BoxDecoration).color,
+      Theme.of(tester.element(find.text('−1'))).colorScheme.errorContainer,
     );
     expect(
       find.descendant(
