@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:er_schedule/staff/staff_list_page.dart';
+import 'package:er_schedule/staff/staff_contacts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
@@ -70,7 +71,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(gateway.added?.displayName, 'Taylor Nurse');
-    expect(gateway.added?.cellNumber, '5558675309');
+    expect(gateway.added?.cellNumber, '+15558675309');
     expect(gateway.added?.sectionId, 'days');
     expect(composer.openedToken, 'new-token');
     expect(find.text('Taylor Nurse'), findsOneWidget);
@@ -257,7 +258,132 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.text('Alex Nurse'), findsWidgets);
-    expect(gateway._list.members.single.cellNumber, '5553334444');
+    expect(gateway._list.members.single.cellNumber, '+15553334444');
+  });
+
+  testWidgets(
+    'a phone contact fills add fields and saves a normalized number',
+    (tester) async {
+      final gateway = _FakeStaffGateway(
+        const StaffList(sections: [days], members: []),
+      );
+      final contacts = _FakePhoneContacts(canPick: true);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StaffListPage(
+            gateway: gateway,
+            rules: rules,
+            inviteComposer: _FakeInviteComposer(),
+            phoneContacts: contacts,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add Staff member'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Choose from contacts'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add and text Invite'));
+      await tester.pumpAndSettle();
+      expect(gateway.added?.displayName, 'Taylor Nurse');
+      expect(gateway.added?.cellNumber, '+15558675309');
+    },
+  );
+
+  testWidgets('without a picker, editing uses manual entry and saves vCard', (
+    tester,
+  ) async {
+    final contacts = _FakePhoneContacts(canPick: false);
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: [alex]),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+          phoneContacts: contacts,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alex Tech'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add to contacts'));
+    expect(contacts.saved, ('Alex Tech', '5551112222'));
+    await tester.tap(find.text('Edit name and cell number'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose from contacts'), findsNothing);
+    expect(
+      find.text('Enter a name and cell number from your contacts below.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a phone contact replaces name and number when editing', (
+    tester,
+  ) async {
+    final contacts = _FakePhoneContacts(canPick: true);
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: [alex]),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+          phoneContacts: contacts,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alex Tech'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit name and cell number'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose from contacts'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(gateway._list.members.single.displayName, 'Taylor Nurse');
+    expect(gateway._list.members.single.cellNumber, '+15558675309');
+  });
+
+  testWidgets('Manager chooses a number when the phone contact has several', (
+    tester,
+  ) async {
+    final contacts = _FakePhoneContacts(canPick: true)
+      ..numbers = ['5551112222', '(555) 867-5309'];
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: []),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+          phoneContacts: contacts,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add Staff member'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose from contacts'));
+    await tester.pumpAndSettle();
+    expect(find.text('Which cell number?'), findsOneWidget);
+    await tester.tap(find.text('(555) 867-5309'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add and text Invite'));
+    await tester.pumpAndSettle();
+    expect(gateway.added?.cellNumber, '+15558675309');
   });
 
   testWidgets('Manager reactivates past staff and texts a fresh Invite', (
@@ -580,4 +706,20 @@ final class _FakeInviteComposer implements InviteComposer {
   Future<void> open(StaffInvite invite) async {
     openedToken = invite.token;
   }
+}
+
+final class _FakePhoneContacts implements PhoneContacts {
+  _FakePhoneContacts({required this.canPick});
+
+  @override
+  final bool canPick;
+  (String, String)? saved;
+  List<String> numbers = ['(555) 867-5309'];
+
+  @override
+  Future<PickedContact?> pick() async =>
+      PickedContact(name: 'Taylor Nurse', numbers: numbers);
+
+  @override
+  void save(String name, String cellNumber) => saved = (name, cellNumber);
 }

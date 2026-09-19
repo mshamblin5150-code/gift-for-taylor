@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'contact_picker.dart';
 import 'invite_composer.dart';
 import 'staff_dialogs.dart';
 import 'staff_gateway.dart';
+import 'staff_contacts.dart';
 
 class StaffDetailsPage extends StatefulWidget {
   const StaffDetailsPage({
@@ -13,12 +15,14 @@ class StaffDetailsPage extends StatefulWidget {
     required this.gateway,
     required this.rules,
     required this.inviteComposer,
+    this.phoneContacts = const BrowserPhoneContacts(),
   });
 
   final String staffMemberId;
   final StaffGateway gateway;
   final ScheduleRules rules;
   final InviteComposer inviteComposer;
+  final PhoneContacts phoneContacts;
 
   @override
   State<StaffDetailsPage> createState() => _StaffDetailsPageState();
@@ -54,15 +58,19 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _editContact() async {
     final details = _details!;
     final update = await showDialog<(String, String?)>(
       context: context,
-      builder: (context) => _EditContactDialog(details: details),
+      builder: (context) => _EditContactDialog(
+        details: details,
+        phoneContacts: widget.phoneContacts,
+      ),
     );
     if (update == null) return;
     try {
@@ -70,6 +78,15 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
       await _load();
     } catch (_) {
       if (mounted) _showError('Could not save name and cell number.');
+    }
+  }
+
+  void _saveToContacts() {
+    final details = _details!;
+    try {
+      widget.phoneContacts.save(details.displayName, details.cellNumber!);
+    } catch (_) {
+      _showError('Could not save this contact to your phone.');
     }
   }
 
@@ -168,7 +185,10 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
               label: 'Job role',
               value: person.jobRole?.label ?? 'Not set',
             ),
-            _Detail(label: 'Access role', value: person.role.replaceAll('_', ' ')),
+            _Detail(
+              label: 'Access role',
+              value: person.role.replaceAll('_', ' '),
+            ),
             _Detail(
               label: 'Last day',
               value: person.lastDay == null
@@ -180,6 +200,11 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
               value: person.personalEmail ?? 'Not signed up yet',
             ),
             const SizedBox(height: 16),
+            if (person.cellNumber?.trim().isNotEmpty ?? false)
+              OutlinedButton(
+                onPressed: _saveToContacts,
+                child: const Text('Add to contacts'),
+              ),
             FilledButton(
               onPressed: _editContact,
               child: const Text('Edit name and cell number'),
@@ -217,8 +242,12 @@ class _Detail extends StatelessWidget {
 }
 
 class _EditContactDialog extends StatefulWidget {
-  const _EditContactDialog({required this.details});
+  const _EditContactDialog({
+    required this.details,
+    required this.phoneContacts,
+  });
   final StaffMemberDetails details;
+  final PhoneContacts phoneContacts;
 
   @override
   State<_EditContactDialog> createState() => _EditContactDialogState();
@@ -227,6 +256,38 @@ class _EditContactDialog extends StatefulWidget {
 class _EditContactDialogState extends State<_EditContactDialog> {
   late final _name = TextEditingController(text: widget.details.displayName);
   late final _cell = TextEditingController(text: widget.details.cellNumber);
+  String? _cellError;
+
+  Future<void> _pickContact() async {
+    try {
+      final contact = await chooseContactNumber(context, widget.phoneContacts);
+      if (contact == null || !mounted) return;
+      _name.text = contact.$1.trim();
+      _cell.text = contact.$2.trim();
+      setState(() => _cellError = null);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _cellError =
+              'Could not choose a contact. Enter the number below.',
+        );
+      }
+    }
+  }
+
+  void _submit() {
+    final name = _name.text.trim();
+    if (name.isEmpty) return;
+    final rawCell = _cell.text.trim();
+    String? cell;
+    try {
+      cell = rawCell.isEmpty ? null : normalizeCellNumber(rawCell);
+    } on FormatException {
+      setState(() => _cellError = 'Enter a cell number with its area code.');
+      return;
+    }
+    Navigator.pop(context, (name, cell));
+  }
 
   @override
   void dispose() {
@@ -238,34 +299,40 @@ class _EditContactDialogState extends State<_EditContactDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Edit Staff member'),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: _name,
-          decoration: const InputDecoration(labelText: 'Name'),
-        ),
-        TextField(
-          controller: _cell,
-          keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(labelText: 'Cell number'),
-        ),
-      ],
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.phoneContacts.canPick)
+            OutlinedButton(
+              onPressed: _pickContact,
+              child: const Text('Choose from contacts'),
+            )
+          else
+            const Text(
+              'Enter a name and cell number from your contacts below.',
+            ),
+          TextField(
+            controller: _name,
+            decoration: const InputDecoration(labelText: 'Name'),
+          ),
+          TextField(
+            controller: _cell,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(
+              labelText: 'Cell number',
+              errorText: _cellError,
+            ),
+          ),
+        ],
+      ),
     ),
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
         child: const Text('Cancel'),
       ),
-      FilledButton(
-        onPressed: _name.text.trim().isEmpty
-            ? null
-            : () => Navigator.pop(context, (
-                _name.text.trim(),
-                _cell.text.trim().isEmpty ? null : _cell.text.trim(),
-              )),
-        child: const Text('Save'),
-      ),
+      FilledButton(onPressed: _submit, child: const Text('Save')),
     ],
   );
 }

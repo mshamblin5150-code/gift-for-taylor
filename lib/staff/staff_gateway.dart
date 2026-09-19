@@ -1,6 +1,8 @@
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'staff_contacts.dart';
+
 final class StaffSection {
   const StaffSection({required this.id, required this.name});
 
@@ -268,7 +270,9 @@ final class SupabaseStaffGateway implements StaffGateway {
     params: {
       'p_staff_member_id': staffMemberId,
       'p_display_name': displayName,
-      'p_cell_number': cellNumber ?? '',
+      'p_cell_number': cellNumber == null
+          ? ''
+          : normalizeCellNumber(cellNumber),
     },
   );
 
@@ -298,7 +302,7 @@ final class SupabaseStaffGateway implements StaffGateway {
       'create_staff_member_with_invite',
       params: {
         'p_display_name': draft.displayName,
-        'p_cell_number': draft.cellNumber,
+        'p_cell_number': normalizeCellNumber(draft.cellNumber),
         'p_section_id': draft.sectionId,
       },
     );
