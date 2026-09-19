@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(28);
 
 insert into auth.users (id, email)
 values
@@ -308,11 +308,30 @@ select throws_ok(
   'Only the Manager can edit the Schedule',
   'a Staff member cannot write a cell through the save function'
 );
-select ok(
-  not has_table_privilege('authenticated', 'public.schedule_cells', 'INSERT')
-    and not has_table_privilege('authenticated', 'public.schedule_cells', 'UPDATE')
-    and not has_table_privilege('authenticated', 'public.schedule_cells', 'DELETE'),
-  'Staff members have no direct cell write privileges'
+select throws_ok(
+  $$insert into public.schedule_cells (
+      schedule_month_id, staff_member_id, section_id, work_date, shift_code
+    ) values (
+      '00000000-0000-0000-0000-000000000000',
+      '00000000-0000-0000-0000-000000000323',
+      '00000000-0000-0000-0000-000000000311', '2027-03-03', '7A'
+    )$$,
+  '42501', null,
+  'a Staff member cannot insert a cell directly'
+);
+select throws_ok(
+  $$update public.schedule_cells set shift_code = 'X'
+    where staff_member_id = '00000000-0000-0000-0000-000000000323'
+      and work_date = '2027-03-02'$$,
+  '42501', null,
+  'a Staff member cannot update a cell directly'
+);
+select throws_ok(
+  $$delete from public.schedule_cells
+    where staff_member_id = '00000000-0000-0000-0000-000000000323'
+      and work_date = '2027-03-02'$$,
+  '42501', null,
+  'a Staff member cannot delete a cell directly'
 );
 
 select set_config(
