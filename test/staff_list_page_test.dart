@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:er_schedule/staff/staff_list_page.dart';
 import 'package:flutter/material.dart';
@@ -260,6 +262,131 @@ void main() {
     expect(gateway.resentStaffMemberId, 'staff-1');
     expect(composer.openedToken, 'fresh-token');
   });
+
+  testWidgets('Manager moves whole Sections, adds and renames one', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days, nights], members: []),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Move PRN nightshift RN up'));
+    await tester.pumpAndSettle();
+    expect(gateway.orderedSections, ['nights', 'days']);
+
+    await tester.tap(find.byTooltip('Add Section'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Section name'),
+      'CNA',
+    );
+    await tester.tap(find.text('Save Section'));
+    await tester.pumpAndSettle();
+    expect(find.text('CNA'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Rename CNA'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Section name'),
+      'Unit clerks',
+    );
+    await tester.tap(find.text('Save Section'));
+    await tester.pumpAndSettle();
+    expect(find.text('Unit clerks'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Delete Unit clerks'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete Section'));
+    await tester.pumpAndSettle();
+    expect(gateway.deletedSection, 'new-section');
+  });
+
+  testWidgets('Section controls are hidden from a non-Manager', (tester) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: [alex]),
+    )..manager = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Add Section'), findsNothing);
+    expect(find.byTooltip('Rename State dayshift RN'), findsNothing);
+    expect(find.byTooltip('Delete State dayshift RN'), findsNothing);
+  });
+
+  testWidgets('a Section with Staff members has no delete action', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: [alex]),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final button = tester.widget<IconButton>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is IconButton &&
+            widget.tooltip == 'Delete State dayshift RN',
+      ),
+    );
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('Section arrows wait for the previous reorder to save', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days, nights], members: []),
+    )..orderGate = Completer<void>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Move PRN nightshift RN up'));
+    await tester.pump();
+    final moveDown = tester.widget<IconButton>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is IconButton &&
+            widget.tooltip == 'Move PRN nightshift RN down',
+      ),
+    );
+    expect(moveDown.onPressed, isNull);
+    gateway.orderGate!.complete();
+    await tester.pumpAndSettle();
+    expect(gateway.orderedSections, ['nights', 'days']);
+  });
 }
 
 final class _FakeStaffGateway implements StaffGateway {
@@ -272,6 +399,10 @@ final class _FakeStaffGateway implements StaffGateway {
   StaffMemberDraft? added;
   String? resentStaffMemberId;
   int loads = 0;
+  bool manager = true;
+  List<String>? orderedSections;
+  Completer<void>? orderGate;
+  String? deletedSection;
 
   @override
   Future<StaffList> loadStaffList() async {
@@ -308,6 +439,46 @@ final class _FakeStaffGateway implements StaffGateway {
 
   @override
   Future<bool> canManageStaff() async => true;
+
+  @override
+  Future<bool> canManageSections() async => manager;
+
+  @override
+  Future<void> addSection(String name) async {
+    _list = _list.withSections([
+      ..._list.sections,
+      StaffSection(id: 'new-section', name: name),
+    ]);
+  }
+
+  @override
+  Future<void> renameSection(String sectionId, String name) async {
+    _list = _list.withSections([
+      for (final section in _list.sections)
+        section.id == sectionId
+            ? StaffSection(id: sectionId, name: name)
+            : section,
+    ]);
+  }
+
+  @override
+  Future<void> deleteEmptySection(String sectionId) async {
+    deletedSection = sectionId;
+    _list = _list.withSections([
+      for (final section in _list.sections)
+        if (section.id != sectionId) section,
+    ]);
+  }
+
+  @override
+  Future<void> reorderSections(List<String> sectionIds) async {
+    await orderGate?.future;
+    orderedSections = sectionIds;
+    _list = _list.withSections([
+      for (final id in sectionIds)
+        _list.sections.singleWhere((section) => section.id == id),
+    ]);
+  }
 
   @override
   Future<void> reorderSection(String sectionId, List<String> memberIds) async {}

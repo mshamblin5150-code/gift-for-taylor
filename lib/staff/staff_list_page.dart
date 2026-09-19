@@ -29,6 +29,8 @@ class StaffListPage extends StatefulWidget {
 class _StaffListPageState extends State<StaffListPage> {
   StaffList? _staffList;
   Object? _loadError;
+  bool _canManageSections = false;
+  bool _savingSectionOrder = false;
 
   @override
   void initState() {
@@ -38,10 +40,14 @@ class _StaffListPageState extends State<StaffListPage> {
 
   Future<void> _load() async {
     try {
-      final staffList = await widget.gateway.loadStaffList();
+      final (staffList, canManageSections) = await (
+        widget.gateway.loadStaffList(),
+        widget.gateway.canManageSections(),
+      ).wait;
       if (mounted) {
         setState(() {
           _staffList = staffList;
+          _canManageSections = canManageSections;
           _loadError = null;
         });
       }
@@ -55,9 +61,7 @@ class _StaffListPageState extends State<StaffListPage> {
     if (staffList == null || staffList.sections.isEmpty) return;
     final draft = await showDialog<StaffMemberDraft>(
       context: context,
-      builder: (context) => _AddStaffMemberDialog(
-        sections: staffList.sections,
-      ),
+      builder: (context) => _AddStaffMemberDialog(sections: staffList.sections),
     );
     if (draft == null) return;
 
@@ -66,7 +70,9 @@ class _StaffListPageState extends State<StaffListPage> {
       await widget.inviteComposer.open(invite);
       await _load();
     } catch (error) {
-      if (mounted) _showError('Could not add the Staff member or open Messages.');
+      if (mounted) {
+        _showError('Could not add the Staff member or open Messages.');
+      }
     }
   }
 
@@ -176,8 +182,91 @@ class _StaffListPageState extends State<StaffListPage> {
     }
   }
 
+  Future<void> _moveSection(int index, int offset) async {
+    if (_savingSectionOrder) return;
+    final current = _staffList!;
+    final ordered = [...current.sections];
+    final moved = ordered.removeAt(index);
+    ordered.insert(index + offset, moved);
+    setState(() {
+      _staffList = current.withSections(ordered);
+      _savingSectionOrder = true;
+    });
+    try {
+      await widget.gateway.reorderSections([
+        for (final section in ordered) section.id,
+      ]);
+    } catch (_) {
+      await _load();
+      if (mounted) _showError('Could not save the new Section order.');
+    } finally {
+      if (mounted) setState(() => _savingSectionOrder = false);
+    }
+  }
+
+  Future<String?> _sectionName({String? initialName}) => showDialog<String>(
+    context: context,
+    builder: (context) => _SectionNameDialog(initialName: initialName),
+  );
+
+  Future<void> _addSection() async {
+    final name = await _sectionName();
+    if (name == null) return;
+    try {
+      await widget.gateway.addSection(name);
+      await _load();
+    } catch (_) {
+      if (mounted) _showError('Could not add the Section. Check its name.');
+    }
+  }
+
+  Future<void> _renameSection(StaffSection section) async {
+    final name = await _sectionName(initialName: section.name);
+    if (name == null || name == section.name) return;
+    try {
+      await widget.gateway.renameSection(section.id, name);
+      await _load();
+    } catch (_) {
+      if (mounted) _showError('Could not rename the Section. Check its name.');
+    }
+  }
+
+  Future<void> _deleteSection(StaffSection section) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete ${section.name}?'),
+        content: const Text(
+          'Only a Section with no Staff members or Schedule history can be deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete Section'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await widget.gateway.deleteEmptySection(section.id);
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        _showError(
+          'This Section has Staff members or Schedule history and cannot be deleted.',
+        );
+      }
+    }
+  }
+
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -193,6 +282,12 @@ class _StaffListPageState extends State<StaffListPage> {
               onPressed: _openPastStaff,
               icon: const Icon(Icons.history),
             ),
+          if (staffList != null && _canManageSections)
+            IconButton(
+              tooltip: 'Add Section',
+              onPressed: _addSection,
+              icon: const Icon(Icons.create_new_folder_outlined),
+            ),
         ],
       ),
       floatingActionButton: staffList == null
@@ -203,29 +298,37 @@ class _StaffListPageState extends State<StaffListPage> {
               label: const Text('Add Staff member'),
             ),
       body: switch ((staffList, _loadError)) {
-        (_, Object()) => const Center(child: Text('Could not load the Staff list.')),
+        (_, Object()) => const Center(
+          child: Text('Could not load the Staff list.'),
+        ),
         (null, _) => const Center(child: CircularProgressIndicator()),
         (final StaffList list, _) => ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
           children: [
-            for (final section in list.sections) _buildSection(list, section),
+            for (final (index, section) in list.sections.indexed)
+              _buildSection(list, section, index),
           ],
         ),
       },
     );
   }
 
-  Widget _buildSection(StaffList list, StaffSection section) {
+  Widget _buildSection(StaffList list, StaffSection section, int index) {
     final members = list.membersInSection(section.id);
     return _SectionStaffList(
       section: section,
       members: members,
-      onReorder: (oldIndex, newIndex) => _reorder(
-        section,
-        members,
-        oldIndex,
-        newIndex,
-      ),
+      canManageSection: _canManageSections,
+      onMoveUp: index == 0 || _savingSectionOrder
+          ? null
+          : () => _moveSection(index, -1),
+      onMoveDown: index == list.sections.length - 1 || _savingSectionOrder
+          ? null
+          : () => _moveSection(index, 1),
+      onRename: () => _renameSection(section),
+      onDelete: members.isEmpty ? () => _deleteSection(section) : null,
+      onReorder: (oldIndex, newIndex) =>
+          _reorder(section, members, oldIndex, newIndex),
       onResendInvite: _resendInvite,
       onChangeSectionOrRole: _changeSectionOrRole,
       onSetLastDay: _setLastDay,
@@ -237,6 +340,11 @@ class _SectionStaffList extends StatelessWidget {
   const _SectionStaffList({
     required this.section,
     required this.members,
+    required this.canManageSection,
+    required this.onMoveUp,
+    required this.onMoveDown,
+    required this.onRename,
+    required this.onDelete,
     required this.onReorder,
     required this.onResendInvite,
     required this.onChangeSectionOrRole,
@@ -245,6 +353,11 @@ class _SectionStaffList extends StatelessWidget {
 
   final StaffSection section;
   final List<StaffListMember> members;
+  final bool canManageSection;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
+  final VoidCallback onRename;
+  final VoidCallback? onDelete;
   final void Function(int oldIndex, int newIndex) onReorder;
   final ValueChanged<StaffListMember> onResendInvite;
   final ValueChanged<StaffListMember> onChangeSectionOrRole;
@@ -259,7 +372,38 @@ class _SectionStaffList extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(section.name, style: Theme.of(context).textTheme.titleMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    section.name,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (canManageSection) ...[
+                  IconButton(
+                    tooltip: 'Move ${section.name} up',
+                    onPressed: onMoveUp,
+                    icon: const Icon(Icons.arrow_upward),
+                  ),
+                  IconButton(
+                    tooltip: 'Move ${section.name} down',
+                    onPressed: onMoveDown,
+                    icon: const Icon(Icons.arrow_downward),
+                  ),
+                  IconButton(
+                    tooltip: 'Rename ${section.name}',
+                    onPressed: onRename,
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete ${section.name}',
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
+              ],
+            ),
             if (members.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
@@ -335,6 +479,49 @@ class _SectionStaffList extends StatelessWidget {
 }
 
 enum _MemberAction { sectionOrRole, lastDay }
+
+class _SectionNameDialog extends StatefulWidget {
+  const _SectionNameDialog({this.initialName});
+
+  final String? initialName;
+
+  @override
+  State<_SectionNameDialog> createState() => _SectionNameDialogState();
+}
+
+class _SectionNameDialogState extends State<_SectionNameDialog> {
+  late final _name = TextEditingController(text: widget.initialName);
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.initialName == null ? 'Add Section' : 'Rename Section'),
+    content: TextField(
+      controller: _name,
+      autofocus: true,
+      textCapitalization: TextCapitalization.words,
+      decoration: const InputDecoration(labelText: 'Section name'),
+      onSubmitted: (_) => _submit(),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Save Section')),
+    ],
+  );
+
+  void _submit() {
+    final name = _name.text.trim();
+    if (name.isNotEmpty) Navigator.pop(context, name);
+  }
+}
 
 class _AddStaffMemberDialog extends StatefulWidget {
   const _AddStaffMemberDialog({required this.sections});

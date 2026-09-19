@@ -41,7 +41,7 @@ class MonthGridPage extends StatefulWidget {
   final String? swapStaffMemberId;
   final VoidCallback? onSignOut;
   final VoidCallback? onCalendarFeed;
-  final VoidCallback? onManageStaff;
+  final Future<void> Function()? onManageStaff;
   final MessagesComposer? messagesComposer;
   final SwapRules? swapRules;
   final OpenShiftRules? openShiftRules;
@@ -524,7 +524,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
           if (widget.onManageStaff != null)
             IconButton(
               tooltip: 'Manage Staff list',
-              onPressed: widget.onManageStaff,
+              onPressed: () async {
+                await widget.onManageStaff?.call();
+                if (mounted) await _load();
+              },
               icon: const Icon(Icons.people_outline),
             ),
           if (widget.onSignOut != null)
