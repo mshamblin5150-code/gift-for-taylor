@@ -7,6 +7,7 @@ type Notice = {
   title: string;
   body: string;
   month_start: string | null;
+  push_eligible?: boolean;
 };
 
 Deno.serve(async (request) => {
@@ -33,11 +34,14 @@ Deno.serve(async (request) => {
   // Re-read the notice rather than trusting fields supplied in the webhook.
   const { data: notice, error: noticeError } = await client
     .from("staff_notices")
-    .select("id, staff_member_id, title, body, month_start")
+    .select("*")
     .eq("id", event.record?.id)
     .single<Notice>();
   if (noticeError || !notice) {
     return new Response("Notice not found", { status: 404 });
+  }
+  if (notice.push_eligible === false) {
+    return Response.json({ sent: 0, failures: 0 });
   }
 
   const { data: subscriptions, error } = await client

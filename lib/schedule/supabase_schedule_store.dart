@@ -91,8 +91,9 @@ final class SupabaseScheduleStore implements ScheduleStore {
   @override
   Future<int> unreadRequestOffNotices() async {
     final rows = await _client
-        .from('in_app_notices')
+        .from('staff_notices')
         .select('id')
+        .inFilter('kind', ['request_submitted', 'request_decided'])
         .filter('read_at', 'is', null);
     return rows.length;
   }

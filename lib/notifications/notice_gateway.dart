@@ -26,7 +26,6 @@ abstract interface class NoticeGateway {
   Future<PushState> pushState();
   Future<void> allowPush();
   Future<void> disablePush();
-  Future<void> sendTestPush();
   Future<List<StaffNotice>> notices();
   Future<void> markRead(String id);
 }
@@ -71,11 +70,6 @@ final class SupabaseNoticeGateway implements NoticeGateway {
         params: {'p_endpoint': endpoint},
       );
     }
-  }
-
-  @override
-  Future<void> sendTestPush() async {
-    await _client.rpc('send_test_push');
   }
 
   @override

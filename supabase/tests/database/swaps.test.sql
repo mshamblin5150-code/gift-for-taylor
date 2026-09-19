@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(20);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000281', 'swap-manager@example.test'),
@@ -37,6 +37,8 @@ select lives_ok($$select public.propose_swap(
   'Staff member proposes a Swap');
 select is((select count(*)::int from public.swaps), 1,
   'requester sees the proposed Swap');
+select is((select count(*)::int from public.staff_notices where kind = 'swap_proposed' and staff_member_id = '00000000-0000-0000-0000-000000000286'), 0,
+  'requester does not receive their own proposal');
 select throws_ok($$select public.approve_swap((select id from public.swaps limit 1))$$,
   'Only the Manager can approve a Swap');
 
@@ -44,15 +46,25 @@ select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000283","role":"authenticated"}', true);
 select is((select count(*)::int from public.swaps), 1,
   'colleague sees the proposed Swap');
+select is((select count(*)::int from public.staff_notices where kind = 'swap_proposed'), 1,
+  'colleague receives the proposal');
 select lives_ok($$select public.answer_swap((select id from public.swaps limit 1), true, null)$$,
   'colleague accepts');
 select is((select status::text from public.swaps limit 1), 'accepted',
   'accepted Swap awaits Manager approval');
+reset role;
+select is((select count(*)::int from public.staff_notices where kind = 'swap_accepted'), 2,
+  'requester and Manager receive acceptance');
+set local role authenticated;
 
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
 select lives_ok($$select public.approve_swap((select id from public.swaps limit 1))$$,
   'Manager approves the Swap');
+reset role;
+select is((select count(*)::int from public.staff_notices where kind = 'swap_approved'), 2,
+  'both Staff members receive approval');
+set local role authenticated;
 select is((select shift_code from public.schedule_cells where staff_member_id =
   '00000000-0000-0000-0000-000000000286' and work_date = '2027-06-03'),
   'X', 'requester leaves original date');
@@ -82,6 +94,8 @@ select lives_ok($$select public.answer_swap(
   'colleague declines with a reason');
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select is((select count(*)::int from public.staff_notices where kind = 'swap_declined'), 1,
+  'requester receives the declined Swap');
 select is((select reason from public.swaps where status = 'declined'),
   'Cannot cover', 'requester sees the decline reason');
 

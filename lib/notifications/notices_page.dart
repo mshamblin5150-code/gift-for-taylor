@@ -65,7 +65,7 @@ class _NoticesPageState extends State<NoticesPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Allow notifications to hear about Month releases and changes to your shifts.',
+                  'Allow notifications to hear about Schedule changes, Requests off, Swaps, and Open shifts.',
                 ),
                 if (_pushState == PushState.unsupported)
                   const Text(
@@ -86,15 +86,6 @@ class _NoticesPageState extends State<NoticesPage> {
                     child: const Text('Allow notifications'),
                   ),
                 if (_pushState == PushState.enabled) ...[
-                  FilledButton.tonal(
-                    onPressed: _busy
-                        ? null
-                        : () => _act(
-                            widget.gateway.sendTestPush,
-                            'Test push sent.',
-                          ),
-                    child: const Text('Send test push'),
-                  ),
                   TextButton(
                     onPressed: _busy
                         ? null
