@@ -43,7 +43,9 @@ paste them into an issue.
 
 1. Transcribe the page into `private/first-month.csv`: a header row
    `Section,Name,Cell,1,2,…` through the last day of the month, then one row per
-   person in page order. Section names must match the `sections` table exactly.
+   person in page order. Section names must match the `sections` table exactly,
+   and anyone already on the Staff list must be spelled exactly as they are
+   there, or the load adds them a second time.
    `Cell` is the number their Invite is texted to. Staff enter their own email
    when they accept, so no email is needed. Leave a blank cell blank and write
    every Shift code as printed.

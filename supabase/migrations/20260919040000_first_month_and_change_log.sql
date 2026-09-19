@@ -155,7 +155,8 @@ revoke all on function public.save_schedule_cell(uuid, date, text) from public;
 grant execute on function public.save_schedule_cell(uuid, date, text) to authenticated;
 
 -- Confirming the month loaded from the printed page is the moment it replaces
--- her Excel file, so it also releases that month.
+-- her Excel file, so it also releases that month. Corrections made while she
+-- checked it were never seen by staff, so they need no Change announcement.
 create function public.confirm_loaded_month(p_month_start date)
 returns void
 language plpgsql
@@ -184,6 +185,13 @@ begin
   if not found then
     raise exception 'There is no loaded month waiting to be confirmed';
   end if;
+
+  update public.schedule_changes change
+  set announced_at = now()
+  from public.schedule_months month
+  where month.id = change.schedule_month_id
+    and month.month_start = p_month_start
+    and change.announced_at is null;
 end;
 $$;
 
@@ -290,6 +298,15 @@ begin
       where id = v_staff_member_id
         and cell_number is null;
     else
+      if exists (
+        select 1
+        from public.staff_members member
+        where member.display_name = v_name
+          and not member.active
+      ) then
+        raise exception 'Row % names a deactivated Staff member', v_row_number;
+      end if;
+
       insert into public.staff_members (display_name, cell_number)
       values (v_name, v_cell_number)
       returning id into v_staff_member_id;

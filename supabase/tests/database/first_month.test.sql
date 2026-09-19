@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(23);
 
 insert into auth.users (id, email)
 values
@@ -19,6 +19,9 @@ values
   ('00000000-0000-0000-0000-000000000221', 'Test Manager', 'manager'),
   ('00000000-0000-0000-0000-000000000222', 'Test Administrator', 'administrator'),
   ('00000000-0000-0000-0000-000000000223', 'Listed Nurse', 'staff_member');
+
+insert into public.staff_members (display_name, active)
+values ('Former Nurse', false);
 
 insert into public.staff_accounts (
   staff_member_id,
@@ -86,6 +89,15 @@ select throws_ok(
     ))$$,
   'Row 1 has an unknown Section',
   'a row in an unknown Section is refused'
+);
+
+select throws_ok(
+  $$select public.load_first_month('2027-02-01', jsonb_build_array(
+      jsonb_build_object('section', 'First month days', 'name', 'Former Nurse',
+        'codes', pg_temp.codes('7A'))
+    ))$$,
+  'Row 1 names a deactivated Staff member',
+  'a deactivated Staff member is not silently duplicated'
 );
 
 select is(
@@ -275,6 +287,12 @@ select results_eq(
       '00000000-0000-0000-0000-000000000221'::uuid
     )$$,
   'confirming the month records who confirmed it and releases it'
+);
+
+select is(
+  (select count(*)::integer from public.schedule_changes where announced_at is null),
+  0,
+  'corrections made while checking the month need no Change announcement'
 );
 
 select throws_ok(

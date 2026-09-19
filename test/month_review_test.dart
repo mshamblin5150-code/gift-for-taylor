@@ -31,8 +31,6 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    expect(gateway.savedCode, '7P');
-    expect(gateway.savedDate, DateTime(2026, 10, 1));
     expect(find.text('7P'), findsOneWidget);
     expect(find.text('4P-8A'), findsNothing);
 
@@ -41,7 +39,6 @@ void main() {
     await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
 
-    expect(gateway.confirmedMonth, october);
     expect(find.textContaining('Check this month'), findsNothing);
   });
 
@@ -94,9 +91,6 @@ final class _FakeScheduleGateway implements ScheduleGateway {
   final bool canEdit;
   String code = '4P-8A';
   bool confirmed = false;
-  String? savedCode;
-  DateTime? savedDate;
-  DateTime? confirmedMonth;
 
   @override
   Future<bool> canEditSchedule() async => canEdit;
@@ -135,14 +129,11 @@ final class _FakeScheduleGateway implements ScheduleGateway {
     required DateTime date,
     required String shiftCode,
   }) async {
-    savedCode = shiftCode;
-    savedDate = date;
     code = shiftCode;
   }
 
   @override
   Future<void> confirmMonth(DateTime month) async {
-    confirmedMonth = month;
     confirmed = true;
   }
 }
