@@ -90,6 +90,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   Future<List<OpenShift>> openShifts() async {
     final visible = <OpenShift>[];
     for (final short in database._shortShifts) {
+      if (!isWorkingShift(short.shiftCode, codes: database._shiftCodes)) {
+        continue;
+      }
       final role = _originalRole(short.staffMemberId, short.date);
       if (role == null ||
           await database

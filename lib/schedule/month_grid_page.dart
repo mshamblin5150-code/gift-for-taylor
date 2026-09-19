@@ -15,6 +15,7 @@ import 'night_scheduler_page.dart';
 import 'swaps_page.dart';
 import 'open_shifts_page.dart';
 import 'requests_off_page.dart';
+import 'shift_codes_page.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -61,6 +62,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   int _pendingSwaps = 0;
   Timer? _requestNoticeTimer;
   MonthGrid? _grid;
+  List<LegendCode> _shiftCodes = const [];
   ChangeAnnouncement? _announcement;
 
   /// The Manager: may confirm the month and manage the Night scheduler.
@@ -127,12 +129,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
         widget.rules.canEditSchedule(),
         widget.rules.editableSections(),
       ).wait;
-      final (grid, announcement) = await _read(month, editable);
+      final (grid, announcement, codes) = await _read(month, editable);
       if (!mounted || month != _month) return;
       setState(() {
         _canEdit = canEdit;
         _editable = editable;
         _grid = grid;
+        _shiftCodes = codes;
         _announcement = announcement;
         _loadError = null;
       });
@@ -175,10 +178,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _reload() async {
     try {
       final month = _month;
-      final (grid, announcement) = await _read(month, _editable);
+      final (grid, announcement, codes) = await _read(month, _editable);
       if (!mounted || month != _month) return;
       setState(() {
         _grid = grid;
+        _shiftCodes = codes;
         _announcement = announcement;
       });
     } catch (_) {
@@ -186,18 +190,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
     }
   }
 
-  /// The grid, and the unannounced tray for someone who can edit.
-  Future<(MonthGrid, ChangeAnnouncement?)> _read(
+  Future<(MonthGrid, ChangeAnnouncement?, List<LegendCode>)> _read(
     DateTime month,
     EditableSections editable,
-  ) {
-    return (
-      widget.rules.monthGrid(month),
-      editable.isEmpty
-          ? Future<ChangeAnnouncement?>.value()
-          : widget.rules.changeAnnouncement(month),
-    ).wait;
-  }
+  ) => (
+    widget.rules.monthGrid(month),
+    editable.isEmpty
+        ? Future<ChangeAnnouncement?>.value()
+        : widget.rules.changeAnnouncement(month),
+    widget.rules.shiftCodes(),
+  ).wait;
 
   Future<void> _announce(ChangeAnnouncement announcement) async {
     final marked = await showAnnounceSheet(
@@ -241,6 +243,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       publishedCode: grid.isUnannounced(row.staffMemberId, date)
           ? grid.publishedCodeFor(row.staffMemberId, date)
           : null,
+      codes: _shiftCodes,
     );
     if (edit == null) return;
     try {
@@ -275,7 +278,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _print(ValueChanged<String> printBookPage) async {
     try {
       final grid = await widget.rules.monthGrid(_month);
-      printBookPage(bookPageHtml(grid));
+      printBookPage(bookPageHtml(grid, codes: await widget.rules.shiftCodes()));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -499,6 +502,18 @@ class _MonthGridPageState extends State<MonthGridPage> {
             ),
           ),
           if (_canEdit) ...[
+            IconButton(
+              tooltip: 'Manage Shift codes',
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => ShiftCodesPage(rules: widget.rules),
+                  ),
+                );
+                if (mounted) await _load();
+              },
+              icon: const Icon(Icons.schedule_outlined),
+            ),
             IconButton(
               tooltip: 'Change log',
               onPressed: () => _open(

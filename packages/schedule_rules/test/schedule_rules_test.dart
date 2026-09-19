@@ -237,6 +237,9 @@ void main() {
       'R/O',
       'H',
       'S/L',
+      '4P',
+      '9-7',
+      '7-5',
     ]);
     expect(shiftLegend.firstWhere((code) => code.code == 'ME').hours, '7P–3A');
     expect(shiftLegend.firstWhere((code) => code.code == 'X').hours, isNull);

@@ -11,7 +11,10 @@ const _maxRowHeightPt = 16.0;
 /// subject to change," the title with the month, Section bands, staff rows,
 /// weekday letters, shaded weekends and the legend, fitted to one landscape
 /// page. It carries no screen chrome.
-String bookPageHtml(MonthGrid grid) {
+String bookPageHtml(
+  MonthGrid grid, {
+  Iterable<LegendCode> codes = shiftLegend,
+}) {
   final days = grid.days;
   final title = '${_monthNames[grid.month.month - 1]} ${grid.month.year}';
   final lines = grid.sections.length + grid.rows.length + 2;
@@ -73,7 +76,7 @@ String bookPageHtml(MonthGrid grid) {
     ..writeln('</tbody>')
     ..writeln('</table>')
     ..write('<p class="legend">');
-  for (final entry in shiftLegend) {
+  for (final entry in codes) {
     final detail = entry.hours ?? entry.meaning;
     html.write(
       '<span><strong>${_escape(entry.code)}</strong>'

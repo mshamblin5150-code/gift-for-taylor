@@ -10,6 +10,47 @@ final class SupabaseScheduleStore implements ScheduleStore {
   final SupabaseClient _client;
 
   @override
+  Future<List<LegendCode>> shiftCodes() async {
+    final rows = await _client
+        .from('shift_codes')
+        .select('code, meaning, start_time, end_time, is_working')
+        .order('display_order')
+        .order('code');
+    return [
+      for (final row in rows)
+        LegendCode(
+          row['code'] as String,
+          meaning: row['meaning'] as String?,
+          startTime: (row['start_time'] as String?)?.substring(0, 5),
+          endTime: (row['end_time'] as String?)?.substring(0, 5),
+          hours: shiftCodeHours(
+            row['start_time'] as String?,
+            row['end_time'] as String?,
+          ),
+          isWorking: row['is_working'] as bool,
+        ),
+    ];
+  }
+
+  @override
+  Future<void> saveShiftCode(LegendCode code, {String? originalCode}) =>
+      _client.rpc<void>(
+        'save_shift_code',
+        params: {
+          'p_code': code.code,
+          'p_original_code': originalCode,
+          'p_meaning': code.meaning,
+          'p_start_time': code.startTime,
+          'p_end_time': code.endTime,
+          'p_is_working': code.isWorking,
+        },
+      );
+
+  @override
+  Future<void> deleteShiftCode(String code) =>
+      _client.rpc<void>('delete_shift_code', params: {'p_code': code});
+
+  @override
   Future<RequestOffEmail> createRequestOff(RequestOffDraft draft) async {
     final result = await _client.rpc<Map<String, dynamic>>(
       'submit_request_off',
