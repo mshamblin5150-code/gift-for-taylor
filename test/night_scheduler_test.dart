@@ -35,6 +35,7 @@ void main() {
       rows: const [dayNurse, nightNurse, chargeNurse],
       editors: const {'manager'},
       names: const {'manager': 'The Manager'},
+      releasedMonths: {september},
       clock: () => now,
     );
     manager = ScheduleRules.inMemory(database, actingAs: 'manager');

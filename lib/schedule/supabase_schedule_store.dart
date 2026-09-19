@@ -223,6 +223,47 @@ final class SupabaseScheduleStore implements ScheduleStore {
     );
   }
 
+  @override
+  Future<MonthStatus> monthStatus(DateTime month) async {
+    final row = await _client
+        .from('schedule_months')
+        .select('release_state')
+        .eq('month_start', _date(_monthStart(month)))
+        .maybeSingle();
+    return switch (row?['release_state']) {
+      'released' => MonthStatus.released,
+      'unpublished' => MonthStatus.unpublished,
+      _ => MonthStatus.notStarted,
+    };
+  }
+
+  @override
+  Future<void> startMonth(DateTime month, List<ScheduleCell> cells) async {
+    await _client.rpc<void>(
+      'start_month',
+      params: {
+        'p_month_start': _date(_monthStart(month)),
+        'p_cells': [
+          for (final cell in cells)
+            {
+              'staff_member_id': cell.staffMemberId,
+              'section_id': cell.sectionId,
+              'work_date': _date(cell.date),
+              'shift_code': cell.shiftCode,
+            },
+        ],
+      },
+    );
+  }
+
+  @override
+  Future<void> releaseMonth(DateTime month) async {
+    await _client.rpc<void>(
+      'release_month',
+      params: {'p_month_start': _date(_monthStart(month))},
+    );
+  }
+
   /// A full month has more cells than the API returns in one response.
   Future<List<Map<String, dynamic>>> _allPages(
     Future<List<Map<String, dynamic>>> Function(int from, int to) page,

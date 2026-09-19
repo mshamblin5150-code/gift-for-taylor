@@ -69,6 +69,15 @@ abstract interface class ScheduleRules {
   /// file and is released. Corrections made while checking it need no Change
   /// announcement.
   Future<void> confirmLoadedMonth(DateTime month);
+
+  /// Starts the month after [month] from it, unpublished. Each day copies the
+  /// same weekday of the same week, a fifth week repeats the fourth, and
+  /// R/O, H, S/L and A/L are cleared. [month] must have been started itself.
+  Future<void> startNextMonth(DateTime month);
+
+  /// Makes an unpublished month the live Schedule. Edits made while building
+  /// it were never seen by staff, so they need no Change announcement.
+  Future<void> releaseMonth(DateTime month);
 }
 
 /// The database behind the rules. The in-memory stand-in and the Supabase
@@ -107,6 +116,32 @@ abstract interface class ScheduleStore {
   Future<List<DateTime>> monthsAwaitingConfirmation();
 
   Future<void> confirmLoadedMonth(DateTime month);
+
+  Future<MonthStatus> monthStatus(DateTime month);
+
+  /// Creates [month] unpublished holding [cells], without logging changes.
+  Future<void> startMonth(DateTime month, List<ScheduleCell> cells);
+
+  Future<void> releaseMonth(DateTime month);
+}
+
+enum MonthStatus {
+  /// Nothing has been written to the month yet.
+  notStarted,
+
+  /// Being built: schedulers see it, staff do not.
+  unpublished,
+
+  /// The live Schedule.
+  released,
+}
+
+/// Thrown when starting a month that already holds a Schedule.
+final class MonthAlreadyStarted implements Exception {
+  const MonthAlreadyStarted();
+
+  @override
+  String toString() => 'That month has already been started';
 }
 
 /// Thrown when the signed-in person may not change the Schedule.
@@ -282,6 +317,7 @@ final class MonthGrid {
     required this.sections,
     required this.rows,
     required this.awaitingConfirmation,
+    required this.status,
   });
 
   final DateTime month;
@@ -290,6 +326,7 @@ final class MonthGrid {
 
   /// Loaded from the printed page and not yet checked by the Manager.
   final bool awaitingConfirmation;
+  final MonthStatus status;
   final Map<String, String> _codes;
 
   /// Published values of cells whose current code differs from them.
@@ -392,6 +429,7 @@ final class _ScheduleRules implements ScheduleRules {
       _store.cellsForMonth(start),
       _store.changesForMonth(start),
       _store.monthsAwaitingConfirmation(),
+      _store.monthStatus(start),
     ]);
     final cells = results[2] as List<ScheduleCell>;
     final changes = results[3] as List<ScheduleChange>;
@@ -416,6 +454,7 @@ final class _ScheduleRules implements ScheduleRules {
       sections: results[0] as List<ScheduleSection>,
       rows: results[1] as List<ScheduleRow>,
       awaitingConfirmation: (results[4] as List<DateTime>).contains(start),
+      status: results[5] as MonthStatus,
     );
   }
 
@@ -482,6 +521,70 @@ final class _ScheduleRules implements ScheduleRules {
   Future<void> confirmLoadedMonth(DateTime month) {
     return _store.confirmLoadedMonth(DateTime(month.year, month.month));
   }
+
+  @override
+  Future<void> startNextMonth(DateTime month) async {
+    final current = DateTime(month.year, month.month);
+    final next = DateTime(month.year, month.month + 1);
+    if (!await _store.canEditSchedule()) throw const ScheduleEditRefused();
+    if (await _store.monthStatus(next) != MonthStatus.notStarted) {
+      throw const MonthAlreadyStarted();
+    }
+    if (await _store.monthStatus(current) == MonthStatus.notStarted) {
+      throw StateError('There is no Schedule to start from');
+    }
+    final (rows, currentCells) = await (
+      _store.rows(next),
+      _store.cellsForMonth(current),
+    ).wait;
+    final currentCodes = {
+      for (final cell in currentCells)
+        _cellKey(cell.staffMemberId, cell.date): cell.shiftCode,
+    };
+    final lastDay = DateTime(next.year, next.month + 1, 0).day;
+    final cells = <ScheduleCell>[];
+    for (final row in rows) {
+      for (var day = 1; day <= lastDay; day++) {
+        final date = DateTime(next.year, next.month, day);
+        final code =
+            currentCodes[_cellKey(
+              row.staffMemberId,
+              _sameWeekdayLastMonth(date),
+            )] ??
+            '';
+        if (code.isEmpty || _clearedOnStart.contains(code.toUpperCase())) {
+          continue;
+        }
+        cells.add(
+          ScheduleCell(
+            staffMemberId: row.staffMemberId,
+            sectionId: row.sectionId,
+            date: date,
+            shiftCode: code,
+          ),
+        );
+      }
+    }
+    await _store.startMonth(next, cells);
+  }
+
+  @override
+  Future<void> releaseMonth(DateTime month) {
+    return _store.releaseMonth(DateTime(month.year, month.month));
+  }
+}
+
+/// Codes that belong to one month only and are not carried into the next.
+const _clearedOnStart = {'R/O', 'H', 'S/L', 'A/L'};
+
+/// The day of the previous month on the same weekday of the same week as
+/// [date]: four weeks earlier, or five in a fifth week so that it repeats the
+/// fourth.
+DateTime _sameWeekdayLastMonth(DateTime date) {
+  final fourWeeksEarlier = DateTime(date.year, date.month, date.day - 28);
+  return fourWeeksEarlier.month != date.month
+      ? fourWeeksEarlier
+      : DateTime(date.year, date.month, date.day - 35);
 }
 
 /// An in-memory stand-in for the database, shared by every scheduler in a
@@ -492,8 +595,13 @@ final class InMemoryScheduleDatabase {
     List<ScheduleRow> rows = const [],
     this.editors,
     Map<String, String> names = const {},
+    Set<DateTime> releasedMonths = const {},
     DateTime Function()? clock,
-  }) : _sections = List.unmodifiable(sections),
+  }) : _monthStatus = {
+         for (final month in releasedMonths)
+           DateTime(month.year, month.month): MonthStatus.released,
+       },
+       _sections = List.unmodifiable(sections),
        _rows = List.unmodifiable(rows),
        _names = {
          for (final row in rows) row.staffMemberId: row.displayName,
@@ -516,6 +624,7 @@ final class InMemoryScheduleDatabase {
   final List<ScheduleChange> _changes = [];
   final StreamController<DateTime> _updates = StreamController.broadcast();
   final List<DateTime> _awaitingConfirmation = [];
+  final Map<DateTime, MonthStatus> _monthStatus;
 
   /// Loads [month] as transcribed from the printed page, without logging a
   /// change, to wait for the Manager's check.
@@ -523,7 +632,9 @@ final class InMemoryScheduleDatabase {
     for (final cell in cells) {
       _cells[_cellKey(cell.staffMemberId, cell.date)] = cell;
     }
-    _awaitingConfirmation.add(DateTime(month.year, month.month));
+    final start = DateTime(month.year, month.month);
+    _awaitingConfirmation.add(start);
+    _monthStatus[start] = MonthStatus.unpublished;
   }
 
   /// Marks every logged change announced.
@@ -576,6 +687,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ScheduleCell>> cellsForMonth(DateTime month) async {
+    if (!await _canSee(month)) return const [];
     return _database._cells.values
         .where((cell) => _inMonth(cell.date, month))
         .toList(growable: false);
@@ -606,6 +718,10 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     }
     final key = _cellKey(cell.staffMemberId, cell.date);
     final old = _database._cells[key]?.shiftCode ?? '';
+    _database._monthStatus.putIfAbsent(
+      DateTime(cell.date.year, cell.date.month),
+      () => MonthStatus.unpublished,
+    );
     _database._cells[key] = cell;
     _database._changes.add(
       ScheduleChange(
@@ -672,7 +788,45 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     if (!_database._awaitingConfirmation.remove(month)) {
       throw StateError('There is no loaded month waiting to be confirmed');
     }
+    _database._monthStatus[month] = MonthStatus.released;
     _database._markAnnounced((change) => _inMonth(change.date, month));
+  }
+
+  @override
+  Future<MonthStatus> monthStatus(DateTime month) async {
+    return await _canSee(month)
+        ? _database._monthStatus[month] ?? MonthStatus.notStarted
+        : MonthStatus.notStarted;
+  }
+
+  /// Only schedulers see a month before it is released.
+  Future<bool> _canSee(DateTime month) async =>
+      _database._monthStatus[month] != MonthStatus.unpublished ||
+      await canEditSchedule();
+
+  @override
+  Future<void> startMonth(DateTime month, List<ScheduleCell> cells) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (_database._monthStatus.containsKey(month)) {
+      throw const MonthAlreadyStarted();
+    }
+    _database._monthStatus[month] = MonthStatus.unpublished;
+    for (final cell in cells) {
+      _database._cells[_cellKey(cell.staffMemberId, cell.date)] = cell;
+    }
+    _database._updates.add(month);
+  }
+
+  @override
+  Future<void> releaseMonth(DateTime month) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (_database._monthStatus[month] != MonthStatus.unpublished ||
+        _database._awaitingConfirmation.contains(month)) {
+      throw StateError('There is no unpublished month to release');
+    }
+    _database._monthStatus[month] = MonthStatus.released;
+    _database._markAnnounced((change) => _inMonth(change.date, month));
+    _database._updates.add(month);
   }
 }
 
