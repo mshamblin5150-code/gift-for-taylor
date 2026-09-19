@@ -53,13 +53,18 @@ insert into public.schedule_changes (
   '00000000-0000-0000-0000-000000000721',
   '00000000-0000-0000-0000-000000000711',
   '2028-03-12', '7A', 'X', '00000000-0000-0000-0000-000000000721'
+), (
+  '00000000-0000-0000-0000-000000000731',
+  '00000000-0000-0000-0000-000000000721',
+  '00000000-0000-0000-0000-000000000711',
+  '2028-03-13', '7A', 'X', '00000000-0000-0000-0000-000000000721'
 );
 select is((select count(*)::integer from public.staff_notices where kind = 'schedule_change'), 0,
   'a saved change waits for the scheduler to send the text');
 update public.schedule_changes set announced_at = now()
-where work_date = '2028-03-12';
+where work_date in ('2028-03-12', '2028-03-13');
 select is((select count(*)::integer from public.staff_notices where kind = 'schedule_change'), 1,
-  'announcing a released shift change creates one notice');
+  'announcing several released shifts creates one notice per affected person');
 select is((select staff_member_id::text from public.staff_notices where kind = 'schedule_change'),
   '00000000-0000-0000-0000-000000000721', 'the changed Staff member is the recipient');
 

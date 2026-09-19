@@ -133,23 +133,25 @@ for each row execute function public.set_change_push_eligibility();
 
 create function public.notice_schedule_change()
 returns trigger language plpgsql security definer set search_path = '' as $$
-declare v_month_start date;
 begin
-  select month.month_start into v_month_start from public.schedule_months month
-  where month.id = new.schedule_month_id and month.release_state = 'released';
-  if old.announced_at is null and new.announced_at is not null
-    and new.push_eligible and v_month_start is not null and exists (
-    select 1 from public.staff_members member
-    where member.id = new.staff_member_id and member.active
-  ) then
-    insert into public.staff_notices (staff_member_id, kind, title, body, month_start)
-    values (new.staff_member_id, 'schedule_change', 'Your Schedule changed',
-      'A shift on ' || to_char(new.work_date, 'FMMonth FMDD') || ' changed. Open the Schedule for details.',
-      v_month_start);
-  end if;
-  return new;
+  -- One text may cover several changed days for a person. An UPDATE statement
+  -- is one announcement batch, so send one notice to that person for the batch.
+  insert into public.staff_notices (staff_member_id, kind, title, body, month_start)
+  select distinct changed.staff_member_id, 'schedule_change',
+    'Your Schedule changed',
+    'One or more shifts changed. Open the Schedule for details.',
+    month.month_start
+  from new_rows changed
+  join old_rows previous on previous.id = changed.id
+  join public.schedule_months month on month.id = changed.schedule_month_id
+  join public.staff_members member on member.id = changed.staff_member_id
+  where previous.announced_at is null and changed.announced_at is not null
+    and changed.push_eligible and month.release_state = 'released'
+    and member.active;
+  return null;
 end;
 $$;
 
-create trigger notice_schedule_change after update of announced_at on public.schedule_changes
-for each row execute function public.notice_schedule_change();
+create trigger notice_schedule_change after update on public.schedule_changes
+referencing old table as old_rows new table as new_rows
+for each statement execute function public.notice_schedule_change();
