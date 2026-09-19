@@ -5,6 +5,8 @@ import 'dart:async';
 export 'src/book_page.dart';
 export 'src/first_month_transcript.dart';
 
+part 'src/change_announcement.dart';
+
 /// Every schedule rule is reached through this public interface.
 abstract interface class ScheduleRules {
   /// Rules backed by [store], the database seen by one signed-in person.
@@ -71,6 +73,16 @@ abstract interface class ScheduleRules {
   /// announcement.
   Future<void> confirmLoadedMonth(DateTime month);
 
+  /// The unannounced changes in [month] within the signed-in person's
+  /// [editableSections]: who to tell, and what to say. Empty until the month
+  /// is released, since releasing it announces the whole month.
+  Future<ChangeAnnouncement> changeAnnouncement(DateTime month);
+
+  /// The texts in [announcement] were sent: its changes are announced, which
+  /// clears the tray and the highlights. Changes saved since it was read stay
+  /// unannounced.
+  Future<void> markAnnounced(ChangeAnnouncement announcement);
+
   /// Starts the month after [month] from it, unpublished. Each day copies the
   /// same weekday of the same week, a fifth week repeats the fourth, and
   /// R/O, H, S/L and A/L are cleared. [month] must have been started itself.
@@ -118,6 +130,10 @@ abstract interface class ScheduleStore {
   Future<List<DateTime>> monthsAwaitingConfirmation();
 
   Future<void> confirmLoadedMonth(DateTime month);
+
+  /// Marks the change log entries with [changeIds] announced. Refused for
+  /// someone with no editable Sections; entries outside them are left alone.
+  Future<void> markChangesAnnounced(Set<String> changeIds);
 
   Future<MonthStatus> monthStatus(DateTime month);
 
@@ -220,11 +236,15 @@ final class ScheduleRow {
     required this.staffMemberId,
     required this.displayName,
     required this.sectionId,
+    this.cellNumber,
   });
 
   final String staffMemberId;
   final String displayName;
   final String sectionId;
+
+  /// Where their Change announcements are texted; null if not on file.
+  final String? cellNumber;
 }
 
 final class ScheduleCell {
@@ -244,6 +264,7 @@ final class ScheduleCell {
 /// One change log entry.
 final class ScheduleChange {
   const ScheduleChange({
+    required this.id,
     required this.staffMemberId,
     required this.date,
     required this.oldShiftCode,
@@ -254,6 +275,7 @@ final class ScheduleChange {
     required this.announced,
   });
 
+  final String id;
   final String staffMemberId;
   final DateTime date;
   final String oldShiftCode;
@@ -424,6 +446,12 @@ final class _ScheduleRules implements ScheduleRules {
 
   @override
   Future<MonthGrid> monthGrid(DateTime month) async {
+    return (await _monthWithChanges(month)).$1;
+  }
+
+  Future<(MonthGrid, List<ScheduleChange>)> _monthWithChanges(
+    DateTime month,
+  ) async {
     final start = DateTime(month.year, month.month);
     final results = await Future.wait([
       _store.sections(),
@@ -449,7 +477,7 @@ final class _ScheduleRules implements ScheduleRules {
     }
     published.removeWhere((key, value) => (codes[key] ?? '') == value);
 
-    return MonthGrid._(
+    final grid = MonthGrid._(
       codes,
       published,
       month: start,
@@ -458,6 +486,7 @@ final class _ScheduleRules implements ScheduleRules {
       awaitingConfirmation: (results[4] as List<DateTime>).contains(start),
       status: results[5] as MonthStatus,
     );
+    return (grid, changes);
   }
 
   @override
@@ -522,6 +551,32 @@ final class _ScheduleRules implements ScheduleRules {
   @override
   Future<void> confirmLoadedMonth(DateTime month) {
     return _store.confirmLoadedMonth(DateTime(month.year, month.month));
+  }
+
+  @override
+  Future<ChangeAnnouncement> changeAnnouncement(DateTime month) async {
+    final ((grid, changes), editable) = await (
+      _monthWithChanges(month),
+      _store.editableSections(),
+    ).wait;
+    if (grid.status != MonthStatus.released) {
+      return ChangeAnnouncement._(
+        const {},
+        month: grid.month,
+        people: const [],
+      );
+    }
+    return ChangeAnnouncement._from(
+      grid,
+      changes.where((change) => !change.announced),
+      editable,
+    );
+  }
+
+  @override
+  Future<void> markAnnounced(ChangeAnnouncement announcement) async {
+    if (announcement._changeIds.isEmpty) return;
+    await _store.markChangesAnnounced(announcement._changeIds);
   }
 
   @override
@@ -660,6 +715,7 @@ final class InMemoryScheduleDatabase {
       staffMemberId: row.staffMemberId,
       displayName: row.displayName,
       sectionId: moves.last.sectionId,
+      cellNumber: row.cellNumber,
     );
   }
 
@@ -681,6 +737,7 @@ final class InMemoryScheduleDatabase {
     for (final (index, change) in _changes.indexed) {
       if (!where(change)) continue;
       _changes[index] = ScheduleChange(
+        id: change.id,
         staffMemberId: change.staffMemberId,
         date: change.date,
         oldShiftCode: change.oldShiftCode,
@@ -765,6 +822,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     _database._cells[key] = cell;
     _database._changes.add(
       ScheduleChange(
+        id: 'change-${_database._changes.length + 1}',
         staffMemberId: cell.staffMemberId,
         date: cell.date,
         oldShiftCode: old,
@@ -830,6 +888,33 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     }
     _database._monthStatus[month] = MonthStatus.released;
     _database._markAnnounced((change) => _inMonth(change.date, month));
+  }
+
+  @override
+  Future<void> markChangesAnnounced(Set<String> changeIds) async {
+    final editable = await editableSections();
+    if (editable.isEmpty) throw const ScheduleEditRefused();
+    final months = {
+      for (final change in _database._changes)
+        if (changeIds.contains(change.id))
+          DateTime(change.date.year, change.date.month),
+    };
+    final sectionOf = {
+      for (final month in months)
+        for (final row in await rows(month))
+          (row.staffMemberId, month): row.sectionId,
+    };
+    _database._markAnnounced(
+      (change) =>
+          changeIds.contains(change.id) &&
+          editable.contains(
+            sectionOf[(
+                  change.staffMemberId,
+                  DateTime(change.date.year, change.date.month),
+                )] ??
+                '',
+          ),
+    );
   }
 
   @override
