@@ -217,6 +217,49 @@ void main() {
     expect(changes.last.newValue, 'LPN');
   });
 
+  testWidgets('Manager opens Staff details and edits contact information', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: [alex]),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Alex Tech'));
+    await tester.pumpAndSettle();
+    expect(find.text('5551112222'), findsOneWidget);
+    expect(find.text('Not signed up yet'), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
+    expect(find.text('Change Section or role'), findsOneWidget);
+    expect(find.text('Set Last day'), findsOneWidget);
+    expect(find.text('Resend Invite'), findsOneWidget);
+
+    await tester.tap(find.text('Edit name and cell number'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Name'),
+      'Alex Nurse',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Cell number'),
+      '5553334444',
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Alex Nurse'), findsWidgets);
+    expect(gateway._list.members.single.cellNumber, '5553334444');
+  });
+
   testWidgets('Manager reactivates past staff and texts a fresh Invite', (
     tester,
   ) async {
@@ -390,6 +433,42 @@ void main() {
 }
 
 final class _FakeStaffGateway implements StaffGateway {
+  @override
+  Future<StaffMemberDetails> loadStaffMemberDetails(String id) async {
+    final member = _list.members.singleWhere((member) => member.id == id);
+    return StaffMemberDetails(
+      id: id,
+      displayName: member.displayName,
+      cellNumber: member.cellNumber,
+      sectionId: member.sectionId,
+      personalEmail: member.personalEmail,
+      jobRole: member.jobRole,
+      role: 'staff_member',
+    );
+  }
+
+  @override
+  Future<void> updateStaffContact(String id, String name, String? cell) async {
+    _list = StaffList(
+      sections: _list.sections,
+      members: [
+        for (final member in _list.members)
+          if (member.id == id)
+            StaffListMember(
+              id: id,
+              displayName: name,
+              cellNumber: cell,
+              sectionId: member.sectionId,
+              displayOrder: member.displayOrder,
+              personalEmail: member.personalEmail,
+              jobRole: member.jobRole,
+            )
+          else
+            member,
+      ],
+    );
+  }
+
   @override
   Future<String?> currentStaffMemberId() async => null;
   _FakeStaffGateway(this._list, {this.pastStaff = const []});

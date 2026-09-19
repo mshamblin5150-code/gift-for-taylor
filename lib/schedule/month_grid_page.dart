@@ -30,6 +30,7 @@ class MonthGridPage extends StatefulWidget {
     this.onSignOut,
     this.onCalendarFeed,
     this.onManageStaff,
+    this.onOpenStaffDetails,
     this.messagesComposer,
     this.swapRules,
     this.openShiftRules,
@@ -45,6 +46,7 @@ class MonthGridPage extends StatefulWidget {
   final VoidCallback? onSignOut;
   final VoidCallback? onCalendarFeed;
   final Future<void> Function()? onManageStaff;
+  final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
   final MessagesComposer? messagesComposer;
   final SwapRules? swapRules;
   final OpenShiftRules? openShiftRules;
@@ -191,6 +193,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
     } catch (_) {
       // The next save or update reloads again.
     }
+  }
+
+  Future<void> _openStaffDetails(String staffMemberId) async {
+    await widget.onOpenStaffDetails?.call(staffMemberId);
+    if (mounted) await _reload();
   }
 
   /// The grid, and the unannounced tray for someone who can edit.
@@ -647,6 +654,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ScheduleView.month => _MonthView(
           grid: grid,
           onEdit: _edit,
+          onOpenStaffDetails: widget.onOpenStaffDetails == null
+              ? null
+              : _openStaffDetails,
           staffMemberId: widget.staffMemberId,
         ),
         ScheduleView.day => _DayView(
@@ -737,11 +747,13 @@ class _MonthView extends StatelessWidget {
   const _MonthView({
     required this.grid,
     required this.onEdit,
+    required this.onOpenStaffDetails,
     required this.staffMemberId,
   });
 
   final MonthGrid grid;
   final _OnEdit onEdit;
+  final Future<void> Function(String)? onOpenStaffDetails;
   final String? staffMemberId;
 
   @override
@@ -762,6 +774,7 @@ class _MonthView extends StatelessWidget {
                   row: row,
                   days: days,
                   onEdit: onEdit,
+                  onOpenStaffDetails: onOpenStaffDetails,
                   staffMemberId: staffMemberId,
                 ),
             ],
@@ -852,6 +865,7 @@ class _StaffRow extends StatelessWidget {
     required this.row,
     required this.days,
     required this.onEdit,
+    required this.onOpenStaffDetails,
     required this.staffMemberId,
   });
 
@@ -859,21 +873,30 @@ class _StaffRow extends StatelessWidget {
   final ScheduleRow row;
   final List<DateTime> days;
   final _OnEdit onEdit;
+  final Future<void> Function(String)? onOpenStaffDetails;
   final String? staffMemberId;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: _nameWidth,
-          height: _cellHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.centerLeft,
-          decoration: BoxDecoration(
-            border: Border.all(color: Theme.of(context).dividerColor),
+        InkWell(
+          onTap: onOpenStaffDetails == null
+              ? null
+              : () => onOpenStaffDetails!(row.staffMemberId),
+          onDoubleTap: onOpenStaffDetails == null
+              ? null
+              : () => onOpenStaffDetails!(row.staffMemberId),
+          child: Container(
+            width: _nameWidth,
+            height: _cellHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            alignment: Alignment.centerLeft,
+            decoration: BoxDecoration(
+              border: Border.all(color: Theme.of(context).dividerColor),
+            ),
+            child: Text(row.displayName, overflow: TextOverflow.ellipsis),
           ),
-          child: Text(row.displayName, overflow: TextOverflow.ellipsis),
         ),
         for (final day in days)
           if (grid.isOnSchedule(row, day))

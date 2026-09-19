@@ -116,11 +116,39 @@ final class StaffInvite {
   final String token;
 }
 
+final class StaffMemberDetails {
+  const StaffMemberDetails({
+    required this.id,
+    required this.displayName,
+    required this.sectionId,
+    required this.role,
+    this.cellNumber,
+    this.personalEmail,
+    this.jobRole,
+    this.lastDay,
+  });
+
+  final String id;
+  final String displayName;
+  final String? cellNumber;
+  final String? sectionId;
+  final String role;
+  final String? personalEmail;
+  final JobRole? jobRole;
+  final DateTime? lastDay;
+}
+
 abstract interface class StaffGateway {
   Future<bool> canManageStaff();
   Future<bool> canManageSections();
   Future<String?> currentStaffMemberId();
   Future<StaffList> loadStaffList();
+  Future<StaffMemberDetails> loadStaffMemberDetails(String staffMemberId);
+  Future<void> updateStaffContact(
+    String staffMemberId,
+    String displayName,
+    String? cellNumber,
+  );
 
   /// Everyone who has left, most recent Last day first.
   Future<List<PastStaffMember>> loadPastStaff();
@@ -202,6 +230,47 @@ final class SupabaseStaffGateway implements StaffGateway {
           .toList(growable: false),
     );
   }
+
+  @override
+  Future<StaffMemberDetails> loadStaffMemberDetails(
+    String staffMemberId,
+  ) async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'staff_member_details',
+      params: {'p_staff_member_id': staffMemberId},
+    );
+    final row = rows.single as Map<String, dynamic>;
+    return StaffMemberDetails(
+      id: row['id'] as String,
+      displayName: row['display_name'] as String,
+      cellNumber: row['cell_number'] as String?,
+      sectionId: row['section_id'] as String?,
+      role: row['role'] as String,
+      personalEmail: row['personal_email'] as String?,
+      jobRole: switch (row['job_role']) {
+        final String value => JobRole.fromValue(value),
+        _ => null,
+      },
+      lastDay: switch (row['last_day']) {
+        final String value => DateTime.parse(value),
+        _ => null,
+      },
+    );
+  }
+
+  @override
+  Future<void> updateStaffContact(
+    String staffMemberId,
+    String displayName,
+    String? cellNumber,
+  ) => _client.rpc<void>(
+    'update_staff_contact',
+    params: {
+      'p_staff_member_id': staffMemberId,
+      'p_display_name': displayName,
+      'p_cell_number': cellNumber ?? '',
+    },
+  );
 
   @override
   Future<List<PastStaffMember>> loadPastStaff() async {
