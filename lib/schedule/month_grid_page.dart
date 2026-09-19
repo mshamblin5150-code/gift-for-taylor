@@ -17,6 +17,7 @@ class MonthGridPage extends StatefulWidget {
     super.key,
     required this.rules,
     required this.month,
+    this.staffMemberId,
     this.onSignOut,
     this.onManageStaff,
     this.messagesComposer,
@@ -25,6 +26,7 @@ class MonthGridPage extends StatefulWidget {
 
   final ScheduleRules rules;
   final DateTime month;
+  final String? staffMemberId;
   final VoidCallback? onSignOut;
   final VoidCallback? onManageStaff;
   final MessagesComposer? messagesComposer;
@@ -46,9 +48,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
   bool _canEdit = false;
   EditableSections _editable = const EditableSections.only({});
   Object? _loadError;
-  ScheduleView _view = ScheduleView.month;
+  late ScheduleView _view = widget.staffMemberId == null
+      ? ScheduleView.month
+      : ScheduleView.person;
   late DateTime _day = _defaultDay();
-  String? _personId;
+  late String? _personId = widget.staffMemberId;
 
   @override
   void initState() {
@@ -469,18 +473,24 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
         ),
       (final MonthGrid grid, _) => switch (_view) {
-        ScheduleView.month => _MonthView(grid: grid, onEdit: _edit),
+        ScheduleView.month => _MonthView(
+          grid: grid,
+          onEdit: _edit,
+          staffMemberId: widget.staffMemberId,
+        ),
         ScheduleView.day => _DayView(
           grid: grid,
           day: _day,
           onDayChanged: (day) => setState(() => _day = day),
           onEdit: _edit,
+          highlightStaffMemberId: widget.staffMemberId,
         ),
         ScheduleView.person => _PersonView(
           grid: grid,
           staffMemberId: _personId ?? grid.rows.firstOrNull?.staffMemberId,
           onPersonChanged: (id) => setState(() => _personId = id),
           onEdit: _edit,
+          highlightStaffMemberId: widget.staffMemberId,
         ),
       },
     };
@@ -526,7 +536,7 @@ class _AnnounceTray extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _unannouncedColor(context),
+      color: _changeColor(context),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: Row(
@@ -553,10 +563,15 @@ class _AnnounceTray extends StatelessWidget {
 typedef _OnEdit = Future<void> Function(ScheduleRow row, DateTime date);
 
 class _MonthView extends StatelessWidget {
-  const _MonthView({required this.grid, required this.onEdit});
+  const _MonthView({
+    required this.grid,
+    required this.onEdit,
+    required this.staffMemberId,
+  });
 
   final MonthGrid grid;
   final _OnEdit onEdit;
+  final String? staffMemberId;
 
   @override
   Widget build(BuildContext context) {
@@ -571,7 +586,13 @@ class _MonthView extends StatelessWidget {
             for (final section in grid.sections) ...[
               _SectionBand(grid: grid, section: section, days: days),
               for (final row in grid.rowsIn(section.id))
-                _StaffRow(grid: grid, row: row, days: days, onEdit: onEdit),
+                _StaffRow(
+                  grid: grid,
+                  row: row,
+                  days: days,
+                  onEdit: onEdit,
+                  staffMemberId: staffMemberId,
+                ),
             ],
           ],
         ),
@@ -660,12 +681,14 @@ class _StaffRow extends StatelessWidget {
     required this.row,
     required this.days,
     required this.onEdit,
+    required this.staffMemberId,
   });
 
   final MonthGrid grid;
   final ScheduleRow row;
   final List<DateTime> days;
   final _OnEdit onEdit;
+  final String? staffMemberId;
 
   @override
   Widget build(BuildContext context) {
@@ -688,6 +711,10 @@ class _StaffRow extends StatelessWidget {
               day: day,
               code: grid.shiftCodeFor(row.staffMemberId, day) ?? '',
               unannounced: grid.isUnannounced(row.staffMemberId, day),
+              changed: _isStaffChange(staffMemberId, grid, row, day),
+              changedKey: ValueKey(
+                'changed-${row.staffMemberId}-${_dateKey(day)}',
+              ),
               unannouncedKey: ValueKey(
                 'unannounced-${row.staffMemberId}-${_dateKey(day)}',
               ),
@@ -747,6 +774,8 @@ class _GridCell extends StatelessWidget {
     required this.code,
     required this.unannounced,
     required this.unannouncedKey,
+    required this.changed,
+    required this.changedKey,
     required this.onTap,
   });
 
@@ -754,6 +783,8 @@ class _GridCell extends StatelessWidget {
   final String code;
   final bool unannounced;
   final Key unannouncedKey;
+  final bool changed;
+  final Key changedKey;
   final VoidCallback onTap;
 
   @override
@@ -762,12 +793,16 @@ class _GridCell extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        key: unannounced ? unannouncedKey : null,
+        key: changed
+            ? changedKey
+            : unannounced
+            ? unannouncedKey
+            : null,
         width: _dayWidth,
         height: _cellHeight,
         alignment: Alignment.center,
-        decoration: unannounced
-            ? decoration.copyWith(color: _unannouncedColor(context))
+        decoration: unannounced || changed
+            ? decoration.copyWith(color: _changeColor(context))
             : decoration,
         child: Text(
           code,
@@ -785,12 +820,14 @@ class _DayView extends StatelessWidget {
     required this.day,
     required this.onDayChanged,
     required this.onEdit,
+    required this.highlightStaffMemberId,
   });
 
   final MonthGrid grid;
   final DateTime day;
   final ValueChanged<DateTime> onDayChanged;
   final _OnEdit onEdit;
+  final String? highlightStaffMemberId;
 
   @override
   Widget build(BuildContext context) {
@@ -859,6 +896,12 @@ class _DayView extends StatelessWidget {
                   _EntryTile(
                     title: entry.row.displayName,
                     entry: entry,
+                    highlight: _isStaffChange(
+                      highlightStaffMemberId,
+                      grid,
+                      entry.row,
+                      entry.date,
+                    ),
                     onTap: () => onEdit(entry.row, entry.date),
                   ),
               ],
@@ -876,12 +919,14 @@ class _PersonView extends StatelessWidget {
     required this.staffMemberId,
     required this.onPersonChanged,
     required this.onEdit,
+    required this.highlightStaffMemberId,
   });
 
   final MonthGrid grid;
   final String? staffMemberId;
   final ValueChanged<String> onPersonChanged;
   final _OnEdit onEdit;
+  final String? highlightStaffMemberId;
 
   @override
   Widget build(BuildContext context) {
@@ -917,6 +962,12 @@ class _PersonView extends StatelessWidget {
                 _EntryTile(
                   title: DateFormat('EEE d').format(entry.date),
                   entry: entry,
+                  highlight: _isStaffChange(
+                    highlightStaffMemberId,
+                    grid,
+                    entry.row,
+                    entry.date,
+                  ),
                   shaded: _isWeekend(entry.date),
                   onTap: () => onEdit(entry.row, entry.date),
                 ),
@@ -948,6 +999,7 @@ class _EntryTile extends StatelessWidget {
     required this.title,
     required this.entry,
     required this.onTap,
+    this.highlight = false,
     this.shaded = false,
   });
 
@@ -955,18 +1007,24 @@ class _EntryTile extends StatelessWidget {
   final RowDay entry;
   final VoidCallback onTap;
   final bool shaded;
+  final bool highlight;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return ListTile(
+      key: highlight
+          ? ValueKey(
+              'changed-${entry.row.staffMemberId}-${_dateKey(entry.date)}',
+            )
+          : null,
       title: Text(title),
       trailing: Text(
         entry.shiftCode,
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
-      tileColor: entry.unannounced
-          ? _unannouncedColor(context)
+      tileColor: entry.unannounced || highlight
+          ? _changeColor(context)
           : shaded
           ? colors.surfaceContainerHighest
           : null,
@@ -984,7 +1042,16 @@ BoxDecoration _cellDecoration(DateTime day, BuildContext context) {
   );
 }
 
-Color _unannouncedColor(BuildContext context) {
+bool _isStaffChange(
+  String? staffMemberId,
+  MonthGrid grid,
+  ScheduleRow row,
+  DateTime date,
+) =>
+    staffMemberId == row.staffMemberId &&
+    grid.isChanged(row.staffMemberId, date);
+
+Color _changeColor(BuildContext context) {
   return Theme.of(context).colorScheme.tertiaryContainer;
 }
 

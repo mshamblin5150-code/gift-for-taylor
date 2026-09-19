@@ -238,9 +238,16 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
   Future<_ScheduleData> _loadData() async {
     final sections = await widget.scheduleStore.sections();
     final canManageStaff = await widget.staffGateway?.canManageStaff() ?? false;
+    final staffMemberId = await widget.staffGateway?.currentStaffMemberId();
+    final editable = await widget.scheduleStore.editableSections();
     final monthToCheck = await ScheduleRules(widget.scheduleStore)
         .monthAwaitingConfirmation();
-    return _ScheduleData(sections, canManageStaff, monthToCheck);
+    return _ScheduleData(
+      sections,
+      canManageStaff,
+      monthToCheck,
+      !canManageStaff && editable.isEmpty ? staffMemberId : null,
+    );
   }
 
   @override
@@ -285,6 +292,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
         return MonthGridPage(
           rules: ScheduleRules(widget.scheduleStore),
           month: data?.monthToCheck ?? DateTime(now.year, now.month),
+          staffMemberId: data?.staffMemberId,
           onSignOut: widget.authGateway.signOut,
           messagesComposer: widget.messagesComposer,
           printBookPage: widget.printBookPage,
@@ -309,9 +317,15 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
 }
 
 final class _ScheduleData {
-  const _ScheduleData(this.sections, this.canManageStaff, this.monthToCheck);
+  const _ScheduleData(
+    this.sections,
+    this.canManageStaff,
+    this.monthToCheck,
+    this.staffMemberId,
+  );
 
   final List<ScheduleSection> sections;
   final bool canManageStaff;
   final DateTime? monthToCheck;
+  final String? staffMemberId;
 }

@@ -523,6 +523,7 @@ final class MonthGrid {
   MonthGrid._(
     this._codes,
     this._published, {
+    required this.changedCells,
     required this.month,
     required this.sections,
     required this.rows,
@@ -545,6 +546,7 @@ final class MonthGrid {
 
   /// Published values of cells whose current code differs from them.
   final Map<String, String> _published;
+  final Set<String> changedCells;
 
   List<DateTime> get days => List.generate(
     DateTime(month.year, month.month + 1, 0).day,
@@ -582,6 +584,10 @@ final class MonthGrid {
   /// Whether the cell was changed since it was last announced.
   bool isUnannounced(String staffMemberId, DateTime date) =>
       _published.containsKey(_cellKey(staffMemberId, date));
+
+  /// Whether a released Schedule cell has been edited since month release.
+  bool isChanged(String staffMemberId, DateTime date) =>
+      changedCells.contains(_cellKey(staffMemberId, date));
 
   /// The value the cell had when last announced.
   String publishedCodeFor(String staffMemberId, DateTime date) =>
@@ -683,9 +689,21 @@ final class _ScheduleRules implements ScheduleRules {
     }
     published.removeWhere((key, value) => (codes[key] ?? '') == value);
 
+    final releaseCodes = <String, String>{};
+    for (final change in changes) {
+      releaseCodes.putIfAbsent(
+        _cellKey(change.staffMemberId, change.date),
+        () => change.oldShiftCode,
+      );
+    }
+
     final grid = MonthGrid._(
       codes,
       published,
+      changedCells: {
+        for (final entry in releaseCodes.entries)
+          if ((codes[entry.key] ?? '') != entry.value) entry.key,
+      },
       month: start,
       sections: results[0] as List<ScheduleSection>,
       rows: results[1] as List<ScheduleRow>,
@@ -1118,9 +1136,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           ? const ScheduleEditRefused()
           : const ScheduleEditRefused('Only the Manager can edit that Section');
     }
-    final row = (await rows(
-      DateTime(cell.date.year, cell.date.month),
-    )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
+    final row = (await rows(DateTime(cell.date.year, cell.date.month)))
+        .where((row) => row.staffMemberId == cell.staffMemberId)
+        .firstOrNull;
     if (row == null || row.sectionId != cell.sectionId) {
       throw StateError(
         'That Staff member is not on the Staff list in this Section',

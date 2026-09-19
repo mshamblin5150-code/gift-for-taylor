@@ -52,9 +52,7 @@ final class StaffList {
 
   List<StaffListMember> membersInSection(String sectionId) {
     return members.where((member) => member.sectionId == sectionId).toList()
-      ..sort(
-        (left, right) => left.displayOrder.compareTo(right.displayOrder),
-      );
+      ..sort((left, right) => left.displayOrder.compareTo(right.displayOrder));
   }
 
   StaffList withSectionOrder(
@@ -117,6 +115,7 @@ final class StaffInvite {
 
 abstract interface class StaffGateway {
   Future<bool> canManageStaff();
+  Future<String?> currentStaffMemberId();
   Future<StaffList> loadStaffList();
 
   /// Everyone who has left, most recent Last day first.
@@ -135,6 +134,18 @@ final class SupabaseStaffGateway implements StaffGateway {
   @override
   Future<bool> canManageStaff() async {
     return await _client.rpc('can_manage_staff') as bool? ?? false;
+  }
+
+  @override
+  Future<String?> currentStaffMemberId() async {
+    final authUserId = _client.auth.currentUser?.id;
+    if (authUserId == null) return null;
+    final row = await _client
+        .from('staff_accounts')
+        .select('staff_member_id')
+        .eq('auth_user_id', authUserId)
+        .maybeSingle();
+    return row?['staff_member_id'] as String?;
   }
 
   @override
@@ -213,16 +224,10 @@ final class SupabaseStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<void> reorderSection(
-    String sectionId,
-    List<String> memberIds,
-  ) async {
+  Future<void> reorderSection(String sectionId, List<String> memberIds) async {
     await _client.rpc<void>(
       'reorder_staff_section',
-      params: {
-        'p_section_id': sectionId,
-        'p_staff_member_ids': memberIds,
-      },
+      params: {'p_section_id': sectionId, 'p_staff_member_ids': memberIds},
     );
   }
 

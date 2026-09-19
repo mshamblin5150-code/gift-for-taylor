@@ -58,6 +58,35 @@ void main() {
     expect(find.text('Email me a code'), findsOneWidget);
   });
 
+  testWidgets('signed-in Staff member opens their own month first', (
+    tester,
+  ) async {
+    final now = DateTime.now();
+    final database = InMemoryScheduleDatabase(
+      sections: const [ScheduleSection(id: 'days', name: 'State dayshift RN')],
+      rows: const [
+        ScheduleRow(
+          staffMemberId: 'staff-1',
+          displayName: 'Day RN',
+          sectionId: 'days',
+        ),
+      ],
+      releasedMonths: {DateTime(now.year, now.month)},
+      editors: const {'manager'},
+    );
+    await tester.pumpWidget(
+      ScheduleApp(
+        authGateway: _FakeAuthGateway(true),
+        scheduleStore: database.storeFor('staff-1'),
+        staffGateway: _FakeStaffGateway('staff-1'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Day RN'), findsOneWidget);
+    expect(find.byType(DropdownButton<String>), findsOneWidget);
+  });
+
   testWidgets('account without an accepted Invite sees no Schedule data', (
     tester,
   ) async {
@@ -168,6 +197,9 @@ final class _FakeAuthGateway implements AuthGateway {
 }
 
 final class _FakeStaffGateway implements StaffGateway {
+  _FakeStaffGateway([this.staffMemberId]);
+
+  final String? staffMemberId;
   String? acceptedToken;
 
   @override
@@ -182,6 +214,9 @@ final class _FakeStaffGateway implements StaffGateway {
 
   @override
   Future<bool> canManageStaff() async => false;
+
+  @override
+  Future<String?> currentStaffMemberId() async => staffMemberId;
 
   @override
   Future<StaffList> loadStaffList() {
