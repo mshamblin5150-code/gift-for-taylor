@@ -38,7 +38,7 @@ void main() {
     final html = bookPageHtml(await rules.monthGrid(september));
 
     final heading = at(html, 'Schedule subject to change');
-    final title = at(html, 'September 2026</h1>');
+    final title = at(html, 'SEPTEMBER 2026</h1>');
     final firstSection = at(html, 'State dayshift RN');
     final legend = at(html, 'class="legend"');
     expect(heading < title && title < firstSection, isTrue);
@@ -49,6 +49,38 @@ void main() {
     expect(html.substring(legend), contains('7A–7P'));
     expect(html.substring(legend), contains('Sick leave'));
   });
+
+  test('default title matches the paper page for each month', () async {
+    final septemberPage = bookPageHtml(await rules.monthGrid(september));
+    final octoberPage = bookPageHtml(await rules.monthGrid(october));
+    expect(
+      septemberPage,
+      contains(
+        'Welch Community Hospital - Emergency Room Schedule - SEPTEMBER 2026</h1>',
+      ),
+    );
+    expect(
+      octoberPage,
+      contains(
+        'Welch Community Hospital - Emergency Room Schedule - OCTOBER 2026</h1>',
+      ),
+    );
+  });
+
+  test(
+    'approved title and notice choices appear on the printed page',
+    () async {
+      final html = bookPageHtml(
+        await rules.monthGrid(september),
+        wording: const PrintWording(
+          title: PrintTitleStyle.er,
+          notice: PrintNoticeStyle.none,
+        ),
+      );
+      expect(html, contains('<h1>ER Schedule - September 2026</h1>'));
+      expect(html, isNot(contains('Schedule subject to change')));
+    },
+  );
 
   test('Sections band their staff rows in order', () async {
     final html = bookPageHtml(await rules.monthGrid(september));

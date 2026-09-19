@@ -7,13 +7,65 @@ const bookPageBodyHeightPt = 470.0;
 
 const _maxRowHeightPt = 16.0;
 
+/// Approved, unit-wide print wording. Only these choices can be persisted;
+/// arbitrary text could put patient or personal details on the book page.
+enum PrintTooltipStyle {
+  bookPage('Print the book page'),
+  schedule('Print Schedule'),
+  binder('Print for the Schedule book');
+
+  const PrintTooltipStyle(this.label);
+  final String label;
+}
+
+enum PrintTitleStyle {
+  hospital('Welch Community Hospital - Emergency Room Schedule'),
+  emergencyRoom('Emergency Room Schedule'),
+  er('ER Schedule');
+
+  const PrintTitleStyle(this.label);
+  final String label;
+}
+
+enum PrintNoticeStyle {
+  subjectToChange('Schedule subject to change'),
+  checkForChanges('Check for Schedule changes'),
+  none('');
+
+  const PrintNoticeStyle(this.label);
+  final String label;
+}
+
+final class PrintWording {
+  const PrintWording({
+    this.tooltip = PrintTooltipStyle.bookPage,
+    this.title = PrintTitleStyle.hospital,
+    this.notice = PrintNoticeStyle.subjectToChange,
+  });
+
+  final PrintTooltipStyle tooltip;
+  final PrintTitleStyle title;
+  final PrintNoticeStyle notice;
+
+  String titleFor(DateTime month) {
+    final name = _monthNames[month.month - 1];
+    final monthName = title == PrintTitleStyle.hospital
+        ? name.toUpperCase()
+        : name;
+    return '${title.label} - $monthName ${month.year}';
+  }
+}
+
 /// The Schedule book page for [grid] as a standalone HTML document: "Schedule
 /// subject to change," the title with the month, Section bands, staff rows,
 /// weekday letters, shaded weekends and the legend, fitted to one landscape
 /// page. It carries no screen chrome.
-String bookPageHtml(MonthGrid grid) {
+String bookPageHtml(
+  MonthGrid grid, {
+  PrintWording wording = const PrintWording(),
+}) {
   final days = grid.days;
-  final title = '${_monthNames[grid.month.month - 1]} ${grid.month.year}';
+  final title = wording.titleFor(grid.month);
   final lines = grid.sections.length + grid.rows.length + 2;
   final rowHeight = (bookPageBodyHeightPt / lines).clamp(0.0, _maxRowHeightPt);
   final fontSize = (rowHeight * 0.7).clamp(4.0, 9.0);
@@ -24,14 +76,18 @@ String bookPageHtml(MonthGrid grid) {
     ..writeln('<html lang="en">')
     ..writeln('<head>')
     ..writeln('<meta charset="utf-8">')
-    ..writeln('<title>ER Schedule ${_escape(title)}</title>')
+    ..writeln('<title>${_escape(title)}</title>')
     ..writeln('<style>')
     ..writeln(_styles(rowHeight: rowHeight, fontSize: fontSize))
     ..writeln('</style>')
     ..writeln('</head>')
     ..writeln('<body>')
-    ..writeln('<p class="notice">Schedule subject to change</p>')
-    ..writeln('<h1>ER Schedule ${_escape(title)}</h1>')
+    ..writeln(
+      wording.notice == PrintNoticeStyle.none
+          ? ''
+          : '<p class="notice">${_escape(wording.notice.label)}</p>',
+    )
+    ..writeln('<h1>${_escape(title)}</h1>')
     ..writeln('<table>')
     ..writeln('<colgroup><col class="name">')
     ..writeln('${'<col>' * dayCount}</colgroup>')

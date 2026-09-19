@@ -12,6 +12,8 @@ import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
 import 'messages_composer.dart';
 import 'night_scheduler_page.dart';
+import 'print_wording_dialog.dart';
+import 'print_wording_gateway.dart';
 import 'swaps_page.dart';
 import 'open_shifts_page.dart';
 import 'requests_off_page.dart';
@@ -33,6 +35,7 @@ class MonthGridPage extends StatefulWidget {
     this.openShiftRules,
     this.noticeGateway,
     this.printBookPage,
+    this.printWordingGateway,
   });
 
   final ScheduleRules rules;
@@ -49,6 +52,7 @@ class MonthGridPage extends StatefulWidget {
 
   /// Prints a Schedule book page, given as an HTML document.
   final ValueChanged<String>? printBookPage;
+  final PrintWordingGateway? printWordingGateway;
 
   @override
   State<MonthGridPage> createState() => _MonthGridPageState();
@@ -62,6 +66,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Timer? _requestNoticeTimer;
   MonthGrid? _grid;
   ChangeAnnouncement? _announcement;
+  PrintWording? _wording;
 
   /// The Manager: may confirm the month and manage the Night scheduler.
   bool _canEdit = false;
@@ -82,6 +87,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       _swapUpdates = swapRules.updates().listen((_) => _refreshSwaps());
     }
     _load();
+    _loadWording();
     _requestNoticeTimer = Timer.periodic(
       const Duration(seconds: 15),
       (_) => _refreshRequestNotices(),
@@ -102,6 +108,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     });
     _listen();
     _load();
+    _loadWording();
   }
 
   @override
@@ -274,13 +281,45 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _print(ValueChanged<String> printBookPage) async {
     try {
+      final wording =
+          await widget.printWordingGateway?.read() ?? const PrintWording();
+      if (mounted) setState(() => _wording = wording);
       final grid = await widget.rules.monthGrid(_month);
-      printBookPage(bookPageHtml(grid));
+      printBookPage(bookPageHtml(grid, wording: wording));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("The page couldn't be printed. Try again."),
+        ),
+      );
+    }
+  }
+
+  Future<void> _loadWording() async {
+    try {
+      final wording =
+          await widget.printWordingGateway?.read() ?? const PrintWording();
+      if (mounted) setState(() => _wording = wording);
+    } catch (_) {
+      if (mounted) setState(() => _wording = null);
+    }
+  }
+
+  Future<void> _changePrintWording() async {
+    final gateway = widget.printWordingGateway;
+    final current = _wording;
+    if (gateway == null || current == null) return;
+    final next = await showPrintWordingDialog(context, current);
+    if (next == null) return;
+    try {
+      await gateway.save(next);
+      if (mounted) setState(() => _wording = next);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("The print wording wasn't saved. Try again."),
         ),
       );
     }
@@ -517,9 +556,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ],
           if (widget.printBookPage case final printBookPage?)
             IconButton(
-              tooltip: 'Print the book page',
-              onPressed: () => _print(printBookPage),
+              tooltip: _wording?.tooltip.label ?? 'Loading print wording',
+              onPressed: _wording == null ? null : () => _print(printBookPage),
               icon: const Icon(Icons.print_outlined),
+            ),
+          if (_canEdit && widget.printWordingGateway != null)
+            IconButton(
+              tooltip: 'Change print wording',
+              onPressed: _wording == null ? null : _changePrintWording,
+              icon: const Icon(Icons.text_fields_outlined),
             ),
           if (widget.onManageStaff != null)
             IconButton(
