@@ -34,6 +34,7 @@ void main() {
     WidgetTester tester, {
     String actingAs = 'manager',
     DateTime? month,
+    ValueChanged<String>? printBookPage,
   }) async {
     tester.view.physicalSize = const Size(2400, 1600);
     tester.view.devicePixelRatio = 1;
@@ -41,7 +42,11 @@ void main() {
     final rules = ScheduleRules.inMemory(database, actingAs: actingAs);
     await tester.pumpWidget(
       MaterialApp(
-        home: MonthGridPage(rules: rules, month: month ?? september),
+        home: MonthGridPage(
+          rules: rules,
+          month: month ?? september,
+          printBookPage: printBookPage,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -303,6 +308,34 @@ void main() {
       expect(find.text('4P-8A'), findsNothing);
       expect(find.text('Release month'), findsNothing);
     });
+  });
+
+  testWidgets('Print sends the live month as the book page', (tester) async {
+    final printed = <String>[];
+    final rules = await pumpGrid(tester, printBookPage: printed.add);
+    await rules.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-2',
+        sectionId: 'nights',
+        date: september18,
+        shiftCode: '4P-8A',
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Print the book page'));
+    await tester.pumpAndSettle();
+
+    expect(printed, hasLength(1));
+    expect(printed.single, contains('Schedule subject to change'));
+    expect(printed.single, contains('September 2026'));
+    expect(printed.single, contains('>Night RN<'));
+    expect(printed.single, contains('4P-8A'));
+  });
+
+  testWidgets('there is no Print button without a printer', (tester) async {
+    await pumpGrid(tester);
+
+    expect(find.byTooltip('Print the book page'), findsNothing);
   });
 
   group('a month loaded from the printed page', () {

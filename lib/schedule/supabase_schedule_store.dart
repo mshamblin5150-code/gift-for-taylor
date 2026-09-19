@@ -27,25 +27,17 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ScheduleRow>> rows(DateTime month) async {
-    final (sectionList, entries) = await (
-      sections(),
-      _client
-          .from('staff_list_entries')
-          .select('id, display_name, section_id')
-          .order('display_order'),
-    ).wait;
-    final rows = entries
-        .map(
-          (row) => ScheduleRow(
-            staffMemberId: row['id'] as String,
-            displayName: row['display_name'] as String,
-            sectionId: row['section_id'] as String,
-          ),
-        )
-        .toList();
+    final rows = await _client.rpc<List<dynamic>>(
+      'schedule_rows',
+      params: {'p_month_start': _date(_monthStart(month))},
+    );
     return [
-      for (final section in sectionList)
-        ...rows.where((row) => row.sectionId == section.id),
+      for (final row in rows.cast<Map<String, dynamic>>())
+        ScheduleRow(
+          staffMemberId: row['staff_member_id'] as String,
+          displayName: row['display_name'] as String,
+          sectionId: row['section_id'] as String,
+        ),
     ];
   }
 
