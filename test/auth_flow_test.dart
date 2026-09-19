@@ -216,6 +216,24 @@ final class _FakeStaffGateway implements StaffGateway {
   Future<bool> canManageStaff() async => false;
 
   @override
+  Future<bool> canManageSections() async => false;
+
+  @override
+  Future<void> addSection(String name) => throw UnimplementedError();
+
+  @override
+  Future<void> renameSection(String sectionId, String name) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> deleteEmptySection(String sectionId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> reorderSections(List<String> sectionIds) =>
+      throw UnimplementedError();
+
+  @override
   Future<String?> currentStaffMemberId() async => staffMemberId;
 
   @override

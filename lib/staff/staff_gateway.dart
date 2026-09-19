@@ -50,6 +50,9 @@ final class StaffList {
   final List<StaffSection> sections;
   final List<StaffListMember> members;
 
+  StaffList withSections(List<StaffSection> ordered) =>
+      StaffList(sections: ordered, members: members);
+
   List<StaffListMember> membersInSection(String sectionId) {
     return members.where((member) => member.sectionId == sectionId).toList()
       ..sort((left, right) => left.displayOrder.compareTo(right.displayOrder));
@@ -115,6 +118,7 @@ final class StaffInvite {
 
 abstract interface class StaffGateway {
   Future<bool> canManageStaff();
+  Future<bool> canManageSections();
   Future<String?> currentStaffMemberId();
   Future<StaffList> loadStaffList();
 
@@ -122,6 +126,10 @@ abstract interface class StaffGateway {
   Future<List<PastStaffMember>> loadPastStaff();
   Future<StaffInvite> addStaffMember(StaffMemberDraft draft);
   Future<void> reorderSection(String sectionId, List<String> memberIds);
+  Future<void> reorderSections(List<String> sectionIds);
+  Future<void> addSection(String name);
+  Future<void> renameSection(String sectionId, String name);
+  Future<void> deleteEmptySection(String sectionId);
   Future<StaffInvite> resendInvite(String staffMemberId);
   Future<void> acceptInvite(String token);
 }
@@ -134,6 +142,11 @@ final class SupabaseStaffGateway implements StaffGateway {
   @override
   Future<bool> canManageStaff() async {
     return await _client.rpc('can_manage_staff') as bool? ?? false;
+  }
+
+  @override
+  Future<bool> canManageSections() async {
+    return await _client.rpc('can_manage_sections') as bool? ?? false;
   }
 
   @override
@@ -230,6 +243,30 @@ final class SupabaseStaffGateway implements StaffGateway {
       params: {'p_section_id': sectionId, 'p_staff_member_ids': memberIds},
     );
   }
+
+  @override
+  Future<void> reorderSections(List<String> sectionIds) => _client.rpc<void>(
+    'reorder_sections',
+    params: {'p_section_ids': sectionIds},
+  );
+
+  @override
+  Future<void> addSection(String name) async {
+    await _client.rpc<String>('add_section', params: {'p_name': name});
+  }
+
+  @override
+  Future<void> renameSection(String sectionId, String name) =>
+      _client.rpc<void>(
+        'rename_section',
+        params: {'p_section_id': sectionId, 'p_name': name},
+      );
+
+  @override
+  Future<void> deleteEmptySection(String sectionId) => _client.rpc<void>(
+    'delete_empty_section',
+    params: {'p_section_id': sectionId},
+  );
 
   @override
   Future<StaffInvite> resendInvite(String staffMemberId) async {

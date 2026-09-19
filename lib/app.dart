@@ -374,7 +374,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
               data?.canManageStaff == true &&
                   widget.staffGateway != null &&
                   widget.inviteComposer != null
-              ? () => Navigator.of(context).push(
+              ? () async => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (context) => StaffListPage(
                       gateway: widget.staffGateway!,
