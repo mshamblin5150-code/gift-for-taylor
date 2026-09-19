@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 final class _NoticeGateway implements NoticeGateway {
   PushState state = PushState.available;
-  int testsSent = 0;
 
   @override
   Future<PushState> pushState() async => state;
@@ -15,9 +14,6 @@ final class _NoticeGateway implements NoticeGateway {
 
   @override
   Future<void> disablePush() async => state = PushState.available;
-
-  @override
-  Future<void> sendTestPush() async => testsSent++;
 
   @override
   Future<List<StaffNotice>> notices() async => [
@@ -35,7 +31,7 @@ final class _NoticeGateway implements NoticeGateway {
 }
 
 void main() {
-  testWidgets('Staff allow notifications and send a test push', (tester) async {
+  testWidgets('Staff allow and turn off notifications', (tester) async {
     final gateway = _NoticeGateway();
     await tester.pumpWidget(MaterialApp(home: NoticesPage(gateway: gateway)));
     await tester.pumpAndSettle();
@@ -43,11 +39,10 @@ void main() {
     expect(find.text('Schedule released'), findsOneWidget);
     await tester.tap(find.text('Allow notifications'));
     await tester.pumpAndSettle();
-    expect(find.text('Send test push'), findsOneWidget);
-
-    await tester.tap(find.text('Send test push'));
+    expect(find.text('Turn off on this device'), findsOneWidget);
+    expect(find.text('Send test push'), findsNothing);
+    await tester.tap(find.text('Turn off on this device'));
     await tester.pumpAndSettle();
-    expect(gateway.testsSent, 1);
-    expect(find.text('Test push sent.'), findsOneWidget);
+    expect(gateway.state, PushState.available);
   });
 }

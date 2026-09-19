@@ -37,6 +37,8 @@ Set the Edge Function secrets `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
 `supabase secrets set`, then deploy with `supabase functions deploy send-push`.
 Use the same public key in the web build and Edge Function. Do not use a
 localhost URL for `VAPID_SUBJECT`; Safari rejects it.
+Deploy the updated Edge Function before applying new database migrations so
+historical Request off notices move into the shared feed without new pushes.
 
 In Supabase Dashboard, create a Database Webhook for **INSERT** on
 `public.staff_notices`, targeting the `send-push` Edge Function. Add the HTTP
@@ -48,9 +50,10 @@ role key in Supabase's Edge Function environment, never in the web build.
 Deploy the app over HTTPS with `push.js` and `push-service-worker.js` at the
 same base path as the Flutter app. On iPhone iOS 16.4 or later, add it to the
 Home Screen, open it from there, sign in, tap **Notices → Allow notifications**,
-then **Send test push**. Confirm the device receives the push and the app shows
-the test notice. Turning notifications off or signing out unsubscribes that
-device. A Month release creates a notice for each active Staff member; a
+then wait for a Schedule event or Request off, Swap, or Open shift notice. Confirm
+the device receives the push and the app shows the same notice. Turning
+notifications off or signing out unsubscribes that device. A Month release
+creates a notice for each active Staff member except the person who released it; a
 post-release shift change creates one only for the affected Staff member when
 the scheduler marks the text announcement sent.
 
