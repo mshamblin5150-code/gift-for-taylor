@@ -13,6 +13,7 @@ import 'change_log_page.dart';
 import 'messages_composer.dart';
 import 'night_scheduler_page.dart';
 import 'swaps_page.dart';
+import 'open_shifts_page.dart';
 import 'requests_off_page.dart';
 
 enum ScheduleView { month, day, person }
@@ -29,6 +30,7 @@ class MonthGridPage extends StatefulWidget {
     this.onManageStaff,
     this.messagesComposer,
     this.swapRules,
+    this.openShiftRules,
     this.noticeGateway,
     this.printBookPage,
   });
@@ -42,6 +44,7 @@ class MonthGridPage extends StatefulWidget {
   final VoidCallback? onManageStaff;
   final MessagesComposer? messagesComposer;
   final SwapRules? swapRules;
+  final OpenShiftRules? openShiftRules;
   final NoticeGateway? noticeGateway;
 
   /// Prints a Schedule book page, given as an HTML document.
@@ -435,6 +438,20 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ],
         ),
         actions: [
+          if (widget.openShiftRules != null)
+            IconButton(
+              tooltip: 'Open shifts',
+              onPressed: () => _open(
+                (context) => OpenShiftsPage(
+                  rules: widget.openShiftRules!,
+                  scheduleRules: widget.rules,
+                  month: _month,
+                  staffMemberId: widget.swapStaffMemberId,
+                  isManager: _canEdit,
+                ),
+              ),
+              icon: const Icon(Icons.add_circle_outline),
+            ),
           if (widget.swapRules != null)
             IconButton(
               tooltip: 'Swaps',
