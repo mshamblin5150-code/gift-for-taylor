@@ -120,33 +120,9 @@ begin
   insert into public.short_shifts(schedule_month_id, section_id, work_date, shift_code, reason, job_role)
   select v_month, p_section_id, p_date, trim(p_shift_code), 'manual', p_job_role
     from generate_series(1, v_count);
-  if v_count > 0 and (select release_state from public.schedule_months where id = v_month) = 'released' then
-    insert into public.staff_notices(staff_member_id, kind, title, body, month_start)
-    select member.id, 'open_shift_posted', 'Open shift posted',
-      v_count::text || ' ' || trim(p_shift_code) || ' Open shift' ||
-      case when v_count = 1 then '' else 's' end || ' on ' || p_date::text || '.',
-      date_trunc('month', p_date)::date
-    from public.staff_members member
-    join public.staff_job_roles role on role.staff_member_id = member.id
-      and role.effective_from <= p_date
-      and (role.effective_through is null or role.effective_through >= p_date)
-    where member.active and member.id <> public.current_staff_member_id()
-      and (role.job_role = p_job_role
-        or (role.job_role in ('rn', 'lpn') and p_job_role in ('rn', 'lpn')))
-      and exists (select 1 from public.staff_section_assignments assignment
-        where assignment.staff_member_id = member.id and assignment.effective_from <= p_date
-          and (assignment.effective_through is null or assignment.effective_through >= p_date))
-      and not exists (select 1 from public.schedule_cells cell
-        where cell.staff_member_id = member.id and cell.work_date = p_date
-          and public.is_working_shift(cell.shift_code));
-  end if;
   return v_count;
 end;
 $$;
-
-alter table public.staff_notices drop constraint staff_notices_kind_check;
-alter table public.staff_notices add constraint staff_notices_kind_check
-  check (kind in ('month_release', 'schedule_change', 'test', 'open_shift_pickup', 'open_shift_posted'));
 
 revoke all on function public.set_section_weekday_minimum(uuid, integer, integer),
   public.set_section_date_minimum(uuid, date, integer), public.section_staffing_for_month(date),
@@ -154,6 +130,40 @@ revoke all on function public.set_section_weekday_minimum(uuid, integer, integer
 grant execute on function public.set_section_weekday_minimum(uuid, integer, integer),
   public.set_section_date_minimum(uuid, date, integer), public.section_staffing_for_month(date),
   public.post_open_shifts(uuid, date, text, public.job_role, integer, boolean) to authenticated;
+
+-- The existing Open shift trigger also handles manual shifts and month release.
+create or replace function public.notice_open_shift(p_short public.short_shifts, p_actor uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  v_role public.job_role;
+begin
+  select coalesce(p_short.job_role, (select role.job_role from public.staff_job_roles role
+    where role.staff_member_id = p_short.staff_member_id
+      and role.effective_from <= p_short.work_date
+    order by role.effective_from desc limit 1)) into v_role;
+  if v_role is null then return; end if;
+  insert into public.staff_notices(staff_member_id, kind, title, body, month_start)
+  select distinct member.id, 'open_shift_posted', 'Open shift posted',
+    p_short.shift_code || ' on ' || p_short.work_date::text || ' is open for pickup.',
+    date_trunc('month', p_short.work_date)::date
+  from public.staff_members member
+  join public.staff_accounts account on account.staff_member_id = member.id
+  join public.staff_job_roles role on role.staff_member_id = member.id
+  join public.staff_section_assignments assignment on assignment.staff_member_id = member.id
+  where member.active and member.role = 'staff_member' and member.id <> p_actor
+    and member.id is distinct from p_short.staff_member_id
+    and account.accepted_invite_at is not null and account.revoked_at is null
+    and role.effective_from <= p_short.work_date
+    and (role.effective_through is null or role.effective_through >= p_short.work_date)
+    and assignment.effective_from <= p_short.work_date
+    and (assignment.effective_through is null or assignment.effective_through >= p_short.work_date)
+    and (role.job_role = v_role or
+      (role.job_role in ('rn', 'lpn') and v_role in ('rn', 'lpn')))
+    and not exists (select 1 from public.schedule_cells cell
+      where cell.staff_member_id = member.id and cell.work_date = p_short.work_date
+        and cell.shift_code not in ('', 'X'));
+end;
+$$;
 
 -- Preserve the existing pickup path while using the explicit role of manual shifts.
 create or replace function public.visible_open_shifts()

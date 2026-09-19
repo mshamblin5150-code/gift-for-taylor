@@ -62,8 +62,8 @@ select is((select count(*)::integer from public.visible_open_shifts()
   where section_id = '00000000-0000-0000-0000-000000000535'), 2,
   'Manager sees both manual Open shifts');
 set local role postgres;
-select is((select count(*)::integer from public.staff_notices where kind = 'open_shift_posted'), 2,
-  'eligible nurses receive one notice each');
+select is((select count(*)::integer from public.staff_notices where kind = 'open_shift_posted'), 4,
+  'eligible nurses receive a notice for each Open shift');
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000534","role":"authenticated"}', true);
 select is((select count(*)::integer from public.visible_open_shifts()
