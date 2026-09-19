@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(26);
 
 insert into auth.users (id, email)
 values
@@ -17,7 +17,8 @@ insert into public.staff_members (id, display_name, role)
 values
   ('00000000-0000-0000-0000-000000000321', 'Test Manager', 'manager'),
   ('00000000-0000-0000-0000-000000000322', 'Test Administrator', 'administrator'),
-  ('00000000-0000-0000-0000-000000000323', 'Listed Nurse', 'staff_member');
+  ('00000000-0000-0000-0000-000000000323', 'Listed Nurse', 'staff_member'),
+  ('00000000-0000-0000-0000-000000000325', 'Second Nurse', 'staff_member');
 
 insert into public.staff_members (id, display_name, active)
 values ('00000000-0000-0000-0000-000000000324', 'Former Nurse', false);
@@ -65,6 +66,12 @@ values
     '00000000-0000-0000-0000-000000000324',
     '00000000-0000-0000-0000-000000000311',
     1,
+    '2026-09-01'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000325',
+    '00000000-0000-0000-0000-000000000311',
+    2,
     '2026-09-01'
   );
 
@@ -239,6 +246,17 @@ select lives_ok(
   'the Manager releases the month'
 );
 
+-- pgTAP runs this script in one transaction, where now() never advances.
+-- Set distinct timestamps to model edits before and after release.
+reset role;
+update public.schedule_changes
+set changed_at = now() - interval '2 hours'
+where work_date >= '2027-03-01' and work_date < '2027-04-01';
+update public.schedule_months
+set released_at = now() - interval '1 hour'
+where month_start = '2027-03-01';
+set local role authenticated;
+
 select is(
   (select count(*)::integer from public.schedule_changes
     where work_date >= '2027-03-01' and work_date < '2027-04-01'
@@ -272,6 +290,68 @@ select is(
       and work_date = '2027-03-02'),
   'D',
   'a Staff member reads cells of the released month'
+);
+
+select is(
+  (select count(*)::integer from public.schedule_changes
+    where work_date >= '2027-03-01' and work_date < '2027-04-01'),
+  0,
+  'a Staff member cannot read changes made before month release'
+);
+
+select throws_ok(
+  $$select public.save_schedule_cell(
+      '00000000-0000-0000-0000-000000000323',
+      '00000000-0000-0000-0000-000000000311',
+      '2027-03-02', 'X'
+    )$$,
+  'Only the Manager can edit the Schedule',
+  'a Staff member cannot write a cell through the save function'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.schedule_cells', 'INSERT')
+    and not has_table_privilege('authenticated', 'public.schedule_cells', 'UPDATE')
+    and not has_table_privilege('authenticated', 'public.schedule_cells', 'DELETE'),
+  'Staff members have no direct cell write privileges'
+);
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000301","role":"authenticated"}',
+  true
+);
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000323',
+  '00000000-0000-0000-0000-000000000311', '2027-03-02', 'X'
+);
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000325',
+  '00000000-0000-0000-0000-000000000311', '2027-03-02', '7A'
+);
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000303","role":"authenticated"}',
+  true
+);
+select is(
+  (select count(*)::integer from public.schedule_changes
+    where work_date >= '2027-03-01' and work_date < '2027-04-01'),
+  1,
+  'a Staff member reads only their own post-release change'
+);
+select is(
+  (select count(*)::integer from public.schedule_changes
+    where staff_member_id = '00000000-0000-0000-0000-000000000325'),
+  0,
+  'a Staff member cannot read another person’s changes'
+);
+select is(
+  (select count(*)::integer from public.schedule_cells
+    where staff_member_id = '00000000-0000-0000-0000-000000000323'
+      and work_date = '2027-03-02' and shift_code = 'X'),
+  1,
+  'the Staff member sees the changed cell'
 );
 
 select * from finish();

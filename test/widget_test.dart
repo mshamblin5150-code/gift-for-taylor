@@ -33,6 +33,7 @@ void main() {
   Future<ScheduleRules> pumpGrid(
     WidgetTester tester, {
     String actingAs = 'manager',
+    String? staffMemberId,
     DateTime? month,
     ValueChanged<String>? printBookPage,
   }) async {
@@ -45,6 +46,7 @@ void main() {
         home: MonthGridPage(
           rules: rules,
           month: month ?? september,
+          staffMemberId: staffMemberId,
           printBookPage: printBookPage,
         ),
       ),
@@ -75,6 +77,69 @@ void main() {
     expect(find.text('T'), findsWidgets);
     expect(find.byKey(const ValueKey('weekday-2026-09-18')), findsNWidgets(2));
     expect(find.byKey(const ValueKey('weekend-2026-09-19')), findsNWidgets(2));
+  });
+
+  testWidgets(
+    'Staff member lands on their changed shifts and opens full grid',
+    (tester) async {
+      final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+      await manager.saveCell(
+        SaveCell(
+          staffMemberId: 'rn-1',
+          sectionId: 'days',
+          date: september18,
+          shiftCode: '7A',
+        ),
+      );
+      database.markAllAnnounced();
+
+      await pumpGrid(tester, actingAs: 'rn-1', staffMemberId: 'rn-1');
+
+      expect(find.text('Day RN'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('changed-rn-1-2026-09-18')),
+        findsOneWidget,
+      );
+      expect(find.text('Other Shift code'), findsNothing);
+
+      await tester.tap(find.text('Month'));
+      await tester.pumpAndSettle();
+
+      expect(cell('rn-1', september18), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('changed-rn-1-2026-09-18')),
+        findsOneWidget,
+      );
+      expect(unannounced('rn-2', september18), findsNothing);
+    },
+  );
+
+  testWidgets('Staff member sees no highlight after a shift is restored', (
+    tester,
+  ) async {
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: september18,
+        shiftCode: '7A',
+      ),
+    );
+    database.markAllAnnounced();
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: september18,
+        shiftCode: '',
+      ),
+    );
+    database.markAllAnnounced();
+
+    await pumpGrid(tester, actingAs: 'rn-1', staffMemberId: 'rn-1');
+
+    expect(find.byKey(const ValueKey('changed-rn-1-2026-09-18')), findsNothing);
   });
 
   testWidgets('Manager picks a legend code, shown with its hours', (

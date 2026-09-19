@@ -263,6 +263,8 @@ void main() {
 }
 
 final class _FakeStaffGateway implements StaffGateway {
+  @override
+  Future<String?> currentStaffMemberId() async => null;
   _FakeStaffGateway(this._list, {this.pastStaff = const []});
 
   StaffList _list;
