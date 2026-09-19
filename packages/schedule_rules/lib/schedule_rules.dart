@@ -17,11 +17,29 @@ abstract interface class ScheduleRules {
     return _ScheduleRules(database.storeFor(actingAs));
   }
 
-  /// Whether the signed-in person may change the Schedule.
+  /// Whether the signed-in person is the Manager, who may change every
+  /// Section, confirm a month and hand out the Night scheduler role.
   Future<bool> canEditSchedule();
 
+  /// The Sections whose cells the signed-in person may change: every Section
+  /// for the Manager, the assigned ones for a Night scheduler, none otherwise.
+  Future<EditableSections> editableSections();
+
   /// Saves a Shift code; it is live at once and written to the change log.
+  /// Refused outside the signed-in person's [editableSections].
   Future<void> saveCell(SaveCell action);
+
+  /// Gives [staffMemberId] the Night scheduler role limited to [sectionIds],
+  /// replacing any Sections they had. Only the Manager may.
+  Future<void> assignNightScheduler(
+    String staffMemberId,
+    Set<String> sectionIds,
+  );
+
+  /// Takes the Night scheduler role back. Only the Manager may.
+  Future<void> removeNightScheduler(String staffMemberId);
+
+  Future<List<NightScheduler>> nightSchedulers();
 
   /// Restores a changed, unannounced cell to its published value.
   Future<void> undoCell(UndoCell action);
@@ -30,6 +48,14 @@ abstract interface class ScheduleRules {
 
   /// Every change to cells in [month], oldest first.
   Future<List<ScheduleChange>> changeLog(DateTime month);
+
+  /// The Manager's change log view of [month], newest first, optionally only
+  /// the changes [changedBy] one person and made on the day [changedOn].
+  Future<List<ScheduleChange>> changeLogView(
+    DateTime month, {
+    String? changedBy,
+    DateTime? changedOn,
+  });
 
   /// Emits whenever any scheduler saves a change in [month].
   Stream<void> monthUpdates(DateTime month);
@@ -57,12 +83,24 @@ abstract interface class ScheduleStore {
   Future<List<ScheduleChange>> changesForMonth(DateTime month);
 
   /// Stores the cell and appends its change log entry in one step, recording
-  /// the signed-in person and the time.
+  /// the signed-in person and the time. Refuses cells outside the signed-in
+  /// person's editable Sections.
   Future<void> writeCell(ScheduleCell cell);
 
   Stream<void> monthUpdates(DateTime month);
 
   Future<bool> canEditSchedule();
+
+  Future<EditableSections> editableSections();
+
+  Future<void> assignNightScheduler(
+    String staffMemberId,
+    Set<String> sectionIds,
+  );
+
+  Future<void> removeNightScheduler(String staffMemberId);
+
+  Future<List<NightScheduler>> nightSchedulers();
 
   /// Months loaded from the printed page and not yet confirmed, earliest first.
   Future<List<DateTime>> monthsAwaitingConfirmation();
@@ -72,10 +110,37 @@ abstract interface class ScheduleStore {
 
 /// Thrown when the signed-in person may not change the Schedule.
 final class ScheduleEditRefused implements Exception {
-  const ScheduleEditRefused();
+  const ScheduleEditRefused([
+    this.message = 'Only the Manager can edit the Schedule',
+  ]);
+
+  final String message;
 
   @override
-  String toString() => 'Only the Manager can edit the Schedule';
+  String toString() => message;
+}
+
+/// The Sections one signed-in person may change.
+final class EditableSections {
+  const EditableSections.all() : _sectionIds = null;
+
+  const EditableSections.only(Set<String> sectionIds)
+    : _sectionIds = sectionIds;
+
+  /// Null means every Section.
+  final Set<String>? _sectionIds;
+
+  bool contains(String sectionId) => _sectionIds?.contains(sectionId) ?? true;
+
+  bool get isEmpty => _sectionIds?.isEmpty ?? false;
+}
+
+/// A Staff member the Manager allowed to edit specific Sections.
+final class NightScheduler {
+  const NightScheduler({required this.staffMemberId, required this.sectionIds});
+
+  final String staffMemberId;
+  final Set<String> sectionIds;
 }
 
 final class SaveCell {
@@ -146,6 +211,7 @@ final class ScheduleChange {
     required this.oldShiftCode,
     required this.newShiftCode,
     required this.changedBy,
+    required this.changedByName,
     required this.changedAt,
     required this.announced,
   });
@@ -157,6 +223,7 @@ final class ScheduleChange {
 
   /// The Staff member id of the scheduler who saved it.
   final String changedBy;
+  final String changedByName;
   final DateTime changedAt;
   final bool announced;
 }
@@ -351,7 +418,48 @@ final class _ScheduleRules implements ScheduleRules {
   }
 
   @override
+  Future<List<ScheduleChange>> changeLogView(
+    DateTime month, {
+    String? changedBy,
+    DateTime? changedOn,
+  }) async {
+    final log = await changeLog(month);
+    return [
+      for (final change in log.reversed)
+        if ((changedBy == null || change.changedBy == changedBy) &&
+            (changedOn == null || _day(change.changedAt) == _day(changedOn)))
+          change,
+    ];
+  }
+
+  @override
   Future<bool> canEditSchedule() => _store.canEditSchedule();
+
+  @override
+  Future<EditableSections> editableSections() => _store.editableSections();
+
+  @override
+  Future<void> assignNightScheduler(
+    String staffMemberId,
+    Set<String> sectionIds,
+  ) async {
+    if (sectionIds.isEmpty) {
+      throw ArgumentError.value(
+        sectionIds,
+        'sectionIds',
+        'The Night scheduler needs at least one Section',
+      );
+    }
+    return _store.assignNightScheduler(staffMemberId, sectionIds);
+  }
+
+  @override
+  Future<void> removeNightScheduler(String staffMemberId) {
+    return _store.removeNightScheduler(staffMemberId);
+  }
+
+  @override
+  Future<List<NightScheduler>> nightSchedulers() => _store.nightSchedulers();
 
   @override
   Future<DateTime?> monthAwaitingConfirmation() async {
@@ -371,16 +479,26 @@ final class InMemoryScheduleDatabase {
     required List<ScheduleSection> sections,
     List<ScheduleRow> rows = const [],
     this.editors,
+    Map<String, String> names = const {},
     DateTime Function()? clock,
   }) : _sections = List.unmodifiable(sections),
        _rows = List.unmodifiable(rows),
+       _names = {
+         for (final row in rows) row.staffMemberId: row.displayName,
+         ...names,
+       },
        _clock = clock ?? DateTime.now;
 
   final List<ScheduleSection> _sections;
 
-  /// Staff member ids who may edit; null lets everyone edit.
+  /// Staff member ids who act as the Manager; null lets everyone who is not a
+  /// Night scheduler.
   final Set<String>? editors;
   final List<ScheduleRow> _rows;
+
+  /// Display names of people not on a Schedule row, such as the Manager.
+  final Map<String, String> _names;
+  final Map<String, Set<String>> _nightSchedulers = {};
   final DateTime Function() _clock;
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
@@ -408,6 +526,7 @@ final class InMemoryScheduleDatabase {
         oldShiftCode: change.oldShiftCode,
         newShiftCode: change.newShiftCode,
         changedBy: change.changedBy,
+        changedByName: change.changedByName,
         changedAt: change.changedAt,
         announced: true,
       );
@@ -459,7 +578,20 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> writeCell(ScheduleCell cell) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    final editable = await editableSections();
+    if (!editable.contains(cell.sectionId)) {
+      throw editable.isEmpty
+          ? const ScheduleEditRefused()
+          : const ScheduleEditRefused('Only the Manager can edit that Section');
+    }
+    final row = _database._rows
+        .where((row) => row.staffMemberId == cell.staffMemberId)
+        .firstOrNull;
+    if (row != null && row.sectionId != cell.sectionId) {
+      throw StateError(
+        'That Staff member is not on the Staff list in this Section',
+      );
+    }
     final key = _cellKey(cell.staffMemberId, cell.date);
     final old = _database._cells[key]?.shiftCode ?? '';
     _database._cells[key] = cell;
@@ -470,6 +602,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
         oldShiftCode: old,
         newShiftCode: cell.shiftCode,
         changedBy: _actingAs,
+        changedByName: _database._names[_actingAs] ?? _actingAs,
         changedAt: _database._clock(),
         announced: false,
       ),
@@ -478,13 +611,43 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   }
 
   @override
+  Future<EditableSections> editableSections() async {
+    final assigned = _database._nightSchedulers[_actingAs];
+    if (assigned != null) return EditableSections.only({...assigned});
+    if (await canEditSchedule()) return const EditableSections.all();
+    return const EditableSections.only({});
+  }
+
+  @override
+  Future<void> assignNightScheduler(
+    String staffMemberId,
+    Set<String> sectionIds,
+  ) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    _database._nightSchedulers[staffMemberId] = {...sectionIds};
+  }
+
+  @override
+  Future<void> removeNightScheduler(String staffMemberId) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    _database._nightSchedulers.remove(staffMemberId);
+  }
+
+  @override
+  Future<List<NightScheduler>> nightSchedulers() async => [
+    for (final MapEntry(:key, :value) in _database._nightSchedulers.entries)
+      NightScheduler(staffMemberId: key, sectionIds: {...value}),
+  ];
+
+  @override
   Stream<void> monthUpdates(DateTime month) {
     return _database._updates.stream.where((date) => _inMonth(date, month));
   }
 
   @override
   Future<bool> canEditSchedule() async =>
-      _database.editors?.contains(_actingAs) ?? true;
+      !_database._nightSchedulers.containsKey(_actingAs) &&
+      (_database.editors?.contains(_actingAs) ?? true);
 
   @override
   Future<List<DateTime>> monthsAwaitingConfirmation() async {

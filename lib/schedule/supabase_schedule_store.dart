@@ -79,7 +79,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
           .from('schedule_changes')
           .select(
             'staff_member_id, work_date, old_shift_code, new_shift_code, '
-            'changed_by_staff_member_id, changed_at, announced_at',
+            'changed_by_staff_member_id, changed_at, announced_at, '
+            'changed_by:staff_members!changed_by_staff_member_id(display_name)',
           )
           .gte('work_date', _date(_monthStart(month)))
           .lt('work_date', _date(_nextMonthStart(month)))
@@ -95,6 +96,10 @@ final class SupabaseScheduleStore implements ScheduleStore {
             oldShiftCode: row['old_shift_code'] as String,
             newShiftCode: row['new_shift_code'] as String,
             changedBy: row['changed_by_staff_member_id'] as String,
+            changedByName:
+                (row['changed_by'] as Map<String, dynamic>?)?['display_name']
+                    as String? ??
+                '',
             changedAt: DateTime.parse(row['changed_at'] as String).toLocal(),
             announced: row['announced_at'] != null,
           ),
@@ -149,6 +154,52 @@ final class SupabaseScheduleStore implements ScheduleStore {
   @override
   Future<bool> canEditSchedule() async {
     return await _client.rpc('can_edit_schedule') as bool? ?? false;
+  }
+
+  @override
+  Future<EditableSections> editableSections() async {
+    final ids = await _client.rpc<List<dynamic>>('editable_section_ids');
+    return EditableSections.only({for (final id in ids) id as String});
+  }
+
+  @override
+  Future<void> assignNightScheduler(
+    String staffMemberId,
+    Set<String> sectionIds,
+  ) async {
+    await _client.rpc<void>(
+      'assign_night_scheduler',
+      params: {
+        'p_staff_member_id': staffMemberId,
+        'p_section_ids': sectionIds.toList(),
+      },
+    );
+  }
+
+  @override
+  Future<void> removeNightScheduler(String staffMemberId) async {
+    await _client.rpc<void>(
+      'remove_night_scheduler',
+      params: {'p_staff_member_id': staffMemberId},
+    );
+  }
+
+  @override
+  Future<List<NightScheduler>> nightSchedulers() async {
+    final rows = await _client
+        .from('night_scheduler_sections')
+        .select('staff_member_id, section_id')
+        .order('created_at');
+    final sections = <String, Set<String>>{};
+    for (final row in rows) {
+      sections
+          .putIfAbsent(row['staff_member_id'] as String, () => {})
+          .add(row['section_id'] as String);
+    }
+    return [
+      for (final MapEntry(:key, :value) in sections.entries)
+        NightScheduler(staffMemberId: key, sectionIds: value),
+    ];
   }
 
   @override
