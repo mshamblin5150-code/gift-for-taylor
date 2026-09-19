@@ -6,6 +6,7 @@ import 'auth/auth_gateway.dart';
 import 'calendar/calendar_feed_page.dart';
 import 'notifications/notice_gateway.dart';
 import 'schedule/book_page_printer.dart';
+import 'schedule/print_wording_gateway.dart';
 import 'schedule/messages_composer.dart';
 import 'schedule/supabase_schedule_store.dart';
 import 'schedule/supabase_swap_store.dart';
@@ -50,6 +51,7 @@ Future<void> main() async {
       ),
       inviteToken: Uri.base.queryParameters['invite'],
       printBookPage: printBookPage,
+      printWordingGateway: SupabasePrintWordingGateway(client),
       calendarFeedGateway: SupabaseCalendarFeedGateway(client, supabaseUrl),
     ),
   );

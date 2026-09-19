@@ -1,4 +1,5 @@
 import 'package:er_schedule/schedule/month_grid_page.dart';
+import 'package:er_schedule/schedule/print_wording_gateway.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
@@ -36,6 +37,7 @@ void main() {
     String? staffMemberId,
     DateTime? month,
     ValueChanged<String>? printBookPage,
+    PrintWordingGateway? printWordingGateway,
   }) async {
     tester.view.physicalSize = const Size(2400, 1600);
     tester.view.devicePixelRatio = 1;
@@ -48,6 +50,7 @@ void main() {
           month: month ?? september,
           staffMemberId: staffMemberId,
           printBookPage: printBookPage,
+          printWordingGateway: printWordingGateway,
         ),
       ),
     );
@@ -429,9 +432,53 @@ void main() {
 
     expect(printed, hasLength(1));
     expect(printed.single, contains('Schedule subject to change'));
-    expect(printed.single, contains('September 2026'));
+    expect(printed.single, contains('SEPTEMBER 2026'));
     expect(printed.single, contains('>Night RN<'));
     expect(printed.single, contains('4P-8A'));
+  });
+
+  testWidgets('Manager changes print wording for every month', (tester) async {
+    final gateway = _TestPrintWordingGateway();
+    final printed = <String>[];
+    await pumpGrid(
+      tester,
+      printBookPage: printed.add,
+      printWordingGateway: gateway,
+    );
+
+    await tester.tap(find.byTooltip('Change print wording'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Print the book page').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Print Schedule').last);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.text('Welch Community Hospital - Emergency Room Schedule').last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ER Schedule').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.wording.title, PrintTitleStyle.er);
+    expect(find.byTooltip('Print Schedule'), findsOneWidget);
+    await tester.tap(find.byTooltip('Next month'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Print Schedule'));
+    await tester.pumpAndSettle();
+    expect(printed.single, contains('ER Schedule - October 2026</h1>'));
+  });
+
+  testWidgets('Staff cannot change print wording', (tester) async {
+    await pumpGrid(
+      tester,
+      actingAs: 'staff',
+      staffMemberId: 'rn-1',
+      printBookPage: (_) {},
+      printWordingGateway: _TestPrintWordingGateway(),
+    );
+    expect(find.byTooltip('Change print wording'), findsNothing);
   });
 
   testWidgets('there is no Print button without a printer', (tester) async {
@@ -475,4 +522,16 @@ void main() {
       expect(find.text('Confirm month'), findsNothing);
     });
   });
+}
+
+final class _TestPrintWordingGateway implements PrintWordingGateway {
+  PrintWording wording = const PrintWording();
+
+  @override
+  Future<PrintWording> read() async => wording;
+
+  @override
+  Future<void> save(PrintWording next) async {
+    wording = next;
+  }
 }
