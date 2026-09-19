@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'announce_sheet.dart';
 import 'cell_edit_sheet.dart';
+import 'messages_composer.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -15,12 +17,14 @@ class MonthGridPage extends StatefulWidget {
     required this.month,
     this.onSignOut,
     this.onManageStaff,
+    this.messagesComposer,
   });
 
   final ScheduleRules rules;
   final DateTime month;
   final VoidCallback? onSignOut;
   final VoidCallback? onManageStaff;
+  final MessagesComposer? messagesComposer;
 
   @override
   State<MonthGridPage> createState() => _MonthGridPageState();
@@ -30,6 +34,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   late final DateTime _month = DateTime(widget.month.year, widget.month.month);
   StreamSubscription<void>? _updates;
   MonthGrid? _grid;
+  ChangeAnnouncement? _announcement;
   bool _canEdit = false;
   Object? _loadError;
   ScheduleView _view = ScheduleView.month;
@@ -59,11 +64,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _load() async {
     try {
       final canEdit = await widget.rules.canEditSchedule();
-      final grid = await widget.rules.monthGrid(_month);
+      final (grid, announcement) = await _read(canEdit);
       if (!mounted) return;
       setState(() {
         _canEdit = canEdit;
         _grid = grid;
+        _announcement = announcement;
         _loadError = null;
       });
     } catch (error) {
@@ -73,10 +79,44 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _reload() async {
     try {
-      final grid = await widget.rules.monthGrid(_month);
-      if (mounted) setState(() => _grid = grid);
+      final (grid, announcement) = await _read(_canEdit);
+      if (!mounted) return;
+      setState(() {
+        _grid = grid;
+        _announcement = announcement;
+      });
     } catch (_) {
       // The next save or update reloads again.
+    }
+  }
+
+  /// The grid, and the unannounced tray for someone who can edit.
+  Future<(MonthGrid, ChangeAnnouncement?)> _read(bool canEdit) {
+    return (
+      widget.rules.monthGrid(_month),
+      canEdit
+          ? widget.rules.changeAnnouncement(_month)
+          : Future<ChangeAnnouncement?>.value(),
+    ).wait;
+  }
+
+  Future<void> _announce(ChangeAnnouncement announcement) async {
+    final marked = await showAnnounceSheet(
+      context,
+      announcement: announcement,
+      messagesComposer: widget.messagesComposer,
+    );
+    if (marked != true) return;
+    try {
+      await widget.rules.markAnnounced(announcement);
+      await _reload();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("The changes weren't marked announced. Try again."),
+        ),
+      );
     }
   }
 
@@ -157,6 +197,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   @override
   Widget build(BuildContext context) {
     final grid = _grid;
+    final announcement = _announcement;
     return Scaffold(
       appBar: AppBar(
         title: Text(DateFormat.yMMMM().format(_month)),
@@ -209,7 +250,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_canEdit && grid != null && grid.awaitingConfirmation)
-              _ConfirmBanner(onConfirm: _confirmMonth),
+              _ConfirmBanner(onConfirm: _confirmMonth)
+            else if (_canEdit && announcement != null && !announcement.isEmpty)
+              _AnnounceTray(
+                changeCount: announcement.changeCount,
+                onAnnounce: () => _announce(announcement),
+              ),
             Expanded(child: _body(grid)),
           ],
         ),
@@ -266,6 +312,40 @@ class _ConfirmBanner extends StatelessWidget {
               onPressed: onConfirm,
               child: const Text('Confirm month'),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Stays on screen until the changes are announced.
+class _AnnounceTray extends StatelessWidget {
+  const _AnnounceTray({required this.changeCount, required this.onAnnounce});
+
+  final int changeCount;
+  final VoidCallback onAnnounce;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: _unannouncedColor(context),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Row(
+          children: [
+            const Icon(Icons.campaign_outlined),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                changeCount == 1
+                    ? '1 unannounced change'
+                    : '$changeCount unannounced changes',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton(onPressed: onAnnounce, child: const Text('Announce')),
           ],
         ),
       ),

@@ -31,7 +31,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
       sections(),
       _client
           .from('staff_list_entries')
-          .select('id, display_name, section_id')
+          .select('id, display_name, section_id, cell_number')
           .order('display_order'),
     ).wait;
     final rows = entries
@@ -40,6 +40,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
             staffMemberId: row['id'] as String,
             displayName: row['display_name'] as String,
             sectionId: row['section_id'] as String,
+            cellNumber: row['cell_number'] as String?,
           ),
         )
         .toList();
@@ -78,7 +79,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
       (from, to) => _client
           .from('schedule_changes')
           .select(
-            'staff_member_id, work_date, old_shift_code, new_shift_code, '
+            'id, staff_member_id, work_date, old_shift_code, new_shift_code, '
             'changed_by_staff_member_id, changed_at, announced_at',
           )
           .gte('work_date', _date(_monthStart(month)))
@@ -90,6 +91,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
     return rows
         .map(
           (row) => ScheduleChange(
+            id: row['id'] as String,
             staffMemberId: row['staff_member_id'] as String,
             date: DateTime.parse(row['work_date'] as String),
             oldShiftCode: row['old_shift_code'] as String,
@@ -169,6 +171,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
     await _client.rpc<void>(
       'confirm_loaded_month',
       params: {'p_month_start': _date(_monthStart(month))},
+    );
+  }
+
+  @override
+  Future<void> markChangesAnnounced(Set<String> changeIds) async {
+    await _client.rpc<void>(
+      'mark_changes_announced',
+      params: {'p_change_ids': changeIds.toList()},
     );
   }
 

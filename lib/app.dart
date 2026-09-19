@@ -3,6 +3,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 import 'auth/auth_gateway.dart';
 import 'auth/sign_in_page.dart';
+import 'schedule/messages_composer.dart';
 import 'schedule/month_grid_page.dart';
 import 'staff/staff_gateway.dart';
 import 'staff/staff_list_page.dart';
@@ -14,6 +15,7 @@ class ScheduleApp extends StatelessWidget {
     required this.scheduleStore,
     this.staffGateway,
     this.inviteComposer,
+    this.messagesComposer,
     this.inviteToken,
   });
 
@@ -21,6 +23,7 @@ class ScheduleApp extends StatelessWidget {
   final ScheduleStore scheduleStore;
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
+  final MessagesComposer? messagesComposer;
   final String? inviteToken;
 
   @override
@@ -36,6 +39,7 @@ class ScheduleApp extends StatelessWidget {
         scheduleStore: scheduleStore,
         staffGateway: staffGateway,
         inviteComposer: inviteComposer,
+        messagesComposer: messagesComposer,
         inviteToken: inviteToken,
       ),
     );
@@ -48,6 +52,7 @@ class _AuthGate extends StatefulWidget {
     required this.scheduleStore,
     required this.staffGateway,
     required this.inviteComposer,
+    required this.messagesComposer,
     required this.inviteToken,
   });
 
@@ -55,6 +60,7 @@ class _AuthGate extends StatefulWidget {
   final ScheduleStore scheduleStore;
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
+  final MessagesComposer? messagesComposer;
   final String? inviteToken;
 
   @override
@@ -106,6 +112,7 @@ class _AuthGateState extends State<_AuthGate> {
                 scheduleStore: widget.scheduleStore,
                 staffGateway: widget.staffGateway!,
                 inviteComposer: widget.inviteComposer,
+                messagesComposer: widget.messagesComposer,
                 inviteToken: widget.inviteToken!,
               );
             }
@@ -114,6 +121,7 @@ class _AuthGateState extends State<_AuthGate> {
               scheduleStore: widget.scheduleStore,
               staffGateway: widget.staffGateway,
               inviteComposer: widget.inviteComposer,
+              messagesComposer: widget.messagesComposer,
             );
           },
         );
@@ -128,6 +136,7 @@ class _InviteAcceptance extends StatefulWidget {
     required this.scheduleStore,
     required this.staffGateway,
     required this.inviteComposer,
+    required this.messagesComposer,
     required this.inviteToken,
   });
 
@@ -135,6 +144,7 @@ class _InviteAcceptance extends StatefulWidget {
   final ScheduleStore scheduleStore;
   final StaffGateway staffGateway;
   final InviteComposer? inviteComposer;
+  final MessagesComposer? messagesComposer;
   final String inviteToken;
 
   @override
@@ -184,6 +194,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           scheduleStore: widget.scheduleStore,
           staffGateway: widget.staffGateway,
           inviteComposer: widget.inviteComposer,
+          messagesComposer: widget.messagesComposer,
         );
       },
     );
@@ -196,12 +207,14 @@ class _ScheduleAccess extends StatefulWidget {
     required this.scheduleStore,
     required this.staffGateway,
     required this.inviteComposer,
+    required this.messagesComposer,
   });
 
   final AuthGateway authGateway;
   final ScheduleStore scheduleStore;
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
+  final MessagesComposer? messagesComposer;
 
   @override
   State<_ScheduleAccess> createState() => _ScheduleAccessState();
@@ -213,9 +226,8 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
   Future<_ScheduleData> _loadData() async {
     final sections = await widget.scheduleStore.sections();
     final canManageStaff = await widget.staffGateway?.canManageStaff() ?? false;
-    final monthToCheck = await ScheduleRules(
-      widget.scheduleStore,
-    ).monthAwaitingConfirmation();
+    final monthToCheck = await ScheduleRules(widget.scheduleStore)
+        .monthAwaitingConfirmation();
     return _ScheduleData(sections, canManageStaff, monthToCheck);
   }
 
@@ -262,6 +274,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           rules: ScheduleRules(widget.scheduleStore),
           month: data?.monthToCheck ?? DateTime(now.year, now.month),
           onSignOut: widget.authGateway.signOut,
+          messagesComposer: widget.messagesComposer,
           onManageStaff:
               data?.canManageStaff == true &&
                   widget.staffGateway != null &&

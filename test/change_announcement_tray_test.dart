@@ -1,0 +1,164 @@
+import 'package:er_schedule/schedule/messages_composer.dart';
+import 'package:er_schedule/schedule/month_grid_page.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:schedule_rules/schedule_rules.dart';
+
+void main() {
+  const days = ScheduleSection(id: 'days', name: 'State dayshift RN');
+  const dana = ScheduleRow(
+    staffMemberId: 'rn-1',
+    displayName: 'Dana Reyes',
+    sectionId: 'days',
+    cellNumber: '5550100',
+  );
+  const lee = ScheduleRow(
+    staffMemberId: 'rn-2',
+    displayName: 'Lee Park',
+    sectionId: 'days',
+    cellNumber: '5550102',
+  );
+  final september = DateTime(2026, 9);
+  final september18 = DateTime(2026, 9, 18);
+
+  late InMemoryScheduleDatabase database;
+  late _FakeMessagesComposer messages;
+
+  setUp(() {
+    database = InMemoryScheduleDatabase(
+      sections: const [days],
+      rows: const [dana, lee],
+      editors: const {'manager'},
+    );
+    messages = _FakeMessagesComposer();
+  });
+
+  Future<void> save(ScheduleRow row, String code) {
+    return ScheduleRules.inMemory(database, actingAs: 'manager').saveCell(
+      SaveCell(
+        staffMemberId: row.staffMemberId,
+        sectionId: row.sectionId,
+        date: september18,
+        shiftCode: code,
+      ),
+    );
+  }
+
+  Future<void> pumpGrid(
+    WidgetTester tester, {
+    String actingAs = 'manager',
+  }) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MonthGridPage(
+          rules: ScheduleRules.inMemory(database, actingAs: actingAs),
+          month: september,
+          messagesComposer: messages,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Finder unannounced(String staffMemberId) =>
+      find.byKey(ValueKey('unannounced-$staffMemberId-2026-09-18'));
+
+  testWidgets('no tray when there is nothing to announce', (tester) async {
+    await pumpGrid(tester);
+
+    expect(find.textContaining('unannounced'), findsNothing);
+  });
+
+  testWidgets('the tray appears after an edit and shows the count', (
+    tester,
+  ) async {
+    await pumpGrid(tester);
+
+    await tester.tap(find.byKey(const ValueKey('cell-rn-1-2026-09-18')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 unannounced change'), findsOneWidget);
+  });
+
+  testWidgets('each affected person gets a prefilled text', (tester) async {
+    await save(dana, 'X');
+    await pumpGrid(tester);
+
+    await tester.tap(find.text('Announce'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('Lee Park'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.text(
+        'Hi Dana Reyes, ER Schedule change:\nFri 9/18: off (was blank)',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Group text'), findsNothing);
+    await tester.tap(find.text('Text Dana Reyes'));
+    await tester.pumpAndSettle();
+
+    expect(messages.opened.single.$1, ['5550100']);
+    expect(messages.opened.single.$2, startsWith('Hi Dana Reyes'));
+  });
+
+  testWidgets('a multi-person change has a group text to everyone', (
+    tester,
+  ) async {
+    await save(dana, 'X');
+    await save(lee, 'N');
+    await pumpGrid(tester);
+    expect(find.text('2 unannounced changes'), findsOneWidget);
+
+    await tester.tap(find.text('Announce'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Group text all 2'));
+    await tester.pumpAndSettle();
+
+    expect(messages.opened.single.$1, ['5550100', '5550102']);
+    expect(messages.opened.single.$2, startsWith('ER Schedule changes:'));
+  });
+
+  testWidgets('mark announced clears the tray and the highlights', (
+    tester,
+  ) async {
+    await save(dana, 'X');
+    await pumpGrid(tester);
+    expect(unannounced('rn-1'), findsOneWidget);
+
+    await tester.tap(find.text('Announce'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mark announced'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 unannounced change'), findsNothing);
+    expect(unannounced('rn-1'), findsNothing);
+  });
+
+  testWidgets('someone who cannot edit sees no tray', (tester) async {
+    await save(dana, 'X');
+    await pumpGrid(tester, actingAs: 'rn-1');
+
+    expect(find.text('1 unannounced change'), findsNothing);
+  });
+}
+
+final class _FakeMessagesComposer implements MessagesComposer {
+  final opened = <(List<String>, String)>[];
+
+  @override
+  Future<void> open(List<String> cellNumbers, String body) async {
+    opened.add((cellNumbers, body));
+  }
+}
