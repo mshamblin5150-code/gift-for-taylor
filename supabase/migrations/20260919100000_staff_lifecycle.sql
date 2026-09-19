@@ -250,6 +250,7 @@ returns table (
   staff_member_id uuid,
   display_name text,
   section_id uuid,
+  cell_number text,
   last_day date
 )
 language sql
@@ -278,7 +279,12 @@ as $$
       )
     order by assignment.staff_member_id, assignment.effective_from desc
   )
-  select member.id, member.display_name, held.section_id, held.effective_through
+  select
+    member.id,
+    member.display_name,
+    held.section_id,
+    case when member.active then member.cell_number end,
+    held.effective_through
   from held
   join public.staff_members member on member.id = held.staff_member_id
   join public.sections section on section.id = held.section_id
