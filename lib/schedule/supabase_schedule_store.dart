@@ -252,7 +252,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           sectionId: row['section_id'] as String,
           date: DateTime.parse(row['work_date'] as String),
           shiftCode: row['shift_code'] as String,
-          staffMemberId: row['staff_member_id'] as String,
+          staffMemberId: row['staff_member_id'] as String?,
         ),
     ];
   }

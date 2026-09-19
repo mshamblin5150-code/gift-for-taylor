@@ -421,6 +421,7 @@ final class ShortShift {
     required this.date,
     required this.shiftCode,
     required this.staffMemberId,
+    this.jobRole,
   });
 
   final String sectionId;
@@ -430,7 +431,8 @@ final class ShortShift {
   final String shiftCode;
 
   /// Whose shift it was.
-  final String staffMemberId;
+  final String? staffMemberId;
+  final JobRole? jobRole;
 }
 
 final class ScheduleSection {
@@ -1091,6 +1093,8 @@ final class InMemoryScheduleDatabase {
   final List<ScheduleChange> _changes = [];
   final List<ShortShift> _shortShifts = [];
   final List<LegendCode> _shiftCodes = [...shiftLegend];
+  final Map<String, int> _weekdayMinimums = {};
+  final Map<String, int> _dateMinimums = {};
   final List<OpenShiftPickup> _openShiftPickups = [];
   final List<StaffChange> _staffChanges = [];
   final List<RequestOff> _requestsOff = [];
@@ -1346,17 +1350,18 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     }
     if (decision == RequestOffDecision.approved) {
       for (final date in request.dates) {
-        final row = (await rows(DateTime(date.year, date.month)))
-            .where((r) => r.staffMemberId == request.staffMemberId)
-            .firstOrNull;
+        final row = (await rows(
+          DateTime(date.year, date.month),
+        )).where((r) => r.staffMemberId == request.staffMemberId).firstOrNull;
         if (row == null ||
             (row.lastDay != null && date.isAfter(row.lastDay!))) {
           throw StateError('Staff member is not on the Schedule for that day');
         }
       }
       for (final date in request.dates) {
-        final row = (await rows(DateTime(date.year, date.month)))
-            .firstWhere((r) => r.staffMemberId == request.staffMemberId);
+        final row = (await rows(
+          DateTime(date.year, date.month),
+        )).firstWhere((r) => r.staffMemberId == request.staffMemberId);
         final old =
             _database
                 ._cells[_cellKey(request.staffMemberId, date)]
@@ -1475,9 +1480,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           ? const ScheduleEditRefused()
           : const ScheduleEditRefused('Only the Manager can edit that Section');
     }
-    final row = (await rows(DateTime(cell.date.year, cell.date.month)))
-        .where((row) => row.staffMemberId == cell.staffMemberId)
-        .firstOrNull;
+    final row = (await rows(
+      DateTime(cell.date.year, cell.date.month),
+    )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
     if (row == null || row.sectionId != cell.sectionId) {
       throw StateError(
         'That Staff member is not on the Staff list in this Section',

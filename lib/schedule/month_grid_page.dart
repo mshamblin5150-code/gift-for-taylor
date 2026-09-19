@@ -18,6 +18,7 @@ import 'swaps_page.dart';
 import 'open_shifts_page.dart';
 import 'requests_off_page.dart';
 import 'shift_codes_page.dart';
+import 'staffing_sheet.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -65,10 +66,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
   late DateTime _month = DateTime(widget.month.year, widget.month.month);
   StreamSubscription<void>? _updates;
   StreamSubscription<void>? _swapUpdates;
+  StreamSubscription<void>? _openShiftUpdates;
   int _pendingSwaps = 0;
   Timer? _requestNoticeTimer;
   MonthGrid? _grid;
   List<LegendCode> _shiftCodes = const [];
+  List<SectionStaffing> _staffing = [];
   ChangeAnnouncement? _announcement;
   PrintWording? _wording;
 
@@ -89,6 +92,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
     _listen();
     if (widget.swapRules case final swapRules?) {
       _swapUpdates = swapRules.updates().listen((_) => _refreshSwaps());
+    }
+    if (widget.openShiftRules case final openShiftRules?) {
+      _openShiftUpdates = openShiftRules.updates().listen((_) => _reload());
     }
     _load();
     _loadWording();
@@ -119,6 +125,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   void dispose() {
     _updates?.cancel();
     _swapUpdates?.cancel();
+    _openShiftUpdates?.cancel();
     _requestNoticeTimer?.cancel();
     super.dispose();
   }
@@ -139,12 +146,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
         widget.rules.editableSections(),
       ).wait;
       final (grid, announcement, codes) = await _read(month, editable);
+      final staffing =
+          await widget.openShiftRules?.staffingForMonth(month) ??
+          <SectionStaffing>[];
       if (!mounted || month != _month) return;
       setState(() {
         _canEdit = canEdit;
         _editable = editable;
         _grid = grid;
         _shiftCodes = codes;
+        _staffing = staffing;
         _announcement = announcement;
         _loadError = null;
       });
@@ -188,10 +199,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
     try {
       final month = _month;
       final (grid, announcement, codes) = await _read(month, _editable);
+      final (grid, announcement, codes) = await _read(month, _editable);
+      final staffing =
+          await widget.openShiftRules?.staffingForMonth(month) ??
+          <SectionStaffing>[];
       if (!mounted || month != _month) return;
       setState(() {
         _grid = grid;
         _shiftCodes = codes;
+        _staffing = staffing;
         _announcement = announcement;
       });
     } catch (_) {
@@ -288,6 +304,29 @@ class _MonthGridPageState extends State<MonthGridPage> {
         const SnackBar(content: Text("That change wasn't saved. Try again.")),
       );
     }
+  }
+
+  Future<void> _manageSectionDay(ScheduleSection section, DateTime date) async {
+    final rules = widget.openShiftRules;
+    if (!_canEdit || rules == null) return;
+    final staffing = _staffing
+        .where(
+          (item) =>
+              item.sectionId == section.id &&
+              item.date.year == date.year &&
+              item.date.month == date.month &&
+              item.date.day == date.day,
+        )
+        .firstOrNull;
+    if (staffing == null) return;
+    final changed = await showStaffingSheet(
+      context,
+      rules: rules,
+      section: section,
+      date: date,
+      staffing: staffing,
+    );
+    if (changed == true) await _reload();
   }
 
   Future<void> _print(ValueChanged<String> printBookPage) async {
@@ -675,6 +714,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
       (final MonthGrid grid, _) => switch (_view) {
         ScheduleView.month => _MonthView(
           grid: grid,
+          staffing: _staffing,
+          onManageDay: _manageSectionDay,
           onEdit: _edit,
           onOpenStaffDetails: widget.onOpenStaffDetails == null
               ? null
@@ -683,6 +724,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ),
         ScheduleView.day => _DayView(
           grid: grid,
+          staffing: _staffing,
+          onManageDay: _manageSectionDay,
           day: _day,
           onDayChanged: (day) => setState(() => _day = day),
           onEdit: _edit,
@@ -764,16 +807,36 @@ class _AnnounceTray extends StatelessWidget {
 }
 
 typedef _OnEdit = Future<void> Function(ScheduleRow row, DateTime date);
+typedef _OnManageDay =
+    Future<void> Function(ScheduleSection section, DateTime date);
+
+SectionStaffing? _staffingOn(
+  List<SectionStaffing> staffing,
+  String sectionId,
+  DateTime day,
+) => staffing
+    .where(
+      (item) =>
+          item.sectionId == sectionId &&
+          item.date.year == day.year &&
+          item.date.month == day.month &&
+          item.date.day == day.day,
+    )
+    .firstOrNull;
 
 class _MonthView extends StatelessWidget {
   const _MonthView({
     required this.grid,
+    required this.staffing,
+    required this.onManageDay,
     required this.onEdit,
     required this.onOpenStaffDetails,
     required this.staffMemberId,
   });
 
   final MonthGrid grid;
+  final List<SectionStaffing> staffing;
+  final _OnManageDay onManageDay;
   final _OnEdit onEdit;
   final Future<void> Function(String)? onOpenStaffDetails;
   final String? staffMemberId;
@@ -789,7 +852,13 @@ class _MonthView extends StatelessWidget {
           children: [
             _DayHeader(days: days),
             for (final section in grid.sections) ...[
-              _SectionBand(grid: grid, section: section, days: days),
+              _SectionBand(
+                grid: grid,
+                section: section,
+                days: days,
+                staffing: staffing,
+                onManageDay: onManageDay,
+              ),
               for (final row in grid.rowsIn(section.id))
                 _StaffRow(
                   grid: grid,
@@ -841,11 +910,15 @@ class _SectionBand extends StatelessWidget {
     required this.grid,
     required this.section,
     required this.days,
+    required this.staffing,
+    required this.onManageDay,
   });
 
   final MonthGrid grid;
   final ScheduleSection section;
   final List<DateTime> days;
+  final List<SectionStaffing> staffing;
+  final _OnManageDay onManageDay;
 
   @override
   Widget build(BuildContext context) {
@@ -863,17 +936,25 @@ class _SectionBand extends StatelessWidget {
           ),
         ),
         for (final day in days)
-          Container(
+          InkWell(
             key: ValueKey(
               '${_isWeekend(day) ? 'weekend' : 'weekday'}-${_dateKey(day)}',
             ),
-            width: _dayWidth,
-            height: _bandHeight,
-            alignment: Alignment.center,
-            decoration: _cellDecoration(day, context),
-            child: _ShortMarker(
-              key: ValueKey('short-${section.id}-${_dateKey(day)}'),
-              shortShifts: grid.shortShiftsOn(section.id, day),
+            onTap: () => onManageDay(section, day),
+            child: Container(
+              width: _dayWidth,
+              height: _bandHeight,
+              alignment: Alignment.center,
+              decoration: _cellDecoration(day, context),
+              child: _ShortMarker(
+                key: ValueKey('short-${section.id}-${_dateKey(day)}'),
+                count:
+                    grid.shortShiftsOn(section.id, day).length >
+                        (_staffingOn(staffing, section.id, day)?.shortCount ??
+                            0)
+                    ? grid.shortShiftsOn(section.id, day).length
+                    : (_staffingOn(staffing, section.id, day)?.shortCount ?? 0),
+              ),
             ),
           ),
       ],
@@ -954,16 +1035,16 @@ class _StaffRow extends StatelessWidget {
 
 /// How many shifts in a Section are uncovered that day, if any.
 class _ShortMarker extends StatelessWidget {
-  const _ShortMarker({super.key, required this.shortShifts});
+  const _ShortMarker({super.key, required this.count});
 
-  final List<ShortShift> shortShifts;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    if (shortShifts.isEmpty) return const SizedBox.shrink();
+    if (count == 0) return const SizedBox.shrink();
     final colors = Theme.of(context).colorScheme;
     return Tooltip(
-      message: 'Short: ${shortShifts.map((s) => s.shiftCode).join(', ')}',
+      message: 'Short: $count',
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         decoration: BoxDecoration(
@@ -971,7 +1052,7 @@ class _ShortMarker extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
-          '−${shortShifts.length}',
+          '−$count',
           style: TextStyle(
             color: colors.onErrorContainer,
             fontSize: 12,
@@ -1033,6 +1114,8 @@ class _GridCell extends StatelessWidget {
 class _DayView extends StatelessWidget {
   const _DayView({
     required this.grid,
+    required this.staffing,
+    required this.onManageDay,
     required this.day,
     required this.onDayChanged,
     required this.onEdit,
@@ -1040,6 +1123,8 @@ class _DayView extends StatelessWidget {
   });
 
   final MonthGrid grid;
+  final List<SectionStaffing> staffing;
+  final _OnManageDay onManageDay;
   final DateTime day;
   final ValueChanged<DateTime> onDayChanged;
   final _OnEdit onEdit;
@@ -1093,7 +1178,27 @@ class _DayView extends StatelessWidget {
           child: ListView(
             children: [
               for (final section in grid.sections) ...[
-                _SectionHeading(section.name),
+                ListTile(
+                  title: Text(
+                    section.name,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  tileColor: Theme.of(context).colorScheme.primaryContainer,
+                  trailing: const Icon(Icons.edit_calendar),
+                  onTap: () => onManageDay(section, day),
+                ),
+                if ((_staffingOn(staffing, section.id, day)?.shortCount ?? 0) >
+                    grid.shortShiftsOn(section.id, day).length)
+                  ListTile(
+                    leading: Icon(
+                      Icons.warning_amber,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    title: Text(
+                      'Short ${_staffingOn(staffing, section.id, day)!.shortCount} against minimum',
+                    ),
+                    onTap: () => onManageDay(section, day),
+                  ),
                 for (final short in grid.shortShiftsOn(section.id, day))
                   ListTile(
                     leading: Icon(
@@ -1191,21 +1296,6 @@ class _PersonView extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading(this.name);
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Theme.of(context).colorScheme.primaryContainer,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
     );
   }
 }
