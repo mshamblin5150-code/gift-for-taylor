@@ -428,6 +428,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 label: Text('$_pendingSwaps'),
                 child: const Icon(Icons.swap_horiz),
               ),
+            ),
           if (widget.onCalendarFeed != null)
             IconButton(
               tooltip: 'My Calendar feed',
