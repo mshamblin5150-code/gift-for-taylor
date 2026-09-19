@@ -241,23 +241,60 @@ as $$
     and upper(trim(p_shift_code)) not in ('X', 'R/O', 'H', 'S/L')
 $$;
 
--- Every placement of each person, for building a month's rows. A month shows
--- each person once, in their latest placement that overlaps it; if that
--- placement has ended, they left, and its end is their Last day.
-create view public.schedule_row_assignments
-with (security_invoker = true)
-as
-select
-  assignment.staff_member_id,
-  member.display_name,
-  assignment.section_id,
-  assignment.display_order,
-  assignment.effective_from,
-  assignment.effective_through
-from public.staff_section_assignments assignment
-join public.staff_members member on member.id = assignment.staff_member_id;
+-- A month's rows now carry the end of the placement that decides them: if it
+-- has ended, the person left, and that is their Last day in this month.
+drop function public.schedule_rows(date);
 
-grant select on public.schedule_row_assignments to authenticated;
+create function public.schedule_rows(p_month_start date)
+returns table (
+  staff_member_id uuid,
+  display_name text,
+  section_id uuid,
+  last_day date
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with bounds as (
+    select
+      date_trunc('month', p_month_start)::date as month_start,
+      (date_trunc('month', p_month_start) + interval '1 month - 1 day')::date
+        as month_end
+  ),
+  held as (
+    select distinct on (assignment.staff_member_id)
+      assignment.staff_member_id,
+      assignment.section_id,
+      assignment.display_order,
+      assignment.effective_through
+    from public.staff_section_assignments assignment
+    cross join bounds
+    where assignment.effective_from <= bounds.month_end
+      and (
+        assignment.effective_through is null
+        or assignment.effective_through >= bounds.month_start
+      )
+    order by assignment.staff_member_id, assignment.effective_from desc
+  )
+  select member.id, member.display_name, held.section_id, held.effective_through
+  from held
+  join public.staff_members member on member.id = held.staff_member_id
+  join public.sections section on section.id = held.section_id
+  cross join bounds
+  where member.active
+    or exists (
+      select 1
+      from public.schedule_cells cell
+      where cell.staff_member_id = member.id
+        and cell.work_date between bounds.month_start and bounds.month_end
+    )
+  order by section.display_order, held.display_order, member.display_name
+$$;
+
+revoke all on function public.schedule_rows(date) from public;
+grant execute on function public.schedule_rows(date) to authenticated;
 
 create or replace view public.staff_list_entries
 with (security_invoker = true)
@@ -385,6 +422,15 @@ begin
   set effective_through = p_last_day
   where staff_member_id = p_staff_member_id
     and (effective_through is null or effective_through > p_last_day);
+
+  -- A departing Night scheduler loses the role, as remove_night_scheduler
+  -- does.
+  update public.staff_members
+  set role = 'staff_member'
+  where id = p_staff_member_id
+    and role = 'night_scheduler';
+  delete from public.night_scheduler_sections
+  where staff_member_id = p_staff_member_id;
 
   -- Sign-in stops at once; an unused Invite can no longer be accepted.
   update public.staff_accounts
@@ -748,7 +794,10 @@ declare
   v_old_code text;
   v_row public.staff_section_assignments%rowtype;
 begin
-  if not public.can_edit_schedule() then
+  if not public.can_edit_section(p_section_id) then
+    if public.current_staff_role() = 'night_scheduler' then
+      raise exception 'Only the Manager can edit that Section';
+    end if;
     raise exception 'Only the Manager can edit the Schedule';
   end if;
 

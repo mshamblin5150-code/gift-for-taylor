@@ -194,8 +194,8 @@ select results_eq(
 
 select results_eq(
   $$
-    select display_name, effective_through::text
-    from public.schedule_row_assignments
+    select display_name, last_day::text
+    from public.schedule_rows('2027-01-01')
     where staff_member_id = '00000000-0000-0000-0000-000000000197'
   $$,
   $$values ('Leaving Staff member', '2027-01-10')$$,
@@ -425,7 +425,7 @@ select lives_ok(
 select results_eq(
   $$
     select section_id, effective_from::text, effective_through::text
-    from public.schedule_row_assignments
+    from public.staff_section_assignments
     where staff_member_id = '00000000-0000-0000-0000-000000000198'
     order by effective_from
   $$,
