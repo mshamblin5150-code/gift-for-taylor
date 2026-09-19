@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
@@ -78,6 +80,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   List<SectionStaffing> _staffing = [];
   ChangeAnnouncement? _announcement;
   PrintWording? _wording;
+  bool _savingDrop = false;
 
   /// The Manager: may confirm the month and manage the Night scheduler.
   bool _canEdit = false;
@@ -322,6 +325,93 @@ class _MonthGridPageState extends State<MonthGridPage> {
         const SnackBar(content: Text("That change wasn't saved. Try again.")),
       );
     }
+  }
+
+  Future<void> _drop(
+    _DraggedCell source,
+    _DraggedCell target,
+    bool copy,
+  ) async {
+    final grid = _grid;
+    if (_savingDrop ||
+        grid == null ||
+        grid.status == MonthStatus.notStarted ||
+        !_editable.contains(source.row.sectionId) ||
+        !_editable.contains(target.row.sectionId) ||
+        !grid.isOnSchedule(source.row, source.date) ||
+        !grid.isOnSchedule(target.row, target.date)) {
+      return;
+    }
+    final sourceCode =
+        grid.shiftCodeFor(source.row.staffMemberId, source.date) ?? '';
+    final targetCode =
+        grid.shiftCodeFor(target.row.staffMemberId, target.date) ?? '';
+    if (sourceCode.isEmpty || (sourceCode == targetCode)) return;
+    if (!copy && targetCode.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Choose a cell with a Shift code to swap, or hold Ctrl or Option to copy here.',
+          ),
+        ),
+      );
+      return;
+    }
+    SaveCell cell(_DraggedCell location, String code) => SaveCell(
+      staffMemberId: location.row.staffMemberId,
+      sectionId: location.row.sectionId,
+      date: location.date,
+      shiftCode: code,
+    );
+    final action = SaveCellPair(
+      first: cell(source, copy ? sourceCode : targetCode),
+      second: cell(target, sourceCode),
+      expectedFirstCode: sourceCode,
+      expectedSecondCode: targetCode,
+    );
+    setState(() => _savingDrop = true);
+    try {
+      await widget.rules.saveCellPair(action);
+      await _reload();
+      if (!mounted) return;
+      final undo = SaveCellPair(
+        first: cell(source, sourceCode),
+        second: cell(target, targetCode),
+        expectedFirstCode: action.first.shiftCode,
+        expectedSecondCode: action.second.shiftCode,
+      );
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(copy ? 'Shift code copied.' : 'Shift codes swapped.'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () async {
+              try {
+                await widget.rules.saveCellPair(undo);
+                await _reload();
+              } catch (error) {
+                if (mounted) _showDropError(error);
+              }
+            },
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        await _reload();
+        if (mounted) _showDropError(error);
+      }
+    } finally {
+      if (mounted) setState(() => _savingDrop = false);
+    }
+  }
+
+  void _showDropError(Object error) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('The drop was not saved: $error')));
   }
 
   Future<void> _manageSectionDay(ScheduleSection section, DateTime date) async {
@@ -736,6 +826,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
           staffing: _staffing,
           onManageDay: _manageSectionDay,
           onEdit: _edit,
+          onDrop: _drop,
+          editable: _editable,
+          dragEnabled: grid.status != MonthStatus.notStarted && !_savingDrop,
           onOpenStaffDetails: widget.onOpenStaffDetails == null
               ? null
               : _openStaffDetails,
@@ -828,6 +921,22 @@ class _AnnounceTray extends StatelessWidget {
 }
 
 typedef _OnEdit = Future<void> Function(ScheduleRow row, DateTime date);
+typedef _OnDrop = Future<void> Function(
+  _DraggedCell source,
+  _DraggedCell target,
+  bool copy,
+);
+
+final class _DraggedCell {
+  const _DraggedCell(this.row, this.date);
+  final ScheduleRow row;
+  final DateTime date;
+
+  bool isSame(_DraggedCell other) =>
+      row.staffMemberId == other.row.staffMemberId &&
+      _dateOnly(date) == _dateOnly(other.date);
+}
+
 typedef _OnManageDay = Future<void> Function(
   ScheduleSection section,
   DateTime date,
@@ -854,6 +963,9 @@ class _MonthView extends StatefulWidget {
     required this.staffing,
     required this.onManageDay,
     required this.onEdit,
+    required this.onDrop,
+    required this.editable,
+    required this.dragEnabled,
     required this.onOpenStaffDetails,
     required this.staffMemberId,
   });
@@ -863,6 +975,9 @@ class _MonthView extends StatefulWidget {
   final List<SectionStaffing> staffing;
   final _OnManageDay onManageDay;
   final _OnEdit onEdit;
+  final _OnDrop onDrop;
+  final EditableSections editable;
+  final bool dragEnabled;
   final Future<void> Function(String)? onOpenStaffDetails;
   final String? staffMemberId;
 
@@ -873,6 +988,9 @@ class _MonthView extends StatefulWidget {
 class _MonthViewState extends State<_MonthView> {
   final _headerScroll = ScrollController();
   final _daysScroll = ScrollController();
+  final _verticalScroll = ScrollController();
+  Timer? _dragScrollTimer;
+  Offset? _dragPointer;
 
   @override
   void initState() {
@@ -910,9 +1028,59 @@ class _MonthViewState extends State<_MonthView> {
 
   @override
   void dispose() {
+    _dragScrollTimer?.cancel();
     _headerScroll.dispose();
     _daysScroll.dispose();
+    _verticalScroll.dispose();
     super.dispose();
+  }
+
+  void _scrollDuringDrag(Offset globalPosition) {
+    _dragPointer = globalPosition;
+    _dragScrollTimer ??= Timer.periodic(const Duration(milliseconds: 40), (_) {
+      if (_dragPointer case final pointer?) _scrollAt(pointer);
+    });
+    _scrollAt(globalPosition);
+  }
+
+  void _stopDragScroll() {
+    _dragPointer = null;
+    _dragScrollTimer?.cancel();
+    _dragScrollTimer = null;
+  }
+
+  void _scrollAt(Offset globalPosition) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final point = box.globalToLocal(globalPosition);
+    void scroll(ScrollController controller, double direction) {
+      if (!controller.hasClients || direction == 0) return;
+      controller.jumpTo(
+        (controller.offset + direction * 18).clamp(
+          controller.position.minScrollExtent,
+          controller.position.maxScrollExtent,
+        ),
+      );
+    }
+
+    final width = box.size.width;
+    final height = box.size.height;
+    scroll(
+      _daysScroll,
+      point.dx < _nameWidth + 36
+          ? -1
+          : point.dx > width - 36
+          ? 1
+          : 0,
+    );
+    scroll(
+      _verticalScroll,
+      point.dy < _cellHeight + 36
+          ? -1
+          : point.dy > height - 36
+          ? 1
+          : 0,
+    );
   }
 
   @override
@@ -934,6 +1102,7 @@ class _MonthViewState extends State<_MonthView> {
         ),
         Expanded(
           child: SingleChildScrollView(
+            controller: _verticalScroll,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -964,6 +1133,11 @@ class _MonthViewState extends State<_MonthView> {
                               days: days,
                               today: widget.today,
                               onEdit: widget.onEdit,
+                              onDrop: widget.onDrop,
+                              onDragUpdate: _scrollDuringDrag,
+                              onDragStop: _stopDragScroll,
+                              editable: widget.editable,
+                              dragEnabled: widget.dragEnabled,
                               staffMemberId: widget.staffMemberId,
                             ),
                         ],
@@ -1126,6 +1300,11 @@ class _StaffRow extends StatelessWidget {
     required this.days,
     required this.today,
     required this.onEdit,
+    required this.onDrop,
+    required this.onDragUpdate,
+    required this.onDragStop,
+    required this.editable,
+    required this.dragEnabled,
     required this.staffMemberId,
   });
 
@@ -1134,6 +1313,11 @@ class _StaffRow extends StatelessWidget {
   final List<DateTime> days;
   final DateTime today;
   final _OnEdit onEdit;
+  final _OnDrop onDrop;
+  final ValueChanged<Offset> onDragUpdate;
+  final VoidCallback onDragStop;
+  final EditableSections editable;
+  final bool dragEnabled;
   final String? staffMemberId;
 
   @override
@@ -1156,6 +1340,15 @@ class _StaffRow extends StatelessWidget {
                 'unannounced-${row.staffMemberId}-${_dateKey(day)}',
               ),
               onTap: () => onEdit(row, day),
+              dragCell: _DraggedCell(row, day),
+              canDrag:
+                  dragEnabled &&
+                  editable.contains(row.sectionId) &&
+                  (grid.shiftCodeFor(row.staffMemberId, day) ?? '').isNotEmpty,
+              canReceive: dragEnabled && editable.contains(row.sectionId),
+              onDrop: onDrop,
+              onDragUpdate: onDragUpdate,
+              onDragStop: onDragStop,
             )
           else
             // After their Last day: no longer on the Schedule.
@@ -1216,6 +1409,12 @@ class _GridCell extends StatelessWidget {
     required this.changed,
     required this.changedKey,
     required this.onTap,
+    this.dragCell,
+    this.canDrag = false,
+    this.canReceive = false,
+    this.onDrop,
+    this.onDragUpdate,
+    this.onDragStop,
   });
 
   final DateTime day;
@@ -1226,11 +1425,17 @@ class _GridCell extends StatelessWidget {
   final bool changed;
   final Key changedKey;
   final VoidCallback onTap;
+  final _DraggedCell? dragCell;
+  final bool canDrag;
+  final bool canReceive;
+  final _OnDrop? onDrop;
+  final ValueChanged<Offset>? onDragUpdate;
+  final VoidCallback? onDragStop;
 
   @override
   Widget build(BuildContext context) {
     final decoration = _cellDecoration(day, context, today);
-    return InkWell(
+    final cell = InkWell(
       onTap: onTap,
       child: Container(
         key: changed
@@ -1255,6 +1460,65 @@ class _GridCell extends StatelessWidget {
           ),
           textAlign: TextAlign.center,
         ),
+      ),
+    );
+    final location = dragCell;
+    if (location == null) return cell;
+    final feedback = Material(
+      elevation: 4,
+      child: SizedBox(
+        width: _dayWidth,
+        height: _cellHeight,
+        child: Center(child: Text(code)),
+      ),
+    );
+    final fadedCell = Opacity(opacity: 0.35, child: cell);
+    void update(DragUpdateDetails details) =>
+        onDragUpdate?.call(details.globalPosition);
+    void end(DraggableDetails details) => onDragStop?.call();
+    final draggable = canDrag
+        ? switch (defaultTargetPlatform) {
+            TargetPlatform.android ||
+            TargetPlatform.iOS => LongPressDraggable<_DraggedCell>(
+              data: location,
+              feedback: feedback,
+              childWhenDragging: fadedCell,
+              onDragUpdate: update,
+              onDragEnd: end,
+              child: cell,
+            ),
+            _ => Draggable<_DraggedCell>(
+              data: location,
+              feedback: feedback,
+              childWhenDragging: fadedCell,
+              onDragUpdate: update,
+              onDragEnd: end,
+              child: cell,
+            ),
+          }
+        : cell;
+    return DragTarget<_DraggedCell>(
+      onWillAcceptWithDetails: (details) =>
+          canReceive && !details.data.isSame(location),
+      onAcceptWithDetails: (details) {
+        final keys = HardwareKeyboard.instance.logicalKeysPressed;
+        final copy =
+            keys.contains(LogicalKeyboardKey.controlLeft) ||
+            keys.contains(LogicalKeyboardKey.controlRight) ||
+            keys.contains(LogicalKeyboardKey.altLeft) ||
+            keys.contains(LogicalKeyboardKey.altRight);
+        onDrop?.call(details.data, location, copy);
+      },
+      builder: (context, candidates, rejected) => DecoratedBox(
+        decoration: BoxDecoration(
+          border: candidates.isEmpty
+              ? null
+              : Border.all(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 3,
+                ),
+        ),
+        child: draggable,
       ),
     );
   }

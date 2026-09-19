@@ -40,6 +40,9 @@ abstract interface class ScheduleRules {
   /// Refused outside the signed-in person's [editableSections].
   Future<void> saveCell(SaveCell action);
 
+  /// Saves two cells together, refusing stale values or either forbidden cell.
+  Future<void> saveCellPair(SaveCellPair action);
+
   /// Gives [staffMemberId] the Night scheduler role limited to [sectionIds],
   /// replacing any Sections they had. Only the Manager may.
   Future<void> assignNightScheduler(
@@ -162,6 +165,8 @@ abstract interface class ScheduleStore {
   /// the signed-in person and the time. Refuses cells outside the signed-in
   /// person's editable Sections.
   Future<void> writeCell(ScheduleCell cell);
+
+  Future<void> writeCellPair(SaveCellPair action);
 
   Stream<void> monthUpdates(DateTime month);
 
@@ -287,6 +292,20 @@ final class SaveCell {
   final String sectionId;
   final DateTime date;
   final String shiftCode;
+}
+
+final class SaveCellPair {
+  const SaveCellPair({
+    required this.first,
+    required this.second,
+    required this.expectedFirstCode,
+    required this.expectedSecondCode,
+  });
+
+  final SaveCell first;
+  final SaveCell second;
+  final String expectedFirstCode;
+  final String expectedSecondCode;
 }
 
 final class UndoCell {
@@ -762,6 +781,10 @@ final class _ScheduleRules implements ScheduleRules {
       ),
     );
   }
+
+  @override
+  Future<void> saveCellPair(SaveCellPair action) =>
+      _store.writeCellPair(action);
 
   @override
   Future<void> undoCell(UndoCell action) async {
@@ -1351,18 +1374,17 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     }
     if (decision == RequestOffDecision.approved) {
       for (final date in request.dates) {
-        final row = (await rows(
-          DateTime(date.year, date.month),
-        )).where((r) => r.staffMemberId == request.staffMemberId).firstOrNull;
+        final row = (await rows(DateTime(date.year, date.month)))
+            .where((r) => r.staffMemberId == request.staffMemberId)
+            .firstOrNull;
         if (row == null ||
             (row.lastDay != null && date.isAfter(row.lastDay!))) {
           throw StateError('Staff member is not on the Schedule for that day');
         }
       }
       for (final date in request.dates) {
-        final row = (await rows(
-          DateTime(date.year, date.month),
-        )).firstWhere((r) => r.staffMemberId == request.staffMemberId);
+        final row = (await rows(DateTime(date.year, date.month)))
+            .firstWhere((r) => r.staffMemberId == request.staffMemberId);
         final old =
             _database
                 ._cells[_cellKey(request.staffMemberId, date)]
@@ -1481,9 +1503,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           ? const ScheduleEditRefused()
           : const ScheduleEditRefused('Only the Manager can edit that Section');
     }
-    final row = (await rows(
-      DateTime(cell.date.year, cell.date.month),
-    )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
+    final row = (await rows(DateTime(cell.date.year, cell.date.month)))
+        .where((row) => row.staffMemberId == cell.staffMemberId)
+        .firstOrNull;
     if (row == null || row.sectionId != cell.sectionId) {
       throw StateError(
         'That Staff member is not on the Staff list in this Section',
@@ -1494,6 +1516,65 @@ final class _InMemoryScheduleStore implements ScheduleStore {
       throw StateError('That day is after their Last day');
     }
     _write(cell);
+  }
+
+  @override
+  Future<void> writeCellPair(SaveCellPair action) async {
+    final first = action.first;
+    final second = action.second;
+    if (first.staffMemberId == second.staffMemberId &&
+        _sameDay(first.date, second.date)) {
+      throw StateError('Choose two different Schedule cells');
+    }
+    if (!_inMonth(first.date, second.date)) {
+      throw StateError('Both cells must be in the same month');
+    }
+    final editable = await editableSections();
+    for (final cell in [first, second]) {
+      if (!editable.contains(cell.sectionId)) throw const ScheduleEditRefused();
+      final row = (await rows(DateTime(cell.date.year, cell.date.month)))
+          .where((row) => row.staffMemberId == cell.staffMemberId)
+          .firstOrNull;
+      if (row == null ||
+          row.sectionId != cell.sectionId ||
+          (row.lastDay != null && cell.date.isAfter(row.lastDay!))) {
+        throw StateError('That cell is outside the Staff member\'s Schedule');
+      }
+    }
+    final firstOld =
+        _database
+            ._cells[_cellKey(first.staffMemberId, first.date)]
+            ?.shiftCode ??
+        '';
+    final secondOld =
+        _database
+            ._cells[_cellKey(second.staffMemberId, second.date)]
+            ?.shiftCode ??
+        '';
+    if (firstOld != action.expectedFirstCode ||
+        secondOld != action.expectedSecondCode) {
+      throw StateError('The Schedule changed. Reload and try again.');
+    }
+    if (firstOld != first.shiftCode) {
+      _write(
+        ScheduleCell(
+          staffMemberId: first.staffMemberId,
+          sectionId: first.sectionId,
+          date: first.date,
+          shiftCode: first.shiftCode,
+        ),
+      );
+    }
+    if (secondOld != second.shiftCode) {
+      _write(
+        ScheduleCell(
+          staffMemberId: second.staffMemberId,
+          sectionId: second.sectionId,
+          date: second.date,
+          shiftCode: second.shiftCode,
+        ),
+      );
+    }
   }
 
   void _write(ScheduleCell cell) {
