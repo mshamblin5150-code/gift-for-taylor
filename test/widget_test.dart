@@ -38,19 +38,23 @@ void main() {
     DateTime? month,
     ValueChanged<String>? printBookPage,
     PrintWordingGateway? printWordingGateway,
+    DateTime Function()? now,
+    Size size = const Size(2400, 1600),
   }) async {
-    tester.view.physicalSize = const Size(2400, 1600);
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final rules = ScheduleRules.inMemory(database, actingAs: actingAs);
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          key: ValueKey(month ?? september),
           rules: rules,
           month: month ?? september,
           staffMemberId: staffMemberId,
           printBookPage: printBookPage,
           printWordingGateway: printWordingGateway,
+          now: now,
         ),
       ),
     );
@@ -67,6 +71,110 @@ void main() {
       'unannounced-$staffMemberId-${date.toIso8601String().substring(0, 10)}',
     ),
   );
+
+  Color cellColor(WidgetTester tester, String staffMemberId, DateTime date) {
+    final container = tester.widget<Container>(
+      find
+          .descendant(
+            of: cell(staffMemberId, date),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    return (container.decoration! as BoxDecoration).color!;
+  }
+
+  testWidgets('today is distinct from weekends in light and dark themes', (
+    tester,
+  ) async {
+    final today = DateTime(2026, 9, 19);
+    await pumpGrid(tester, now: () => today);
+    final todayColor = cellColor(tester, 'rn-1', today);
+    final otherWeekend = cellColor(tester, 'rn-1', DateTime(2026, 9, 20));
+    expect(todayColor, isNot(otherWeekend));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: MonthGridPage(
+          rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
+          month: september,
+          now: () => today,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      cellColor(tester, 'rn-1', today),
+      isNot(cellColor(tester, 'rn-1', DateTime(2026, 9, 20))),
+    );
+  });
+
+  testWidgets('today highlight moves at local midnight', (tester) async {
+    var now = DateTime(2026, 9, 18, 23, 59, 59);
+    await pumpGrid(tester, now: () => now);
+    final yesterdayColor = cellColor(tester, 'rn-1', DateTime(2026, 9, 18));
+    now = DateTime(2026, 9, 19);
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      cellColor(tester, 'rn-1', DateTime(2026, 9, 18)),
+      isNot(yesterdayColor),
+    );
+    expect(cellColor(tester, 'rn-1', DateTime(2026, 9, 19)), yesterdayColor);
+  });
+
+  testWidgets('current month opens with today visible', (tester) async {
+    await pumpGrid(
+      tester,
+      now: () => DateTime(2026, 9, 19),
+      size: const Size(900, 800),
+    );
+    final horizontal = tester.widget<SingleChildScrollView>(
+      find.byKey(const ValueKey('month-horizontal-scroll')),
+    );
+    expect(horizontal.controller!.offset, greaterThan(0));
+    final rect = tester.getRect(cell('rn-1', DateTime(2026, 9, 19)));
+    expect(rect.left, greaterThanOrEqualTo(0));
+    expect(rect.right, lessThanOrEqualTo(900));
+    expect(
+      tester.getRect(find.text('19')).center.dx,
+      closeTo(rect.center.dx, 1),
+    );
+
+    await pumpGrid(
+      tester,
+      month: DateTime(2026, 8),
+      now: () => DateTime(2026, 9, 19),
+      size: const Size(900, 800),
+    );
+    final otherMonthScroll = tester.widget<SingleChildScrollView>(
+      find.byKey(const ValueKey('month-horizontal-scroll')),
+    );
+    expect(otherMonthScroll.controller!.offset, 0);
+    expect(
+      cellColor(tester, 'rn-1', DateTime(2026, 8, 18)),
+      cellColor(tester, 'rn-1', DateTime(2026, 8, 19)),
+    );
+  });
+
+  testWidgets('day and person views mark today', (tester) async {
+    await pumpGrid(tester, now: () => DateTime(2026, 9, 19));
+    await tester.tap(find.text('Day'));
+    await tester.pumpAndSettle();
+    final dayLabel = find.text('Saturday, September 19');
+    final dayContainer = tester.widget<Container>(
+      find.ancestor(of: dayLabel, matching: find.byType(Container)).first,
+    );
+    expect((dayContainer.decoration! as BoxDecoration).color, isNotNull);
+
+    await tester.tap(find.text('Person'));
+    await tester.pumpAndSettle();
+    final todayTile = tester.widget<ListTile>(
+      find.ancestor(of: find.text('Sat 19'), matching: find.byType(ListTile)),
+    );
+    expect(todayTile.tileColor, isNotNull);
+    expect(todayTile.leading, isA<Icon>());
+  });
 
   testWidgets('month grid shows Sections, rows, weekdays, and weekends', (
     tester,

@@ -39,6 +39,7 @@ class MonthGridPage extends StatefulWidget {
     this.noticeGateway,
     this.printBookPage,
     this.printWordingGateway,
+    this.now,
   });
 
   final ScheduleRules rules;
@@ -57,6 +58,7 @@ class MonthGridPage extends StatefulWidget {
   /// Prints a Schedule book page, given as an HTML document.
   final ValueChanged<String>? printBookPage;
   final PrintWordingGateway? printWordingGateway;
+  final DateTime Function()? now;
 
   @override
   State<MonthGridPage> createState() => _MonthGridPageState();
@@ -69,6 +71,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
   StreamSubscription<void>? _openShiftUpdates;
   int _pendingSwaps = 0;
   Timer? _requestNoticeTimer;
+  Timer? _midnightTimer;
+  late DateTime _today = _dateOnly(_now());
   MonthGrid? _grid;
   List<LegendCode> _shiftCodes = const [];
   List<SectionStaffing> _staffing = [];
@@ -89,6 +93,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   @override
   void initState() {
     super.initState();
+    _scheduleMidnight();
     _listen();
     if (widget.swapRules case final swapRules?) {
       _swapUpdates = swapRules.updates().listen((_) => _refreshSwaps());
@@ -123,6 +128,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   @override
   void dispose() {
+    _midnightTimer?.cancel();
     _updates?.cancel();
     _swapUpdates?.cancel();
     _openShiftUpdates?.cancel();
@@ -131,10 +137,23 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   DateTime _defaultDay() {
-    final now = DateTime.now();
+    final now = _today;
     return now.year == _month.year && now.month == _month.month
         ? DateTime(now.year, now.month, now.day)
         : _month;
+  }
+
+  DateTime _now() => widget.now?.call() ?? DateTime.now();
+
+  void _scheduleMidnight() {
+    _midnightTimer?.cancel();
+    final now = _now();
+    final nextDay = DateTime(now.year, now.month, now.day + 1);
+    _midnightTimer = Timer(nextDay.difference(now), () {
+      if (!mounted) return;
+      setState(() => _today = _dateOnly(_now()));
+      _scheduleMidnight();
+    });
   }
 
   Future<void> _load() async {
@@ -713,6 +732,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       (final MonthGrid grid, _) => switch (_view) {
         ScheduleView.month => _MonthView(
           grid: grid,
+          today: _today,
           staffing: _staffing,
           onManageDay: _manageSectionDay,
           onEdit: _edit,
@@ -723,6 +743,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ),
         ScheduleView.day => _DayView(
           grid: grid,
+          today: _today,
           staffing: _staffing,
           onManageDay: _manageSectionDay,
           day: _day,
@@ -732,6 +753,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ),
         ScheduleView.person => _PersonView(
           grid: grid,
+          today: _today,
           staffMemberId: _personId ?? grid.rows.firstOrNull?.staffMemberId,
           onPersonChanged: (id) => setState(() => _personId = id),
           onEdit: _edit,
@@ -806,8 +828,10 @@ class _AnnounceTray extends StatelessWidget {
 }
 
 typedef _OnEdit = Future<void> Function(ScheduleRow row, DateTime date);
-typedef _OnManageDay =
-    Future<void> Function(ScheduleSection section, DateTime date);
+typedef _OnManageDay = Future<void> Function(
+  ScheduleSection section,
+  DateTime date,
+);
 
 SectionStaffing? _staffingOn(
   List<SectionStaffing> staffing,
@@ -823,9 +847,10 @@ SectionStaffing? _staffingOn(
     )
     .firstOrNull;
 
-class _MonthView extends StatelessWidget {
+class _MonthView extends StatefulWidget {
   const _MonthView({
     required this.grid,
+    required this.today,
     required this.staffing,
     required this.onManageDay,
     required this.onEdit,
@@ -834,6 +859,7 @@ class _MonthView extends StatelessWidget {
   });
 
   final MonthGrid grid;
+  final DateTime today;
   final List<SectionStaffing> staffing;
   final _OnManageDay onManageDay;
   final _OnEdit onEdit;
@@ -841,61 +867,193 @@ class _MonthView extends StatelessWidget {
   final String? staffMemberId;
 
   @override
+  State<_MonthView> createState() => _MonthViewState();
+}
+
+class _MonthViewState extends State<_MonthView> {
+  final ScrollController _horizontal = ScrollController();
+  final ScrollController _headerHorizontal = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _horizontal.addListener(() => _syncScroll(_horizontal, _headerHorizontal));
+    _headerHorizontal.addListener(
+      () => _syncScroll(_headerHorizontal, _horizontal),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showToday());
+  }
+
+  void _syncScroll(ScrollController source, ScrollController target) {
+    if (!target.hasClients) return;
+    final offset = source.offset.clamp(
+      target.position.minScrollExtent,
+      target.position.maxScrollExtent,
+    );
+    if (target.offset != offset) target.jumpTo(offset);
+  }
+
+  void _showToday() {
+    if (!mounted || !_horizontal.hasClients) return;
+    final today = widget.today;
+    if (today.year != widget.grid.month.year ||
+        today.month != widget.grid.month.month) {
+      return;
+    }
+    final position = _horizontal.position;
+    final center = (today.day - 0.5) * _dayWidth;
+    _horizontal.jumpTo(
+      (center - position.viewportDimension / 2).clamp(
+        0.0,
+        position.maxScrollExtent,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _horizontal.dispose();
+    _headerHorizontal.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final days = grid.days;
-    return SingleChildScrollView(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final days = widget.grid.days;
+    return Column(
+      children: [
+        Row(
           children: [
-            _DayHeader(days: days),
-            for (final section in grid.sections) ...[
-              _SectionBand(
-                grid: grid,
-                section: section,
-                days: days,
-                staffing: staffing,
-                onManageDay: onManageDay,
+            const SizedBox(width: _nameWidth, height: _cellHeight),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _headerHorizontal,
+                scrollDirection: Axis.horizontal,
+                child: _DayHeader(days: days, today: widget.today),
               ),
-              for (final row in grid.rowsIn(section.id))
-                _StaffRow(
-                  grid: grid,
-                  row: row,
-                  days: days,
-                  onEdit: onEdit,
-                  onOpenStaffDetails: onOpenStaffDetails,
-                  staffMemberId: staffMemberId,
-                ),
-            ],
+            ),
           ],
         ),
-      ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _NameColumn(
+                  grid: widget.grid,
+                  onOpenStaffDetails: widget.onOpenStaffDetails,
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    key: const ValueKey('month-horizontal-scroll'),
+                    controller: _horizontal,
+                    scrollDirection: Axis.horizontal,
+                    child: Column(
+                      children: [
+                        for (final section in widget.grid.sections) ...[
+                          _SectionBand(
+                            grid: widget.grid,
+                            section: section,
+                            days: days,
+                            today: widget.today,
+                            staffing: widget.staffing,
+                            onManageDay: widget.onManageDay,
+                          ),
+                          for (final row in widget.grid.rowsIn(section.id))
+                            _StaffRow(
+                              grid: widget.grid,
+                              row: row,
+                              days: days,
+                              today: widget.today,
+                              onEdit: widget.onEdit,
+                              staffMemberId: widget.staffMemberId,
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NameColumn extends StatelessWidget {
+  const _NameColumn({required this.grid, required this.onOpenStaffDetails});
+
+  final MonthGrid grid;
+  final Future<void> Function(String)? onOpenStaffDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final section in grid.sections) ...[
+          Container(
+            width: _nameWidth,
+            height: _bandHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            alignment: Alignment.centerLeft,
+            color: Theme.of(context).colorScheme.primaryContainer,
+            child: Text(
+              section.name,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          for (final row in grid.rowsIn(section.id))
+            InkWell(
+              onTap: onOpenStaffDetails == null
+                  ? null
+                  : () => onOpenStaffDetails!(row.staffMemberId),
+              onDoubleTap: onOpenStaffDetails == null
+                  ? null
+                  : () => onOpenStaffDetails!(row.staffMemberId),
+              child: Container(
+                width: _nameWidth,
+                height: _cellHeight,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                alignment: Alignment.centerLeft,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: Text(row.displayName, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+        ],
+      ],
     );
   }
 }
 
 class _DayHeader extends StatelessWidget {
-  const _DayHeader({required this.days});
+  const _DayHeader({required this.days, required this.today});
 
   final List<DateTime> days;
+  final DateTime today;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const SizedBox(width: _nameWidth, height: _cellHeight),
         for (final day in days)
           Container(
             width: _dayWidth,
             height: _cellHeight,
             alignment: Alignment.center,
-            decoration: _cellDecoration(day, context),
+            decoration: _cellDecoration(day, context, today),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(DateFormat.E().format(day).substring(0, 1)),
-                Text('${day.day}'),
+                Text(
+                  DateFormat.E().format(day).substring(0, 1),
+                  style: _todayTextStyle(day, today, context),
+                ),
+                Text('${day.day}', style: _todayTextStyle(day, today, context)),
               ],
             ),
           ),
@@ -909,6 +1067,7 @@ class _SectionBand extends StatelessWidget {
     required this.grid,
     required this.section,
     required this.days,
+    required this.today,
     required this.staffing,
     required this.onManageDay,
   });
@@ -916,6 +1075,7 @@ class _SectionBand extends StatelessWidget {
   final MonthGrid grid;
   final ScheduleSection section;
   final List<DateTime> days;
+  final DateTime today;
   final List<SectionStaffing> staffing;
   final _OnManageDay onManageDay;
 
@@ -923,17 +1083,6 @@ class _SectionBand extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: _nameWidth,
-          height: _bandHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.centerLeft,
-          color: Theme.of(context).colorScheme.primaryContainer,
-          child: Text(
-            section.name,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
         for (final day in days)
           InkWell(
             key: ValueKey(
@@ -944,7 +1093,7 @@ class _SectionBand extends StatelessWidget {
               width: _dayWidth,
               height: _bandHeight,
               alignment: Alignment.center,
-              decoration: _cellDecoration(day, context),
+              decoration: _cellDecoration(day, context, today),
               child: _ShortMarker(
                 key: ValueKey('short-${section.id}-${_dateKey(day)}'),
                 count:
@@ -966,45 +1115,28 @@ class _StaffRow extends StatelessWidget {
     required this.grid,
     required this.row,
     required this.days,
+    required this.today,
     required this.onEdit,
-    required this.onOpenStaffDetails,
     required this.staffMemberId,
   });
 
   final MonthGrid grid;
   final ScheduleRow row;
   final List<DateTime> days;
+  final DateTime today;
   final _OnEdit onEdit;
-  final Future<void> Function(String)? onOpenStaffDetails;
   final String? staffMemberId;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        InkWell(
-          onTap: onOpenStaffDetails == null
-              ? null
-              : () => onOpenStaffDetails!(row.staffMemberId),
-          onDoubleTap: onOpenStaffDetails == null
-              ? null
-              : () => onOpenStaffDetails!(row.staffMemberId),
-          child: Container(
-            width: _nameWidth,
-            height: _cellHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            alignment: Alignment.centerLeft,
-            decoration: BoxDecoration(
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Text(row.displayName, overflow: TextOverflow.ellipsis),
-          ),
-        ),
         for (final day in days)
           if (grid.isOnSchedule(row, day))
             _GridCell(
               key: ValueKey('cell-${row.staffMemberId}-${_dateKey(day)}'),
               day: day,
+              today: today,
               code: grid.shiftCodeFor(row.staffMemberId, day) ?? '',
               unannounced: grid.isUnannounced(row.staffMemberId, day),
               changed: _isStaffChange(staffMemberId, grid, row, day),
@@ -1022,10 +1154,11 @@ class _StaffRow extends StatelessWidget {
               key: ValueKey('gone-${row.staffMemberId}-${_dateKey(day)}'),
               width: _dayWidth,
               height: _cellHeight,
-              decoration: _cellDecoration(
-                day,
-                context,
-              ).copyWith(color: Theme.of(context).colorScheme.outlineVariant),
+              decoration: _isToday(day, today)
+                  ? _cellDecoration(day, context, today)
+                  : _cellDecoration(day, context, today).copyWith(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
             ),
       ],
     );
@@ -1067,6 +1200,7 @@ class _GridCell extends StatelessWidget {
   const _GridCell({
     super.key,
     required this.day,
+    required this.today,
     required this.code,
     required this.unannounced,
     required this.unannouncedKey,
@@ -1076,6 +1210,7 @@ class _GridCell extends StatelessWidget {
   });
 
   final DateTime day;
+  final DateTime today;
   final String code;
   final bool unannounced;
   final Key unannouncedKey;
@@ -1085,7 +1220,7 @@ class _GridCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final decoration = _cellDecoration(day, context);
+    final decoration = _cellDecoration(day, context, today);
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -1102,7 +1237,13 @@ class _GridCell extends StatelessWidget {
             : decoration,
         child: Text(
           code,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: unannounced || changed
+                ? null
+                : _todayTextStyle(day, today, context)?.color,
+          ),
           textAlign: TextAlign.center,
         ),
       ),
@@ -1113,6 +1254,7 @@ class _GridCell extends StatelessWidget {
 class _DayView extends StatelessWidget {
   const _DayView({
     required this.grid,
+    required this.today,
     required this.staffing,
     required this.onManageDay,
     required this.day,
@@ -1122,6 +1264,7 @@ class _DayView extends StatelessWidget {
   });
 
   final MonthGrid grid;
+  final DateTime today;
   final List<SectionStaffing> staffing;
   final _OnManageDay onManageDay;
   final DateTime day;
@@ -1145,10 +1288,21 @@ class _DayView extends StatelessWidget {
               icon: const Icon(Icons.chevron_left),
             ),
             Expanded(
-              child: Text(
-                DateFormat.MMMMEEEEd().format(day),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: _isToday(day, today)
+                    ? BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      )
+                    : null,
+                child: Text(
+                  DateFormat.MMMMEEEEd().format(day),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: _todayTextStyle(day, today, context)?.color,
+                  ),
+                ),
               ),
             ),
             IconButton(
@@ -1216,6 +1370,7 @@ class _DayView extends StatelessWidget {
                   _EntryTile(
                     title: entry.row.displayName,
                     entry: entry,
+                    today: _isToday(entry.date, today),
                     highlight: _isStaffChange(
                       highlightStaffMemberId,
                       grid,
@@ -1236,6 +1391,7 @@ class _DayView extends StatelessWidget {
 class _PersonView extends StatelessWidget {
   const _PersonView({
     required this.grid,
+    required this.today,
     required this.staffMemberId,
     required this.onPersonChanged,
     required this.onEdit,
@@ -1243,6 +1399,7 @@ class _PersonView extends StatelessWidget {
   });
 
   final MonthGrid grid;
+  final DateTime today;
   final String? staffMemberId;
   final ValueChanged<String> onPersonChanged;
   final _OnEdit onEdit;
@@ -1282,6 +1439,7 @@ class _PersonView extends StatelessWidget {
                 _EntryTile(
                   title: DateFormat('EEE d').format(entry.date),
                   entry: entry,
+                  today: _isToday(entry.date, today),
                   highlight: _isStaffChange(
                     highlightStaffMemberId,
                     grid,
@@ -1303,6 +1461,7 @@ class _EntryTile extends StatelessWidget {
   const _EntryTile({
     required this.title,
     required this.entry,
+    required this.today,
     required this.onTap,
     this.highlight = false,
     this.shaded = false,
@@ -1310,6 +1469,7 @@ class _EntryTile extends StatelessWidget {
 
   final String title;
   final RowDay entry;
+  final bool today;
   final VoidCallback onTap;
   final bool shaded;
   final bool highlight;
@@ -1324,12 +1484,17 @@ class _EntryTile extends StatelessWidget {
             )
           : null,
       title: Text(title),
+      leading: today
+          ? Icon(Icons.today, color: colors.primary, semanticLabel: 'Today')
+          : null,
       trailing: Text(
         entry.shiftCode,
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
       tileColor: entry.unannounced || highlight
           ? _changeColor(context)
+          : today
+          ? colors.secondaryContainer
           : shaded
           ? colors.surfaceContainerHighest
           : null,
@@ -1338,14 +1503,38 @@ class _EntryTile extends StatelessWidget {
   }
 }
 
-BoxDecoration _cellDecoration(DateTime day, BuildContext context) {
+BoxDecoration _cellDecoration(
+  DateTime day,
+  BuildContext context,
+  DateTime today,
+) {
+  final colors = Theme.of(context).colorScheme;
+  final isToday = _isToday(day, today);
   return BoxDecoration(
-    color: _isWeekend(day)
-        ? Theme.of(context).colorScheme.surfaceContainerHighest
-        : Theme.of(context).colorScheme.surface,
-    border: Border.all(color: Theme.of(context).dividerColor),
+    color: isToday
+        ? colors.secondaryContainer
+        : _isWeekend(day)
+        ? colors.surfaceContainerHighest
+        : colors.surface,
+    border: Border.all(
+      color: isToday ? colors.primary : Theme.of(context).dividerColor,
+      width: isToday ? 2 : 1,
+    ),
   );
 }
+
+TextStyle? _todayTextStyle(
+  DateTime day,
+  DateTime today,
+  BuildContext context,
+) => _isToday(day, today)
+    ? TextStyle(color: Theme.of(context).colorScheme.onSecondaryContainer)
+    : null;
+
+bool _isToday(DateTime day, DateTime today) =>
+    day.year == today.year && day.month == today.month && day.day == today.day;
+
+DateTime _dateOnly(DateTime day) => DateTime(day.year, day.month, day.day);
 
 bool _isStaffChange(
   String? staffMemberId,
