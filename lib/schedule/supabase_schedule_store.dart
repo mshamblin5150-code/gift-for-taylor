@@ -201,6 +201,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
         .select('section_id, work_date, shift_code, staff_member_id')
         .gte('work_date', _date(_monthStart(month)))
         .lt('work_date', _date(_nextMonthStart(month)))
+        .filter('filled_at', 'is', null)
         .order('work_date');
     return [
       for (final row in rows)

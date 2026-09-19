@@ -19,6 +19,7 @@ class ScheduleApp extends StatelessWidget {
     this.inviteComposer,
     this.messagesComposer,
     this.swapRules,
+    this.openShiftRules,
     this.noticeGateway,
     this.inviteToken,
     this.printBookPage,
@@ -31,6 +32,7 @@ class ScheduleApp extends StatelessWidget {
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
   final SwapRules? swapRules;
+  final OpenShiftRules? openShiftRules;
   final NoticeGateway? noticeGateway;
   final String? inviteToken;
   final ValueChanged<String>? printBookPage;
@@ -51,6 +53,7 @@ class ScheduleApp extends StatelessWidget {
         inviteComposer: inviteComposer,
         messagesComposer: messagesComposer,
         swapRules: swapRules,
+        openShiftRules: openShiftRules,
         noticeGateway: noticeGateway,
         inviteToken: inviteToken,
         printBookPage: printBookPage,
@@ -68,6 +71,7 @@ class _AuthGate extends StatefulWidget {
     required this.inviteComposer,
     required this.messagesComposer,
     required this.swapRules,
+    required this.openShiftRules,
     required this.noticeGateway,
     required this.inviteToken,
     required this.printBookPage,
@@ -80,6 +84,7 @@ class _AuthGate extends StatefulWidget {
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
   final SwapRules? swapRules;
+  final OpenShiftRules? openShiftRules;
   final NoticeGateway? noticeGateway;
   final String? inviteToken;
   final ValueChanged<String>? printBookPage;
@@ -136,6 +141,7 @@ class _AuthGateState extends State<_AuthGate> {
                 inviteComposer: widget.inviteComposer,
                 messagesComposer: widget.messagesComposer,
                 swapRules: widget.swapRules,
+                openShiftRules: widget.openShiftRules,
                 noticeGateway: widget.noticeGateway,
                 inviteToken: widget.inviteToken!,
                 printBookPage: widget.printBookPage,
@@ -149,6 +155,7 @@ class _AuthGateState extends State<_AuthGate> {
               inviteComposer: widget.inviteComposer,
               messagesComposer: widget.messagesComposer,
               swapRules: widget.swapRules,
+              openShiftRules: widget.openShiftRules,
               noticeGateway: widget.noticeGateway,
               printBookPage: widget.printBookPage,
               calendarFeedGateway: widget.calendarFeedGateway,
@@ -168,6 +175,7 @@ class _InviteAcceptance extends StatefulWidget {
     required this.inviteComposer,
     required this.messagesComposer,
     required this.swapRules,
+    required this.openShiftRules,
     required this.noticeGateway,
     required this.inviteToken,
     required this.printBookPage,
@@ -180,6 +188,7 @@ class _InviteAcceptance extends StatefulWidget {
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
   final SwapRules? swapRules;
+  final OpenShiftRules? openShiftRules;
   final NoticeGateway? noticeGateway;
   final String inviteToken;
   final ValueChanged<String>? printBookPage;
@@ -234,6 +243,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           inviteComposer: widget.inviteComposer,
           messagesComposer: widget.messagesComposer,
           swapRules: widget.swapRules,
+          openShiftRules: widget.openShiftRules,
           noticeGateway: widget.noticeGateway,
           printBookPage: widget.printBookPage,
           calendarFeedGateway: widget.calendarFeedGateway,
@@ -251,6 +261,7 @@ class _ScheduleAccess extends StatefulWidget {
     required this.inviteComposer,
     required this.messagesComposer,
     required this.swapRules,
+    required this.openShiftRules,
     required this.noticeGateway,
     required this.printBookPage,
     required this.calendarFeedGateway,
@@ -262,6 +273,7 @@ class _ScheduleAccess extends StatefulWidget {
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
   final SwapRules? swapRules;
+  final OpenShiftRules? openShiftRules;
   final NoticeGateway? noticeGateway;
   final ValueChanged<String>? printBookPage;
   final CalendarFeedGateway? calendarFeedGateway;
@@ -345,6 +357,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           staffMemberId: data?.staffMemberId,
           swapStaffMemberId: data?.swapStaffMemberId,
           swapRules: widget.swapRules,
+          openShiftRules: widget.openShiftRules,
           onSignOut: _signOut,
           messagesComposer: widget.messagesComposer,
           noticeGateway: widget.noticeGateway,

@@ -8,6 +8,7 @@ export 'src/first_month_transcript.dart';
 part 'src/change_announcement.dart';
 part 'src/swaps.dart';
 part 'src/request_off.dart';
+part 'src/open_shifts.dart';
 
 /// Every schedule rule is reached through this public interface.
 abstract interface class ScheduleRules {
@@ -1036,6 +1037,7 @@ final class InMemoryScheduleDatabase {
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
   final List<ShortShift> _shortShifts = [];
+  final List<OpenShiftPickup> _openShiftPickups = [];
   final List<StaffChange> _staffChanges = [];
   final List<RequestOff> _requestsOff = [];
   final Map<String, int> _unreadRequestOffNotices = {};
