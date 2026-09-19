@@ -21,6 +21,7 @@ class MonthGridPage extends StatefulWidget {
     this.staffMemberId,
     this.swapStaffMemberId,
     this.onSignOut,
+    this.onCalendarFeed,
     this.onManageStaff,
     this.messagesComposer,
     this.swapRules,
@@ -32,6 +33,7 @@ class MonthGridPage extends StatefulWidget {
   final String? staffMemberId;
   final String? swapStaffMemberId;
   final VoidCallback? onSignOut;
+  final VoidCallback? onCalendarFeed;
   final VoidCallback? onManageStaff;
   final MessagesComposer? messagesComposer;
   final SwapRules? swapRules;
@@ -426,6 +428,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 label: Text('$_pendingSwaps'),
                 child: const Icon(Icons.swap_horiz),
               ),
+          if (widget.onCalendarFeed != null)
+            IconButton(
+              tooltip: 'My Calendar feed',
+              onPressed: widget.onCalendarFeed,
+              icon: const Icon(Icons.calendar_month_outlined),
             ),
           if (_canEdit) ...[
             IconButton(
