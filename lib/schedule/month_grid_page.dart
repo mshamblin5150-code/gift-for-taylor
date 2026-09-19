@@ -19,6 +19,7 @@ class MonthGridPage extends StatefulWidget {
     required this.month,
     this.staffMemberId,
     this.onSignOut,
+    this.onCalendarFeed,
     this.onManageStaff,
     this.messagesComposer,
     this.printBookPage,
@@ -28,6 +29,7 @@ class MonthGridPage extends StatefulWidget {
   final DateTime month;
   final String? staffMemberId;
   final VoidCallback? onSignOut;
+  final VoidCallback? onCalendarFeed;
   final VoidCallback? onManageStaff;
   final MessagesComposer? messagesComposer;
 
@@ -375,6 +377,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ],
         ),
         actions: [
+          if (widget.onCalendarFeed != null)
+            IconButton(
+              tooltip: 'My Calendar feed',
+              onPressed: widget.onCalendarFeed,
+              icon: const Icon(Icons.calendar_month_outlined),
+            ),
           if (_canEdit) ...[
             IconButton(
               tooltip: 'Change log',
