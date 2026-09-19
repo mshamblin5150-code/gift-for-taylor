@@ -200,6 +200,13 @@ final class _FakeStaffGateway implements StaffGateway {
   _FakeStaffGateway([this.staffMemberId]);
 
   final String? staffMemberId;
+  @override
+  Future<StaffMemberDetails> loadStaffMemberDetails(String id) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> updateStaffContact(String id, String name, String? cell) =>
+      throw UnimplementedError();
   String? acceptedToken;
 
   @override

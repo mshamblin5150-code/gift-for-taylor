@@ -9,6 +9,7 @@ import 'schedule/messages_composer.dart';
 import 'schedule/month_grid_page.dart';
 import 'staff/staff_gateway.dart';
 import 'staff/staff_list_page.dart';
+import 'staff/staff_details_page.dart';
 
 class ScheduleApp extends StatelessWidget {
   const ScheduleApp({
@@ -383,6 +384,23 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
                     ),
                   ),
                 )
+              : null,
+          onOpenStaffDetails:
+              data?.canManageStaff == true &&
+                  widget.staffGateway != null &&
+                  widget.inviteComposer != null
+              ? (staffMemberId) async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (context) => StaffDetailsPage(
+                        staffMemberId: staffMemberId,
+                        gateway: widget.staffGateway!,
+                        rules: ScheduleRules(widget.scheduleStore),
+                        inviteComposer: widget.inviteComposer!,
+                      ),
+                    ),
+                  );
+                }
               : null,
         );
       },

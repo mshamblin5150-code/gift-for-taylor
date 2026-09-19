@@ -368,6 +368,8 @@ final class DatedJobRole {
 }
 
 enum StaffChangeKind {
+  name('name'),
+  cellNumber('cell_number'),
   lastDay('last_day'),
   reactivated('reactivated'),
   section('section'),
