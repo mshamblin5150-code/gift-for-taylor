@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(13);
 
 insert into auth.users (id, email)
 values
@@ -36,6 +36,19 @@ values
     'staff@example.test',
     now()
   );
+
+insert into public.staff_section_assignments (
+  staff_member_id,
+  section_id,
+  display_order,
+  effective_from
+)
+values (
+  '00000000-0000-0000-0000-000000000176',
+  '00000000-0000-0000-0000-000000000174',
+  0,
+  current_date
+);
 
 set local role authenticated;
 select set_config(
@@ -119,6 +132,19 @@ select is(
   ),
   null,
   'a new change is unannounced'
+);
+
+select throws_ok(
+  $$
+    select public.save_schedule_cell(
+      '00000000-0000-0000-0000-000000000175',
+      '00000000-0000-0000-0000-000000000174',
+      '2027-03-18',
+      '7A'
+    )
+  $$,
+  'That Staff member is not on the Staff list in this Section',
+  'a save must name a Staff member in that Section'
 );
 
 select throws_ok(

@@ -90,6 +90,18 @@ begin
   if not public.can_edit_schedule() then
     raise exception 'Only the Manager can edit the Schedule';
   end if;
+  if not exists (
+    select 1
+    from public.staff_members member
+    join public.staff_section_assignments assignment
+      on assignment.staff_member_id = member.id
+      and assignment.section_id = p_section_id
+      and assignment.effective_through is null
+    where member.id = p_staff_member_id
+      and member.active
+  ) then
+    raise exception 'That Staff member is not on the Staff list in this Section';
+  end if;
 
   insert into public.schedule_months (month_start)
   values (date_trunc('month', p_work_date)::date)

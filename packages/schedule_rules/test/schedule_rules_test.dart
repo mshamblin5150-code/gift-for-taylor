@@ -192,11 +192,19 @@ void main() {
     expect(nightMonth[16].shiftCode, '');
   });
 
-  test('only editors may change the Schedule', () async {
+  test('only the Manager may change the Schedule', () async {
     final restricted = InMemoryScheduleDatabase(
       sections: const [days],
+      rows: const [dayNurse],
       editors: const {'manager'},
     );
+    final staffMember = ScheduleRules.inMemory(restricted, actingAs: 'rn-1');
+
+    await expectLater(
+      save(staffMember, dayNurse, 'R/O'),
+      throwsA(isA<ScheduleEditRefused>()),
+    );
+    expect(await staffMember.changeLog(september), isEmpty);
 
     expect(
       await ScheduleRules.inMemory(

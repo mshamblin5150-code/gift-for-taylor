@@ -54,6 +54,14 @@ abstract interface class ScheduleStore {
   Future<bool> canEditSchedule();
 }
 
+/// Thrown when the signed-in person may not change the Schedule.
+final class ScheduleEditRefused implements Exception {
+  const ScheduleEditRefused();
+
+  @override
+  String toString() => 'Only the Manager can edit the Schedule';
+}
+
 final class SaveCell {
   const SaveCell({
     required this.staffMemberId,
@@ -406,6 +414,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> writeCell(ScheduleCell cell) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
     final key = _cellKey(cell.staffMemberId, cell.date);
     final old = _database._cells[key]?.shiftCode ?? '';
     _database._cells[key] = cell;
