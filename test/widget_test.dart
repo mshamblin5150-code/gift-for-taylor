@@ -1,34 +1,227 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/widgets.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 void main() {
-  testWidgets('current month shows Section bands, weekdays, and weekends', (
-    tester,
-  ) async {
+  const days = ScheduleSection(id: 'days', name: 'State dayshift RN');
+  const nights = ScheduleSection(id: 'nights', name: 'PRN nightshift RN');
+  const dayNurse = ScheduleRow(
+    staffMemberId: 'rn-1',
+    displayName: 'Day RN',
+    sectionId: 'days',
+  );
+  const nightNurse = ScheduleRow(
+    staffMemberId: 'rn-2',
+    displayName: 'Night RN',
+    sectionId: 'nights',
+  );
+  final september = DateTime(2026, 9);
+  final september18 = DateTime(2026, 9, 18);
+
+  late InMemoryScheduleDatabase database;
+
+  setUp(() {
+    database = InMemoryScheduleDatabase(
+      sections: const [days, nights],
+      rows: const [dayNurse, nightNurse],
+      editors: const {'manager', 'other-manager'},
+    );
+  });
+
+  Future<ScheduleRules> pumpGrid(
+    WidgetTester tester, {
+    String actingAs = 'manager',
+  }) async {
+    tester.view.physicalSize = const Size(2400, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final rules = ScheduleRules.inMemory(database, actingAs: actingAs);
     await tester.pumpWidget(
-      MonthGridPage.testable(
-        month: DateTime(2026, 9),
-        sections: const [
-          ScheduleSection(id: 'days', name: 'State dayshift RN'),
-          ScheduleSection(id: 'nights', name: 'PRN nightshift RN'),
-        ],
+      MaterialApp(
+        home: MonthGridPage(rules: rules, month: september),
       ),
     );
+    await tester.pumpAndSettle();
+    return rules;
+  }
+
+  Finder cell(String staffMemberId, DateTime date) => find.byKey(
+    ValueKey('cell-$staffMemberId-${date.toIso8601String().substring(0, 10)}'),
+  );
+
+  Finder unannounced(String staffMemberId, DateTime date) => find.byKey(
+    ValueKey(
+      'unannounced-$staffMemberId-${date.toIso8601String().substring(0, 10)}',
+    ),
+  );
+
+  testWidgets('month grid shows Sections, rows, weekdays, and weekends', (
+    tester,
+  ) async {
+    await pumpGrid(tester);
 
     expect(find.text('September 2026'), findsOneWidget);
     expect(find.text('State dayshift RN'), findsOneWidget);
     expect(find.text('PRN nightshift RN'), findsOneWidget);
+    expect(find.text('Day RN'), findsOneWidget);
     expect(find.text('T'), findsWidgets);
     expect(find.byKey(const ValueKey('weekday-2026-09-18')), findsNWidgets(2));
     expect(find.byKey(const ValueKey('weekend-2026-09-19')), findsNWidgets(2));
+  });
+
+  testWidgets('Manager picks a legend code, shown with its hours', (
+    tester,
+  ) async {
+    await pumpGrid(tester);
+
+    await tester.tap(cell('rn-1', september18));
+    await tester.pumpAndSettle();
+
+    expect(find.text('7A–7P'), findsOneWidget);
+    expect(find.text('Sick leave'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: cell('rn-1', september18), matching: find.text('7A')),
+      findsOneWidget,
+    );
+    expect(unannounced('rn-1', september18), findsOneWidget);
+  });
+
+  testWidgets('Manager types any other Shift code', (tester) async {
+    await pumpGrid(tester);
+
+    await tester.tap(cell('rn-1', september18));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Other Shift code'),
+      '4P-8A',
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: cell('rn-1', september18),
+        matching: find.text('4P-8A'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('undo restores the published value', (tester) async {
+    final setup = ScheduleRules.inMemory(database, actingAs: 'manager');
+    await setup.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: september18,
+        shiftCode: '7A',
+      ),
+    );
+    database.markAllAnnounced();
+    await setup.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: september18,
+        shiftCode: 'X',
+      ),
+    );
+    await pumpGrid(tester);
+    expect(unannounced('rn-1', september18), findsOneWidget);
+
+    await tester.tap(cell('rn-1', september18));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Undo to 7A'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: cell('rn-1', september18), matching: find.text('7A')),
+      findsOneWidget,
+    );
+    expect(unannounced('rn-1', september18), findsNothing);
+  });
+
+  testWidgets('a save by another scheduler appears without reloading', (
+    tester,
+  ) async {
+    await pumpGrid(tester);
+
+    await tester.runAsync(
+      () =>
+          ScheduleRules.inMemory(database, actingAs: 'other-manager').saveCell(
+            SaveCell(
+              staffMemberId: 'rn-2',
+              sectionId: 'nights',
+              date: september18,
+              shiftCode: 'N',
+            ),
+          ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: cell('rn-2', september18), matching: find.text('N')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('day view shows and edits one date', (tester) async {
+    await pumpGrid(tester);
+
+    await tester.tap(find.text('Day'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Pick a date'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('18'));
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Friday, September 18'), findsOneWidget);
+    await tester.tap(find.text('Night RN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '7P'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(ListTile, '7P'), findsOneWidget);
+
+    await tester.tap(find.text('Month'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: cell('rn-2', september18), matching: find.text('7P')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('one-person view shows and edits one person\'s month', (
+    tester,
+  ) async {
+    await pumpGrid(tester);
+
+    await tester.tap(find.text('Person'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Night RN').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Fri 18'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'ME'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(ListTile, 'ME'), findsOneWidget);
+  });
+
+  testWidgets('someone who cannot edit gets no edit sheet', (tester) async {
+    await pumpGrid(tester, actingAs: 'rn-1');
+
+    await tester.tap(cell('rn-1', september18));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Other Shift code'), findsNothing);
   });
 }
