@@ -996,10 +996,13 @@ class _NameColumn extends StatelessWidget {
             height: _bandHeight,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             alignment: Alignment.centerLeft,
-            color: Theme.of(context).colorScheme.primaryContainer,
+            color: Theme.of(context).colorScheme.primary,
             child: Text(
               section.name,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimary,
+                fontWeight: FontWeight.w600,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -1091,7 +1094,15 @@ class _SectionBand extends StatelessWidget {
               width: _dayWidth,
               height: _bandHeight,
               alignment: Alignment.center,
-              decoration: _cellDecoration(day, context, today),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                border: _isToday(day, today)
+                    ? Border.all(
+                        color: Theme.of(context).colorScheme.tertiary,
+                        width: 2,
+                      )
+                    : null,
+              ),
               child: _ShortMarker(
                 key: ValueKey('short-${section.id}-${_dateKey(day)}'),
                 count:
