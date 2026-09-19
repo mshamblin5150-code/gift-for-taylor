@@ -6,6 +6,7 @@ create table public.shift_codes (
   start_time time,
   end_time time,
   is_working boolean not null,
+  active boolean not null default true,
   display_order integer not null default 0,
   check ((start_time is null) = (end_time is null))
 );
@@ -60,6 +61,18 @@ grant select on public.shift_codes to authenticated;
 create policy "Staff can read Shift codes" on public.shift_codes
   for select to authenticated using (public.current_staff_member_id() is not null);
 
+create function public.shift_code_in_use(p_code text)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.schedule_cells where upper(trim(shift_code)) = p_code)
+    or exists (select 1 from public.schedule_changes where upper(trim(old_shift_code)) = p_code
+      or upper(trim(new_shift_code)) = p_code)
+    or exists (select 1 from public.short_shifts where upper(trim(shift_code)) = p_code)
+    or exists (select 1 from public.swaps where upper(trim(requester_code)) = p_code
+      or upper(trim(colleague_code)) = p_code or upper(trim(requester_target_code)) = p_code
+      or upper(trim(colleague_target_code)) = p_code)
+$$;
+revoke all on function public.shift_code_in_use(text) from public, anon, authenticated;
+
 create function public.save_shift_code(
   p_code text, p_meaning text, p_start_time time, p_end_time time,
   p_is_working boolean, p_original_code text default null
@@ -77,13 +90,18 @@ begin
     raise exception 'Invalid Shift code or hours';
   end if;
   if p_original_code is not null and v_code <> p_original_code then
-    -- Renaming a used code would change the meaning of historical cells.
+    -- Keep a used code for historical cells and feeds, but leave it out of
+    -- the active legend. No past cell text is rewritten.
     select display_order into v_order from public.shift_codes where code = p_original_code;
     if v_order is null then raise exception 'Shift code not found'; end if;
     if exists (select 1 from public.shift_codes where code = v_code) then
       raise exception 'That Shift code already exists';
     end if;
-    perform public.delete_shift_code(p_original_code);
+    if public.shift_code_in_use(p_original_code) then
+      update public.shift_codes set active = false where code = p_original_code;
+    else
+      delete from public.shift_codes where code = p_original_code;
+    end if;
   end if;
   insert into public.shift_codes(code, meaning, start_time, end_time, is_working, display_order)
   values (v_code, nullif(trim(p_meaning), ''), p_start_time, p_end_time,
@@ -91,7 +109,7 @@ begin
       (select coalesce(max(display_order), 0) + 1 from public.shift_codes)))
   on conflict (code) do update set meaning = excluded.meaning,
     start_time = excluded.start_time, end_time = excluded.end_time,
-    is_working = excluded.is_working;
+    is_working = excluded.is_working, active = true;
 end;
 $$;
 
@@ -101,13 +119,7 @@ begin
   if public.current_staff_role() <> 'manager' then
     raise exception 'Only the Manager can delete Shift codes';
   end if;
-  if exists (select 1 from public.schedule_cells where upper(trim(shift_code)) = p_code)
-    or exists (select 1 from public.schedule_changes where upper(trim(old_shift_code)) = p_code or upper(trim(new_shift_code)) = p_code)
-    or exists (select 1 from public.short_shifts where upper(trim(shift_code)) = p_code)
-    or exists (select 1 from public.swaps where upper(trim(requester_code)) = p_code
-      or upper(trim(colleague_code)) = p_code or upper(trim(requester_target_code)) = p_code
-      or upper(trim(colleague_target_code)) = p_code)
-  then
+  if public.shift_code_in_use(p_code) then
     raise exception 'A Shift code in use cannot be deleted';
   end if;
   delete from public.shift_codes where code = p_code;

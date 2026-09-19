@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(17);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000571', 'codes-manager@example.test'),
@@ -54,6 +54,14 @@ select is(public.is_working_shift('TRAIN'), true,
   'changed working flag takes effect immediately');
 select lives_ok($$select public.delete_shift_code('TRAIN')$$,
   'unused code can be deleted');
+select lives_ok($$select public.save_shift_code('DAY', 'New code', '09:00', '21:00', true, '7A')$$,
+  'used Shift code can be renamed without changing old cells');
+select is((select shift_code from public.schedule_cells where work_date = '2027-03-04'), '7A',
+  'old Schedule cell retains the historical code after rename');
+select is((select active from public.shift_codes where code = '7A'), false,
+  'historical code is hidden from the active legend');
+select is((select count(*)::int from public.shift_codes where code = 'DAY' and active), 1,
+  'new code is available in the active legend');
 
 set local role service_role;
 select is((select starts_at from code_feed,

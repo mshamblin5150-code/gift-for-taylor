@@ -14,6 +14,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
     final rows = await _client
         .from('shift_codes')
         .select('code, meaning, start_time, end_time, is_working')
+        .eq('active', true)
         .order('display_order')
         .order('code');
     return [

@@ -513,6 +513,7 @@ final class LegendCode {
     bool? isWorking,
     this.startTime,
     this.endTime,
+    this.active = true,
   }) : isWorking = isWorking ?? hours != null;
 
   final String code;
@@ -525,6 +526,7 @@ final class LegendCode {
   /// Local 24-hour HH:mm values; null means an untimed Calendar event.
   final String? startTime;
   final String? endTime;
+  final bool active;
 }
 
 /// Printable local hours for a timed Shift code.
@@ -1190,7 +1192,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<List<LegendCode>> shiftCodes() async =>
-      List.unmodifiable(_database._shiftCodes);
+      List.unmodifiable(_database._shiftCodes.where((code) => code.active));
 
   @override
   Future<void> saveShiftCode(LegendCode code, {String? originalCode}) async {
@@ -1203,7 +1205,24 @@ final class _InMemoryScheduleStore implements ScheduleStore {
       if (_database._shiftCodes.any((item) => item.code == value)) {
         throw StateError('That Shift code already exists');
       }
-      await deleteShiftCode(originalCode);
+      final originalIndex = _database._shiftCodes.indexWhere(
+        (item) => item.code == originalCode,
+      );
+      if (originalIndex < 0) throw StateError('Shift code not found');
+      if (_codeInUse(originalCode)) {
+        final old = _database._shiftCodes[originalIndex];
+        _database._shiftCodes[originalIndex] = LegendCode(
+          old.code,
+          hours: old.hours,
+          meaning: old.meaning,
+          isWorking: old.isWorking,
+          startTime: old.startTime,
+          endTime: old.endTime,
+          active: false,
+        );
+      } else {
+        _database._shiftCodes.removeAt(originalIndex);
+      }
     }
     final index = _database._shiftCodes.indexWhere(
       (item) => item.code == value,
@@ -1227,21 +1246,24 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   Future<void> deleteShiftCode(String code) async {
     if (!await canEditSchedule()) throw const ScheduleEditRefused();
     final key = code.trim().toUpperCase();
-    if (_database._cells.values.any(
-          (cell) => cell.shiftCode.trim().toUpperCase() == key,
-        ) ||
-        _database._changes.any(
-          (change) =>
-              change.oldShiftCode.trim().toUpperCase() == key ||
-              change.newShiftCode.trim().toUpperCase() == key,
-        ) ||
-        _database._shortShifts.any(
-          (shift) => shift.shiftCode.trim().toUpperCase() == key,
-        )) {
+    if (_codeInUse(key)) {
       throw StateError('A Shift code in use cannot be deleted');
     }
     _database._shiftCodes.removeWhere((item) => item.code == key);
   }
+
+  bool _codeInUse(String key) =>
+      _database._cells.values.any(
+        (cell) => cell.shiftCode.trim().toUpperCase() == key,
+      ) ||
+      _database._changes.any(
+        (change) =>
+            change.oldShiftCode.trim().toUpperCase() == key ||
+            change.newShiftCode.trim().toUpperCase() == key,
+      ) ||
+      _database._shortShifts.any(
+        (shift) => shift.shiftCode.trim().toUpperCase() == key,
+      );
 
   @override
   Future<RequestOffEmail> createRequestOff(RequestOffDraft draft) async {

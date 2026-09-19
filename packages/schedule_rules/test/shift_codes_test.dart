@@ -53,6 +53,25 @@ void main() {
         isTrue,
       );
       await expectLater(manager.deleteShiftCode('7A'), throwsStateError);
+
+      await manager.saveShiftCode(
+        const LegendCode(
+          'DAY',
+          startTime: '09:00',
+          endTime: '21:00',
+          isWorking: true,
+        ),
+        originalCode: '7A',
+      );
+      expect((await manager.monthGrid(month)).shiftCodeFor('nurse', day), '7A');
+      expect(
+        (await manager.shiftCodes()).any((code) => code.code == 'DAY'),
+        isTrue,
+      );
+      expect(
+        (await manager.shiftCodes()).any((code) => code.code == '7A'),
+        isFalse,
+      );
     },
   );
 
