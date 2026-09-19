@@ -1,5 +1,10 @@
 -- Staff members can see their own changes after a month is released, so
 -- their changed shifts can be highlighted without exposing the scheduler log.
+-- Supabase's default grants can otherwise allow direct cell writes that bypass
+-- the scheduler-only save function on a fresh project.
+revoke insert, update, delete on public.schedule_cells
+from public, anon, authenticated;
+
 grant execute on function public.current_staff_member_id() to authenticated;
 
 create policy "staff can read their changes in released months"
