@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'contact_picker.dart';
 import 'invite_composer.dart';
 import 'past_staff_page.dart';
 import 'staff_dialogs.dart';
 import 'staff_details_page.dart';
 import 'staff_gateway.dart';
+import 'staff_contacts.dart';
 
 export 'invite_composer.dart' show InviteComposer;
 
@@ -15,6 +17,7 @@ class StaffListPage extends StatefulWidget {
     required this.gateway,
     required this.rules,
     required this.inviteComposer,
+    this.phoneContacts = const BrowserPhoneContacts(),
   });
 
   final StaffGateway gateway;
@@ -22,6 +25,7 @@ class StaffListPage extends StatefulWidget {
   /// Last days and dated Section and role changes go through the rules.
   final ScheduleRules rules;
   final InviteComposer inviteComposer;
+  final PhoneContacts phoneContacts;
 
   @override
   State<StaffListPage> createState() => _StaffListPageState();
@@ -62,7 +66,10 @@ class _StaffListPageState extends State<StaffListPage> {
     if (staffList == null || staffList.sections.isEmpty) return;
     final draft = await showDialog<StaffMemberDraft>(
       context: context,
-      builder: (context) => _AddStaffMemberDialog(sections: staffList.sections),
+      builder: (context) => _AddStaffMemberDialog(
+        sections: staffList.sections,
+        phoneContacts: widget.phoneContacts,
+      ),
     );
     if (draft == null) return;
 
@@ -165,6 +172,7 @@ class _StaffListPageState extends State<StaffListPage> {
           gateway: widget.gateway,
           rules: widget.rules,
           inviteComposer: widget.inviteComposer,
+          phoneContacts: widget.phoneContacts,
         ),
       ),
     );
@@ -280,8 +288,9 @@ class _StaffListPageState extends State<StaffListPage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -543,9 +552,13 @@ class _SectionNameDialogState extends State<_SectionNameDialog> {
 }
 
 class _AddStaffMemberDialog extends StatefulWidget {
-  const _AddStaffMemberDialog({required this.sections});
+  const _AddStaffMemberDialog({
+    required this.sections,
+    required this.phoneContacts,
+  });
 
   final List<StaffSection> sections;
+  final PhoneContacts phoneContacts;
 
   @override
   State<_AddStaffMemberDialog> createState() => _AddStaffMemberDialogState();
@@ -555,6 +568,7 @@ class _AddStaffMemberDialogState extends State<_AddStaffMemberDialog> {
   final _name = TextEditingController();
   final _cellNumber = TextEditingController();
   late String _sectionId = widget.sections.first.id;
+  String? _cellError;
 
   @override
   void dispose() {
@@ -565,13 +579,37 @@ class _AddStaffMemberDialogState extends State<_AddStaffMemberDialog> {
 
   void _submit() {
     if (_name.text.trim().isEmpty || _cellNumber.text.trim().isEmpty) return;
+    String cellNumber;
+    try {
+      cellNumber = normalizeCellNumber(_cellNumber.text);
+    } on FormatException {
+      setState(() => _cellError = 'Enter a cell number with its area code.');
+      return;
+    }
     Navigator.of(context).pop(
       StaffMemberDraft(
         displayName: _name.text.trim(),
-        cellNumber: _cellNumber.text.trim(),
+        cellNumber: cellNumber,
         sectionId: _sectionId,
       ),
     );
+  }
+
+  Future<void> _pickContact() async {
+    try {
+      final contact = await chooseContactNumber(context, widget.phoneContacts);
+      if (contact == null || !mounted) return;
+      _name.text = contact.$1.trim();
+      _cellNumber.text = contact.$2.trim();
+      setState(() => _cellError = null);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _cellError =
+              'Could not choose a contact. Enter the number below.',
+        );
+      }
+    }
   }
 
   @override
@@ -582,6 +620,15 @@ class _AddStaffMemberDialogState extends State<_AddStaffMemberDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (widget.phoneContacts.canPick)
+              OutlinedButton(
+                onPressed: _pickContact,
+                child: const Text('Choose from contacts'),
+              )
+            else
+              const Text(
+                'Enter a name and cell number from your contacts below.',
+              ),
             TextField(
               controller: _name,
               autofocus: true,
@@ -591,7 +638,10 @@ class _AddStaffMemberDialogState extends State<_AddStaffMemberDialog> {
             TextField(
               controller: _cellNumber,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Cell number'),
+              decoration: InputDecoration(
+                labelText: 'Cell number',
+                errorText: _cellError,
+              ),
             ),
             DropdownButtonFormField<String>(
               initialValue: _sectionId,
