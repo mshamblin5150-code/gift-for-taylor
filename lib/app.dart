@@ -15,6 +15,7 @@ class ScheduleApp extends StatelessWidget {
     this.staffGateway,
     this.inviteComposer,
     this.inviteToken,
+    this.printBookPage,
   });
 
   final AuthGateway authGateway;
@@ -22,6 +23,7 @@ class ScheduleApp extends StatelessWidget {
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final String? inviteToken;
+  final ValueChanged<String>? printBookPage;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +39,7 @@ class ScheduleApp extends StatelessWidget {
         staffGateway: staffGateway,
         inviteComposer: inviteComposer,
         inviteToken: inviteToken,
+        printBookPage: printBookPage,
       ),
     );
   }
@@ -49,6 +52,7 @@ class _AuthGate extends StatefulWidget {
     required this.staffGateway,
     required this.inviteComposer,
     required this.inviteToken,
+    required this.printBookPage,
   });
 
   final AuthGateway authGateway;
@@ -56,6 +60,7 @@ class _AuthGate extends StatefulWidget {
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final String? inviteToken;
+  final ValueChanged<String>? printBookPage;
 
   @override
   State<_AuthGate> createState() => _AuthGateState();
@@ -107,6 +112,7 @@ class _AuthGateState extends State<_AuthGate> {
                 staffGateway: widget.staffGateway!,
                 inviteComposer: widget.inviteComposer,
                 inviteToken: widget.inviteToken!,
+                printBookPage: widget.printBookPage,
               );
             }
             return _ScheduleAccess(
@@ -114,6 +120,7 @@ class _AuthGateState extends State<_AuthGate> {
               scheduleStore: widget.scheduleStore,
               staffGateway: widget.staffGateway,
               inviteComposer: widget.inviteComposer,
+              printBookPage: widget.printBookPage,
             );
           },
         );
@@ -129,6 +136,7 @@ class _InviteAcceptance extends StatefulWidget {
     required this.staffGateway,
     required this.inviteComposer,
     required this.inviteToken,
+    required this.printBookPage,
   });
 
   final AuthGateway authGateway;
@@ -136,6 +144,7 @@ class _InviteAcceptance extends StatefulWidget {
   final StaffGateway staffGateway;
   final InviteComposer? inviteComposer;
   final String inviteToken;
+  final ValueChanged<String>? printBookPage;
 
   @override
   State<_InviteAcceptance> createState() => _InviteAcceptanceState();
@@ -184,6 +193,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           scheduleStore: widget.scheduleStore,
           staffGateway: widget.staffGateway,
           inviteComposer: widget.inviteComposer,
+          printBookPage: widget.printBookPage,
         );
       },
     );
@@ -196,12 +206,14 @@ class _ScheduleAccess extends StatefulWidget {
     required this.scheduleStore,
     required this.staffGateway,
     required this.inviteComposer,
+    required this.printBookPage,
   });
 
   final AuthGateway authGateway;
   final ScheduleStore scheduleStore;
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
+  final ValueChanged<String>? printBookPage;
 
   @override
   State<_ScheduleAccess> createState() => _ScheduleAccessState();
@@ -262,6 +274,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           rules: ScheduleRules(widget.scheduleStore),
           month: data?.monthToCheck ?? DateTime(now.year, now.month),
           onSignOut: widget.authGateway.signOut,
+          printBookPage: widget.printBookPage,
           onManageStaff:
               data?.canManageStaff == true &&
                   widget.staffGateway != null &&
