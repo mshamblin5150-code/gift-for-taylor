@@ -68,6 +68,14 @@ paste them into an issue.
    taps any misread cell to correct it (each correction goes into the change
    log), and taps **Confirm month**. Confirming releases the month.
 
+## Print the book page
+
+On the office computer, open the month in the app and tap the printer icon.
+The browser's print dialog shows only the book page, laid out like the printed
+Schedule and sized to one landscape page. Choose the printer and print. The page
+shows the live month, including changes not yet announced, with each person in
+the Section they're in that month.
+
 ## Verify
 
 ```powershell

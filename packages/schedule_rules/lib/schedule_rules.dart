@@ -2,6 +2,7 @@ library;
 
 import 'dart:async';
 
+export 'src/book_page.dart';
 export 'src/first_month_transcript.dart';
 
 /// Every schedule rule is reached through this public interface.
@@ -85,7 +86,8 @@ abstract interface class ScheduleRules {
 abstract interface class ScheduleStore {
   Future<List<ScheduleSection>> sections();
 
-  /// Staff list rows, in Section and manual order.
+  /// Staff list rows on [month]'s Schedule, in Section and manual order, each
+  /// in the last Section they held that month.
   Future<List<ScheduleRow>> rows(DateTime month);
 
   Future<List<ScheduleCell>> cellsForMonth(DateTime month);
@@ -625,6 +627,41 @@ final class InMemoryScheduleDatabase {
   final StreamController<DateTime> _updates = StreamController.broadcast();
   final List<DateTime> _awaitingConfirmation = [];
   final Map<DateTime, MonthStatus> _monthStatus;
+  final List<({String staffMemberId, String sectionId, DateTime from})> _moves =
+      [];
+
+  /// Moves a Staff member to [sectionId] from the first day of [from]'s month.
+  void moveToSection(
+    String staffMemberId,
+    String sectionId, {
+    required DateTime from,
+  }) {
+    _moves.add((
+      staffMemberId: staffMemberId,
+      sectionId: sectionId,
+      from: DateTime(from.year, from.month),
+    ));
+  }
+
+  /// The Section [row] is in during [month]: the last one it held that month.
+  ScheduleRow _rowIn(ScheduleRow row, DateTime month) {
+    final monthEnd = DateTime(month.year, month.month + 1, 0);
+    final moves =
+        _moves
+            .where(
+              (move) =>
+                  move.staffMemberId == row.staffMemberId &&
+                  !move.from.isAfter(monthEnd),
+            )
+            .toList()
+          ..sort((left, right) => left.from.compareTo(right.from));
+    if (moves.isEmpty) return row;
+    return ScheduleRow(
+      staffMemberId: row.staffMemberId,
+      displayName: row.displayName,
+      sectionId: moves.last.sectionId,
+    );
+  }
 
   /// Loads [month] as transcribed from the printed page, without logging a
   /// change, to wait for the Manager's check.
@@ -675,13 +712,16 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     final sectionOrder = [
       for (final section in _database._sections) section.id,
     ];
-    final ordered = _database._rows.indexed.toList()
-      ..sort((left, right) {
-        final bySection = sectionOrder
-            .indexOf(left.$2.sectionId)
-            .compareTo(sectionOrder.indexOf(right.$2.sectionId));
-        return bySection != 0 ? bySection : left.$1.compareTo(right.$1);
-      });
+    final ordered =
+        [
+          for (final (index, row) in _database._rows.indexed)
+            (index, _database._rowIn(row, month)),
+        ]..sort((left, right) {
+          final bySection = sectionOrder
+              .indexOf(left.$2.sectionId)
+              .compareTo(sectionOrder.indexOf(right.$2.sectionId));
+          return bySection != 0 ? bySection : left.$1.compareTo(right.$1);
+        });
     return [for (final (_, row) in ordered) row];
   }
 

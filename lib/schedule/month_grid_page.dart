@@ -17,12 +17,16 @@ class MonthGridPage extends StatefulWidget {
     required this.month,
     this.onSignOut,
     this.onManageStaff,
+    this.printBookPage,
   });
 
   final ScheduleRules rules;
   final DateTime month;
   final VoidCallback? onSignOut;
   final VoidCallback? onManageStaff;
+
+  /// Prints a Schedule book page, given as an HTML document.
+  final ValueChanged<String>? printBookPage;
 
   @override
   State<MonthGridPage> createState() => _MonthGridPageState();
@@ -155,6 +159,20 @@ class _MonthGridPageState extends State<MonthGridPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("That change wasn't saved. Try again.")),
+      );
+    }
+  }
+
+  Future<void> _print(ValueChanged<String> printBookPage) async {
+    try {
+      final grid = await widget.rules.monthGrid(_month);
+      printBookPage(bookPageHtml(grid));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("The page couldn't be printed. Try again."),
+        ),
       );
     }
   }
@@ -325,6 +343,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
               icon: const Icon(Icons.nightlight_outlined),
             ),
           ],
+          if (widget.printBookPage case final printBookPage?)
+            IconButton(
+              tooltip: 'Print the book page',
+              onPressed: () => _print(printBookPage),
+              icon: const Icon(Icons.print_outlined),
+            ),
           if (widget.onManageStaff != null)
             IconButton(
               tooltip: 'Manage Staff list',
