@@ -6,7 +6,9 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 import 'announce_sheet.dart';
 import 'cell_edit_sheet.dart';
+import 'change_log_page.dart';
 import 'messages_composer.dart';
+import 'night_scheduler_page.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -18,6 +20,7 @@ class MonthGridPage extends StatefulWidget {
     this.onSignOut,
     this.onManageStaff,
     this.messagesComposer,
+    this.printBookPage,
   });
 
   final ScheduleRules rules;
@@ -26,16 +29,22 @@ class MonthGridPage extends StatefulWidget {
   final VoidCallback? onManageStaff;
   final MessagesComposer? messagesComposer;
 
+  /// Prints a Schedule book page, given as an HTML document.
+  final ValueChanged<String>? printBookPage;
+
   @override
   State<MonthGridPage> createState() => _MonthGridPageState();
 }
 
 class _MonthGridPageState extends State<MonthGridPage> {
-  late final DateTime _month = DateTime(widget.month.year, widget.month.month);
+  late DateTime _month = DateTime(widget.month.year, widget.month.month);
   StreamSubscription<void>? _updates;
   MonthGrid? _grid;
   ChangeAnnouncement? _announcement;
+
+  /// The Manager: may confirm the month and manage the Night scheduler.
   bool _canEdit = false;
+  EditableSections _editable = const EditableSections.only({});
   Object? _loadError;
   ScheduleView _view = ScheduleView.month;
   late DateTime _day = _defaultDay();
@@ -44,7 +53,23 @@ class _MonthGridPageState extends State<MonthGridPage> {
   @override
   void initState() {
     super.initState();
+    _listen();
+    _load();
+  }
+
+  void _listen() {
+    _updates?.cancel();
     _updates = widget.rules.monthUpdates(_month).listen((_) => _reload());
+  }
+
+  void _goToMonth(int offset) {
+    setState(() {
+      _month = DateTime(_month.year, _month.month + offset);
+      _grid = null;
+      _loadError = null;
+      _day = _defaultDay();
+    });
+    _listen();
     _load();
   }
 
@@ -63,11 +88,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _load() async {
     try {
-      final canEdit = await widget.rules.canEditSchedule();
-      final (grid, announcement) = await _read(canEdit);
-      if (!mounted) return;
+      final month = _month;
+      final (canEdit, editable) = await (
+        widget.rules.canEditSchedule(),
+        widget.rules.editableSections(),
+      ).wait;
+      final (grid, announcement) = await _read(month, editable);
+      if (!mounted || month != _month) return;
       setState(() {
         _canEdit = canEdit;
+        _editable = editable;
         _grid = grid;
         _announcement = announcement;
         _loadError = null;
@@ -79,8 +109,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _reload() async {
     try {
-      final (grid, announcement) = await _read(_canEdit);
-      if (!mounted) return;
+      final month = _month;
+      final (grid, announcement) = await _read(month, _editable);
+      if (!mounted || month != _month) return;
       setState(() {
         _grid = grid;
         _announcement = announcement;
@@ -91,12 +122,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   /// The grid, and the unannounced tray for someone who can edit.
-  Future<(MonthGrid, ChangeAnnouncement?)> _read(bool canEdit) {
+  Future<(MonthGrid, ChangeAnnouncement?)> _read(
+    DateTime month,
+    EditableSections editable,
+  ) {
     return (
-      widget.rules.monthGrid(_month),
-      canEdit
-          ? widget.rules.changeAnnouncement(_month)
-          : Future<ChangeAnnouncement?>.value(),
+      widget.rules.monthGrid(month),
+      editable.isEmpty
+          ? Future<ChangeAnnouncement?>.value()
+          : widget.rules.changeAnnouncement(month),
     ).wait;
   }
 
@@ -122,7 +156,17 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _edit(ScheduleRow row, DateTime date) async {
     final grid = _grid;
-    if (!_canEdit || grid == null) return;
+    if (!_editable.contains(row.sectionId) || grid == null) return;
+    if (grid.status == MonthStatus.notStarted) {
+      // An edit would create the month empty, and it could then no longer be
+      // started from last month.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Start ${DateFormat.MMMM().format(_month)} first.'),
+        ),
+      );
+      return;
+    }
     final edit = await showCellEditSheet(
       context,
       row: row,
@@ -162,6 +206,20 @@ class _MonthGridPageState extends State<MonthGridPage> {
     }
   }
 
+  Future<void> _print(ValueChanged<String> printBookPage) async {
+    try {
+      final grid = await widget.rules.monthGrid(_month);
+      printBookPage(bookPageHtml(grid));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("The page couldn't be printed. Try again."),
+        ),
+      );
+    }
+  }
+
   Future<void> _confirmMonth() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -194,14 +252,147 @@ class _MonthGridPageState extends State<MonthGridPage> {
     }
   }
 
+  void _open(Widget Function(BuildContext context) page) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: page));
+  }
+
+  Future<void> _startMonth() async {
+    try {
+      await widget.rules.startNextMonth(_previousMonth);
+      await _reload();
+    } on MonthAlreadyStarted {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This month has already been started.')),
+      );
+      await _reload();
+    } on StateError {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${DateFormat.MMMM().format(_previousMonth)} has no Schedule '
+            'to start from.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("The month wasn't started. Try again.")),
+      );
+    }
+  }
+
+  Future<void> _releaseMonth() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Release ${DateFormat.yMMMM().format(_month)}?'),
+        content: const Text(
+          'This month then becomes the live Schedule that staff can see.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Release'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await widget.rules.releaseMonth(_month);
+      await _reload();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("The month wasn't released. Try again.")),
+      );
+    }
+  }
+
+  DateTime get _previousMonth => DateTime(_month.year, _month.month - 1);
+
+  Widget? _banner(MonthGrid grid) {
+    if (!_canEdit) return null;
+    if (grid.awaitingConfirmation) {
+      return _Banner(
+        message:
+            'Check this month against your Excel file. '
+            'Tap any cell to correct it.',
+        actionLabel: 'Confirm month',
+        onPressed: _confirmMonth,
+      );
+    }
+    return switch (grid.status) {
+      MonthStatus.notStarted => _Banner(
+        message:
+            "${DateFormat.MMMM().format(_month)} hasn't been started. "
+            'Start it from last month, lined up by weekday.',
+        actionLabel: 'Start from ${DateFormat.MMMM().format(_previousMonth)}',
+        onPressed: _startMonth,
+      ),
+      MonthStatus.unpublished => _Banner(
+        message: "Unpublished: staff can't see this month yet.",
+        actionLabel: 'Release month',
+        onPressed: _releaseMonth,
+      ),
+      MonthStatus.released => null,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final grid = _grid;
     final announcement = _announcement;
+    final banner = grid == null ? null : _banner(grid);
     return Scaffold(
       appBar: AppBar(
-        title: Text(DateFormat.yMMMM().format(_month)),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Previous month',
+              onPressed: () => _goToMonth(-1),
+              icon: const Icon(Icons.chevron_left),
+            ),
+            Text(DateFormat.yMMMM().format(_month)),
+            IconButton(
+              tooltip: 'Next month',
+              onPressed: () => _goToMonth(1),
+              icon: const Icon(Icons.chevron_right),
+            ),
+          ],
+        ),
         actions: [
+          if (_canEdit) ...[
+            IconButton(
+              tooltip: 'Change log',
+              onPressed: () => _open(
+                (context) => ChangeLogPage(rules: widget.rules, month: _month),
+              ),
+              icon: const Icon(Icons.history),
+            ),
+            IconButton(
+              tooltip: 'Night scheduler',
+              onPressed: () => _open(
+                (context) =>
+                    NightSchedulerPage(rules: widget.rules, month: _month),
+              ),
+              icon: const Icon(Icons.nightlight_outlined),
+            ),
+          ],
+          if (widget.printBookPage case final printBookPage?)
+            IconButton(
+              tooltip: 'Print the book page',
+              onPressed: () => _print(printBookPage),
+              icon: const Icon(Icons.print_outlined),
+            ),
           if (widget.onManageStaff != null)
             IconButton(
               tooltip: 'Manage Staff list',
@@ -249,9 +440,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_canEdit && grid != null && grid.awaitingConfirmation)
-              _ConfirmBanner(onConfirm: _confirmMonth)
-            else if (_canEdit && announcement != null && !announcement.isEmpty)
+            if (banner != null)
+              banner
+            else if (announcement != null && !announcement.isEmpty)
               _AnnounceTray(
                 changeCount: announcement.changeCount,
                 onAnnounce: () => _announce(announcement),
@@ -269,6 +460,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
       (null, _) => const Center(
         child: Text("The Schedule couldn't be loaded."),
       ),
+      (final MonthGrid grid, _)
+          when !_canEdit && grid.status != MonthStatus.released =>
+        Center(
+          child: Text(
+            "${DateFormat.yMMMM().format(_month)} hasn't been released yet.",
+          ),
+        ),
       (final MonthGrid grid, _) => switch (_view) {
         ScheduleView.month => _MonthView(grid: grid, onEdit: _edit),
         ScheduleView.day => _DayView(
@@ -288,10 +486,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 }
 
-class _ConfirmBanner extends StatelessWidget {
-  const _ConfirmBanner({required this.onConfirm});
+class _Banner extends StatelessWidget {
+  const _Banner({
+    required this.message,
+    required this.actionLabel,
+    required this.onPressed,
+  });
 
-  final VoidCallback onConfirm;
+  final String message;
+  final String actionLabel;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -301,17 +505,9 @@ class _ConfirmBanner extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: Row(
           children: [
-            const Expanded(
-              child: Text(
-                'Check this month against your Excel file. '
-                'Tap any cell to correct it.',
-              ),
-            ),
+            Expanded(child: Text(message)),
             const SizedBox(width: 12),
-            FilledButton(
-              onPressed: onConfirm,
-              child: const Text('Confirm month'),
-            ),
+            FilledButton(onPressed: onPressed, child: Text(actionLabel)),
           ],
         ),
       ),

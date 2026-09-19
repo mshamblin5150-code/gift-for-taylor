@@ -10,12 +10,20 @@ final class ChangeAnnouncement {
     required this.people,
   });
 
+  /// Covers only rows in [editable], so a Night scheduler tells the people
+  /// in their own Sections.
   factory ChangeAnnouncement._from(
     MonthGrid grid,
     Iterable<ScheduleChange> unannounced,
+    EditableSections editable,
   ) {
+    final sectionOf = {
+      for (final row in grid.rows) row.staffMemberId: row.sectionId,
+    };
     final people = <AffectedPerson>[];
-    for (final row in grid.rows) {
+    for (final row in grid.rows.where(
+      (row) => editable.contains(row.sectionId),
+    )) {
       final changedDays = [
         for (final day in grid.days)
           if (grid.isUnannounced(row.staffMemberId, day))
@@ -30,7 +38,11 @@ final class ChangeAnnouncement {
       }
     }
     return ChangeAnnouncement._(
-      {for (final change in unannounced) change.id},
+      {
+        for (final change in unannounced)
+          if (editable.contains(sectionOf[change.staffMemberId] ?? ''))
+            change.id,
+      },
       month: grid.month,
       people: List.unmodifiable(people),
     );

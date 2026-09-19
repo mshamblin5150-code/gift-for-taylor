@@ -31,6 +31,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],
       rows: const [dana, lee, sam],
+      releasedMonths: {september},
     );
     manager = ScheduleRules.inMemory(database, actingAs: 'manager');
   });
@@ -174,6 +175,7 @@ void main() {
   test('someone with no cell number is left out of the group text', () async {
     final noCell = InMemoryScheduleDatabase(
       sections: const [days],
+      releasedMonths: {september},
       rows: const [
         dana,
         ScheduleRow(
@@ -239,6 +241,7 @@ void main() {
       sections: const [days],
       rows: const [dana],
       editors: const {'manager'},
+      releasedMonths: {september},
     );
     final scheduler = ScheduleRules.inMemory(restricted, actingAs: 'manager');
     await scheduler.saveCell(
@@ -259,5 +262,49 @@ void main() {
       throwsA(isA<ScheduleEditRefused>()),
     );
     expect((await scheduler.changeAnnouncement(september)).isEmpty, isFalse);
+  });
+
+  test('a month still being built has nothing to announce', () async {
+    final october = DateTime(2026, 10);
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: DateTime(2026, 10, 2),
+        shiftCode: '7A',
+      ),
+    );
+
+    expect((await manager.changeAnnouncement(october)).isEmpty, isTrue);
+  });
+
+  test('a Night scheduler announces only their own Sections', () async {
+    await publishStartingMonth();
+    await manager.assignNightScheduler('night-scheduler', {'nights'});
+    final nightScheduler = ScheduleRules.inMemory(
+      database,
+      actingAs: 'night-scheduler',
+    );
+    await save(dana, 18, 'X');
+    await nightScheduler.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-2',
+        sectionId: 'nights',
+        date: DateTime(2026, 9, 19),
+        shiftCode: 'N',
+      ),
+    );
+
+    final announcement = await nightScheduler.changeAnnouncement(september);
+    expect(announcement.people.map((person) => person.row.displayName), [
+      'Sam Ortiz',
+    ]);
+
+    await nightScheduler.markAnnounced(announcement);
+
+    final remaining = await manager.changeAnnouncement(september);
+    expect(remaining.people.map((person) => person.row.displayName), [
+      'Dana Reyes',
+    ]);
   });
 }

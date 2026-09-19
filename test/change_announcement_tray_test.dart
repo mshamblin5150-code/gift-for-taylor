@@ -29,6 +29,7 @@ void main() {
       sections: const [days],
       rows: const [dana, lee],
       editors: const {'manager'},
+      releasedMonths: {september},
     );
     messages = _FakeMessagesComposer();
   });
