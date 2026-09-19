@@ -259,6 +259,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
       canManageStaff,
       monthToCheck,
       !canManageStaff && editable.isEmpty ? staffMemberId : null,
+      canManageStaff ? null : staffMemberId,
     );
   }
 
@@ -305,6 +306,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           rules: ScheduleRules(widget.scheduleStore),
           month: data?.monthToCheck ?? DateTime(now.year, now.month),
           staffMemberId: data?.staffMemberId,
+          swapStaffMemberId: data?.swapStaffMemberId,
           onSignOut: widget.authGateway.signOut,
           messagesComposer: widget.messagesComposer,
           swapRules: widget.swapRules,
@@ -335,10 +337,12 @@ final class _ScheduleData {
     this.canManageStaff,
     this.monthToCheck,
     this.staffMemberId,
+    this.swapStaffMemberId,
   );
 
   final List<ScheduleSection> sections;
   final bool canManageStaff;
   final DateTime? monthToCheck;
   final String? staffMemberId;
+  final String? swapStaffMemberId;
 }

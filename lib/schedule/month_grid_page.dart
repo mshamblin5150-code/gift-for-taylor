@@ -19,6 +19,7 @@ class MonthGridPage extends StatefulWidget {
     required this.rules,
     required this.month,
     this.staffMemberId,
+    this.swapStaffMemberId,
     this.onSignOut,
     this.onManageStaff,
     this.messagesComposer,
@@ -29,6 +30,7 @@ class MonthGridPage extends StatefulWidget {
   final ScheduleRules rules;
   final DateTime month;
   final String? staffMemberId;
+  final String? swapStaffMemberId;
   final VoidCallback? onSignOut;
   final VoidCallback? onManageStaff;
   final MessagesComposer? messagesComposer;
@@ -132,7 +134,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             .where(
               (swap) =>
                   (swap.status == SwapStatus.proposed &&
-                      swap.colleagueId == widget.staffMemberId) ||
+                      swap.colleagueId == widget.swapStaffMemberId) ||
                   (swap.status == SwapStatus.accepted && _canEdit),
             )
             .length,
@@ -414,7 +416,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                   rules: widget.rules,
                   swapRules: widget.swapRules!,
                   month: _month,
-                  staffMemberId: widget.staffMemberId,
+                  staffMemberId: widget.swapStaffMemberId,
                   isManager: _canEdit,
                   messagesComposer: widget.messagesComposer,
                 ),

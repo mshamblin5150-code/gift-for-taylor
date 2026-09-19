@@ -83,71 +83,82 @@ class _SwapsPageState extends State<SwapsPage> {
     }
     var colleague = colleagues.first;
     var mine = myDays.first;
+    var mineGrid = grid;
     var theirs = _workingDays(grid, colleague.staffMemberId).firstOrNull;
+    var theirGrid = grid;
     final choice = await showDialog<(ScheduleRow, DateTime, DateTime)>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          final theirDays = _workingDays(grid, colleague.staffMemberId);
           return AlertDialog(
             title: const Text('Propose a Swap'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: colleague.staffMemberId,
-                  decoration: const InputDecoration(labelText: 'Colleague'),
-                  items: [
-                    for (final row in colleagues)
-                      DropdownMenuItem(
-                        value: row.staffMemberId,
-                        child: Text(row.displayName),
-                      ),
-                  ],
-                  onChanged: (id) => setDialogState(() {
-                    colleague = colleagues.firstWhere(
-                      (row) => row.staffMemberId == id,
-                    );
-                    theirs = _workingDays(
-                      grid,
-                      colleague.staffMemberId,
-                    ).firstOrNull;
-                  }),
-                ),
-                DropdownButtonFormField<DateTime>(
-                  key: ValueKey('mine-${mine.toIso8601String()}'),
-                  initialValue: mine,
-                  decoration: const InputDecoration(labelText: 'My shift'),
-                  items: [
-                    for (final date in myDays)
-                      DropdownMenuItem(
-                        value: date,
-                        child: Text(_dayLabel(grid, me, date)),
-                      ),
-                  ],
-                  onChanged: (date) => setDialogState(() => mine = date!),
-                ),
-                if (theirDays.isNotEmpty)
-                  DropdownButtonFormField<DateTime>(
-                    key: ValueKey(colleague.staffMemberId),
-                    initialValue: theirs,
-                    decoration: const InputDecoration(
-                      labelText: 'Colleague shift',
-                    ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    initialValue: colleague.staffMemberId,
+                    decoration: const InputDecoration(labelText: 'Colleague'),
                     items: [
-                      for (final date in theirDays)
+                      for (final row in colleagues)
                         DropdownMenuItem(
-                          value: date,
+                          value: row.staffMemberId,
                           child: Text(
-                            _dayLabel(grid, colleague.staffMemberId, date),
+                            row.displayName,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                     ],
-                    onChanged: (date) => setDialogState(() => theirs = date),
-                  )
-                else
-                  const Text('This colleague has no working shift this month.'),
-              ],
+                    onChanged: (id) => setDialogState(() {
+                      colleague = colleagues.firstWhere(
+                        (row) => row.staffMemberId == id,
+                      );
+                      theirs = _workingDays(
+                        grid,
+                        colleague.staffMemberId,
+                      ).firstOrNull;
+                      theirGrid = grid;
+                    }),
+                  ),
+                  ListTile(
+                    title: const Text('My shift'),
+                    subtitle: Text(_dayLabel(mineGrid, me, mine)),
+                    onTap: () async {
+                      final date = await _pickDate(context, mine);
+                      if (date == null) return;
+                      final loaded = await _gridOn(date);
+                      if (loaded != null && context.mounted)
+                        setDialogState(() {
+                          mine = date;
+                          mineGrid = loaded;
+                        });
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('Colleague shift'),
+                    subtitle: Text(
+                      theirs == null
+                          ? 'Choose a date'
+                          : _dayLabel(
+                              theirGrid,
+                              colleague.staffMemberId,
+                              theirs!,
+                            ),
+                    ),
+                    onTap: () async {
+                      final date = await _pickDate(context, theirs ?? mine);
+                      if (date == null) return;
+                      final loaded = await _gridOn(date);
+                      if (loaded != null && context.mounted)
+                        setDialogState(() {
+                          theirs = date;
+                          theirGrid = loaded;
+                        });
+                    },
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -155,7 +166,18 @@ class _SwapsPageState extends State<SwapsPage> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: theirs == null
+                onPressed:
+                    theirs == null ||
+                        !isWorkingShift(
+                          mineGrid.shiftCodeFor(me, mine) ?? '',
+                        ) ||
+                        !isWorkingShift(
+                          theirGrid.shiftCodeFor(
+                                colleague.staffMemberId,
+                                theirs!,
+                              ) ??
+                              '',
+                        )
                     ? null
                     : () => Navigator.pop(context, (colleague, mine, theirs!)),
                 child: const Text('Propose'),
@@ -166,23 +188,53 @@ class _SwapsPageState extends State<SwapsPage> {
       ),
     );
     if (choice == null) return;
+    Swap? proposed;
     await _run(() async {
       final (row, myDate, theirDate) = choice;
-      final swap = await widget.swapRules.propose(
+      proposed = await widget.swapRules.propose(
         row.staffMemberId,
         myDate,
         theirDate,
       );
-      final number = row.cellNumber;
-      if (number != null && widget.messagesComposer != null) {
-        await widget.messagesComposer!.open(
-          [number],
-          'Hi ${row.displayName}, can we Swap my ${DateFormat.MMMd().format(myDate)} '
-          '${swap.requesterCode} shift for your ${DateFormat.MMMd().format(theirDate)} '
-          '${swap.colleagueCode} shift? Please answer in the ER Schedule app.',
-        );
-      }
     });
+    if (proposed != null) await _textColleague(proposed!, choice.$1);
+  }
+
+  Future<void> _textColleague(Swap swap, ScheduleRow colleague) async {
+    final number = colleague.cellNumber;
+    final composer = widget.messagesComposer;
+    if (number == null || composer == null) return;
+    try {
+      await composer.open(
+        [number],
+        'Hi ${colleague.displayName}, can we Swap my ${DateFormat.MMMd().format(swap.requesterDate)} '
+        '${swap.requesterCode} shift for your ${DateFormat.MMMd().format(swap.colleagueDate)} '
+        '${swap.colleagueCode} shift? Please answer in the ER Schedule app.',
+      );
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Swap proposed. Messages could not open; try the text button again.',
+            ),
+          ),
+        );
+    }
+  }
+
+  Future<MonthGrid?> _gridOn(DateTime date) async {
+    try {
+      return await widget.rules.monthGrid(date);
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This month could not be loaded. Try again.'),
+          ),
+        );
+      return null;
+    }
   }
 
   Future<void> _answer(Swap swap, bool accept) async {
@@ -282,6 +334,23 @@ class _SwapsPageState extends State<SwapsPage> {
                               _run(() => widget.swapRules.approve(swap.id)),
                           child: const Text('Approve'),
                         )
+                      : swap.status == SwapStatus.proposed &&
+                            swap.requesterId == widget.staffMemberId &&
+                            grid.rows.any(
+                              (row) =>
+                                  row.staffMemberId == swap.colleagueId &&
+                                  row.cellNumber != null,
+                            )
+                      ? IconButton(
+                          tooltip: 'Text colleague',
+                          icon: const Icon(Icons.sms_outlined),
+                          onPressed: () => _textColleague(
+                            swap,
+                            grid.rows.firstWhere(
+                              (row) => row.staffMemberId == swap.colleagueId,
+                            ),
+                          ),
+                        )
                       : null,
                 ),
               ),
@@ -306,3 +375,11 @@ List<DateTime> _workingDays(MonthGrid grid, String id) {
 
 String _dayLabel(MonthGrid grid, String id, DateTime date) =>
     '${DateFormat.MMMd().format(date)} — ${grid.shiftCodeFor(id, date)}';
+
+Future<DateTime?> _pickDate(BuildContext context, DateTime initial) =>
+    showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
