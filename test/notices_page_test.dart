@@ -4,17 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class _NoticeGateway implements NoticeGateway {
-  String state = 'available';
+  PushState state = PushState.available;
   int testsSent = 0;
 
   @override
-  Future<String> pushState() async => state;
+  Future<PushState> pushState() async => state;
 
   @override
-  Future<void> allowPush() async => state = 'enabled';
+  Future<void> allowPush() async => state = PushState.enabled;
 
   @override
-  Future<void> disablePush() async => state = 'available';
+  Future<void> disablePush() async => state = PushState.available;
 
   @override
   Future<void> sendTestPush() async => testsSent++;

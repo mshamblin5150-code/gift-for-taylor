@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(13);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000701', 'push-one@example.test'),
@@ -40,6 +40,10 @@ update public.schedule_months set released_at = now()
 where id = '00000000-0000-0000-0000-000000000731';
 select is((select count(*)::integer from public.staff_notices where kind = 'month_release'), 2,
   'a later month update does not repeat the release notice');
+update public.schedule_changes set announced_at = now()
+where work_date = '2028-03-10';
+select is((select count(*)::integer from public.staff_notices where kind = 'schedule_change'), 0,
+  'marking a draft edit announced after release does not send a change push');
 
 insert into public.schedule_changes (
   schedule_month_id, staff_member_id, section_id, work_date,
@@ -50,8 +54,12 @@ insert into public.schedule_changes (
   '00000000-0000-0000-0000-000000000711',
   '2028-03-12', '7A', 'X', '00000000-0000-0000-0000-000000000721'
 );
+select is((select count(*)::integer from public.staff_notices where kind = 'schedule_change'), 0,
+  'a saved change waits for the scheduler to send the text');
+update public.schedule_changes set announced_at = now()
+where work_date = '2028-03-12';
 select is((select count(*)::integer from public.staff_notices where kind = 'schedule_change'), 1,
-  'a released shift change creates one notice');
+  'announcing a released shift change creates one notice');
 select is((select staff_member_id::text from public.staff_notices where kind = 'schedule_change'),
   '00000000-0000-0000-0000-000000000721', 'the changed Staff member is the recipient');
 

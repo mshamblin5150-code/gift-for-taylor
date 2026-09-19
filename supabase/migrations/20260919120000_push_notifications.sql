@@ -113,13 +113,32 @@ $$;
 create trigger notice_month_release after update of release_state
 on public.schedule_months for each row execute function public.notice_month_release();
 
+-- Capture whether an edit was made to a live month when it is saved. Comparing
+-- timestamps later is unreliable when release and edits share a transaction.
+alter table public.schedule_changes add column push_eligible boolean not null default false;
+
+create function public.set_change_push_eligibility()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  new.push_eligible := exists (
+    select 1 from public.schedule_months month
+    where month.id = new.schedule_month_id and month.release_state = 'released'
+  );
+  return new;
+end;
+$$;
+
+create trigger set_change_push_eligibility before insert on public.schedule_changes
+for each row execute function public.set_change_push_eligibility();
+
 create function public.notice_schedule_change()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare v_month_start date;
 begin
   select month.month_start into v_month_start from public.schedule_months month
   where month.id = new.schedule_month_id and month.release_state = 'released';
-  if v_month_start is not null and exists (
+  if old.announced_at is null and new.announced_at is not null
+    and new.push_eligible and v_month_start is not null and exists (
     select 1 from public.staff_members member
     where member.id = new.staff_member_id and member.active
   ) then
@@ -132,5 +151,5 @@ begin
 end;
 $$;
 
-create trigger notice_schedule_change after insert on public.schedule_changes
+create trigger notice_schedule_change after update of announced_at on public.schedule_changes
 for each row execute function public.notice_schedule_change();

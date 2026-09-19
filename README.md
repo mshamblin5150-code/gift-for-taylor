@@ -51,7 +51,8 @@ Home Screen, open it from there, sign in, tap **Notices → Allow notifications*
 then **Send test push**. Confirm the device receives the push and the app shows
 the test notice. Turning notifications off or signing out unsubscribes that
 device. A Month release creates a notice for each active Staff member; a
-post-release shift change creates one only for the affected Staff member.
+post-release shift change creates one only for the affected Staff member when
+the scheduler marks the text announcement sent.
 
 Supabase Flutter persists and refreshes the session in browser storage. The app
 offers one emailed-code flow for accepting an Invite and signing in, and exposes

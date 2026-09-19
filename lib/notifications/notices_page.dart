@@ -14,7 +14,7 @@ class NoticesPage extends StatefulWidget {
 
 class _NoticesPageState extends State<NoticesPage> {
   late Future<List<StaffNotice>> _notices = widget.gateway.notices();
-  String? _pushState;
+  PushState? _pushState;
   bool _busy = false;
   String? _message;
 
@@ -29,7 +29,7 @@ class _NoticesPageState extends State<NoticesPage> {
       final state = await widget.gateway.pushState();
       if (mounted) setState(() => _pushState = state);
     } catch (_) {
-      if (mounted) setState(() => _pushState = 'unsupported');
+      if (mounted) setState(() => _pushState = PushState.unsupported);
     }
   }
 
@@ -67,15 +67,15 @@ class _NoticesPageState extends State<NoticesPage> {
                 const Text(
                   'Allow notifications to hear about Month releases and changes to your shifts.',
                 ),
-                if (_pushState == 'unsupported')
+                if (_pushState == PushState.unsupported)
                   const Text(
                     'Install this app to your Home Screen on iPhone (iOS 16.4 or later), then open it there to allow notifications.',
                   ),
-                if (_pushState == 'denied')
+                if (_pushState == PushState.denied)
                   const Text(
                     'Notifications are blocked in this device’s settings.',
                   ),
-                if (_pushState == 'available')
+                if (_pushState == PushState.available)
                   FilledButton(
                     onPressed: _busy
                         ? null
@@ -85,7 +85,7 @@ class _NoticesPageState extends State<NoticesPage> {
                           ),
                     child: const Text('Allow notifications'),
                   ),
-                if (_pushState == 'enabled') ...[
+                if (_pushState == PushState.enabled) ...[
                   FilledButton.tonal(
                     onPressed: _busy
                         ? null

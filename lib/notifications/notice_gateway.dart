@@ -20,8 +20,10 @@ final class StaffNotice {
   final bool isRead;
 }
 
+enum PushState { unsupported, denied, available, enabled }
+
 abstract interface class NoticeGateway {
-  Future<String> pushState();
+  Future<PushState> pushState();
   Future<void> allowPush();
   Future<void> disablePush();
   Future<void> sendTestPush();
@@ -36,7 +38,12 @@ final class SupabaseNoticeGateway implements NoticeGateway {
   final String _vapidPublicKey;
 
   @override
-  Future<String> pushState() => browser.pushState();
+  Future<PushState> pushState() async => switch (await browser.pushState()) {
+    'denied' => PushState.denied,
+    'available' => PushState.available,
+    'enabled' => PushState.enabled,
+    _ => PushState.unsupported,
+  };
 
   @override
   Future<void> allowPush() async {
