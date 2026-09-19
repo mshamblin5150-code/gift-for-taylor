@@ -82,7 +82,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _edit(ScheduleRow row, DateTime date) async {
     final grid = _grid;
-    if (!_canEdit || grid == null) return;
+    if (!_canEdit || grid == null || !grid.isOnSchedule(row, date)) return;
     final edit = await showCellEditSheet(
       context,
       row: row,
@@ -292,7 +292,7 @@ class _MonthView extends StatelessWidget {
           children: [
             _DayHeader(days: days),
             for (final section in grid.sections) ...[
-              _SectionBand(section: section, days: days),
+              _SectionBand(grid: grid, section: section, days: days),
               for (final row in grid.rowsIn(section.id))
                 _StaffRow(grid: grid, row: row, days: days, onEdit: onEdit),
             ],
@@ -333,8 +333,13 @@ class _DayHeader extends StatelessWidget {
 }
 
 class _SectionBand extends StatelessWidget {
-  const _SectionBand({required this.section, required this.days});
+  const _SectionBand({
+    required this.grid,
+    required this.section,
+    required this.days,
+  });
 
+  final MonthGrid grid;
   final ScheduleSection section;
   final List<DateTime> days;
 
@@ -360,7 +365,12 @@ class _SectionBand extends StatelessWidget {
             ),
             width: _dayWidth,
             height: _bandHeight,
+            alignment: Alignment.center,
             decoration: _cellDecoration(day, context),
+            child: _ShortMarker(
+              key: ValueKey('short-${section.id}-${_dateKey(day)}'),
+              shortShifts: grid.shortShiftsOn(section.id, day),
+            ),
           ),
       ],
     );
@@ -395,17 +405,60 @@ class _StaffRow extends StatelessWidget {
           child: Text(row.displayName, overflow: TextOverflow.ellipsis),
         ),
         for (final day in days)
-          _GridCell(
-            key: ValueKey('cell-${row.staffMemberId}-${_dateKey(day)}'),
-            day: day,
-            code: grid.shiftCodeFor(row.staffMemberId, day) ?? '',
-            unannounced: grid.isUnannounced(row.staffMemberId, day),
-            unannouncedKey: ValueKey(
-              'unannounced-${row.staffMemberId}-${_dateKey(day)}',
+          if (grid.isOnSchedule(row, day))
+            _GridCell(
+              key: ValueKey('cell-${row.staffMemberId}-${_dateKey(day)}'),
+              day: day,
+              code: grid.shiftCodeFor(row.staffMemberId, day) ?? '',
+              unannounced: grid.isUnannounced(row.staffMemberId, day),
+              unannouncedKey: ValueKey(
+                'unannounced-${row.staffMemberId}-${_dateKey(day)}',
+              ),
+              onTap: () => onEdit(row, day),
+            )
+          else
+            // After their Last day: no longer on the Schedule.
+            Container(
+              key: ValueKey('gone-${row.staffMemberId}-${_dateKey(day)}'),
+              width: _dayWidth,
+              height: _cellHeight,
+              decoration: _cellDecoration(
+                day,
+                context,
+              ).copyWith(color: Theme.of(context).colorScheme.outlineVariant),
             ),
-            onTap: () => onEdit(row, day),
-          ),
       ],
+    );
+  }
+}
+
+/// How many shifts in a Section are uncovered that day, if any.
+class _ShortMarker extends StatelessWidget {
+  const _ShortMarker({super.key, required this.shortShifts});
+
+  final List<ShortShift> shortShifts;
+
+  @override
+  Widget build(BuildContext context) {
+    if (shortShifts.isEmpty) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: 'Short: ${shortShifts.map((s) => s.shiftCode).join(', ')}',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: colors.errorContainer,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          '−${shortShifts.length}',
+          style: TextStyle(
+            color: colors.onErrorContainer,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -511,6 +564,18 @@ class _DayView extends StatelessWidget {
             children: [
               for (final section in grid.sections) ...[
                 _SectionHeading(section.name),
+                for (final short in grid.shortShiftsOn(section.id, day))
+                  ListTile(
+                    leading: Icon(
+                      Icons.warning_amber,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    title: const Text('Short'),
+                    trailing: Text(
+                      short.shiftCode,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 for (final entry in entries.where(
                   (entry) => entry.row.sectionId == section.id,
                 ))

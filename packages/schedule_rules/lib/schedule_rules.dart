@@ -34,6 +34,30 @@ abstract interface class ScheduleRules {
   /// Emits whenever any scheduler saves a change in [month].
   Stream<void> monthUpdates(DateTime month);
 
+  /// Takes a departing Staff member off the Staff list. Shifts through their
+  /// Last day stay; later shifts are cleared, and each working shift among
+  /// them is marked short. They are deactivated at once, never deleted.
+  Future<void> setLastDay(SetLastDay action);
+
+  /// Puts a past Staff member back on the Staff list, at the bottom of a
+  /// Section, as the same person with their history connected. Their old
+  /// sign-in no longer works; they need a fresh Invite.
+  Future<void> reactivate(Reactivate action);
+
+  /// Moves a Staff member's row to another Section from a chosen date. In the
+  /// month of the move, and after it, the row is in the new Section; their
+  /// scheduled shifts stay for the Manager to adjust.
+  Future<void> changeSection(ChangeSection action);
+
+  /// Changes a Staff member's role from a chosen date.
+  Future<void> changeJobRole(ChangeJobRole action);
+
+  /// The role a Staff member has on [date], if one has been set.
+  Future<JobRole?> jobRoleOn(String staffMemberId, DateTime date);
+
+  /// Every Last day, reactivation, Section and role change, oldest first.
+  Future<List<StaffChange>> staffChanges();
+
   /// The month loaded from the printed page that the Manager has not yet
   /// checked, if any.
   Future<DateTime?> monthAwaitingConfirmation();
@@ -56,6 +80,8 @@ abstract interface class ScheduleStore {
 
   Future<List<ScheduleChange>> changesForMonth(DateTime month);
 
+  Future<List<ShortShift>> shortShiftsForMonth(DateTime month);
+
   /// Stores the cell and appends its change log entry in one step, recording
   /// the signed-in person and the time.
   Future<void> writeCell(ScheduleCell cell);
@@ -68,6 +94,21 @@ abstract interface class ScheduleStore {
   Future<List<DateTime>> monthsAwaitingConfirmation();
 
   Future<void> confirmLoadedMonth(DateTime month);
+
+  /// Deactivates the person, clears their cells after [SetLastDay.lastDay]
+  /// with a change log entry each, and records the short shifts, in one step.
+  Future<void> setLastDay(SetLastDay action);
+
+  Future<void> reactivate(Reactivate action);
+
+  Future<void> changeSection(ChangeSection action);
+
+  Future<void> changeJobRole(ChangeJobRole action);
+
+  /// The person's dated roles, earliest first.
+  Future<List<DatedJobRole>> jobRoles(String staffMemberId);
+
+  Future<List<StaffChange>> staffChanges();
 }
 
 /// Thrown when the signed-in person may not change the Schedule.
@@ -104,6 +145,136 @@ final class UndoCell {
   final DateTime date;
 }
 
+final class SetLastDay {
+  const SetLastDay({required this.staffMemberId, required this.lastDay});
+
+  final String staffMemberId;
+  final DateTime lastDay;
+}
+
+final class Reactivate {
+  const Reactivate({
+    required this.staffMemberId,
+    required this.sectionId,
+    required this.firstDay,
+  });
+
+  final String staffMemberId;
+  final String sectionId;
+
+  /// Their first day back on the Schedule; after their Last day.
+  final DateTime firstDay;
+}
+
+final class ChangeSection {
+  const ChangeSection({
+    required this.staffMemberId,
+    required this.sectionId,
+    required this.from,
+  });
+
+  final String staffMemberId;
+  final String sectionId;
+  final DateTime from;
+}
+
+final class ChangeJobRole {
+  const ChangeJobRole({
+    required this.staffMemberId,
+    required this.jobRole,
+    required this.from,
+  });
+
+  final String staffMemberId;
+  final JobRole jobRole;
+  final DateTime from;
+}
+
+/// What a Staff member does, which decides the Open shifts they may pick up.
+enum JobRole {
+  rn('rn', 'RN'),
+  lpn('lpn', 'LPN'),
+  cna('cna', 'CNA'),
+  unitClerk('unit_clerk', 'Unit clerk');
+
+  const JobRole(this.value, this.label);
+
+  /// The database value.
+  final String value;
+  final String label;
+
+  static JobRole fromValue(String value) =>
+      values.firstWhere((role) => role.value == value);
+}
+
+final class DatedJobRole {
+  const DatedJobRole({
+    required this.jobRole,
+    required this.from,
+    required this.through,
+  });
+
+  final JobRole jobRole;
+  final DateTime from;
+  final DateTime? through;
+}
+
+enum StaffChangeKind {
+  lastDay('last_day'),
+  reactivated('reactivated'),
+  section('section'),
+  jobRole('job_role');
+
+  const StaffChangeKind(this.value);
+
+  /// The database value.
+  final String value;
+
+  static StaffChangeKind fromValue(String value) =>
+      values.firstWhere((kind) => kind.value == value);
+}
+
+/// One Staff list change log entry. Sections are recorded by name and roles
+/// by label, as they were at the time.
+final class StaffChange {
+  const StaffChange({
+    required this.staffMemberId,
+    required this.kind,
+    required this.oldValue,
+    required this.newValue,
+    required this.effectiveFrom,
+    required this.changedBy,
+    required this.changedAt,
+  });
+
+  final String staffMemberId;
+  final StaffChangeKind kind;
+  final String? oldValue;
+  final String? newValue;
+  final DateTime effectiveFrom;
+  final String changedBy;
+  final DateTime changedAt;
+}
+
+/// A shift left uncovered, such as one cleared after a Last day.
+final class ShortShift {
+  const ShortShift({
+    required this.sectionId,
+    required this.date,
+    required this.shiftCode,
+    required this.staffMemberId,
+  });
+
+  final String sectionId;
+  final DateTime date;
+
+  /// The shift that is no longer covered.
+  final String shiftCode;
+
+  /// Whose shift it was.
+  final String staffMemberId;
+}
+
 final class ScheduleSection {
   const ScheduleSection({required this.id, required this.name});
 
@@ -111,17 +282,22 @@ final class ScheduleSection {
   final String name;
 }
 
-/// One Staff list row on the Schedule.
+/// One Staff list row on the Schedule, in the Section the person is in
+/// during that month (the new one, for a mid-month move).
 final class ScheduleRow {
   const ScheduleRow({
     required this.staffMemberId,
     required this.displayName,
     required this.sectionId,
+    this.lastDay,
   });
 
   final String staffMemberId;
   final String displayName;
   final String sectionId;
+
+  /// The final day a departing person is on the Schedule.
+  final DateTime? lastDay;
 }
 
 final class ScheduleCell {
@@ -189,6 +365,15 @@ const shiftLegend = <LegendCode>[
   LegendCode('S/L', meaning: 'Sick leave'),
 ];
 
+/// Whether [shiftCode] is a shift someone works: anything but blank or a
+/// legend code without hours. Off-legend codes count as working. The
+/// database's `is_working_shift` applies the same rule.
+bool isWorkingShift(String shiftCode) {
+  final code = shiftCode.trim().toUpperCase();
+  return code.isNotEmpty &&
+      !shiftLegend.any((legend) => legend.hours == null && legend.code == code);
+}
+
 /// A person's code on one day, for the day and one-person views.
 final class RowDay {
   const RowDay({
@@ -211,12 +396,16 @@ final class MonthGrid {
     required this.month,
     required this.sections,
     required this.rows,
+    required this.shortShifts,
     required this.awaitingConfirmation,
   });
 
   final DateTime month;
   final List<ScheduleSection> sections;
   final List<ScheduleRow> rows;
+
+  /// Uncovered shifts in the month, such as those left by a Last day.
+  final List<ShortShift> shortShifts;
 
   /// Loaded from the printed page and not yet checked by the Manager.
   final bool awaitingConfirmation;
@@ -233,6 +422,19 @@ final class MonthGrid {
   List<ScheduleRow> rowsIn(String sectionId) =>
       rows.where((row) => row.sectionId == sectionId).toList(growable: false);
 
+  /// Whether [date] is on or before the row's Last day, so its cell can be
+  /// edited.
+  bool isOnSchedule(ScheduleRow row, DateTime date) {
+    final lastDay = row.lastDay;
+    return lastDay == null || !_day(date).isAfter(lastDay);
+  }
+
+  List<ShortShift> shortShiftsOn(String sectionId, DateTime date) => shortShifts
+      .where(
+        (short) => short.sectionId == sectionId && _sameDay(short.date, date),
+      )
+      .toList(growable: false);
+
   String? shiftCodeFor(String staffMemberId, DateTime date) =>
       _codes[_cellKey(staffMemberId, date)];
 
@@ -246,10 +448,12 @@ final class MonthGrid {
       shiftCodeFor(staffMemberId, date) ??
       '';
 
-  /// Everyone's code on [date], in Section and row order.
+  /// Everyone on the Schedule on [date] and their code, in Section and row
+  /// order.
   List<RowDay> rowsOn(DateTime date) => [
     for (final section in sections)
-      for (final row in rowsIn(section.id)) _rowDay(row, date),
+      for (final row in rowsIn(section.id))
+        if (isOnSchedule(row, date)) _rowDay(row, date),
   ];
 
   /// One person's code for every day of the month.
@@ -313,6 +517,7 @@ final class _ScheduleRules implements ScheduleRules {
       _store.cellsForMonth(start),
       _store.changesForMonth(start),
       _store.monthsAwaitingConfirmation(),
+      _store.shortShiftsForMonth(start),
     ]);
     final cells = results[2] as List<ScheduleCell>;
     final changes = results[3] as List<ScheduleChange>;
@@ -336,6 +541,7 @@ final class _ScheduleRules implements ScheduleRules {
       month: start,
       sections: results[0] as List<ScheduleSection>,
       rows: results[1] as List<ScheduleRow>,
+      shortShifts: results[5] as List<ShortShift>,
       awaitingConfirmation: (results[4] as List<DateTime>).contains(start),
     );
   }
@@ -362,6 +568,53 @@ final class _ScheduleRules implements ScheduleRules {
   Future<void> confirmLoadedMonth(DateTime month) {
     return _store.confirmLoadedMonth(DateTime(month.year, month.month));
   }
+
+  @override
+  Future<void> setLastDay(SetLastDay action) => _store.setLastDay(
+    SetLastDay(
+      staffMemberId: action.staffMemberId,
+      lastDay: _day(action.lastDay),
+    ),
+  );
+
+  @override
+  Future<void> reactivate(Reactivate action) => _store.reactivate(
+    Reactivate(
+      staffMemberId: action.staffMemberId,
+      sectionId: action.sectionId,
+      firstDay: _day(action.firstDay),
+    ),
+  );
+
+  @override
+  Future<void> changeSection(ChangeSection action) => _store.changeSection(
+    ChangeSection(
+      staffMemberId: action.staffMemberId,
+      sectionId: action.sectionId,
+      from: _day(action.from),
+    ),
+  );
+
+  @override
+  Future<void> changeJobRole(ChangeJobRole action) => _store.changeJobRole(
+    ChangeJobRole(
+      staffMemberId: action.staffMemberId,
+      jobRole: action.jobRole,
+      from: _day(action.from),
+    ),
+  );
+
+  @override
+  Future<JobRole?> jobRoleOn(String staffMemberId, DateTime date) async {
+    final day = _day(date);
+    return (await _store.jobRoles(staffMemberId))
+        .where((role) => _covers(role.from, role.through, day))
+        .firstOrNull
+        ?.jobRole;
+  }
+
+  @override
+  Future<List<StaffChange>> staffChanges() => _store.staffChanges();
 }
 
 /// An in-memory stand-in for the database, shared by every scheduler in a
@@ -373,17 +626,31 @@ final class InMemoryScheduleDatabase {
     this.editors,
     DateTime Function()? clock,
   }) : _sections = List.unmodifiable(sections),
-       _rows = List.unmodifiable(rows),
-       _clock = clock ?? DateTime.now;
+       _clock = clock ?? DateTime.now {
+    for (final row in rows) {
+      _names[row.staffMemberId] = row.displayName;
+      _assignments.add(
+        _Assignment(row.staffMemberId, row.sectionId, _assignments.length),
+      );
+    }
+  }
 
   final List<ScheduleSection> _sections;
 
   /// Staff member ids who may edit; null lets everyone edit.
   final Set<String>? editors;
-  final List<ScheduleRow> _rows;
   final DateTime Function() _clock;
+  final Map<String, String> _names = {};
+
+  /// Dated Section placements. A new placement goes to the bottom of its
+  /// Section.
+  final List<_Assignment> _assignments = [];
+  final Map<String, DateTime> _lastDays = {};
+  final Map<String, List<DatedJobRole>> _jobRoles = {};
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
+  final List<ShortShift> _shortShifts = [];
+  final List<StaffChange> _staffChanges = [];
   final StreamController<DateTime> _updates = StreamController.broadcast();
   final List<DateTime> _awaitingConfirmation = [];
 
@@ -417,6 +684,41 @@ final class InMemoryScheduleDatabase {
   /// The database as seen by [staffMemberId].
   ScheduleStore storeFor(String staffMemberId) =>
       _InMemoryScheduleStore(this, staffMemberId);
+
+  bool _isActive(String staffMemberId) =>
+      _names.containsKey(staffMemberId) &&
+      !_lastDays.containsKey(staffMemberId);
+
+  _Assignment? _openAssignment(String staffMemberId) => _assignments
+      .where(
+        (assignment) =>
+            assignment.staffMemberId == staffMemberId &&
+            assignment.through == null,
+      )
+      .firstOrNull;
+
+  String _sectionName(String sectionId) =>
+      _sections.firstWhere((section) => section.id == sectionId).name;
+}
+
+final class _Assignment {
+  _Assignment(this.staffMemberId, this.sectionId, this.order, {this.from});
+
+  final String staffMemberId;
+  final String sectionId;
+  final int order;
+
+  /// Null for placements made before the test began.
+  final DateTime? from;
+  DateTime? through;
+
+  bool overlaps(DateTime month) {
+    final start = from;
+    final end = through;
+    return (start == null ||
+            start.isBefore(DateTime(month.year, month.month + 1))) &&
+        (end == null || !end.isBefore(month));
+  }
 }
 
 final class _InMemoryScheduleStore implements ScheduleStore {
@@ -433,14 +735,34 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     final sectionOrder = [
       for (final section in _database._sections) section.id,
     ];
-    final ordered = _database._rows.indexed.toList()
+    // Each person's latest placement in the month decides their row.
+    final latest = <String, _Assignment>{};
+    for (final assignment in _database._assignments) {
+      if (!assignment.overlaps(month)) continue;
+      final current = latest[assignment.staffMemberId];
+      if (current == null ||
+          (assignment.from ?? DateTime(0)).isAfter(
+            current.from ?? DateTime(0),
+          )) {
+        latest[assignment.staffMemberId] = assignment;
+      }
+    }
+    final ordered = latest.values.toList()
       ..sort((left, right) {
         final bySection = sectionOrder
-            .indexOf(left.$2.sectionId)
-            .compareTo(sectionOrder.indexOf(right.$2.sectionId));
-        return bySection != 0 ? bySection : left.$1.compareTo(right.$1);
+            .indexOf(left.sectionId)
+            .compareTo(sectionOrder.indexOf(right.sectionId));
+        return bySection != 0 ? bySection : left.order.compareTo(right.order);
       });
-    return [for (final (_, row) in ordered) row];
+    return [
+      for (final assignment in ordered)
+        ScheduleRow(
+          staffMemberId: assignment.staffMemberId,
+          displayName: _database._names[assignment.staffMemberId]!,
+          sectionId: assignment.sectionId,
+          lastDay: _database._lastDays[assignment.staffMemberId],
+        ),
+    ];
   }
 
   @override
@@ -458,8 +780,23 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   }
 
   @override
+  Future<List<ShortShift>> shortShiftsForMonth(DateTime month) async {
+    return _database._shortShifts
+        .where((short) => _inMonth(short.date, month))
+        .toList(growable: false);
+  }
+
+  @override
   Future<void> writeCell(ScheduleCell cell) async {
     if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    final lastDay = _database._lastDays[cell.staffMemberId];
+    if (lastDay != null && cell.date.isAfter(lastDay)) {
+      throw StateError('That day is after their Last day');
+    }
+    _write(cell);
+  }
+
+  void _write(ScheduleCell cell) {
     final key = _cellKey(cell.staffMemberId, cell.date);
     final old = _database._cells[key]?.shiftCode ?? '';
     _database._cells[key] = cell;
@@ -499,12 +836,244 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     }
     _database._markAnnounced((change) => _inMonth(change.date, month));
   }
+
+  @override
+  Future<void> setLastDay(SetLastDay action) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    final id = action.staffMemberId;
+    final lastDay = action.lastDay;
+    if (id == _actingAs) throw StateError("You can't set your own Last day");
+    if (!_database._isActive(id)) {
+      throw StateError('That person is not on the Staff list');
+    }
+    _database._lastDays[id] = lastDay;
+
+    // Placements planned to start after the Last day no longer apply.
+    _database._assignments.removeWhere(
+      (assignment) =>
+          assignment.staffMemberId == id &&
+          (assignment.from?.isAfter(lastDay) ?? false),
+    );
+    for (final assignment in _database._assignments) {
+      final through = assignment.through;
+      if (assignment.staffMemberId == id &&
+          (through == null || through.isAfter(lastDay))) {
+        assignment.through = lastDay;
+      }
+    }
+    _database._jobRoles[id] = [
+      for (final role in _database._jobRoles[id] ?? const <DatedJobRole>[])
+        if (!role.from.isAfter(lastDay))
+          DatedJobRole(
+            jobRole: role.jobRole,
+            from: role.from,
+            through: role.through == null || role.through!.isAfter(lastDay)
+                ? lastDay
+                : role.through,
+          ),
+    ];
+
+    final later =
+        _database._cells.values
+            .where(
+              (cell) =>
+                  cell.staffMemberId == id &&
+                  cell.date.isAfter(lastDay) &&
+                  cell.shiftCode.isNotEmpty,
+            )
+            .toList()
+          ..sort((left, right) => left.date.compareTo(right.date));
+    for (final cell in later) {
+      _write(
+        ScheduleCell(
+          staffMemberId: id,
+          sectionId: cell.sectionId,
+          date: cell.date,
+          shiftCode: '',
+        ),
+      );
+      if (isWorkingShift(cell.shiftCode)) {
+        _database._shortShifts.add(
+          ShortShift(
+            sectionId: cell.sectionId,
+            date: cell.date,
+            shiftCode: cell.shiftCode,
+            staffMemberId: id,
+          ),
+        );
+      }
+    }
+    _log(id, StaffChangeKind.lastDay, null, _dateText(lastDay), lastDay);
+  }
+
+  @override
+  Future<void> reactivate(Reactivate action) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    final id = action.staffMemberId;
+    final lastDay = _database._lastDays[id];
+    if (lastDay == null) {
+      throw StateError('That person is already on the Staff list');
+    }
+    if (!action.firstDay.isAfter(lastDay)) {
+      throw StateError('Their first day back must be after their Last day');
+    }
+    _database._lastDays.remove(id);
+    _database._assignments.add(
+      _Assignment(
+        id,
+        action.sectionId,
+        _database._assignments.length,
+        from: action.firstDay,
+      ),
+    );
+    final roles = _database._jobRoles[id];
+    final lastRole = roles?.lastOrNull;
+    if (roles != null && lastRole != null) {
+      roles.add(
+        DatedJobRole(
+          jobRole: lastRole.jobRole,
+          from: action.firstDay,
+          through: null,
+        ),
+      );
+    }
+    _log(
+      id,
+      StaffChangeKind.reactivated,
+      null,
+      _database._sectionName(action.sectionId),
+      action.firstDay,
+    );
+  }
+
+  @override
+  Future<void> changeSection(ChangeSection action) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    final id = action.staffMemberId;
+    final open = _database._openAssignment(id);
+    if (!_database._isActive(id) || open == null) {
+      throw StateError('That person is not on the Staff list');
+    }
+    if (open.sectionId == action.sectionId) {
+      throw StateError('They are already in that Section');
+    }
+    final openFrom = open.from;
+    if (openFrom != null && action.from.isBefore(openFrom)) {
+      throw StateError(
+        'The move must start on or after their current Section did',
+      );
+    }
+    if (openFrom == action.from) {
+      _database._assignments.remove(open);
+    } else {
+      open.through = action.from.subtract(const Duration(days: 1));
+    }
+    _database._assignments.add(
+      _Assignment(
+        id,
+        action.sectionId,
+        _database._assignments.length,
+        from: action.from,
+      ),
+    );
+    _log(
+      id,
+      StaffChangeKind.section,
+      _database._sectionName(open.sectionId),
+      _database._sectionName(action.sectionId),
+      action.from,
+    );
+  }
+
+  @override
+  Future<void> changeJobRole(ChangeJobRole action) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    final id = action.staffMemberId;
+    if (!_database._isActive(id)) {
+      throw StateError('That person is not on the Staff list');
+    }
+    final roles = _database._jobRoles.putIfAbsent(id, () => []);
+    final open = roles.lastOrNull;
+    if (open?.jobRole == action.jobRole) {
+      throw StateError('They already have that role');
+    }
+    if (open != null) {
+      if (action.from.isBefore(open.from)) {
+        throw StateError(
+          'The change must start on or after their current role did',
+        );
+      }
+      roles.removeLast();
+      if (open.from != action.from) {
+        roles.add(
+          DatedJobRole(
+            jobRole: open.jobRole,
+            from: open.from,
+            through: action.from.subtract(const Duration(days: 1)),
+          ),
+        );
+      }
+    }
+    roles.add(
+      DatedJobRole(jobRole: action.jobRole, from: action.from, through: null),
+    );
+    _log(
+      id,
+      StaffChangeKind.jobRole,
+      open?.jobRole.label,
+      action.jobRole.label,
+      action.from,
+    );
+  }
+
+  @override
+  Future<List<DatedJobRole>> jobRoles(String staffMemberId) async =>
+      List.unmodifiable(_database._jobRoles[staffMemberId] ?? const []);
+
+  @override
+  Future<List<StaffChange>> staffChanges() async =>
+      List.unmodifiable(_database._staffChanges);
+
+  void _log(
+    String staffMemberId,
+    StaffChangeKind kind,
+    String? oldValue,
+    String? newValue,
+    DateTime effectiveFrom,
+  ) {
+    _database._staffChanges.add(
+      StaffChange(
+        staffMemberId: staffMemberId,
+        kind: kind,
+        oldValue: oldValue,
+        newValue: newValue,
+        effectiveFrom: effectiveFrom,
+        changedBy: _actingAs,
+        changedAt: _database._clock(),
+      ),
+    );
+  }
 }
+
+String _dateText(DateTime date) =>
+    '${date.year}-${date.month.toString().padLeft(2, '0')}-'
+    '${date.day.toString().padLeft(2, '0')}';
 
 DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
 
 bool _inMonth(DateTime date, DateTime month) =>
     date.year == month.year && date.month == month.month;
+
+bool _sameDay(DateTime left, DateTime right) =>
+    left.year == right.year &&
+    left.month == right.month &&
+    left.day == right.day;
+
+/// Whether the dated range [from]–[through] (null for open-ended) covers
+/// [day].
+bool _covers(DateTime? from, DateTime? through, DateTime day) =>
+    (from == null || !from.isAfter(day)) &&
+    (through == null || !through.isBefore(day));
 
 bool _sameCell(ScheduleCell cell, String staffMemberId, DateTime date) =>
     cell.staffMemberId == staffMemberId &&

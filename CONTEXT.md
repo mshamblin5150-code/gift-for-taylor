@@ -66,6 +66,10 @@ _Avoid_: Registration, sign-up
 The final day a departing Staff member is on the Schedule. Their shifts after it become short days.
 _Avoid_: Termination date, end date
 
+**Short shift**:
+A scheduled shift that no one covers any more, such as one cleared after a Last day. The day shows short in its Section until someone fills it.
+_Avoid_: Hole, gap
+
 **Request off**:
 A Staff member's request for specific days off. The Manager approves or declines it; an approved day appears on the Schedule as R/O. Today it must arrive by email so it is kept for reference.
 _Avoid_: Days-off request, PTO request, time-off slip
