@@ -56,8 +56,9 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
       if (mounted) _refresh();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -105,7 +106,9 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
                     '${DateFormat.MMMd().format(shift.date)} — ${shift.shiftCode}',
                   ),
                   subtitle: Text(
-                    '${shift.jobRole.label} • ${grid.displayNameOf(shift.originalStaffMemberId)}',
+                    shift.originalStaffMemberId == null
+                        ? '${shift.jobRole.label} • Posted by Manager'
+                        : '${shift.jobRole.label} • ${grid.displayNameOf(shift.originalStaffMemberId!)}',
                   ),
                   trailing:
                       widget.isManager || widget.staffMemberId == null || _busy
@@ -128,7 +131,7 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
               for (final pickup in pickups.where(
                 (p) => p.status == PickupStatus.pending,
               ))
-              if (monthShifts
+                if (monthShifts
                         .where((shift) => shift.id == pickup.openShiftId)
                         .firstOrNull
                     case final shift?)

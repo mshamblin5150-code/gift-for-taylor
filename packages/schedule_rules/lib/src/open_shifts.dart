@@ -8,15 +8,36 @@ final class OpenShift {
     required this.sectionId,
     required this.date,
     required this.shiftCode,
-    required this.originalStaffMemberId,
+    this.originalStaffMemberId,
     required this.jobRole,
   });
   final String id;
   final String sectionId;
   final DateTime date;
   final String shiftCode;
-  final String originalStaffMemberId;
+  final String? originalStaffMemberId;
   final JobRole jobRole;
+}
+
+final class SectionStaffing {
+  const SectionStaffing({
+    required this.sectionId,
+    required this.date,
+    required this.minimum,
+    required this.workingCount,
+    required this.openCount,
+    this.weekdayMinimum,
+    this.dateMinimum,
+  });
+  final String sectionId;
+  final DateTime date;
+  final int minimum;
+  final int workingCount;
+  final int openCount;
+  final int? weekdayMinimum;
+  final int? dateMinimum;
+  int get shortCount => (minimum - workingCount).clamp(0, 100);
+  int get unpostedCount => (shortCount - openCount).clamp(0, 100);
 }
 
 final class OpenShiftPickup {
@@ -37,6 +58,17 @@ abstract interface class OpenShiftStore {
   Future<List<OpenShiftPickup>> pickups();
   Future<void> requestPickup(String openShiftId);
   Future<void> approvePickup(String pickupId);
+  Future<List<SectionStaffing>> staffingForMonth(DateTime month);
+  Future<void> setWeekdayMinimum(String sectionId, int weekday, int minimum);
+  Future<void> setDateMinimum(String sectionId, DateTime date, int? minimum);
+  Future<int> postOpenShifts(
+    String sectionId,
+    DateTime date,
+    String shiftCode,
+    JobRole jobRole,
+    int count, {
+    bool fillGap = false,
+  });
   Stream<void> updates();
 }
 
@@ -48,6 +80,27 @@ final class OpenShiftRules {
   Future<void> requestPickup(String openShiftId) =>
       store.requestPickup(openShiftId);
   Future<void> approvePickup(String pickupId) => store.approvePickup(pickupId);
+  Future<List<SectionStaffing>> staffingForMonth(DateTime month) =>
+      store.staffingForMonth(month);
+  Future<void> setWeekdayMinimum(String sectionId, int weekday, int minimum) =>
+      store.setWeekdayMinimum(sectionId, weekday, minimum);
+  Future<void> setDateMinimum(String sectionId, DateTime date, int? minimum) =>
+      store.setDateMinimum(sectionId, date, minimum);
+  Future<int> postOpenShifts(
+    String sectionId,
+    DateTime date,
+    String shiftCode,
+    JobRole jobRole,
+    int count, {
+    bool fillGap = false,
+  }) => store.postOpenShifts(
+    sectionId,
+    date,
+    shiftCode,
+    jobRole,
+    count,
+    fillGap: fillGap,
+  );
   Stream<void> updates() => store.updates();
 }
 
@@ -72,7 +125,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   Future<JobRole?> _role(String id, DateTime date) =>
       ScheduleRules.inMemory(database, actingAs: actor).jobRoleOn(id, date);
 
-  JobRole? _originalRole(String id, DateTime date) => database._jobRoles[id]
+  JobRole? _originalRole(String? id, DateTime date) => database._jobRoles[id]
       ?.where((role) => !role.from.isAfter(date))
       .lastOrNull
       ?.jobRole;
@@ -93,7 +146,8 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       if (!isWorkingShift(short.shiftCode, codes: database._shiftCodes)) {
         continue;
       }
-      final role = _originalRole(short.staffMemberId, short.date);
+      final role =
+          short.jobRole ?? _originalRole(short.staffMemberId, short.date);
       if (role == null ||
           await database
                   .storeFor(actor)
@@ -187,6 +241,13 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
         shiftCode: shift.shiftCode,
       ),
     );
+    if (shift.originalStaffMemberId == null) {
+      database._manualCoverageSections[_cellKey(
+            pickup.staffMemberId,
+            shift.date,
+          )] =
+          shift.sectionId;
+    }
     database._shortShifts.removeWhere(
       (short) => 'short-${identityHashCode(short)}' == shift.id,
     );
@@ -208,6 +269,142 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
         );
       }
     }
+  }
+
+  @override
+  Future<List<SectionStaffing>> staffingForMonth(DateTime month) async {
+    final grid = await ScheduleRules.inMemory(
+      database,
+      actingAs: actor,
+    ).monthGrid(month);
+    return [
+      for (final section in grid.sections)
+        for (final date in grid.days)
+          SectionStaffing(
+            sectionId: section.id,
+            date: date,
+            minimum:
+                database._dateMinimums['${section.id}:${_day(date)}'] ??
+                database
+                    ._weekdayMinimums['${section.id}:${date.weekday % 7}'] ??
+                0,
+            workingCount:
+                grid
+                    .rowsIn(section.id)
+                    .where(
+                      (row) =>
+                          grid.isOnSchedule(row, date) &&
+                          !database._manualCoverageSections.containsKey(
+                            _cellKey(row.staffMemberId, date),
+                          ) &&
+                          isWorkingShift(
+                            grid.shiftCodeFor(row.staffMemberId, date) ?? '',
+                          ),
+                    )
+                    .length +
+                database._manualCoverageSections.entries
+                    .where(
+                      (coverage) =>
+                          coverage.value == section.id &&
+                          grid.rows.any(
+                            (row) =>
+                                _cellKey(row.staffMemberId, date) ==
+                                    coverage.key &&
+                                isWorkingShift(
+                                  grid.shiftCodeFor(row.staffMemberId, date) ??
+                                      '',
+                                ),
+                          ),
+                    )
+                    .length,
+            openCount: grid
+                .shortShiftsOn(section.id, date)
+                .where(
+                  (shift) => isWorkingShift(
+                    shift.shiftCode,
+                    codes: database._shiftCodes,
+                  ),
+                )
+                .length,
+            weekdayMinimum:
+                database._weekdayMinimums['${section.id}:${date.weekday % 7}'],
+            dateMinimum: database._dateMinimums['${section.id}:${_day(date)}'],
+          ),
+    ];
+  }
+
+  @override
+  Future<void> setWeekdayMinimum(
+    String sectionId,
+    int weekday,
+    int minimum,
+  ) async {
+    if (!_manager) {
+      throw StateError('Only the Manager can set staffing minimums');
+    }
+    if (weekday < 0 || weekday > 6 || minimum < 0 || minimum > 100) {
+      throw ArgumentError('Invalid staffing minimum');
+    }
+    database._weekdayMinimums['$sectionId:$weekday'] = minimum;
+  }
+
+  @override
+  Future<void> setDateMinimum(
+    String sectionId,
+    DateTime date,
+    int? minimum,
+  ) async {
+    if (!_manager) {
+      throw StateError('Only the Manager can set staffing minimums');
+    }
+    if (minimum != null && (minimum < 0 || minimum > 100)) {
+      throw ArgumentError('Invalid staffing minimum');
+    }
+    final key = '$sectionId:${_day(date)}';
+    if (minimum == null) {
+      database._dateMinimums.remove(key);
+    } else {
+      database._dateMinimums[key] = minimum;
+    }
+  }
+
+  @override
+  Future<int> postOpenShifts(
+    String sectionId,
+    DateTime date,
+    String shiftCode,
+    JobRole jobRole,
+    int count, {
+    bool fillGap = false,
+  }) async {
+    if (!_manager) throw StateError('Only the Manager can post Open shifts');
+    if (!isWorkingShift(shiftCode, codes: database._shiftCodes) ||
+        count < 1 ||
+        count > 100) {
+      throw ArgumentError('Invalid Open shift');
+    }
+    if (fillGap) {
+      final staffing = (await staffingForMonth(
+        date,
+      )).firstWhere((s) => s.sectionId == sectionId && _sameDay(s.date, date));
+      count = count < staffing.unpostedCount ? count : staffing.unpostedCount;
+    }
+    final code = shiftCode.trim().toUpperCase();
+    if (count > 0 && !database._shiftCodes.any((entry) => entry.code == code)) {
+      database._shiftCodes.add(LegendCode(code, isWorking: true));
+    }
+    for (var i = 0; i < count; i++) {
+      database._shortShifts.add(
+        ShortShift(
+          sectionId: sectionId,
+          date: date,
+          shiftCode: code,
+          staffMemberId: null,
+          jobRole: jobRole,
+        ),
+      );
+    }
+    return count;
   }
 
   @override

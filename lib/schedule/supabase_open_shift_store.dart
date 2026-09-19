@@ -19,7 +19,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
             sectionId: value['section_id'] as String,
             date: DateTime.parse(value['work_date'] as String),
             shiftCode: value['shift_code'] as String,
-            originalStaffMemberId: value['original_staff_member_id'] as String,
+            originalStaffMemberId: value['original_staff_member_id'] as String?,
             jobRole: JobRole.fromValue(value['job_role'] as String),
           ),
     ];
@@ -52,6 +52,71 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   Future<void> approvePickup(String pickupId) => client.rpc<void>(
     'approve_open_shift_pickup',
     params: {'p_pickup_id': pickupId},
+  );
+
+  String _date(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
+  @override
+  Future<List<SectionStaffing>> staffingForMonth(DateTime month) async {
+    final rows = await client.rpc<List<dynamic>>(
+      'section_staffing_for_month',
+      params: {'p_month': _date(month)},
+    );
+    return [
+      for (final row in rows.cast<Map<String, dynamic>>())
+        SectionStaffing(
+          sectionId: row['section_id'] as String,
+          date: DateTime.parse(row['work_date'] as String),
+          minimum: row['minimum'] as int,
+          workingCount: row['working_count'] as int,
+          openCount: row['open_count'] as int,
+          weekdayMinimum: row['weekday_minimum'] as int?,
+          dateMinimum: row['date_minimum'] as int?,
+        ),
+    ];
+  }
+
+  @override
+  Future<void> setWeekdayMinimum(String sectionId, int weekday, int minimum) =>
+      client.rpc<void>(
+        'set_section_weekday_minimum',
+        params: {
+          'p_section_id': sectionId,
+          'p_weekday': weekday,
+          'p_minimum': minimum,
+        },
+      );
+
+  @override
+  Future<void> setDateMinimum(String sectionId, DateTime date, int? minimum) =>
+      client.rpc<void>(
+        'set_section_date_minimum',
+        params: {
+          'p_section_id': sectionId,
+          'p_date': _date(date),
+          'p_minimum': minimum,
+        },
+      );
+
+  @override
+  Future<int> postOpenShifts(
+    String sectionId,
+    DateTime date,
+    String shiftCode,
+    JobRole jobRole,
+    int count, {
+    bool fillGap = false,
+  }) async => await client.rpc<int>(
+    'post_open_shifts',
+    params: {
+      'p_section_id': sectionId,
+      'p_date': _date(date),
+      'p_shift_code': shiftCode,
+      'p_job_role': jobRole.value,
+      'p_count': count,
+      'p_fill_gap': fillGap,
+    },
   );
 
   @override
