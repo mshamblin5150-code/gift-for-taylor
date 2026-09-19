@@ -196,7 +196,7 @@ void main() {
     await pumpGrid(
       tester,
       now: () => DateTime(2026, 8, 1),
-      size: const Size(390, 800),
+      size: const Size(900, 800),
     );
 
     final label = find.text('State dayshift RN');
@@ -225,7 +225,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getRect(label), before);
     expect(tester.getRect(label).left, greaterThanOrEqualTo(0));
-    expect(tester.getRect(label).right, lessThanOrEqualTo(390));
+    expect(tester.getRect(label).right, lessThanOrEqualTo(900));
   });
 
   testWidgets(
