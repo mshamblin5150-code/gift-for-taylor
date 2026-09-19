@@ -24,6 +24,7 @@ Future<CellEdit?> showCellEditSheet(
   required DateTime date,
   required String currentCode,
   required String? publishedCode,
+  required List<LegendCode> codes,
 }) {
   return showModalBottomSheet<CellEdit>(
     context: context,
@@ -34,6 +35,7 @@ Future<CellEdit?> showCellEditSheet(
       date: date,
       currentCode: currentCode,
       publishedCode: publishedCode,
+      codes: codes,
     ),
   );
 }
@@ -44,12 +46,14 @@ class _CellEditSheet extends StatefulWidget {
     required this.date,
     required this.currentCode,
     required this.publishedCode,
+    required this.codes,
   });
 
   final ScheduleRow row;
   final DateTime date;
   final String currentCode;
   final String? publishedCode;
+  final List<LegendCode> codes;
 
   @override
   State<_CellEditSheet> createState() => _CellEditSheetState();
@@ -93,7 +97,7 @@ class _CellEditSheetState extends State<_CellEditSheet> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final legend in shiftLegend)
+                for (final legend in widget.codes)
                   SizedBox(
                     width: 96,
                     child: OutlinedButton(

@@ -72,10 +72,12 @@ class _SwapsPageState extends State<SwapsPage> {
   Future<void> _propose(MonthGrid grid) async {
     final me = widget.staffMemberId;
     if (me == null) return;
+    final codes = await widget.rules.shiftCodes();
+    if (!mounted) return;
     final colleagues = grid.rows
         .where((row) => row.staffMemberId != me && row.cellNumber != null)
         .toList();
-    final myDays = _workingDays(grid, me);
+    final myDays = _workingDays(grid, me, codes);
     if (colleagues.isEmpty || myDays.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -87,7 +89,7 @@ class _SwapsPageState extends State<SwapsPage> {
     var colleague = colleagues.first;
     var mine = myDays.first;
     var mineGrid = grid;
-    var theirs = _workingDays(grid, colleague.staffMemberId).firstOrNull;
+    var theirs = _workingDays(grid, colleague.staffMemberId, codes).firstOrNull;
     var theirGrid = grid;
     final choice = await showDialog<(ScheduleRow, DateTime, DateTime)>(
       context: context,
@@ -120,6 +122,7 @@ class _SwapsPageState extends State<SwapsPage> {
                       theirs = _workingDays(
                         grid,
                         colleague.staffMemberId,
+                        codes,
                       ).firstOrNull;
                       theirGrid = grid;
                     }),
@@ -175,6 +178,7 @@ class _SwapsPageState extends State<SwapsPage> {
                     theirs == null ||
                         !isWorkingShift(
                           mineGrid.shiftCodeFor(me, mine) ?? '',
+                          codes: codes,
                         ) ||
                         !isWorkingShift(
                           theirGrid.shiftCodeFor(
@@ -182,6 +186,7 @@ class _SwapsPageState extends State<SwapsPage> {
                                 theirs!,
                               ) ??
                               '',
+                          codes: codes,
                         )
                     ? null
                     : () => Navigator.pop(context, (colleague, mine, theirs!)),
@@ -369,13 +374,14 @@ class _SwapsPageState extends State<SwapsPage> {
   );
 }
 
-List<DateTime> _workingDays(MonthGrid grid, String id) {
+List<DateTime> _workingDays(MonthGrid grid, String id, List<LegendCode> codes) {
   final start = DateTime(grid.month.year, grid.month.month);
   final length = DateTime(grid.month.year, grid.month.month + 1, 0).day;
   return [
     for (var day = 1; day <= length; day++)
       if (isWorkingShift(
         grid.shiftCodeFor(id, DateTime(start.year, start.month, day)) ?? '',
+        codes: codes,
       ))
         DateTime(start.year, start.month, day),
   ];

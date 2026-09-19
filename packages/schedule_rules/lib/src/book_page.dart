@@ -62,6 +62,7 @@ final class PrintWording {
 /// page. It carries no screen chrome.
 String bookPageHtml(
   MonthGrid grid, {
+  Iterable<LegendCode> codes = shiftLegend,
   PrintWording wording = const PrintWording(),
 }) {
   final days = grid.days;
@@ -129,7 +130,7 @@ String bookPageHtml(
     ..writeln('</tbody>')
     ..writeln('</table>')
     ..write('<p class="legend">');
-  for (final entry in shiftLegend) {
+  for (final entry in codes) {
     final detail = entry.hours ?? entry.meaning;
     html.write(
       '<span><strong>${_escape(entry.code)}</strong>'

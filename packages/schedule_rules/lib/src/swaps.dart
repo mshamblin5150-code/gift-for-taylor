@@ -78,10 +78,12 @@ final class InMemorySwapDatabase {
   InMemorySwapDatabase({
     required this.managerId,
     required Map<(String, DateTime), String> shifts,
+    this.shiftCodes = shiftLegend,
   }) : _shifts = Map.of(shifts);
 
   final String managerId;
   final Map<(String, DateTime), String> _shifts;
+  final List<LegendCode> shiftCodes;
   final List<Swap> _swaps = [];
 
   SwapStore storeFor(String staffMemberId) =>
@@ -122,8 +124,8 @@ final class _InMemorySwapStore implements SwapStore {
     final myTarget = database.shiftCodeFor(actor, colleagueDate) ?? '';
     final theirTarget = database.shiftCodeFor(colleagueId, requesterDate) ?? '';
     if (actor == colleagueId ||
-        !isWorkingShift(mine ?? '') ||
-        !isWorkingShift(theirs ?? '') ||
+        !isWorkingShift(mine ?? '', codes: database.shiftCodes) ||
+        !isWorkingShift(theirs ?? '', codes: database.shiftCodes) ||
         (requesterDate == colleagueDate && mine == theirs) ||
         (requesterDate != colleagueDate &&
             (!_free(myTarget) || !_free(theirTarget)))) {

@@ -31,6 +31,11 @@ abstract interface class ScheduleRules {
   /// for the Manager, the assigned ones for a Night scheduler, none otherwise.
   Future<EditableSections> editableSections();
 
+  /// The current catalog, including changes to historical Shift-code display.
+  Future<List<LegendCode>> shiftCodes();
+  Future<void> saveShiftCode(LegendCode code, {String? originalCode});
+  Future<void> deleteShiftCode(String code);
+
   /// Saves a Shift code; it is live at once and written to the change log.
   /// Refused outside the signed-in person's [editableSections].
   Future<void> saveCell(SaveCell action);
@@ -139,6 +144,9 @@ abstract interface class ScheduleRules {
 /// adapter both implement it.
 abstract interface class ScheduleStore {
   Future<List<ScheduleSection>> sections();
+  Future<List<LegendCode>> shiftCodes();
+  Future<void> saveShiftCode(LegendCode code, {String? originalCode});
+  Future<void> deleteShiftCode(String code);
 
   /// Staff list rows on [month]'s Schedule, in Section and manual order, each
   /// in the last Section they held that month.
@@ -500,16 +508,42 @@ final class ScheduleChange {
 
 /// A common Shift code from the printed legend.
 final class LegendCode {
-  const LegendCode(this.code, {this.hours, this.meaning});
+  const LegendCode(
+    this.code, {
+    this.hours,
+    this.meaning,
+    bool? isWorking,
+    this.startTime,
+    this.endTime,
+    this.active = true,
+  }) : isWorking = isWorking ?? hours != null;
 
   final String code;
 
   /// Working hours, such as 7A–7P; null for codes that are not a shift.
   final String? hours;
   final String? meaning;
+  final bool isWorking;
+
+  /// Local 24-hour HH:mm values; null means an untimed Calendar event.
+  final String? startTime;
+  final String? endTime;
+  final bool active;
 }
 
-/// The printed legend: shortcuts, not a closed list.
+/// Printable local hours for a timed Shift code.
+String? shiftCodeHours(String? start, String? end) {
+  if (start == null || end == null) return null;
+  String label(String time) {
+    final hour = int.parse(time.substring(0, 2));
+    final minute = time.substring(3, 5);
+    return '${hour % 12 == 0 ? 12 : hour % 12}${minute == '00' ? '' : ':$minute'}${hour < 12 ? 'A' : 'P'}';
+  }
+
+  return '${label(start)}–${label(end)}';
+}
+
+/// In-memory test fixture. Production reads the database catalog.
 const shiftLegend = <LegendCode>[
   LegendCode('16D', hours: '7A–11P'),
   LegendCode('7A', hours: '7A–7P'),
@@ -524,15 +558,22 @@ const shiftLegend = <LegendCode>[
   LegendCode('R/O', meaning: 'Requested off'),
   LegendCode('H'),
   LegendCode('S/L', meaning: 'Sick leave'),
+  LegendCode('4P', isWorking: true),
+  LegendCode('9-7', isWorking: true),
+  LegendCode('7-5', isWorking: true),
 ];
 
 /// Whether [shiftCode] is a shift someone works: anything but blank or a
 /// legend code without hours. Off-legend codes count as working. The
 /// database's `is_working_shift` applies the same rule.
-bool isWorkingShift(String shiftCode) {
+bool isWorkingShift(
+  String shiftCode, {
+  Iterable<LegendCode> codes = shiftLegend,
+}) {
   final code = shiftCode.trim().toUpperCase();
   return code.isNotEmpty &&
-      !shiftLegend.any((legend) => legend.hours == null && legend.code == code);
+      (codes.where((entry) => entry.code == code).firstOrNull?.isWorking ??
+          true);
 }
 
 /// A person's code on one day, for the day and one-person views.
@@ -652,6 +693,16 @@ final class _ScheduleRules implements ScheduleRules {
   _ScheduleRules(this._store);
 
   final ScheduleStore _store;
+
+  @override
+  Future<List<LegendCode>> shiftCodes() => _store.shiftCodes();
+
+  @override
+  Future<void> saveShiftCode(LegendCode code, {String? originalCode}) =>
+      _store.saveShiftCode(code, originalCode: originalCode);
+
+  @override
+  Future<void> deleteShiftCode(String code) => _store.deleteShiftCode(code);
 
   @override
   Future<RequestOffEmail> requestOff(RequestOffDraft draft) {
@@ -1039,6 +1090,7 @@ final class InMemoryScheduleDatabase {
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
   final List<ShortShift> _shortShifts = [];
+  final List<LegendCode> _shiftCodes = [...shiftLegend];
   final List<OpenShiftPickup> _openShiftPickups = [];
   final List<StaffChange> _staffChanges = [];
   final List<RequestOff> _requestsOff = [];
@@ -1139,6 +1191,81 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   final InMemoryScheduleDatabase _database;
   final String _actingAs;
+
+  @override
+  Future<List<LegendCode>> shiftCodes() async =>
+      List.unmodifiable(_database._shiftCodes.where((code) => code.active));
+
+  @override
+  Future<void> saveShiftCode(LegendCode code, {String? originalCode}) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    final value = code.code.trim().toUpperCase();
+    if (value.isEmpty || (code.startTime == null) != (code.endTime == null)) {
+      throw ArgumentError('Invalid Shift code or hours');
+    }
+    if (originalCode != null && originalCode != value) {
+      if (_database._shiftCodes.any((item) => item.code == value)) {
+        throw StateError('That Shift code already exists');
+      }
+      final originalIndex = _database._shiftCodes.indexWhere(
+        (item) => item.code == originalCode,
+      );
+      if (originalIndex < 0) throw StateError('Shift code not found');
+      if (_codeInUse(originalCode)) {
+        final old = _database._shiftCodes[originalIndex];
+        _database._shiftCodes[originalIndex] = LegendCode(
+          old.code,
+          hours: old.hours,
+          meaning: old.meaning,
+          isWorking: old.isWorking,
+          startTime: old.startTime,
+          endTime: old.endTime,
+          active: false,
+        );
+      } else {
+        _database._shiftCodes.removeAt(originalIndex);
+      }
+    }
+    final index = _database._shiftCodes.indexWhere(
+      (item) => item.code == value,
+    );
+    final updated = LegendCode(
+      value,
+      hours: shiftCodeHours(code.startTime, code.endTime) ?? code.hours,
+      meaning: code.meaning,
+      isWorking: code.isWorking,
+      startTime: code.startTime,
+      endTime: code.endTime,
+    );
+    if (index < 0) {
+      _database._shiftCodes.add(updated);
+    } else {
+      _database._shiftCodes[index] = updated;
+    }
+  }
+
+  @override
+  Future<void> deleteShiftCode(String code) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    final key = code.trim().toUpperCase();
+    if (_codeInUse(key)) {
+      throw StateError('A Shift code in use cannot be deleted');
+    }
+    _database._shiftCodes.removeWhere((item) => item.code == key);
+  }
+
+  bool _codeInUse(String key) =>
+      _database._cells.values.any(
+        (cell) => cell.shiftCode.trim().toUpperCase() == key,
+      ) ||
+      _database._changes.any(
+        (change) =>
+            change.oldShiftCode.trim().toUpperCase() == key ||
+            change.newShiftCode.trim().toUpperCase() == key,
+      ) ||
+      _database._shortShifts.any(
+        (shift) => shift.shiftCode.trim().toUpperCase() == key,
+      );
 
   @override
   Future<RequestOffEmail> createRequestOff(RequestOffDraft draft) async {
@@ -1244,7 +1371,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
             shiftCode: 'R/O',
           ),
         );
-        if (isWorkingShift(old)) {
+        if (isWorkingShift(old, codes: _database._shiftCodes)) {
           _database._shortShifts.add(
             ShortShift(
               sectionId: row.sectionId,
@@ -1364,6 +1491,11 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   }
 
   void _write(ScheduleCell cell) {
+    final code = cell.shiftCode.trim().toUpperCase();
+    if (code.isNotEmpty &&
+        !_database._shiftCodes.any((entry) => entry.code == code)) {
+      _database._shiftCodes.add(LegendCode(code, isWorking: true));
+    }
     final key = _cellKey(cell.staffMemberId, cell.date);
     final old = _database._cells[key]?.shiftCode ?? '';
     _database._monthStatus.putIfAbsent(
@@ -1496,7 +1628,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           shiftCode: '',
         ),
       );
-      if (isWorkingShift(cell.shiftCode)) {
+      if (isWorkingShift(cell.shiftCode, codes: _database._shiftCodes)) {
         _database._shortShifts.add(
           ShortShift(
             sectionId: cell.sectionId,
