@@ -9,6 +9,7 @@ import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
 import 'messages_composer.dart';
 import 'night_scheduler_page.dart';
+import 'swaps_page.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -21,6 +22,7 @@ class MonthGridPage extends StatefulWidget {
     this.onSignOut,
     this.onManageStaff,
     this.messagesComposer,
+    this.swapRules,
     this.printBookPage,
   });
 
@@ -30,6 +32,7 @@ class MonthGridPage extends StatefulWidget {
   final VoidCallback? onSignOut;
   final VoidCallback? onManageStaff;
   final MessagesComposer? messagesComposer;
+  final SwapRules? swapRules;
 
   /// Prints a Schedule book page, given as an HTML document.
   final ValueChanged<String>? printBookPage;
@@ -41,6 +44,8 @@ class MonthGridPage extends StatefulWidget {
 class _MonthGridPageState extends State<MonthGridPage> {
   late DateTime _month = DateTime(widget.month.year, widget.month.month);
   StreamSubscription<void>? _updates;
+  StreamSubscription<void>? _swapUpdates;
+  int _pendingSwaps = 0;
   MonthGrid? _grid;
   ChangeAnnouncement? _announcement;
 
@@ -58,6 +63,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
   void initState() {
     super.initState();
     _listen();
+    if (widget.swapRules case final swapRules?) {
+      _swapUpdates = swapRules.updates().listen((_) => _refreshSwaps());
+    }
     _load();
   }
 
@@ -80,6 +88,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   @override
   void dispose() {
     _updates?.cancel();
+    _swapUpdates?.cancel();
     super.dispose();
   }
 
@@ -106,8 +115,30 @@ class _MonthGridPageState extends State<MonthGridPage> {
         _announcement = announcement;
         _loadError = null;
       });
+      _refreshSwaps();
     } catch (error) {
       if (mounted) setState(() => _loadError = error);
+    }
+  }
+
+  Future<void> _refreshSwaps() async {
+    final swapRules = widget.swapRules;
+    if (swapRules == null) return;
+    try {
+      final swaps = await swapRules.swaps();
+      if (!mounted) return;
+      setState(
+        () => _pendingSwaps = swaps
+            .where(
+              (swap) =>
+                  (swap.status == SwapStatus.proposed &&
+                      swap.colleagueId == widget.staffMemberId) ||
+                  (swap.status == SwapStatus.accepted && _canEdit),
+            )
+            .length,
+      );
+    } catch (_) {
+      // Schedule access still works if the Swap inbox is temporarily unavailable.
     }
   }
 
@@ -375,6 +406,25 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ],
         ),
         actions: [
+          if (widget.swapRules != null)
+            IconButton(
+              tooltip: 'Swaps',
+              onPressed: () => _open(
+                (context) => SwapsPage(
+                  rules: widget.rules,
+                  swapRules: widget.swapRules!,
+                  month: _month,
+                  staffMemberId: widget.staffMemberId,
+                  isManager: _canEdit,
+                  messagesComposer: widget.messagesComposer,
+                ),
+              ),
+              icon: Badge(
+                isLabelVisible: _pendingSwaps > 0,
+                label: Text('$_pendingSwaps'),
+                child: const Icon(Icons.swap_horiz),
+              ),
+            ),
           if (_canEdit) ...[
             IconButton(
               tooltip: 'Change log',
