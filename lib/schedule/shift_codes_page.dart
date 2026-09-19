@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
-/// The Manager's catalog. A used code can change meaning or hours, but cannot
-/// be removed or renamed without losing the meaning of historical cells.
+/// The Manager's catalog. A used code can change meaning or hours; renaming
+/// keeps its historical definition for existing cells, and deletion is refused.
 class ShiftCodesPage extends StatefulWidget {
   const ShiftCodesPage({super.key, required this.rules});
 

@@ -7,8 +7,10 @@ import 'calendar/calendar_feed_page.dart';
 import 'notifications/notice_gateway.dart';
 import 'schedule/messages_composer.dart';
 import 'schedule/month_grid_page.dart';
+import 'schedule/print_wording_gateway.dart';
 import 'staff/staff_gateway.dart';
 import 'staff/staff_list_page.dart';
+import 'staff/staff_details_page.dart';
 
 class ScheduleApp extends StatelessWidget {
   const ScheduleApp({
@@ -23,6 +25,7 @@ class ScheduleApp extends StatelessWidget {
     this.noticeGateway,
     this.inviteToken,
     this.printBookPage,
+    this.printWordingGateway,
     this.calendarFeedGateway,
   });
 
@@ -36,6 +39,7 @@ class ScheduleApp extends StatelessWidget {
   final NoticeGateway? noticeGateway;
   final String? inviteToken;
   final ValueChanged<String>? printBookPage;
+  final PrintWordingGateway? printWordingGateway;
   final CalendarFeedGateway? calendarFeedGateway;
 
   @override
@@ -57,6 +61,7 @@ class ScheduleApp extends StatelessWidget {
         noticeGateway: noticeGateway,
         inviteToken: inviteToken,
         printBookPage: printBookPage,
+        printWordingGateway: printWordingGateway,
         calendarFeedGateway: calendarFeedGateway,
       ),
     );
@@ -75,6 +80,7 @@ class _AuthGate extends StatefulWidget {
     required this.noticeGateway,
     required this.inviteToken,
     required this.printBookPage,
+    required this.printWordingGateway,
     required this.calendarFeedGateway,
   });
 
@@ -88,6 +94,7 @@ class _AuthGate extends StatefulWidget {
   final NoticeGateway? noticeGateway;
   final String? inviteToken;
   final ValueChanged<String>? printBookPage;
+  final PrintWordingGateway? printWordingGateway;
   final CalendarFeedGateway? calendarFeedGateway;
 
   @override
@@ -145,6 +152,7 @@ class _AuthGateState extends State<_AuthGate> {
                 noticeGateway: widget.noticeGateway,
                 inviteToken: widget.inviteToken!,
                 printBookPage: widget.printBookPage,
+                printWordingGateway: widget.printWordingGateway,
                 calendarFeedGateway: widget.calendarFeedGateway,
               );
             }
@@ -158,6 +166,7 @@ class _AuthGateState extends State<_AuthGate> {
               openShiftRules: widget.openShiftRules,
               noticeGateway: widget.noticeGateway,
               printBookPage: widget.printBookPage,
+              printWordingGateway: widget.printWordingGateway,
               calendarFeedGateway: widget.calendarFeedGateway,
             );
           },
@@ -179,6 +188,7 @@ class _InviteAcceptance extends StatefulWidget {
     required this.noticeGateway,
     required this.inviteToken,
     required this.printBookPage,
+    required this.printWordingGateway,
     required this.calendarFeedGateway,
   });
 
@@ -192,6 +202,7 @@ class _InviteAcceptance extends StatefulWidget {
   final NoticeGateway? noticeGateway;
   final String inviteToken;
   final ValueChanged<String>? printBookPage;
+  final PrintWordingGateway? printWordingGateway;
   final CalendarFeedGateway? calendarFeedGateway;
 
   @override
@@ -246,6 +257,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           openShiftRules: widget.openShiftRules,
           noticeGateway: widget.noticeGateway,
           printBookPage: widget.printBookPage,
+          printWordingGateway: widget.printWordingGateway,
           calendarFeedGateway: widget.calendarFeedGateway,
         );
       },
@@ -264,6 +276,7 @@ class _ScheduleAccess extends StatefulWidget {
     required this.openShiftRules,
     required this.noticeGateway,
     required this.printBookPage,
+    required this.printWordingGateway,
     required this.calendarFeedGateway,
   });
 
@@ -276,6 +289,7 @@ class _ScheduleAccess extends StatefulWidget {
   final OpenShiftRules? openShiftRules;
   final NoticeGateway? noticeGateway;
   final ValueChanged<String>? printBookPage;
+  final PrintWordingGateway? printWordingGateway;
   final CalendarFeedGateway? calendarFeedGateway;
 
   @override
@@ -362,6 +376,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           messagesComposer: widget.messagesComposer,
           noticeGateway: widget.noticeGateway,
           printBookPage: widget.printBookPage,
+          printWordingGateway: widget.printWordingGateway,
           onCalendarFeed: widget.calendarFeedGateway == null
               ? null
               : () => Navigator.of(context).push(
@@ -383,6 +398,23 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
                     ),
                   ),
                 )
+              : null,
+          onOpenStaffDetails:
+              data?.canManageStaff == true &&
+                  widget.staffGateway != null &&
+                  widget.inviteComposer != null
+              ? (staffMemberId) async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (context) => StaffDetailsPage(
+                        staffMemberId: staffMemberId,
+                        gateway: widget.staffGateway!,
+                        rules: ScheduleRules(widget.scheduleStore),
+                        inviteComposer: widget.inviteComposer!,
+                      ),
+                    ),
+                  );
+                }
               : null,
         );
       },

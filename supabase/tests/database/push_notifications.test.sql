@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(11);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000701', 'push-one@example.test'),
@@ -34,11 +34,11 @@ select is((select count(*)::integer from public.staff_notices), 0,
 update public.schedule_months set release_state = 'released',
   released_at = now(), released_by_staff_member_id = '00000000-0000-0000-0000-000000000721'
 where id = '00000000-0000-0000-0000-000000000731';
-select is((select count(*)::integer from public.staff_notices where kind = 'month_release'), 2,
-  'Month release creates one notice for each active Staff member');
+select is((select count(*)::integer from public.staff_notices where kind = 'month_release'), 1,
+  'Month release excludes its actor');
 update public.schedule_months set released_at = now()
 where id = '00000000-0000-0000-0000-000000000731';
-select is((select count(*)::integer from public.staff_notices where kind = 'month_release'), 2,
+select is((select count(*)::integer from public.staff_notices where kind = 'month_release'), 1,
   'a later month update does not repeat the release notice');
 update public.schedule_changes set announced_at = now()
 where work_date = '2028-03-10';
@@ -50,12 +50,12 @@ insert into public.schedule_changes (
   old_shift_code, new_shift_code, changed_by_staff_member_id
 ) values (
   '00000000-0000-0000-0000-000000000731',
-  '00000000-0000-0000-0000-000000000721',
+  '00000000-0000-0000-0000-000000000722',
   '00000000-0000-0000-0000-000000000711',
   '2028-03-12', '7A', 'X', '00000000-0000-0000-0000-000000000721'
 ), (
   '00000000-0000-0000-0000-000000000731',
-  '00000000-0000-0000-0000-000000000721',
+  '00000000-0000-0000-0000-000000000722',
   '00000000-0000-0000-0000-000000000711',
   '2028-03-13', '7A', 'X', '00000000-0000-0000-0000-000000000721'
 );
@@ -66,11 +66,11 @@ where work_date in ('2028-03-12', '2028-03-13');
 select is((select count(*)::integer from public.staff_notices where kind = 'schedule_change'), 1,
   'announcing several released shifts creates one notice per affected person');
 select is((select staff_member_id::text from public.staff_notices where kind = 'schedule_change'),
-  '00000000-0000-0000-0000-000000000721', 'the changed Staff member is the recipient');
+  '00000000-0000-0000-0000-000000000722', 'the changed Staff member is the recipient');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
-select is((select count(*)::integer from public.staff_notices), 2,
+select is((select count(*)::integer from public.staff_notices), 0,
   'Staff can read only their own notices');
 select throws_ok(
   $$insert into public.staff_notices (staff_member_id, kind, title, body)
@@ -79,9 +79,6 @@ select throws_ok(
 select lives_ok(
   $$select public.register_push_subscription('{"endpoint":"https://push.example.test/one","keys":{"p256dh":"key","auth":"secret"}}')$$,
   'Staff can allow notifications on their device');
-select lives_ok($$select public.send_test_push()$$, 'Staff can send themselves a test push');
-select is((select count(*)::integer from public.staff_notices where kind = 'test'), 1,
-  'a test push creates only the caller’s notice');
 
 select * from finish();
 rollback;

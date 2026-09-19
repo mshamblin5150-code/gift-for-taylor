@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(13);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000261', 'request-manager@example.test'),
@@ -30,14 +30,16 @@ select throws_ok($$select public.decide_request_off((select id from public.reque
 select lives_ok($$select public.confirm_request_off_email((select id from public.requests_off limit 1))$$, 'requester confirms email copy');
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000261","role":"authenticated"}', true);
+select is((select count(*)::int from public.staff_notices where kind = 'request_submitted'), 1,
+  'Manager receives the submitted Request off in the shared feed');
 select is((select count(*)::int from public.requests_off where decision = 'pending'), 1, 'Manager sees approval queue');
 select lives_ok($$select public.decide_request_off((select id from public.requests_off limit 1), 'approved', 'Okay')$$, 'Manager approves');
 select is((select shift_code from public.schedule_cells where work_date = '2027-02-10' and staff_member_id = '00000000-0000-0000-0000-000000000265'), 'R/O', 'approval writes R/O');
 select is((select shift_code from public.short_shifts where work_date = '2027-02-10' and staff_member_id = '00000000-0000-0000-0000-000000000265'), '7A', 'scheduled day becomes short');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000262","role":"authenticated"}', true);
-select is((select count(*)::int from public.in_app_notices where kind = 'request_decided' and staff_member_id = '00000000-0000-0000-0000-000000000265'), 1, 'decision notice recorded');
+select is((select count(*)::int from public.staff_notices where kind = 'request_decided' and staff_member_id = '00000000-0000-0000-0000-000000000265'), 1, 'decision notice recorded in shared feed');
 select lives_ok($$select public.acknowledge_request_off_notices()$$, 'Staff opens notices');
-select is((select count(*)::int from public.in_app_notices where read_at is null), 0, 'decision notice marked read');
+select is((select count(*)::int from public.staff_notices where kind = 'request_decided' and read_at is null), 0, 'decision notice marked read');
 
 select * from finish();
 rollback;

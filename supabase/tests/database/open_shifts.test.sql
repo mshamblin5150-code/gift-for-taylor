@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(19);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000271', 'open-manager@example.test'),
@@ -42,6 +42,12 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000
 select lives_ok($$select public.submit_request_off(array['2027-02-10']::date[], null)$$, 'RN requests off');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000271","role":"authenticated"}', true);
 select lives_ok($$select public.decide_request_off((select id from public.requests_off limit 1), 'approved', null)$$, 'Manager approves Request off');
+reset role;
+select is((select count(*)::int from public.staff_notices where kind = 'open_shift_posted' and staff_member_id = '00000000-0000-0000-0000-000000000279'), 1,
+  'eligible LPN receives Open shift post');
+select is((select count(*)::int from public.staff_notices where kind = 'open_shift_posted' and staff_member_id = '00000000-0000-0000-0000-00000000027a'), 0,
+  'ineligible CNA receives no Open shift post');
+set local role authenticated;
 select is((select count(*)::int from public.visible_open_shifts()), 1, 'Manager sees Open shift');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000274","role":"authenticated"}', true);
 select is((select count(*)::int from public.visible_open_shifts()), 0, 'CNA cannot see nursing shift');
@@ -61,8 +67,16 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000
 select is((select count(*)::int from public.staff_notices where title = 'Open shift pickup approved'),
   1, 'LPN receives approval notice');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000271","role":"authenticated"}', true);
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000279'::uuid,
+  '00000000-0000-0000-0000-000000000275'::uuid, '2027-02-11'::date, '7P');
 select lives_ok($$select public.set_staff_last_day('00000000-0000-0000-0000-000000000278'::uuid, '2027-02-10'::date)$$,
   'Manager sets Last day');
+reset role;
+select is((select count(*)::int from public.staff_notices where kind = 'open_shift_posted' and staff_member_id = '00000000-0000-0000-0000-000000000279'), 1,
+  'busy LPN is not notified about a shift they cannot pick up');
+set local role authenticated;
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000279'::uuid,
+  '00000000-0000-0000-0000-000000000275'::uuid, '2027-02-11'::date, 'X');
 select is((select count(*)::int from public.visible_open_shifts() where work_date = '2027-02-11'),
   1, 'later RN shift remains open after original role ends');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000273","role":"authenticated"}', true);

@@ -4,6 +4,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'invite_composer.dart';
 import 'past_staff_page.dart';
 import 'staff_dialogs.dart';
+import 'staff_details_page.dart';
 import 'staff_gateway.dart';
 
 export 'invite_composer.dart' show InviteComposer;
@@ -150,6 +151,20 @@ class _StaffListPageState extends State<StaffListPage> {
           rules: widget.rules,
           inviteComposer: widget.inviteComposer,
           sections: staffList.sections,
+        ),
+      ),
+    );
+    await _load();
+  }
+
+  Future<void> _openDetails(StaffListMember member) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => StaffDetailsPage(
+          staffMemberId: member.id,
+          gateway: widget.gateway,
+          rules: widget.rules,
+          inviteComposer: widget.inviteComposer,
         ),
       ),
     );
@@ -332,6 +347,7 @@ class _StaffListPageState extends State<StaffListPage> {
       onResendInvite: _resendInvite,
       onChangeSectionOrRole: _changeSectionOrRole,
       onSetLastDay: _setLastDay,
+      onOpenDetails: _openDetails,
     );
   }
 }
@@ -349,6 +365,7 @@ class _SectionStaffList extends StatelessWidget {
     required this.onResendInvite,
     required this.onChangeSectionOrRole,
     required this.onSetLastDay,
+    required this.onOpenDetails,
   });
 
   final StaffSection section;
@@ -362,6 +379,7 @@ class _SectionStaffList extends StatelessWidget {
   final ValueChanged<StaffListMember> onResendInvite;
   final ValueChanged<StaffListMember> onChangeSectionOrRole;
   final ValueChanged<StaffListMember> onSetLastDay;
+  final ValueChanged<StaffListMember> onOpenDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -425,6 +443,7 @@ class _SectionStaffList extends StatelessWidget {
                           : '${member.cellNumber} · Invite pending');
                   return ListTile(
                     key: ValueKey(member.id),
+                    onTap: () => onOpenDetails(member),
                     contentPadding: EdgeInsets.zero,
                     leading: ReorderableDragStartListener(
                       index: index,
