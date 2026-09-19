@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
@@ -22,11 +24,22 @@ class _RequestsOffPageState extends State<RequestsOffPage> {
   List<RequestOff>? _requests;
   Object? _error;
   bool _showHistory = false;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _openPage();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _reload(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _openPage() async {

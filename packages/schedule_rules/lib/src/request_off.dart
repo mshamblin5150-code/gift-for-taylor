@@ -15,6 +15,22 @@ final class RequestOffEmail {
     required this.subject,
     required this.body,
   });
+  factory RequestOffEmail.forRequest({
+    required String requestId,
+    required String to,
+    required String staffMemberName,
+    required List<DateTime> dates,
+    String? reason,
+  }) {
+    final days = dates.map(_dateText).join(', ');
+    final why = reason == null || reason.isEmpty ? '' : '\nReason: $reason';
+    return RequestOffEmail(
+      requestId: requestId,
+      to: to,
+      subject: 'Request off - $staffMemberName',
+      body: '$staffMemberName requests off on $days.$why',
+    );
+  }
   final String requestId;
   final String to;
   final String subject;
@@ -74,10 +90,4 @@ final class RequestOff {
         decisionReason: why,
         decidedAt: at,
       );
-}
-
-String _requestOffEmailBody(String name, List<DateTime> dates, String? reason) {
-  final days = dates.map(_dateText).join(', ');
-  final why = reason == null || reason.isEmpty ? '' : '\nReason: $reason';
-  return '$name requests off on $days.$why';
 }

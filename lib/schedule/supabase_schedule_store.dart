@@ -18,16 +18,12 @@ final class SupabaseScheduleStore implements ScheduleStore {
         'p_reason': draft.reason,
       },
     );
-    final name = result['staff_name'] as String;
-    final days = draft.dates.map(_date).join(', ');
-    final why = draft.reason == null || draft.reason!.isEmpty
-        ? ''
-        : '\nReason: ${draft.reason}';
-    return RequestOffEmail(
+    return RequestOffEmail.forRequest(
       requestId: result['request_id'] as String,
       to: result['manager_email'] as String,
-      subject: 'Request off - $name',
-      body: '$name requests off on $days.$why',
+      staffMemberName: result['staff_name'] as String,
+      dates: draft.dates,
+      reason: draft.reason,
     );
   }
 

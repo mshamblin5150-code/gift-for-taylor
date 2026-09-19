@@ -1160,15 +1160,12 @@ final class _InMemoryScheduleStore implements ScheduleStore {
         ifAbsent: () => 1,
       );
     }
-    return RequestOffEmail(
+    return RequestOffEmail.forRequest(
       requestId: request.id,
       to: _database.managerEmail,
-      subject: 'Request off - ${request.staffMemberName}',
-      body: _requestOffEmailBody(
-        request.staffMemberName,
-        request.dates,
-        request.reason,
-      ),
+      staffMemberName: request.staffMemberName,
+      dates: request.dates,
+      reason: request.reason,
     );
   }
 

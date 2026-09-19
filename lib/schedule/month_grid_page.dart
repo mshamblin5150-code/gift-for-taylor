@@ -44,6 +44,7 @@ class MonthGridPage extends StatefulWidget {
 class _MonthGridPageState extends State<MonthGridPage> {
   late DateTime _month = DateTime(widget.month.year, widget.month.month);
   StreamSubscription<void>? _updates;
+  Timer? _requestNoticeTimer;
   MonthGrid? _grid;
   ChangeAnnouncement? _announcement;
 
@@ -63,6 +64,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
     super.initState();
     _listen();
     _load();
+    _requestNoticeTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _refreshRequestNotices(),
+    );
   }
 
   void _listen() {
@@ -84,6 +89,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   @override
   void dispose() {
     _updates?.cancel();
+    _requestNoticeTimer?.cancel();
     super.dispose();
   }
 
