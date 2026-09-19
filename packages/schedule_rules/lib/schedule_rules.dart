@@ -6,6 +6,7 @@ export 'src/book_page.dart';
 export 'src/first_month_transcript.dart';
 
 part 'src/change_announcement.dart';
+part 'src/swaps.dart';
 part 'src/request_off.dart';
 
 /// Every schedule rule is reached through this public interface.

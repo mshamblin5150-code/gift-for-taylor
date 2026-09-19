@@ -8,6 +8,10 @@ import 'notifications/notice_gateway.dart';
 import 'schedule/book_page_printer.dart';
 import 'schedule/messages_composer.dart';
 import 'schedule/supabase_schedule_store.dart';
+import 'schedule/supabase_swap_store.dart';
+
+import 'package:schedule_rules/schedule_rules.dart';
+
 import 'staff/invite_composer.dart';
 import 'staff/staff_gateway.dart';
 
@@ -34,6 +38,7 @@ Future<void> main() async {
     ScheduleApp(
       authGateway: SupabaseAuthGateway(client),
       scheduleStore: SupabaseScheduleStore(client),
+      swapRules: SwapRules(SupabaseSwapStore(client)),
       staffGateway: SupabaseStaffGateway(client),
       inviteComposer: SmsInviteComposer(Uri.base),
       messagesComposer: const SmsMessagesComposer(),
