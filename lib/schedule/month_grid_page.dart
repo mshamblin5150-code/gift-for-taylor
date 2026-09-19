@@ -199,7 +199,6 @@ class _MonthGridPageState extends State<MonthGridPage> {
     try {
       final month = _month;
       final (grid, announcement, codes) = await _read(month, _editable);
-      final (grid, announcement, codes) = await _read(month, _editable);
       final staffing =
           await widget.openShiftRules?.staffingForMonth(month) ??
           <SectionStaffing>[];

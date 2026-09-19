@@ -86,7 +86,7 @@ language sql stable security definer set search_path = '' as $$
           and public.is_working_shift(cell.shift_code)),
     (select count(*)::integer from public.short_shifts shift
       where shift.section_id = section.id and shift.work_date = day.work_date
-        and shift.filled_at is null),
+        and shift.filled_at is null and public.is_working_shift(shift.shift_code)),
     week_rule.minimum, date_rule.minimum
   from public.sections section
   cross join lateral generate_series(date_trunc('month', p_month)::date,
@@ -129,8 +129,13 @@ begin
       where section_id = p_section_id and work_date = p_date;
     v_count := least(p_count, greatest(v_target - v_working - v_open, 0));
   end if;
+  if v_count > 0 then
+    insert into public.shift_codes(code, is_working, display_order)
+    values (upper(trim(p_shift_code)), true, 1000)
+    on conflict (code) do nothing;
+  end if;
   insert into public.short_shifts(schedule_month_id, section_id, work_date, shift_code, reason, job_role)
-  select v_month, p_section_id, p_date, trim(p_shift_code), 'manual', p_job_role
+  select v_month, p_section_id, p_date, upper(trim(p_shift_code)), 'manual', p_job_role
     from generate_series(1, v_count);
   return v_count;
 end;
@@ -200,6 +205,7 @@ as $$
     and (public.current_staff_role() = 'manager'
       or pickup.staff_member_id = public.current_staff_member_id())
   where month.release_state = 'released' and short.filled_at is null
+    and public.is_working_shift(short.shift_code)
     and (public.current_staff_role() = 'manager' or exists (
       select 1 from public.staff_job_roles mine
       where mine.staff_member_id = public.current_staff_member_id()

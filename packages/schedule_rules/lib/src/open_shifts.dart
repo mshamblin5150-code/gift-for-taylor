@@ -317,7 +317,15 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
                           ),
                     )
                     .length,
-            openCount: grid.shortShiftsOn(section.id, date).length,
+            openCount: grid
+                .shortShiftsOn(section.id, date)
+                .where(
+                  (shift) => isWorkingShift(
+                    shift.shiftCode,
+                    codes: database._shiftCodes,
+                  ),
+                )
+                .length,
             weekdayMinimum:
                 database._weekdayMinimums['${section.id}:${date.weekday % 7}'],
             dateMinimum: database._dateMinimums['${section.id}:${_day(date)}'],
@@ -370,7 +378,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     bool fillGap = false,
   }) async {
     if (!_manager) throw StateError('Only the Manager can post Open shifts');
-    if (!isWorkingShift(shiftCode) || count < 1 || count > 100) {
+    if (!isWorkingShift(shiftCode, codes: database._shiftCodes) ||
+        count < 1 ||
+        count > 100) {
       throw ArgumentError('Invalid Open shift');
     }
     if (fillGap) {
@@ -379,12 +389,16 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       )).firstWhere((s) => s.sectionId == sectionId && _sameDay(s.date, date));
       count = count < staffing.unpostedCount ? count : staffing.unpostedCount;
     }
+    final code = shiftCode.trim().toUpperCase();
+    if (count > 0 && !database._shiftCodes.any((entry) => entry.code == code)) {
+      database._shiftCodes.add(LegendCode(code, isWorking: true));
+    }
     for (var i = 0; i < count; i++) {
       database._shortShifts.add(
         ShortShift(
           sectionId: sectionId,
           date: date,
-          shiftCode: shiftCode.trim(),
+          shiftCode: code,
           staffMemberId: null,
           jobRole: jobRole,
         ),
