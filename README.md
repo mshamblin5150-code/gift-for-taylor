@@ -29,9 +29,10 @@ installed app open in standalone mode.
 
 Supabase Flutter persists and refreshes the session in browser storage. The app
 offers one emailed-code flow for accepting an Invite and signing in, and exposes
-explicit sign-out. Before production use, create the Manager's `staff_members` and
-`staff_accounts` rows in the Supabase dashboard; no Staff names belong in source
-control.
+explicit sign-out. Before production use, create the Manager's `staff_members`,
+`staff_accounts`, and current `staff_section_assignments` rows in the Supabase
+dashboard; include the Manager's personal email on the account row. No Staff
+names belong in source control.
 
 ## Verify
 
