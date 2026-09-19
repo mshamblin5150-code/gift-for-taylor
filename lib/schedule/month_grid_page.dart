@@ -8,6 +8,7 @@ class MonthGridPage extends StatelessWidget {
     required this.month,
     required this.sections,
     this.onSignOut,
+    this.onManageStaff,
   });
 
   static Widget testable({
@@ -22,6 +23,7 @@ class MonthGridPage extends StatelessWidget {
   final DateTime month;
   final List<ScheduleSection> sections;
   final VoidCallback? onSignOut;
+  final VoidCallback? onManageStaff;
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +37,12 @@ class MonthGridPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(DateFormat.yMMMM().format(normalizedMonth)),
         actions: [
+          if (onManageStaff != null)
+            IconButton(
+              tooltip: 'Manage Staff list',
+              onPressed: onManageStaff,
+              icon: const Icon(Icons.people_outline),
+            ),
           if (onSignOut != null)
             IconButton(
               tooltip: 'Sign out',

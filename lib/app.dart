@@ -5,16 +5,25 @@ import 'auth/auth_gateway.dart';
 import 'auth/sign_in_page.dart';
 import 'schedule/month_grid_page.dart';
 import 'schedule/section_gateway.dart';
+import 'staff/invite_composer.dart';
+import 'staff/staff_gateway.dart';
+import 'staff/staff_list_page.dart';
 
 class ScheduleApp extends StatelessWidget {
   const ScheduleApp({
     super.key,
     required this.authGateway,
     required this.sectionGateway,
+    this.staffGateway,
+    this.inviteComposer,
+    this.inviteToken,
   });
 
   final AuthGateway authGateway;
   final SectionGateway sectionGateway;
+  final StaffGateway? staffGateway;
+  final InviteComposer? inviteComposer;
+  final String? inviteToken;
 
   @override
   Widget build(BuildContext context) {
@@ -24,29 +33,159 @@ class ScheduleApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff24535c)),
         useMaterial3: true,
       ),
-      home: _AuthGate(authGateway: authGateway, sectionGateway: sectionGateway),
+      home: _AuthGate(
+        authGateway: authGateway,
+        sectionGateway: sectionGateway,
+        staffGateway: staffGateway,
+        inviteComposer: inviteComposer,
+        inviteToken: inviteToken,
+      ),
     );
   }
 }
 
-class _AuthGate extends StatelessWidget {
-  const _AuthGate({required this.authGateway, required this.sectionGateway});
+class _AuthGate extends StatefulWidget {
+  const _AuthGate({
+    required this.authGateway,
+    required this.sectionGateway,
+    required this.staffGateway,
+    required this.inviteComposer,
+    required this.inviteToken,
+  });
 
   final AuthGateway authGateway;
   final SectionGateway sectionGateway;
+  final StaffGateway? staffGateway;
+  final InviteComposer? inviteComposer;
+  final String? inviteToken;
+
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  late final Future<void> _prepareInviteSignIn = _prepareInvite();
+
+  Future<void> _prepareInvite() async {
+    if (widget.inviteToken != null && widget.authGateway.isSignedIn) {
+      await widget.authGateway.signOut();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<bool>(
-      stream: authGateway.signedInChanges,
-      initialData: authGateway.isSignedIn,
+    return FutureBuilder<void>(
+      future: _prepareInviteSignIn,
+      builder: (context, preparation) {
+        if (preparation.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (preparation.hasError) {
+          return const Scaffold(
+            body: Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Sign out of the current account, then open this Invite again.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+        }
+        return StreamBuilder<bool>(
+          stream: widget.authGateway.signedInChanges,
+          initialData: widget.authGateway.isSignedIn,
+          builder: (context, snapshot) {
+            if (snapshot.data != true) {
+              return SignInPage(authGateway: widget.authGateway);
+            }
+            if (widget.inviteToken != null && widget.staffGateway != null) {
+              return _InviteAcceptance(
+                authGateway: widget.authGateway,
+                sectionGateway: widget.sectionGateway,
+                staffGateway: widget.staffGateway!,
+                inviteComposer: widget.inviteComposer,
+                inviteToken: widget.inviteToken!,
+              );
+            }
+            return _ScheduleAccess(
+              authGateway: widget.authGateway,
+              sectionGateway: widget.sectionGateway,
+              staffGateway: widget.staffGateway,
+              inviteComposer: widget.inviteComposer,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _InviteAcceptance extends StatefulWidget {
+  const _InviteAcceptance({
+    required this.authGateway,
+    required this.sectionGateway,
+    required this.staffGateway,
+    required this.inviteComposer,
+    required this.inviteToken,
+  });
+
+  final AuthGateway authGateway;
+  final SectionGateway sectionGateway;
+  final StaffGateway staffGateway;
+  final InviteComposer? inviteComposer;
+  final String inviteToken;
+
+  @override
+  State<_InviteAcceptance> createState() => _InviteAcceptanceState();
+}
+
+class _InviteAcceptanceState extends State<_InviteAcceptance> {
+  late final Future<void> _acceptance = widget.staffGateway.acceptInvite(
+    widget.inviteToken,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _acceptance,
       builder: (context, snapshot) {
-        if (snapshot.data != true) {
-          return SignInPage(authGateway: authGateway);
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(
+              actions: [
+                IconButton(
+                  tooltip: 'Sign out',
+                  onPressed: widget.authGateway.signOut,
+                  icon: const Icon(Icons.logout),
+                ),
+              ],
+            ),
+            body: const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'This Invite is invalid, expired, or has already been used. '
+                  'Ask your Manager to resend it.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
         }
         return _ScheduleAccess(
-          authGateway: authGateway,
-          sectionGateway: sectionGateway,
+          authGateway: widget.authGateway,
+          sectionGateway: widget.sectionGateway,
+          staffGateway: widget.staffGateway,
+          inviteComposer: widget.inviteComposer,
         );
       },
     );
@@ -57,23 +196,32 @@ class _ScheduleAccess extends StatefulWidget {
   const _ScheduleAccess({
     required this.authGateway,
     required this.sectionGateway,
+    required this.staffGateway,
+    required this.inviteComposer,
   });
 
   final AuthGateway authGateway;
   final SectionGateway sectionGateway;
+  final StaffGateway? staffGateway;
+  final InviteComposer? inviteComposer;
 
   @override
   State<_ScheduleAccess> createState() => _ScheduleAccessState();
 }
 
 class _ScheduleAccessState extends State<_ScheduleAccess> {
-  late final Future<List<ScheduleSection>> _sections = widget.sectionGateway
-      .loadSections();
+  late final Future<_ScheduleData> _data = _loadData();
+
+  Future<_ScheduleData> _loadData() async {
+    final sections = await widget.sectionGateway.loadSections();
+    final canManageStaff = await widget.staffGateway?.canManageStaff() ?? false;
+    return _ScheduleData(sections, canManageStaff);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<ScheduleSection>>(
-      future: _sections,
+    return FutureBuilder<_ScheduleData>(
+      future: _data,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Scaffold(
@@ -81,7 +229,8 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           );
         }
 
-        final sections = snapshot.data ?? const <ScheduleSection>[];
+        final data = snapshot.data;
+        final sections = data?.sections ?? const <ScheduleSection>[];
         if (snapshot.hasError || sections.isEmpty) {
           return Scaffold(
             appBar: AppBar(
@@ -97,8 +246,8 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  'This email is not on the ER Staff list. '
-                  'Please ask the Manager for an Invite.',
+                  "This email isn't on the ER staff list. "
+                  'Ask your manager to add you.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -111,8 +260,28 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           month: DateTime(now.year, now.month),
           sections: sections,
           onSignOut: widget.authGateway.signOut,
+          onManageStaff:
+              data?.canManageStaff == true &&
+                  widget.staffGateway != null &&
+                  widget.inviteComposer != null
+              ? () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => StaffListPage(
+                      gateway: widget.staffGateway!,
+                      inviteComposer: widget.inviteComposer!,
+                    ),
+                  ),
+                )
+              : null,
         );
       },
     );
   }
+}
+
+final class _ScheduleData {
+  const _ScheduleData(this.sections, this.canManageStaff);
+
+  final List<ScheduleSection> sections;
+  final bool canManageStaff;
 }
