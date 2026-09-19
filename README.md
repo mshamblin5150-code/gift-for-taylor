@@ -20,12 +20,38 @@ The production build uses the same two compile-time settings:
 ```powershell
 flutter build web --release `
   --dart-define=SUPABASE_URL=<project-url> `
-  --dart-define=SUPABASE_PUBLISHABLE_KEY=<publishable-key>
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=<publishable-key> `
+  --dart-define=VAPID_PUBLIC_KEY=<public-vapid-key>
 ```
 
 Deploy the contents of `build/web` over HTTPS. In Safari on iPhone, use Share,
 then **Add to Home Screen**. The web manifest and Apple web-app metadata make the
 installed app open in standalone mode.
+
+## Web push
+
+Create one VAPID key pair (`npx web-push generate-vapid-keys`) and keep its
+private key out of source control. Build the app with the public key above.
+Set the Edge Function secrets `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+`VAPID_SUBJECT` (a `mailto:` address), and `PUSH_WEBHOOK_SECRET` using
+`supabase secrets set`, then deploy with `supabase functions deploy send-push`.
+Use the same public key in the web build and Edge Function. Do not use a
+localhost URL for `VAPID_SUBJECT`; Safari rejects it.
+
+In Supabase Dashboard, create a Database Webhook for **INSERT** on
+`public.staff_notices`, targeting the `send-push` Edge Function. Add the HTTP
+header `x-push-secret` with the exact value of `PUSH_WEBHOOK_SECRET`. The
+function rejects requests without this header; `verify_jwt = false` is set
+because database webhooks do not carry a Staff member's JWT. Keep the service
+role key in Supabase's Edge Function environment, never in the web build.
+
+Deploy the app over HTTPS with `push.js` and `push-service-worker.js` at the
+same base path as the Flutter app. On iPhone iOS 16.4 or later, add it to the
+Home Screen, open it from there, sign in, tap **Notices → Allow notifications**,
+then **Send test push**. Confirm the device receives the push and the app shows
+the test notice. Turning notifications off or signing out unsubscribes that
+device. A Month release creates a notice for each active Staff member; a
+post-release shift change creates one only for the affected Staff member.
 
 Supabase Flutter persists and refreshes the session in browser storage. The app
 offers one emailed-code flow for accepting an Invite and signing in, and exposes
