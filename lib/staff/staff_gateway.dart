@@ -1,3 +1,4 @@
+import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final class StaffSection {
@@ -15,6 +16,7 @@ final class StaffListMember {
     required this.sectionId,
     required this.displayOrder,
     this.personalEmail,
+    this.jobRole,
   });
 
   final String id;
@@ -26,6 +28,9 @@ final class StaffListMember {
   final int displayOrder;
   final String? personalEmail;
 
+  /// Null until the Manager sets one.
+  final JobRole? jobRole;
+
   StaffListMember withDisplayOrder(int value) {
     return StaffListMember(
       id: id,
@@ -34,6 +39,7 @@ final class StaffListMember {
       sectionId: sectionId,
       displayOrder: value,
       personalEmail: personalEmail,
+      jobRole: jobRole,
     );
   }
 }
@@ -68,6 +74,23 @@ final class StaffList {
   }
 }
 
+/// Someone who has left: deactivated, never deleted.
+final class PastStaffMember {
+  const PastStaffMember({
+    required this.id,
+    required this.displayName,
+    required this.lastDay,
+    required this.sectionId,
+  });
+
+  final String id;
+  final String displayName;
+  final DateTime? lastDay;
+
+  /// The Section they were last in, if any.
+  final String? sectionId;
+}
+
 final class StaffMemberDraft {
   const StaffMemberDraft({
     required this.displayName,
@@ -95,6 +118,9 @@ final class StaffInvite {
 abstract interface class StaffGateway {
   Future<bool> canManageStaff();
   Future<StaffList> loadStaffList();
+
+  /// Everyone who has left, most recent Last day first.
+  Future<List<PastStaffMember>> loadPastStaff();
   Future<StaffInvite> addStaffMember(StaffMemberDraft draft);
   Future<void> reorderSection(String sectionId, List<String> memberIds);
   Future<StaffInvite> resendInvite(String staffMemberId);
@@ -118,7 +144,8 @@ final class SupabaseStaffGateway implements StaffGateway {
       _client
           .from('staff_list_entries')
           .select(
-            'id, display_name, cell_number, section_id, display_order, personal_email',
+            'id, display_name, cell_number, section_id, display_order, '
+            'personal_email, job_role',
           )
           .order('display_order'),
     ]);
@@ -142,10 +169,34 @@ final class SupabaseStaffGateway implements StaffGateway {
               sectionId: row['section_id'] as String,
               displayOrder: row['display_order'] as int,
               personalEmail: row['personal_email'] as String?,
+              jobRole: switch (row['job_role']) {
+                final String value => JobRole.fromValue(value),
+                _ => null,
+              },
             ),
           )
           .toList(growable: false),
     );
+  }
+
+  @override
+  Future<List<PastStaffMember>> loadPastStaff() async {
+    final rows = await _client
+        .from('past_staff_entries')
+        .select('id, display_name, last_day, section_id')
+        .order('last_day', ascending: false);
+    return [
+      for (final row in rows)
+        PastStaffMember(
+          id: row['id'] as String,
+          displayName: row['display_name'] as String,
+          lastDay: switch (row['last_day']) {
+            final String value => DateTime.parse(value),
+            _ => null,
+          },
+          sectionId: row['section_id'] as String?,
+        ),
+    ];
   }
 
   @override

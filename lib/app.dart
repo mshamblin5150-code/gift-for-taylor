@@ -296,6 +296,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
                   MaterialPageRoute<void>(
                     builder: (context) => StaffListPage(
                       gateway: widget.staffGateway!,
+                      rules: ScheduleRules(widget.scheduleStore),
                       inviteComposer: widget.inviteComposer!,
                     ),
                   ),

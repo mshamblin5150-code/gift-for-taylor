@@ -38,6 +38,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           displayName: row['display_name'] as String,
           sectionId: row['section_id'] as String,
           cellNumber: row['cell_number'] as String?,
+          lastDay: _parseDate(row['last_day']),
         ),
     ];
   }
@@ -99,6 +100,25 @@ final class SupabaseScheduleStore implements ScheduleStore {
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<List<ShortShift>> shortShiftsForMonth(DateTime month) async {
+    final rows = await _client
+        .from('short_shifts')
+        .select('section_id, work_date, shift_code, staff_member_id')
+        .gte('work_date', _date(_monthStart(month)))
+        .lt('work_date', _date(_nextMonthStart(month)))
+        .order('work_date');
+    return [
+      for (final row in rows)
+        ShortShift(
+          sectionId: row['section_id'] as String,
+          date: DateTime.parse(row['work_date'] as String),
+          shiftCode: row['shift_code'] as String,
+          staffMemberId: row['staff_member_id'] as String,
+        ),
+    ];
   }
 
   @override
@@ -259,11 +279,98 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
+  Future<void> setLastDay(SetLastDay action) async {
+    await _client.rpc<void>(
+      'set_staff_last_day',
+      params: {
+        'p_staff_member_id': action.staffMemberId,
+        'p_last_day': _date(action.lastDay),
+      },
+    );
+  }
+
+  @override
   Future<void> releaseMonth(DateTime month) async {
     await _client.rpc<void>(
       'release_month',
       params: {'p_month_start': _date(_monthStart(month))},
     );
+  }
+
+  @override
+  Future<void> reactivate(Reactivate action) async {
+    await _client.rpc<void>(
+      'reactivate_staff_member',
+      params: {
+        'p_staff_member_id': action.staffMemberId,
+        'p_section_id': action.sectionId,
+        'p_first_day': _date(action.firstDay),
+      },
+    );
+  }
+
+  @override
+  Future<void> changeSection(ChangeSection action) async {
+    await _client.rpc<void>(
+      'change_staff_section',
+      params: {
+        'p_staff_member_id': action.staffMemberId,
+        'p_section_id': action.sectionId,
+        'p_from': _date(action.from),
+      },
+    );
+  }
+
+  @override
+  Future<void> changeJobRole(ChangeJobRole action) async {
+    await _client.rpc<void>(
+      'change_staff_job_role',
+      params: {
+        'p_staff_member_id': action.staffMemberId,
+        'p_job_role': action.jobRole.value,
+        'p_from': _date(action.from),
+      },
+    );
+  }
+
+  @override
+  Future<List<DatedJobRole>> jobRoles(String staffMemberId) async {
+    final rows = await _client
+        .from('staff_job_roles')
+        .select('job_role, effective_from, effective_through')
+        .eq('staff_member_id', staffMemberId)
+        .order('effective_from');
+    return [
+      for (final row in rows)
+        DatedJobRole(
+          jobRole: JobRole.fromValue(row['job_role'] as String),
+          from: DateTime.parse(row['effective_from'] as String),
+          through: _parseDate(row['effective_through']),
+        ),
+    ];
+  }
+
+  @override
+  Future<List<StaffChange>> staffChanges() async {
+    final rows = await _client
+        .from('staff_changes')
+        .select(
+          'staff_member_id, kind, old_value, new_value, effective_from, '
+          'changed_by_staff_member_id, changed_at',
+        )
+        .order('changed_at');
+    return [
+      for (final row in rows)
+        StaffChange(
+          staffMemberId: row['staff_member_id'] as String,
+          kind: StaffChangeKind.fromValue(row['kind'] as String),
+          oldValue: row['old_value'] as String?,
+          newValue: row['new_value'] as String?,
+          effectiveFrom: DateTime.parse(row['effective_from'] as String),
+          changedBy: row['changed_by_staff_member_id'] as String,
+          changedAt: DateTime.parse(row['changed_at'] as String).toLocal(),
+        ),
+    ];
   }
 
   /// A full month has more cells than the API returns in one response.
@@ -284,5 +391,8 @@ DateTime _monthStart(DateTime month) => DateTime(month.year, month.month);
 
 DateTime _nextMonthStart(DateTime month) =>
     DateTime(month.year, month.month + 1);
+
+DateTime? _parseDate(Object? value) =>
+    value is String ? DateTime.parse(value) : null;
 
 String _date(DateTime date) => DateFormat('yyyy-MM-dd').format(date);

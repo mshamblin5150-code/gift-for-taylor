@@ -189,6 +189,11 @@ final class _FakeStaffGateway implements StaffGateway {
   }
 
   @override
+  Future<List<PastStaffMember>> loadPastStaff() {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> reorderSection(String sectionId, List<String> memberIds) {
     throw UnimplementedError();
   }

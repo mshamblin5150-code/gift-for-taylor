@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:schedule_rules/schedule_rules.dart';
 
 import 'invite_composer.dart';
+import 'past_staff_page.dart';
+import 'staff_dialogs.dart';
 import 'staff_gateway.dart';
 
 export 'invite_composer.dart' show InviteComposer;
@@ -9,10 +12,14 @@ class StaffListPage extends StatefulWidget {
   const StaffListPage({
     super.key,
     required this.gateway,
+    required this.rules,
     required this.inviteComposer,
   });
 
   final StaffGateway gateway;
+
+  /// Last days and dated Section and role changes go through the rules.
+  final ScheduleRules rules;
   final InviteComposer inviteComposer;
 
   @override
@@ -72,6 +79,77 @@ class _StaffListPageState extends State<StaffListPage> {
     }
   }
 
+  Future<void> _setLastDay(StaffListMember member) async {
+    final lastDay = await showDialog<DateTime>(
+      context: context,
+      builder: (context) => SetLastDayDialog(displayName: member.displayName),
+    );
+    if (lastDay == null) return;
+    try {
+      await widget.rules.setLastDay(
+        SetLastDay(staffMemberId: member.id, lastDay: lastDay),
+      );
+      await _load();
+    } catch (error) {
+      if (mounted) _showError('Could not set the Last day.');
+    }
+  }
+
+  Future<void> _changeSectionOrRole(StaffListMember member) async {
+    final staffList = _staffList;
+    if (staffList == null) return;
+    final change = await showDialog<SectionOrRoleChange>(
+      context: context,
+      builder: (context) => ChangeSectionOrRoleDialog(
+        displayName: member.displayName,
+        sections: staffList.sections,
+        sectionId: member.sectionId,
+        jobRole: member.jobRole,
+      ),
+    );
+    if (change == null) return;
+    try {
+      if (change.sectionId case final sectionId?) {
+        await widget.rules.changeSection(
+          ChangeSection(
+            staffMemberId: member.id,
+            sectionId: sectionId,
+            from: change.from,
+          ),
+        );
+      }
+      if (change.jobRole case final jobRole?) {
+        await widget.rules.changeJobRole(
+          ChangeJobRole(
+            staffMemberId: member.id,
+            jobRole: jobRole,
+            from: change.from,
+          ),
+        );
+      }
+      await _load();
+    } catch (error) {
+      await _load();
+      if (mounted) _showError('Could not save the change.');
+    }
+  }
+
+  Future<void> _openPastStaff() async {
+    final staffList = _staffList;
+    if (staffList == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => PastStaffPage(
+          gateway: widget.gateway,
+          rules: widget.rules,
+          inviteComposer: widget.inviteComposer,
+          sections: staffList.sections,
+        ),
+      ),
+    );
+    await _load();
+  }
+
   Future<void> _reorder(
     StaffSection section,
     List<StaffListMember> members,
@@ -106,7 +184,17 @@ class _StaffListPageState extends State<StaffListPage> {
   Widget build(BuildContext context) {
     final staffList = _staffList;
     return Scaffold(
-      appBar: AppBar(title: const Text('Staff list')),
+      appBar: AppBar(
+        title: const Text('Staff list'),
+        actions: [
+          if (staffList != null)
+            IconButton(
+              tooltip: 'Past staff',
+              onPressed: _openPastStaff,
+              icon: const Icon(Icons.history),
+            ),
+        ],
+      ),
       floatingActionButton: staffList == null
           ? null
           : FloatingActionButton.extended(
@@ -139,6 +227,8 @@ class _StaffListPageState extends State<StaffListPage> {
         newIndex,
       ),
       onResendInvite: _resendInvite,
+      onChangeSectionOrRole: _changeSectionOrRole,
+      onSetLastDay: _setLastDay,
     );
   }
 }
@@ -149,12 +239,16 @@ class _SectionStaffList extends StatelessWidget {
     required this.members,
     required this.onReorder,
     required this.onResendInvite,
+    required this.onChangeSectionOrRole,
+    required this.onSetLastDay,
   });
 
   final StaffSection section;
   final List<StaffListMember> members;
   final void Function(int oldIndex, int newIndex) onReorder;
   final ValueChanged<StaffListMember> onResendInvite;
+  final ValueChanged<StaffListMember> onChangeSectionOrRole;
+  final ValueChanged<StaffListMember> onSetLastDay;
 
   @override
   Widget build(BuildContext context) {
@@ -180,6 +274,11 @@ class _SectionStaffList extends StatelessWidget {
                 onReorderItem: onReorder,
                 itemBuilder: (context, index) {
                   final member = members[index];
+                  final contact =
+                      member.personalEmail ??
+                      (member.cellNumber == null
+                          ? 'No cell number yet'
+                          : '${member.cellNumber} · Invite pending');
                   return ListTile(
                     key: ValueKey(member.id),
                     contentPadding: EdgeInsets.zero,
@@ -189,23 +288,42 @@ class _SectionStaffList extends StatelessWidget {
                     ),
                     title: Text(member.displayName),
                     subtitle: Text(
-                      member.personalEmail ??
-                          (member.cellNumber == null
-                              ? 'No cell number yet'
-                              : '${member.cellNumber} · Invite pending'),
+                      [?member.jobRole?.label, contact].join(' · '),
                     ),
-                    trailing: member.personalEmail != null
-                        ? const Tooltip(
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (member.personalEmail != null)
+                          const Tooltip(
                             message: 'Invite accepted',
                             child: Icon(Icons.check_circle_outline),
                           )
-                        : member.cellNumber == null
-                        ? null
-                        : IconButton(
+                        else if (member.cellNumber != null)
+                          IconButton(
                             tooltip: 'Resend Invite to ${member.displayName}',
                             onPressed: () => onResendInvite(member),
                             icon: const Icon(Icons.sms_outlined),
                           ),
+                        PopupMenuButton<_MemberAction>(
+                          tooltip: 'Change ${member.displayName}',
+                          onSelected: (action) => switch (action) {
+                            _MemberAction.sectionOrRole =>
+                              onChangeSectionOrRole(member),
+                            _MemberAction.lastDay => onSetLastDay(member),
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: _MemberAction.sectionOrRole,
+                              child: Text('Change Section or role'),
+                            ),
+                            PopupMenuItem(
+                              value: _MemberAction.lastDay,
+                              child: Text('Set Last day'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
@@ -215,6 +333,8 @@ class _SectionStaffList extends StatelessWidget {
     );
   }
 }
+
+enum _MemberAction { sectionOrRole, lastDay }
 
 class _AddStaffMemberDialog extends StatefulWidget {
   const _AddStaffMemberDialog({required this.sections});

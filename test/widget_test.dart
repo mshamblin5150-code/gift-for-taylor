@@ -223,6 +223,43 @@ void main() {
     expect(find.widgetWithText(ListTile, 'ME'), findsOneWidget);
   });
 
+  testWidgets('after a Last day the row ends and the hole shows short', (
+    tester,
+  ) async {
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: DateTime(2026, 9, 20),
+        shiftCode: '7A',
+      ),
+    );
+    await manager.setLastDay(
+      SetLastDay(staffMemberId: 'rn-1', lastDay: september18),
+    );
+
+    await pumpGrid(tester);
+
+    expect(cell('rn-1', september18), findsOneWidget);
+    expect(cell('rn-1', DateTime(2026, 9, 19)), findsNothing);
+    expect(find.byKey(const ValueKey('gone-rn-1-2026-09-19')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('short-days-2026-09-20')),
+        matching: find.text('−1'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('short-nights-2026-09-20')),
+        matching: find.text('−1'),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('someone who cannot edit gets no edit sheet', (tester) async {
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],

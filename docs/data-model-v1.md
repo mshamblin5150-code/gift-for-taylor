@@ -19,6 +19,18 @@ details belong only in Supabase and must never be committed.
   member roles. The current role on `staff_members` is a read optimization.
 - `night_scheduler_sections`: dated permission for a Night scheduler to edit a
   Section.
+- `staff_job_roles`: a Staff member's dated RN, LPN, CNA or unit-clerk role,
+  which decides the Open shifts they may pick up.
+- `staff_changes`: append-only log of Last days, reactivations, and dated
+  Section and role changes, with old and new values as they were.
+
+Setting a Last day deactivates the person at once, closes their Section and
+role at that day, clears their later cells (logging each one) and records each
+cleared working shift in `short_shifts`. Reactivation sets them active again
+with a new dated Section placement. Their old sign-in link stays revoked
+(`staff_accounts.revoked_at`), so they come back in through a fresh Invite.
+Placements and roles planned to start after a Last day are the one exception
+to never deleting: they never took effect, so they are dropped.
 
 All shared tables use row-level security. Anonymous callers and authenticated
 accounts without an accepted Invite see no rows. Active Staff members can read
@@ -30,11 +42,15 @@ allow. Deactivation immediately removes every policy path.
 
 - `sections`: ordered Section labels.
 - `staff_section_assignments`: a Staff member's Section and row order with
-  effective-from and effective-through dates. Dated rows preserve moves.
+  effective-from and effective-through dates. Dated rows preserve moves. A
+  month's grid (and its printed page) shows each person once, in their latest
+  placement that overlaps the month.
 - `schedule_months`: the first day of the month and its `unpublished` or
   `released` state, including who performed the Month release and when.
 - `schedule_cells`: one Staff member, date, Section snapshot, and free-text Shift
   code. A database constraint keeps one cell per person per date in a month.
+- `short_shifts`: an uncovered shift's date, Section, Shift code and whose it
+  was, with the reason (today only a Last day).
 - `shift_legend_entries`: shortcuts and optional start/end times. The legend is
   not a foreign key because off-legend Shift codes are valid.
 - `schedule_changes`: append-only old/new cell values, actor, timestamp, and an
