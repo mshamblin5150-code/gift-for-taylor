@@ -871,16 +871,14 @@ class _MonthView extends StatefulWidget {
 }
 
 class _MonthViewState extends State<_MonthView> {
-  final ScrollController _horizontal = ScrollController();
-  final ScrollController _headerHorizontal = ScrollController();
+  final _headerScroll = ScrollController();
+  final _daysScroll = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _horizontal.addListener(() => _syncScroll(_horizontal, _headerHorizontal));
-    _headerHorizontal.addListener(
-      () => _syncScroll(_headerHorizontal, _horizontal),
-    );
+    _headerScroll.addListener(() => _syncScroll(_headerScroll, _daysScroll));
+    _daysScroll.addListener(() => _syncScroll(_daysScroll, _headerScroll));
     WidgetsBinding.instance.addPostFrameCallback((_) => _showToday());
   }
 
@@ -894,15 +892,15 @@ class _MonthViewState extends State<_MonthView> {
   }
 
   void _showToday() {
-    if (!mounted || !_horizontal.hasClients) return;
+    if (!mounted || !_daysScroll.hasClients) return;
     final today = widget.today;
     if (today.year != widget.grid.month.year ||
         today.month != widget.grid.month.month) {
       return;
     }
-    final position = _horizontal.position;
+    final position = _daysScroll.position;
     final center = (today.day - 0.5) * _dayWidth;
-    _horizontal.jumpTo(
+    _daysScroll.jumpTo(
       (center - position.viewportDimension / 2).clamp(
         0.0,
         position.maxScrollExtent,
@@ -912,8 +910,8 @@ class _MonthViewState extends State<_MonthView> {
 
   @override
   void dispose() {
-    _horizontal.dispose();
-    _headerHorizontal.dispose();
+    _headerScroll.dispose();
+    _daysScroll.dispose();
     super.dispose();
   }
 
@@ -927,7 +925,7 @@ class _MonthViewState extends State<_MonthView> {
             const SizedBox(width: _nameWidth, height: _cellHeight),
             Expanded(
               child: SingleChildScrollView(
-                controller: _headerHorizontal,
+                controller: _headerScroll,
                 scrollDirection: Axis.horizontal,
                 child: _DayHeader(days: days, today: widget.today),
               ),
@@ -946,7 +944,7 @@ class _MonthViewState extends State<_MonthView> {
                 Expanded(
                   child: SingleChildScrollView(
                     key: const ValueKey('month-horizontal-scroll'),
-                    controller: _horizontal,
+                    controller: _daysScroll,
                     scrollDirection: Axis.horizontal,
                     child: Column(
                       children: [
