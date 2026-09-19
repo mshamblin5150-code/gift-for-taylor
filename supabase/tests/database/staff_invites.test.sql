@@ -84,6 +84,7 @@ select is(
   'a new Staff member is placed at the bottom of the Section'
 );
 
+reset role;
 select is(
   (
     select count(*)::integer
@@ -95,6 +96,13 @@ select is(
   ),
   1,
   'adding a Staff member creates one active Invite'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000151","role":"authenticated"}',
+  true
 );
 
 select lives_ok(
@@ -139,6 +147,7 @@ select token
 from public.resend_staff_invite(
   (select id from public.staff_members where display_name = 'New Staff member')
 );
+grant select on invite_tokens to authenticated;
 
 select is(
   (

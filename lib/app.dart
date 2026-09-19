@@ -5,7 +5,6 @@ import 'auth/auth_gateway.dart';
 import 'auth/sign_in_page.dart';
 import 'schedule/month_grid_page.dart';
 import 'schedule/section_gateway.dart';
-import 'staff/invite_composer.dart';
 import 'staff/staff_gateway.dart';
 import 'staff/staff_list_page.dart';
 

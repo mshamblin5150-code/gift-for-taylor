@@ -78,7 +78,6 @@ class _StaffListPageState extends State<StaffListPage> {
     int oldIndex,
     int newIndex,
   ) async {
-    if (newIndex > oldIndex) newIndex -= 1;
     final reordered = [...members];
     final moved = reordered.removeAt(oldIndex);
     reordered.insert(newIndex, moved);
@@ -154,7 +153,7 @@ class _SectionStaffList extends StatelessWidget {
 
   final StaffSection section;
   final List<StaffListMember> members;
-  final ReorderCallback onReorder;
+  final void Function(int oldIndex, int newIndex) onReorder;
   final ValueChanged<StaffListMember> onResendInvite;
 
   @override
@@ -178,7 +177,7 @@ class _SectionStaffList extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 buildDefaultDragHandles: false,
                 itemCount: members.length,
-                onReorder: onReorder,
+                onReorderItem: onReorder,
                 itemBuilder: (context, index) {
                   final member = members[index];
                   return ListTile(
