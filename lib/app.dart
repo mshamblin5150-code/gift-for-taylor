@@ -4,7 +4,6 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'auth/auth_gateway.dart';
 import 'auth/sign_in_page.dart';
 import 'schedule/month_grid_page.dart';
-import 'schedule/section_gateway.dart';
 import 'staff/staff_gateway.dart';
 import 'staff/staff_list_page.dart';
 
@@ -12,14 +11,14 @@ class ScheduleApp extends StatelessWidget {
   const ScheduleApp({
     super.key,
     required this.authGateway,
-    required this.sectionGateway,
+    required this.scheduleStore,
     this.staffGateway,
     this.inviteComposer,
     this.inviteToken,
   });
 
   final AuthGateway authGateway;
-  final SectionGateway sectionGateway;
+  final ScheduleStore scheduleStore;
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final String? inviteToken;
@@ -34,7 +33,7 @@ class ScheduleApp extends StatelessWidget {
       ),
       home: _AuthGate(
         authGateway: authGateway,
-        sectionGateway: sectionGateway,
+        scheduleStore: scheduleStore,
         staffGateway: staffGateway,
         inviteComposer: inviteComposer,
         inviteToken: inviteToken,
@@ -46,14 +45,14 @@ class ScheduleApp extends StatelessWidget {
 class _AuthGate extends StatefulWidget {
   const _AuthGate({
     required this.authGateway,
-    required this.sectionGateway,
+    required this.scheduleStore,
     required this.staffGateway,
     required this.inviteComposer,
     required this.inviteToken,
   });
 
   final AuthGateway authGateway;
-  final SectionGateway sectionGateway;
+  final ScheduleStore scheduleStore;
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final String? inviteToken;
@@ -104,7 +103,7 @@ class _AuthGateState extends State<_AuthGate> {
             if (widget.inviteToken != null && widget.staffGateway != null) {
               return _InviteAcceptance(
                 authGateway: widget.authGateway,
-                sectionGateway: widget.sectionGateway,
+                scheduleStore: widget.scheduleStore,
                 staffGateway: widget.staffGateway!,
                 inviteComposer: widget.inviteComposer,
                 inviteToken: widget.inviteToken!,
@@ -112,7 +111,7 @@ class _AuthGateState extends State<_AuthGate> {
             }
             return _ScheduleAccess(
               authGateway: widget.authGateway,
-              sectionGateway: widget.sectionGateway,
+              scheduleStore: widget.scheduleStore,
               staffGateway: widget.staffGateway,
               inviteComposer: widget.inviteComposer,
             );
@@ -126,14 +125,14 @@ class _AuthGateState extends State<_AuthGate> {
 class _InviteAcceptance extends StatefulWidget {
   const _InviteAcceptance({
     required this.authGateway,
-    required this.sectionGateway,
+    required this.scheduleStore,
     required this.staffGateway,
     required this.inviteComposer,
     required this.inviteToken,
   });
 
   final AuthGateway authGateway;
-  final SectionGateway sectionGateway;
+  final ScheduleStore scheduleStore;
   final StaffGateway staffGateway;
   final InviteComposer? inviteComposer;
   final String inviteToken;
@@ -182,7 +181,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
         }
         return _ScheduleAccess(
           authGateway: widget.authGateway,
-          sectionGateway: widget.sectionGateway,
+          scheduleStore: widget.scheduleStore,
           staffGateway: widget.staffGateway,
           inviteComposer: widget.inviteComposer,
         );
@@ -194,13 +193,13 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
 class _ScheduleAccess extends StatefulWidget {
   const _ScheduleAccess({
     required this.authGateway,
-    required this.sectionGateway,
+    required this.scheduleStore,
     required this.staffGateway,
     required this.inviteComposer,
   });
 
   final AuthGateway authGateway;
-  final SectionGateway sectionGateway;
+  final ScheduleStore scheduleStore;
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
 
@@ -212,7 +211,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
   late final Future<_ScheduleData> _data = _loadData();
 
   Future<_ScheduleData> _loadData() async {
-    final sections = await widget.sectionGateway.loadSections();
+    final sections = await widget.scheduleStore.sections();
     final canManageStaff = await widget.staffGateway?.canManageStaff() ?? false;
     return _ScheduleData(sections, canManageStaff);
   }
@@ -256,8 +255,8 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
 
         final now = DateTime.now();
         return MonthGridPage(
+          rules: ScheduleRules(widget.scheduleStore),
           month: DateTime(now.year, now.month),
-          sections: sections,
           onSignOut: widget.authGateway.signOut,
           onManageStaff:
               data?.canManageStaff == true &&
