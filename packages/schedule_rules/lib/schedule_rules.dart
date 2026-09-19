@@ -296,7 +296,8 @@ final class ScheduleRow {
   final String displayName;
   final String sectionId;
 
-  /// The final day a departing person is on the Schedule.
+  /// The Last day of someone who left in or before this month, even if they
+  /// have since come back.
   final DateTime? lastDay;
 }
 
@@ -760,7 +761,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           staffMemberId: assignment.staffMemberId,
           displayName: _database._names[assignment.staffMemberId]!,
           sectionId: assignment.sectionId,
-          lastDay: _database._lastDays[assignment.staffMemberId],
+          lastDay: assignment.through,
         ),
     ];
   }
@@ -789,7 +790,15 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   @override
   Future<void> writeCell(ScheduleCell cell) async {
     if (!await canEditSchedule()) throw const ScheduleEditRefused();
-    final lastDay = _database._lastDays[cell.staffMemberId];
+    final row = (await rows(
+      DateTime(cell.date.year, cell.date.month),
+    )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
+    if (row == null || row.sectionId != cell.sectionId) {
+      throw StateError(
+        'That Staff member is not on the Staff list in this Section',
+      );
+    }
+    final lastDay = row.lastDay;
     if (lastDay != null && cell.date.isAfter(lastDay)) {
       throw StateError('That day is after their Last day');
     }

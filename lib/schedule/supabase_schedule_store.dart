@@ -32,8 +32,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
       _client
           .from('schedule_row_assignments')
           .select(
-            'staff_member_id, display_name, last_day, section_id, '
-            'display_order, effective_from',
+            'staff_member_id, display_name, section_id, display_order, '
+            'effective_from, effective_through',
           )
           .lt('effective_from', _date(_nextMonthStart(month)))
           .or(
@@ -64,7 +64,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           staffMemberId: placement['staff_member_id'] as String,
           displayName: placement['display_name'] as String,
           sectionId: placement['section_id'] as String,
-          lastDay: _parseDate(placement['last_day']),
+          lastDay: _parseDate(placement['effective_through']),
         ),
     ];
     return [

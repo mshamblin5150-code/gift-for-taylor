@@ -1,7 +1,162 @@
--- Adding, changing and removing employees. A Last day deactivates the person
+-- Adding, changing and removing Staff members. A Last day deactivates the person
 -- at once; their later shifts are cleared and marked short. Past staff can be
 -- reactivated as the same person. Section and role changes are dated, so the
 -- month grid shows each person in the Section they're in during that month.
+
+-- A sign-in link is revoked, never deleted. Accepting a fresh Invite reuses
+-- the Staff member's row.
+alter table public.staff_accounts
+add column revoked_at timestamptz;
+
+create or replace function public.current_staff_role()
+returns public.staff_role
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member.role
+  from public.staff_accounts account
+  join public.staff_members member on member.id = account.staff_member_id
+  where account.auth_user_id = auth.uid()
+    and member.active
+    and account.accepted_invite_at is not null
+    and account.revoked_at is null
+$$;
+
+create or replace function public.current_staff_member_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member.id
+  from public.staff_accounts account
+  join public.staff_members member on member.id = account.staff_member_id
+  where account.auth_user_id = auth.uid()
+    and member.active
+    and account.accepted_invite_at is not null
+    and account.revoked_at is null
+$$;
+
+-- A deactivated person can no longer read even their own account.
+drop policy "staff can read their own account; managers read all accounts"
+on public.staff_accounts;
+
+create policy "staff can read their own account; managers read all accounts"
+on public.staff_accounts for select
+using (
+  (auth_user_id = auth.uid() and public.is_active_staff_member())
+  or public.can_manage_staff()
+);
+
+create or replace function public.accept_invite(p_token text)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_invite public.invites%rowtype;
+  v_email text;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in before accepting an Invite';
+  end if;
+
+  select invite.*
+  into v_invite
+  from public.invites invite
+  where invite.token_hash = extensions.digest(convert_to(p_token, 'UTF8'), 'sha256')
+    and invite.accepted_at is null
+    and invite.revoked_at is null
+    and invite.expires_at > now()
+  for update;
+
+  if not found then
+    raise exception 'This Invite is invalid, expired, or has already been used';
+  end if;
+
+  select auth_user.email
+  into v_email
+  from auth.users auth_user
+  where auth_user.id = auth.uid();
+  if v_email is null then
+    raise exception 'The signed-in account does not have an email address';
+  end if;
+
+  -- A returning Staff member's revoked link is replaced by the new one.
+  insert into public.staff_accounts (
+    staff_member_id,
+    auth_user_id,
+    personal_email,
+    accepted_invite_at
+  ) values (
+    v_invite.staff_member_id,
+    auth.uid(),
+    v_email,
+    now()
+  )
+  on conflict (staff_member_id) do update
+  set auth_user_id = excluded.auth_user_id,
+      personal_email = excluded.personal_email,
+      accepted_invite_at = excluded.accepted_invite_at,
+      revoked_at = null
+  where public.staff_accounts.revoked_at is not null;
+  if not found then
+    raise exception 'This Staff member has already accepted an Invite';
+  end if;
+
+  update public.invites
+  set accepted_at = now()
+  where id = v_invite.id;
+end;
+$$;
+
+create or replace function public.resend_staff_invite(p_staff_member_id uuid)
+returns table (staff_member_id uuid, cell_number text, token text)
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_cell_number text;
+  v_token text;
+begin
+  if not public.can_manage_staff() then
+    raise exception 'Only the Manager or administrator can manage the Staff list';
+  end if;
+
+  select member.cell_number
+  into v_cell_number
+  from public.staff_members member
+  where member.id = p_staff_member_id
+    and member.active;
+  if not found then
+    raise exception 'Staff member not found';
+  end if;
+  if exists (
+    select 1
+    from public.staff_accounts account
+    where account.staff_member_id = p_staff_member_id
+      and account.revoked_at is null
+  ) then
+    raise exception 'This Staff member has already accepted an Invite';
+  end if;
+
+  update public.invites
+  set revoked_at = now()
+  where invites.staff_member_id = p_staff_member_id
+    and accepted_at is null
+    and revoked_at is null;
+
+  v_token := public.issue_staff_invite(p_staff_member_id);
+  return query select p_staff_member_id, v_cell_number, v_token;
+end;
+$$;
 
 create type public.job_role as enum ('rn', 'lpn', 'cna', 'unit_clerk');
 
@@ -87,14 +242,14 @@ as $$
 $$;
 
 -- Every placement of each person, for building a month's rows. A month shows
--- each person once, in their latest placement that overlaps it.
+-- each person once, in their latest placement that overlaps it; if that
+-- placement has ended, they left, and its end is their Last day.
 create view public.schedule_row_assignments
 with (security_invoker = true)
 as
 select
   assignment.staff_member_id,
   member.display_name,
-  member.last_day,
   assignment.section_id,
   assignment.display_order,
   assignment.effective_from,
@@ -122,6 +277,7 @@ join public.staff_section_assignments assignment
   and assignment.effective_through is null
 left join public.staff_accounts account
   on account.staff_member_id = member.id
+  and account.revoked_at is null
 left join public.staff_job_roles job_role
   on job_role.staff_member_id = member.id
   and job_role.effective_through is null
@@ -212,7 +368,8 @@ begin
     raise exception 'That person is not on the Staff list';
   end if;
 
-  -- Placements planned to start after the Last day no longer apply.
+  -- Placements planned to start after the Last day never happened, so they
+  -- are plans to drop rather than history to keep.
   delete from public.staff_section_assignments
   where staff_member_id = p_staff_member_id
     and effective_from > p_last_day;
@@ -230,6 +387,10 @@ begin
     and (effective_through is null or effective_through > p_last_day);
 
   -- Sign-in stops at once; an unused Invite can no longer be accepted.
+  update public.staff_accounts
+  set revoked_at = now()
+  where staff_member_id = p_staff_member_id
+    and revoked_at is null;
   update public.invites
   set revoked_at = now()
   where staff_member_id = p_staff_member_id
@@ -297,8 +458,8 @@ revoke all on function public.set_staff_last_day(uuid, date) from public;
 grant execute on function public.set_staff_last_day(uuid, date) to authenticated;
 
 -- The returning person is the same Staff member, so their past months and
--- change log stay connected. Their old sign-in link is dropped: it is access,
--- not history, and they come back in through a fresh Invite.
+-- change log stay connected. Their old sign-in link stays revoked; they come
+-- back in through a fresh Invite.
 create function public.reactivate_staff_member(
   p_staff_member_id uuid,
   p_section_id uuid,
@@ -376,9 +537,6 @@ begin
     values (p_staff_member_id, v_job_role, p_first_day);
   end if;
 
-  delete from public.staff_accounts
-  where staff_member_id = p_staff_member_id;
-
   perform public.log_staff_change(
     p_staff_member_id, 'reactivated', null, v_section_name, p_first_day
   );
@@ -412,14 +570,22 @@ begin
     raise exception 'Only the Manager or administrator can manage the Staff list';
   end if;
 
+  -- Waits for a Last day being set at the same time.
+  perform 1
+  from public.staff_members member
+  where member.id = p_staff_member_id
+    and member.active
+  for update;
+  if not found then
+    raise exception 'That person is not on the Staff list';
+  end if;
+
   select assignment.*
   into v_current
   from public.staff_section_assignments assignment
-  join public.staff_members member on member.id = assignment.staff_member_id
   where assignment.staff_member_id = p_staff_member_id
     and assignment.effective_through is null
-    and member.active
-  for update of assignment;
+  for update;
   if not found then
     raise exception 'That person is not on the Staff list';
   end if;
@@ -560,8 +726,9 @@ revoke all on function public.change_staff_job_role(uuid, public.job_role, date)
 grant execute on function public.change_staff_job_role(uuid, public.job_role, date)
 to authenticated;
 
--- A cell can be saved for anyone placed in that Section during its month, up
--- to their Last day, including someone who has since left.
+-- A cell is saved on a person's row for its month: their latest placement
+-- overlapping it, which must be in p_section_id. A placement that has ended
+-- (they left) takes no cells after its end, even if they later came back.
 create or replace function public.save_schedule_cell(
   p_staff_member_id uuid,
   p_section_id uuid,
@@ -579,30 +746,31 @@ declare
   v_month_id uuid;
   v_new_code text := trim(coalesce(p_shift_code, ''));
   v_old_code text;
-  v_last_day date;
+  v_row public.staff_section_assignments%rowtype;
 begin
   if not public.can_edit_schedule() then
     raise exception 'Only the Manager can edit the Schedule';
   end if;
 
-  -- Waits for a Last day being set at the same time.
-  select member.last_day
-  into v_last_day
+  -- Waits for a Last day or Section change being made at the same time.
+  perform 1
   from public.staff_members member
   where member.id = p_staff_member_id
   for share;
-  if not found or not exists (
-    select 1
-    from public.staff_section_assignments assignment
-    where assignment.staff_member_id = p_staff_member_id
-      and assignment.section_id = p_section_id
-      and assignment.effective_from < (v_month_start + interval '1 month')::date
-      and (assignment.effective_through is null
-        or assignment.effective_through >= v_month_start)
-  ) then
+
+  select assignment.*
+  into v_row
+  from public.staff_section_assignments assignment
+  where assignment.staff_member_id = p_staff_member_id
+    and assignment.effective_from < (v_month_start + interval '1 month')::date
+    and (assignment.effective_through is null
+      or assignment.effective_through >= v_month_start)
+  order by assignment.effective_from desc
+  limit 1;
+  if not found or v_row.section_id <> p_section_id then
     raise exception 'That Staff member is not on the Staff list in this Section';
   end if;
-  if p_work_date > v_last_day then
+  if p_work_date > v_row.effective_through then
     raise exception 'That day is after their Last day';
   end if;
 

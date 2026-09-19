@@ -215,6 +215,15 @@ void main() {
       );
       final sept = await manager.monthGrid(september);
       expect(sept.shiftCodeFor('rn-1', DateTime(2026, 9, 10)), '7A');
+      // The month they left still ends at their old Last day.
+      expect(
+        sept.rows.singleWhere((row) => row.staffMemberId == 'rn-1').lastDay,
+        DateTime(2026, 9, 15),
+      );
+      await expectLater(
+        save('rn-1', DateTime(2026, 9, 20), '7A'),
+        throwsA(isA<StateError>()),
+      );
       expect(
         (await manager.staffChanges()).last.kind,
         StaffChangeKind.reactivated,
@@ -392,7 +401,7 @@ void main() {
     });
   });
 
-  test('only the Manager may change the Staff list', () async {
+  test('someone who may not edit cannot change the Staff list', () async {
     final restricted = InMemoryScheduleDatabase(
       sections: const [days],
       rows: const [dayNurse, secondDayNurse],

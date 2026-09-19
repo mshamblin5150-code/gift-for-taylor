@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(40);
 
 insert into auth.users (id, email)
 values
@@ -262,6 +262,31 @@ select is(
   0,
   'a deactivated person reads no short shifts'
 );
+select is(
+  (select count(*)::integer from public.schedule_changes),
+  0,
+  'a deactivated person reads no change log'
+);
+select is(
+  (select count(*)::integer from public.staff_changes),
+  0,
+  'a deactivated person reads no Staff list change log'
+);
+select is(
+  (select count(*)::integer from public.staff_section_assignments),
+  0,
+  'a deactivated person reads no Section placements'
+);
+select is(
+  (select count(*)::integer from public.staff_job_roles),
+  0,
+  'a deactivated person reads no roles'
+);
+select is(
+  (select count(*)::integer from public.staff_accounts),
+  0,
+  'a deactivated person cannot read even their own account'
+);
 
 -- A colleague still sees the past month as it was.
 select set_config(
@@ -316,10 +341,65 @@ select results_eq(
   'the same person is back on the Staff list, waiting for a fresh Invite'
 );
 
+create temporary table fresh_invite as
+select * from public.resend_staff_invite('00000000-0000-0000-0000-000000000197');
+
 select is(
-  (select count(*)::integer from public.resend_staff_invite('00000000-0000-0000-0000-000000000197')),
+  (select count(*)::integer from fresh_invite),
   1,
   'a fresh Invite can be sent to the returning person'
+);
+
+select throws_ok(
+  $$select public.save_schedule_cell(
+    '00000000-0000-0000-0000-000000000197',
+    '00000000-0000-0000-0000-000000000194',
+    '2027-01-20',
+    '7A'
+  )$$,
+  'That day is after their Last day',
+  'the month they left still ends at their old Last day'
+);
+
+reset role;
+select is(
+  (
+    select revoked_at is not null
+    from public.staff_accounts
+    where staff_member_id = '00000000-0000-0000-0000-000000000197'
+  ),
+  true,
+  'their old sign-in link is revoked, not deleted'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000192","role":"authenticated"}',
+  true
+);
+
+select is(
+  public.current_staff_role(),
+  null,
+  'the old sign-in link does not work before the fresh Invite is accepted'
+);
+
+select lives_ok(
+  format('select public.accept_invite(%L)', (select token from fresh_invite)),
+  'the returning person accepts the fresh Invite'
+);
+
+select is(
+  public.current_staff_role(),
+  'staff_member'::public.staff_role,
+  'the returning person can sign in again'
+);
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000191","role":"authenticated"}',
+  true
 );
 
 select is(

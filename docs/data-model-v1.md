@@ -27,8 +27,10 @@ details belong only in Supabase and must never be committed.
 Setting a Last day deactivates the person at once, closes their Section and
 role at that day, clears their later cells (logging each one) and records each
 cleared working shift in `short_shifts`. Reactivation sets them active again
-with a new dated Section placement and drops their old sign-in link, so they
-come back in through a fresh Invite.
+with a new dated Section placement. Their old sign-in link stays revoked
+(`staff_accounts.revoked_at`), so they come back in through a fresh Invite.
+Placements and roles planned to start after a Last day are the one exception
+to never deleting: they never took effect, so they are dropped.
 
 All shared tables use row-level security. Anonymous callers and authenticated
 accounts without an accepted Invite see no rows. Active Staff members can read
