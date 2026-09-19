@@ -9,6 +9,7 @@ import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
 import 'messages_composer.dart';
 import 'night_scheduler_page.dart';
+import 'requests_off_page.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -43,6 +44,7 @@ class MonthGridPage extends StatefulWidget {
 class _MonthGridPageState extends State<MonthGridPage> {
   late DateTime _month = DateTime(widget.month.year, widget.month.month);
   StreamSubscription<void>? _updates;
+  Timer? _requestNoticeTimer;
   MonthGrid? _grid;
   ChangeAnnouncement? _announcement;
 
@@ -50,6 +52,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   bool _canEdit = false;
   EditableSections _editable = const EditableSections.only({});
   Object? _loadError;
+  int _unreadRequests = 0;
   late ScheduleView _view = widget.staffMemberId == null
       ? ScheduleView.month
       : ScheduleView.person;
@@ -61,6 +64,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
     super.initState();
     _listen();
     _load();
+    _requestNoticeTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _refreshRequestNotices(),
+    );
   }
 
   void _listen() {
@@ -82,6 +89,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   @override
   void dispose() {
     _updates?.cancel();
+    _requestNoticeTimer?.cancel();
     super.dispose();
   }
 
@@ -93,6 +101,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _load() async {
+    _refreshRequestNotices();
     try {
       final month = _month;
       final (canEdit, editable) = await (
@@ -110,6 +119,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
       });
     } catch (error) {
       if (mounted) setState(() => _loadError = error);
+    }
+  }
+
+  Future<void> _refreshRequestNotices() async {
+    try {
+      final count = await widget.rules.unreadRequestOffNotices();
+      if (mounted) setState(() => _unreadRequests = count);
+    } catch (_) {
+      // The Schedule stays usable if notices are temporarily unavailable.
     }
   }
 
@@ -260,7 +278,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   void _open(Widget Function(BuildContext context) page) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: page));
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: page))
+        .then((_) => _refreshRequestNotices());
   }
 
   Future<void> _startMonth() async {
@@ -383,6 +403,18 @@ class _MonthGridPageState extends State<MonthGridPage> {
               onPressed: widget.onCalendarFeed,
               icon: const Icon(Icons.calendar_month_outlined),
             ),
+          IconButton(
+            tooltip: _canEdit ? 'Request off approval queue' : 'My Requests off',
+            onPressed: () => _open(
+              (context) =>
+                  RequestsOffPage(rules: widget.rules, isManager: _canEdit),
+            ),
+            icon: Badge(
+              isLabelVisible: _unreadRequests > 0,
+              label: Text('$_unreadRequests'),
+              child: const Icon(Icons.event_busy_outlined),
+            ),
+          ),
           if (_canEdit) ...[
             IconButton(
               tooltip: 'Change log',
