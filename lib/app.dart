@@ -213,7 +213,10 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
   Future<_ScheduleData> _loadData() async {
     final sections = await widget.scheduleStore.sections();
     final canManageStaff = await widget.staffGateway?.canManageStaff() ?? false;
-    return _ScheduleData(sections, canManageStaff);
+    final monthToCheck = await ScheduleRules(
+      widget.scheduleStore,
+    ).monthAwaitingConfirmation();
+    return _ScheduleData(sections, canManageStaff, monthToCheck);
   }
 
   @override
@@ -253,10 +256,11 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           );
         }
 
+        // A month loaded from the printed page opens first until it is checked.
         final now = DateTime.now();
         return MonthGridPage(
           rules: ScheduleRules(widget.scheduleStore),
-          month: DateTime(now.year, now.month),
+          month: data?.monthToCheck ?? DateTime(now.year, now.month),
           onSignOut: widget.authGateway.signOut,
           onManageStaff:
               data?.canManageStaff == true &&
@@ -278,8 +282,9 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
 }
 
 final class _ScheduleData {
-  const _ScheduleData(this.sections, this.canManageStaff);
+  const _ScheduleData(this.sections, this.canManageStaff, this.monthToCheck);
 
   final List<ScheduleSection> sections;
   final bool canManageStaff;
+  final DateTime? monthToCheck;
 }

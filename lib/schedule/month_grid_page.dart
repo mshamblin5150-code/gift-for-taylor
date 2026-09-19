@@ -122,6 +122,38 @@ class _MonthGridPageState extends State<MonthGridPage> {
     }
   }
 
+  Future<void> _confirmMonth() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirm ${DateFormat.yMMMM().format(_month)}?'),
+        content: const Text(
+          'This month then replaces your Excel file as the live Schedule.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await widget.rules.confirmLoadedMonth(_month);
+      await _reload();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("The month wasn't confirmed. Try again.")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final grid = _grid;
@@ -173,27 +205,69 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ),
       ),
       body: SafeArea(
-        child: switch ((grid, _loadError)) {
-          (null, null) => const Center(child: CircularProgressIndicator()),
-          (null, _) => const Center(
-            child: Text("The Schedule couldn't be loaded."),
-          ),
-          (final MonthGrid grid, _) => switch (_view) {
-            ScheduleView.month => _MonthView(grid: grid, onEdit: _edit),
-            ScheduleView.day => _DayView(
-              grid: grid,
-              day: _day,
-              onDayChanged: (day) => setState(() => _day = day),
-              onEdit: _edit,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_canEdit && grid != null && grid.awaitingConfirmation)
+              _ConfirmBanner(onConfirm: _confirmMonth),
+            Expanded(child: _body(grid)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _body(MonthGrid? grid) {
+    return switch ((grid, _loadError)) {
+      (null, null) => const Center(child: CircularProgressIndicator()),
+      (null, _) => const Center(
+        child: Text("The Schedule couldn't be loaded."),
+      ),
+      (final MonthGrid grid, _) => switch (_view) {
+        ScheduleView.month => _MonthView(grid: grid, onEdit: _edit),
+        ScheduleView.day => _DayView(
+          grid: grid,
+          day: _day,
+          onDayChanged: (day) => setState(() => _day = day),
+          onEdit: _edit,
+        ),
+        ScheduleView.person => _PersonView(
+          grid: grid,
+          staffMemberId: _personId ?? grid.rows.firstOrNull?.staffMemberId,
+          onPersonChanged: (id) => setState(() => _personId = id),
+          onEdit: _edit,
+        ),
+      },
+    };
+  }
+}
+
+class _ConfirmBanner extends StatelessWidget {
+  const _ConfirmBanner({required this.onConfirm});
+
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Check this month against your Excel file. '
+                'Tap any cell to correct it.',
+              ),
             ),
-            ScheduleView.person => _PersonView(
-              grid: grid,
-              staffMemberId: _personId ?? grid.rows.firstOrNull?.staffMemberId,
-              onPersonChanged: (id) => setState(() => _personId = id),
-              onEdit: _edit,
+            const SizedBox(width: 12),
+            FilledButton(
+              onPressed: onConfirm,
+              child: const Text('Confirm month'),
             ),
-          },
-        },
+          ],
+        ),
       ),
     );
   }

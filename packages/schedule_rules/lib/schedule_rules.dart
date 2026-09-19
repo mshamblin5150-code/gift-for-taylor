@@ -2,6 +2,8 @@ library;
 
 import 'dart:async';
 
+export 'src/first_month_transcript.dart';
+
 /// Every schedule rule is reached through this public interface.
 abstract interface class ScheduleRules {
   /// Rules backed by [store], the database seen by one signed-in person.
@@ -31,6 +33,15 @@ abstract interface class ScheduleRules {
 
   /// Emits whenever any scheduler saves a change in [month].
   Stream<void> monthUpdates(DateTime month);
+
+  /// The month loaded from the printed page that the Manager has not yet
+  /// checked, if any.
+  Future<DateTime?> monthAwaitingConfirmation();
+
+  /// The Manager's check of the loaded month is done: it replaces her Excel
+  /// file and is released. Corrections made while checking it need no Change
+  /// announcement.
+  Future<void> confirmLoadedMonth(DateTime month);
 }
 
 /// The database behind the rules. The in-memory stand-in and the Supabase
@@ -52,6 +63,11 @@ abstract interface class ScheduleStore {
   Stream<void> monthUpdates(DateTime month);
 
   Future<bool> canEditSchedule();
+
+  /// Months loaded from the printed page and not yet confirmed, earliest first.
+  Future<List<DateTime>> monthsAwaitingConfirmation();
+
+  Future<void> confirmLoadedMonth(DateTime month);
 }
 
 /// Thrown when the signed-in person may not change the Schedule.
@@ -195,11 +211,15 @@ final class MonthGrid {
     required this.month,
     required this.sections,
     required this.rows,
+    required this.awaitingConfirmation,
   });
 
   final DateTime month;
   final List<ScheduleSection> sections;
   final List<ScheduleRow> rows;
+
+  /// Loaded from the printed page and not yet checked by the Manager.
+  final bool awaitingConfirmation;
   final Map<String, String> _codes;
 
   /// Published values of cells whose current code differs from them.
@@ -292,6 +312,7 @@ final class _ScheduleRules implements ScheduleRules {
       _store.rows(start),
       _store.cellsForMonth(start),
       _store.changesForMonth(start),
+      _store.monthsAwaitingConfirmation(),
     ]);
     final cells = results[2] as List<ScheduleCell>;
     final changes = results[3] as List<ScheduleChange>;
@@ -315,6 +336,7 @@ final class _ScheduleRules implements ScheduleRules {
       month: start,
       sections: results[0] as List<ScheduleSection>,
       rows: results[1] as List<ScheduleRow>,
+      awaitingConfirmation: (results[4] as List<DateTime>).contains(start),
     );
   }
 
@@ -330,6 +352,16 @@ final class _ScheduleRules implements ScheduleRules {
 
   @override
   Future<bool> canEditSchedule() => _store.canEditSchedule();
+
+  @override
+  Future<DateTime?> monthAwaitingConfirmation() async {
+    return (await _store.monthsAwaitingConfirmation()).firstOrNull;
+  }
+
+  @override
+  Future<void> confirmLoadedMonth(DateTime month) {
+    return _store.confirmLoadedMonth(DateTime(month.year, month.month));
+  }
 }
 
 /// An in-memory stand-in for the database, shared by every scheduler in a
@@ -353,10 +385,23 @@ final class InMemoryScheduleDatabase {
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
   final StreamController<DateTime> _updates = StreamController.broadcast();
+  final List<DateTime> _awaitingConfirmation = [];
+
+  /// Loads [month] as transcribed from the printed page, without logging a
+  /// change, to wait for the Manager's check.
+  void loadFromPage(DateTime month, List<ScheduleCell> cells) {
+    for (final cell in cells) {
+      _cells[_cellKey(cell.staffMemberId, cell.date)] = cell;
+    }
+    _awaitingConfirmation.add(DateTime(month.year, month.month));
+  }
 
   /// Marks every logged change announced.
-  void markAllAnnounced() {
+  void markAllAnnounced() => _markAnnounced((_) => true);
+
+  void _markAnnounced(bool Function(ScheduleChange change) where) {
     for (final (index, change) in _changes.indexed) {
+      if (!where(change)) continue;
       _changes[index] = ScheduleChange(
         staffMemberId: change.staffMemberId,
         date: change.date,
@@ -440,6 +485,20 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   @override
   Future<bool> canEditSchedule() async =>
       _database.editors?.contains(_actingAs) ?? true;
+
+  @override
+  Future<List<DateTime>> monthsAwaitingConfirmation() async {
+    return [..._database._awaitingConfirmation]..sort();
+  }
+
+  @override
+  Future<void> confirmLoadedMonth(DateTime month) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (!_database._awaitingConfirmation.remove(month)) {
+      throw StateError('There is no loaded month waiting to be confirmed');
+    }
+    _database._markAnnounced((change) => _inMonth(change.date, month));
+  }
 }
 
 DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);

@@ -34,6 +34,40 @@ explicit sign-out. Before production use, create the Manager's `staff_members`,
 dashboard; include the Manager's personal email on the account row. No Staff
 names belong in source control.
 
+## Load the first month
+
+The current month is transcribed from photos of the printed book page and
+loaded straight into production. Photos, transcripts, and the generated SQL hold
+real staff names, so keep them only in the gitignored `private/` folder and never
+paste them into an issue.
+
+1. Transcribe the page into `private/first-month.csv`: a header row
+   `Section,Name,Cell,1,2,…` through the last day of the month, then one row per
+   person in page order. Section names must match the `sections` table exactly,
+   and anyone already on the Staff list must be spelled exactly as they are
+   there, or the load adds them a second time.
+   `Cell` is the number their Invite is texted to. Staff enter their own email
+   when they accept, so no email is needed. Leave a blank cell blank and write
+   every Shift code as printed.
+2. Turn it into one SQL statement:
+
+   ```powershell
+   cd packages/schedule_rules
+   dart run bin/first_month_sql.dart 2026-10 ../../private/first-month.csv |
+     Out-File -Encoding utf8 ../../private/first-month.sql
+   ```
+
+3. Paste `private/first-month.sql` into the Supabase dashboard SQL editor and run
+   it. The load is all-or-nothing. It adds everyone not already on the Staff
+   list (matched by exact name) to the bottom of their Section with their cell
+   number. It sends no Invites; send each one from the Staff list with
+   **Resend Invite**. Anyone left without a cell number shows "No cell number
+   yet" and can't be invited until one is added. The load refuses a month that
+   already exists.
+4. The Manager opens that month in the app, checks it against her Excel file,
+   taps any misread cell to correct it (each correction goes into the change
+   log), and taps **Confirm month**. Confirming releases the month.
+
 ## Verify
 
 ```powershell

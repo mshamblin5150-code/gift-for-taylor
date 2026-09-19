@@ -51,11 +51,15 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ScheduleCell>> cellsForMonth(DateTime month) async {
-    final rows = await _client
-        .from('schedule_cells')
-        .select('staff_member_id, section_id, work_date, shift_code')
-        .gte('work_date', _date(_monthStart(month)))
-        .lt('work_date', _date(_nextMonthStart(month)));
+    final rows = await _allPages(
+      (from, to) => _client
+          .from('schedule_cells')
+          .select('staff_member_id, section_id, work_date, shift_code')
+          .gte('work_date', _date(_monthStart(month)))
+          .lt('work_date', _date(_nextMonthStart(month)))
+          .order('id')
+          .range(from, to),
+    );
     return rows
         .map(
           (row) => ScheduleCell(
@@ -70,15 +74,19 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ScheduleChange>> changesForMonth(DateTime month) async {
-    final rows = await _client
-        .from('schedule_changes')
-        .select(
-          'staff_member_id, work_date, old_shift_code, new_shift_code, '
-          'changed_by_staff_member_id, changed_at, announced_at',
-        )
-        .gte('work_date', _date(_monthStart(month)))
-        .lt('work_date', _date(_nextMonthStart(month)))
-        .order('changed_at');
+    final rows = await _allPages(
+      (from, to) => _client
+          .from('schedule_changes')
+          .select(
+            'staff_member_id, work_date, old_shift_code, new_shift_code, '
+            'changed_by_staff_member_id, changed_at, announced_at',
+          )
+          .gte('work_date', _date(_monthStart(month)))
+          .lt('work_date', _date(_nextMonthStart(month)))
+          .order('changed_at')
+          .order('id')
+          .range(from, to),
+    );
     return rows
         .map(
           (row) => ScheduleChange(
@@ -141,6 +149,40 @@ final class SupabaseScheduleStore implements ScheduleStore {
   @override
   Future<bool> canEditSchedule() async {
     return await _client.rpc('can_edit_schedule') as bool? ?? false;
+  }
+
+  @override
+  Future<List<DateTime>> monthsAwaitingConfirmation() async {
+    final rows = await _client
+        .from('schedule_months')
+        .select('month_start')
+        .not('loaded_from_page_at', 'is', null)
+        .isFilter('confirmed_at', null)
+        .order('month_start');
+    return [
+      for (final row in rows) DateTime.parse(row['month_start'] as String),
+    ];
+  }
+
+  @override
+  Future<void> confirmLoadedMonth(DateTime month) async {
+    await _client.rpc<void>(
+      'confirm_loaded_month',
+      params: {'p_month_start': _date(_monthStart(month))},
+    );
+  }
+
+  /// A full month has more cells than the API returns in one response.
+  Future<List<Map<String, dynamic>>> _allPages(
+    Future<List<Map<String, dynamic>>> Function(int from, int to) page,
+  ) async {
+    const pageSize = 1000;
+    final rows = <Map<String, dynamic>>[];
+    for (var from = 0; ; from += pageSize) {
+      final batch = await page(from, from + pageSize - 1);
+      rows.addAll(batch);
+      if (batch.length < pageSize) return rows;
+    }
   }
 }
 

@@ -224,4 +224,40 @@ void main() {
 
     expect(find.text('Other Shift code'), findsNothing);
   });
+
+  group('a month loaded from the printed page', () {
+    setUp(() {
+      database.loadFromPage(september, [
+        ScheduleCell(
+          staffMemberId: 'rn-1',
+          sectionId: 'days',
+          date: september18,
+          shiftCode: '4P-8A',
+        ),
+      ]);
+    });
+
+    testWidgets('the Manager checks it and confirms it', (tester) async {
+      await pumpGrid(tester);
+
+      expect(find.text('4P-8A'), findsOneWidget);
+      expect(find.textContaining('Check this month'), findsOneWidget);
+
+      await tester.tap(find.text('Confirm month'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Check this month'), findsNothing);
+      expect(find.text('4P-8A'), findsOneWidget);
+    });
+
+    testWidgets('someone who cannot edit is not asked to confirm it', (
+      tester,
+    ) async {
+      await pumpGrid(tester, actingAs: 'rn-1');
+
+      expect(find.text('Confirm month'), findsNothing);
+    });
+  });
 }

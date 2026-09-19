@@ -189,17 +189,22 @@ class _SectionStaffList extends StatelessWidget {
                     ),
                     title: Text(member.displayName),
                     subtitle: Text(
-                      member.personalEmail ?? '${member.cellNumber} · Invite pending',
+                      member.personalEmail ??
+                          (member.cellNumber == null
+                              ? 'No cell number yet'
+                              : '${member.cellNumber} · Invite pending'),
                     ),
-                    trailing: member.personalEmail == null
-                        ? IconButton(
+                    trailing: member.personalEmail != null
+                        ? const Tooltip(
+                            message: 'Invite accepted',
+                            child: Icon(Icons.check_circle_outline),
+                          )
+                        : member.cellNumber == null
+                        ? null
+                        : IconButton(
                             tooltip: 'Resend Invite to ${member.displayName}',
                             onPressed: () => onResendInvite(member),
                             icon: const Icon(Icons.sms_outlined),
-                          )
-                        : const Tooltip(
-                            message: 'Invite accepted',
-                            child: Icon(Icons.check_circle_outline),
                           ),
                   );
                 },
