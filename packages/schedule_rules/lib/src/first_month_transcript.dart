@@ -9,10 +9,7 @@ import 'dart:convert';
 final class FirstMonthTranscript {
   FirstMonthTranscript._(this.month, this.rows);
 
-  factory FirstMonthTranscript.parseCsv(
-    String csv, {
-    required DateTime month,
-  }) {
+  factory FirstMonthTranscript.parseCsv(String csv, {required DateTime month}) {
     final firstDay = DateTime(month.year, month.month);
     final days = DateTime(month.year, month.month + 1, 0).day;
     final lines = _parseCsv(csv);

@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'cell_edit_sheet.dart';
+import 'change_log_page.dart';
+import 'night_scheduler_page.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -34,7 +36,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
   late DateTime _month = DateTime(widget.month.year, widget.month.month);
   StreamSubscription<void>? _updates;
   MonthGrid? _grid;
+
+  /// The Manager: may confirm the month and manage the Night scheduler.
   bool _canEdit = false;
+  EditableSections _editable = const EditableSections.only({});
   Object? _loadError;
   ScheduleView _view = ScheduleView.month;
   late DateTime _day = _defaultDay();
@@ -79,11 +84,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _load() async {
     try {
       final month = _month;
-      final canEdit = await widget.rules.canEditSchedule();
-      final grid = await widget.rules.monthGrid(month);
+      final (canEdit, editable, grid) = await (
+        widget.rules.canEditSchedule(),
+        widget.rules.editableSections(),
+        widget.rules.monthGrid(month),
+      ).wait;
       if (!mounted || month != _month) return;
       setState(() {
         _canEdit = canEdit;
+        _editable = editable;
         _grid = grid;
         _loadError = null;
       });
@@ -104,7 +113,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _edit(ScheduleRow row, DateTime date) async {
     final grid = _grid;
-    if (!_canEdit || grid == null) return;
+    if (!_editable.contains(row.sectionId) || grid == null) return;
     if (grid.status == MonthStatus.notStarted) {
       // An edit would create the month empty, and it could then no longer be
       // started from last month.
@@ -198,6 +207,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
         const SnackBar(content: Text("The month wasn't confirmed. Try again.")),
       );
     }
+  }
+
+  void _open(Widget Function(BuildContext context) page) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: page));
   }
 
   Future<void> _startMonth() async {
@@ -313,6 +326,23 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ],
         ),
         actions: [
+          if (_canEdit) ...[
+            IconButton(
+              tooltip: 'Change log',
+              onPressed: () => _open(
+                (context) => ChangeLogPage(rules: widget.rules, month: _month),
+              ),
+              icon: const Icon(Icons.history),
+            ),
+            IconButton(
+              tooltip: 'Night scheduler',
+              onPressed: () => _open(
+                (context) =>
+                    NightSchedulerPage(rules: widget.rules, month: _month),
+              ),
+              icon: const Icon(Icons.nightlight_outlined),
+            ),
+          ],
           if (widget.printBookPage case final printBookPage?)
             IconButton(
               tooltip: 'Print the book page',
