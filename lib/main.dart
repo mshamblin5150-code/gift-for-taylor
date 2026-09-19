@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'auth/auth_gateway.dart';
+import 'schedule/schedule_gateway.dart';
 import 'schedule/section_gateway.dart';
 import 'staff/invite_composer.dart';
 import 'staff/staff_gateway.dart';
@@ -30,6 +31,7 @@ Future<void> main() async {
     ScheduleApp(
       authGateway: SupabaseAuthGateway(client),
       sectionGateway: SupabaseSectionGateway(client),
+      scheduleGateway: SupabaseScheduleGateway(client),
       staffGateway: SupabaseStaffGateway(client),
       inviteComposer: SmsInviteComposer(Uri.base),
       inviteToken: Uri.base.queryParameters['invite'],

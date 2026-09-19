@@ -1,5 +1,7 @@
 library;
 
+export 'src/first_month_transcript.dart';
+
 /// Every schedule rule is reached through this public interface.
 abstract interface class ScheduleRules {
   factory ScheduleRules.inMemory({required List<ScheduleSection> sections}) =
@@ -32,10 +34,91 @@ final class ScheduleSection {
 }
 
 final class MonthGrid {
-  const MonthGrid({required this.sections, required this.cells});
+  const MonthGrid({
+    required this.sections,
+    required this.cells,
+    this.rows = const [],
+    this.started = false,
+    this.awaitingConfirmation = false,
+  });
+
+  /// Lays out a month the way the book page does: each person once, in the
+  /// Section their cells are in, in Staff list order. Current Staff members
+  /// placed by the end of the month get a row even before they have cells.
+  /// [displayNames] names people with cells who are no longer placed.
+  factory MonthGrid.arrange({
+    required DateTime month,
+    required List<ScheduleSection> sections,
+    required List<ScheduleCell> cells,
+    required List<StaffPlacement> staff,
+    Map<String, String> displayNames = const {},
+    bool started = false,
+    bool awaitingConfirmation = false,
+  }) {
+    final monthEnd = DateTime(month.year, month.month + 1, 0);
+    final placements = {for (final person in staff) person.staffMemberId: person};
+    final sectionByPerson = <String, String>{};
+    for (final cell in [...cells]..sort((a, b) => a.date.compareTo(b.date))) {
+      sectionByPerson.putIfAbsent(cell.staffMemberId, () => cell.sectionId);
+    }
+    for (final person in staff) {
+      if (!person.effectiveFrom.isAfter(monthEnd)) {
+        sectionByPerson.putIfAbsent(person.staffMemberId, () => person.sectionId);
+      }
+    }
+
+    final rows = [
+      for (final MapEntry(key: staffMemberId, value: sectionId)
+          in sectionByPerson.entries)
+        ScheduleRow(
+          staffMemberId: staffMemberId,
+          displayName:
+              placements[staffMemberId]?.displayName ??
+              displayNames[staffMemberId] ??
+              '',
+          sectionId: sectionId,
+        ),
+    ];
+    int? orderOf(ScheduleRow row) {
+      final placement = placements[row.staffMemberId];
+      return placement?.sectionId == row.sectionId
+          ? placement!.displayOrder
+          : null;
+    }
+
+    rows.sort((left, right) {
+      final leftOrder = orderOf(left);
+      final rightOrder = orderOf(right);
+      if (leftOrder != null && rightOrder != null) {
+        return leftOrder.compareTo(rightOrder);
+      }
+      if (leftOrder != null) return -1;
+      if (rightOrder != null) return 1;
+      return left.displayName.compareTo(right.displayName);
+    });
+
+    return MonthGrid(
+      sections: sections,
+      cells: cells,
+      rows: List.unmodifiable(rows),
+      started: started,
+      awaitingConfirmation: awaitingConfirmation,
+    );
+  }
 
   final List<ScheduleSection> sections;
   final List<ScheduleCell> cells;
+  final List<ScheduleRow> rows;
+
+  /// Whether the month exists yet, so its cells can be edited.
+  final bool started;
+
+  /// Loaded from the printed page and not yet checked by the Manager.
+  final bool awaitingConfirmation;
+
+  List<ScheduleRow> rowsIn(String sectionId) {
+    return rows.where((row) => row.sectionId == sectionId).toList();
+  }
 
   String? shiftCodeFor(String staffMemberId, DateTime date) {
     for (final cell in cells) {
@@ -46,6 +129,35 @@ final class MonthGrid {
     }
     return null;
   }
+}
+
+final class ScheduleRow {
+  const ScheduleRow({
+    required this.staffMemberId,
+    required this.displayName,
+    required this.sectionId,
+  });
+
+  final String staffMemberId;
+  final String displayName;
+  final String sectionId;
+}
+
+/// A Staff member's current place on the Staff list.
+final class StaffPlacement {
+  const StaffPlacement({
+    required this.staffMemberId,
+    required this.displayName,
+    required this.sectionId,
+    required this.displayOrder,
+    required this.effectiveFrom,
+  });
+
+  final String staffMemberId;
+  final String displayName;
+  final String sectionId;
+  final int displayOrder;
+  final DateTime effectiveFrom;
 }
 
 final class ScheduleCell {
@@ -126,4 +238,3 @@ String _cellKey(String staffMemberId, DateTime date) {
   return '$staffMemberId:${date.year}-${date.month}-${date.day}';
 }
 
-// TODO: Export any libraries intended for clients of this package.

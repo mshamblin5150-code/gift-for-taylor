@@ -19,7 +19,9 @@ final class StaffListMember {
 
   final String id;
   final String displayName;
-  final String cellNumber;
+
+  /// Missing for people loaded from the printed page until one is added.
+  final String? cellNumber;
   final String sectionId;
   final int displayOrder;
   final String? personalEmail;
@@ -136,7 +138,7 @@ final class SupabaseStaffGateway implements StaffGateway {
             (row) => StaffListMember(
               id: row['id'] as String,
               displayName: row['display_name'] as String,
-              cellNumber: row['cell_number'] as String,
+              cellNumber: row['cell_number'] as String?,
               sectionId: row['section_id'] as String,
               displayOrder: row['display_order'] as int,
               personalEmail: row['personal_email'] as String?,

@@ -4,6 +4,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'auth/auth_gateway.dart';
 import 'auth/sign_in_page.dart';
 import 'schedule/month_grid_page.dart';
+import 'schedule/schedule_gateway.dart';
 import 'schedule/section_gateway.dart';
 import 'staff/staff_gateway.dart';
 import 'staff/staff_list_page.dart';
@@ -13,6 +14,7 @@ class ScheduleApp extends StatelessWidget {
     super.key,
     required this.authGateway,
     required this.sectionGateway,
+    this.scheduleGateway,
     this.staffGateway,
     this.inviteComposer,
     this.inviteToken,
@@ -20,6 +22,7 @@ class ScheduleApp extends StatelessWidget {
 
   final AuthGateway authGateway;
   final SectionGateway sectionGateway;
+  final ScheduleGateway? scheduleGateway;
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final String? inviteToken;
@@ -35,6 +38,7 @@ class ScheduleApp extends StatelessWidget {
       home: _AuthGate(
         authGateway: authGateway,
         sectionGateway: sectionGateway,
+        scheduleGateway: scheduleGateway,
         staffGateway: staffGateway,
         inviteComposer: inviteComposer,
         inviteToken: inviteToken,
@@ -47,6 +51,7 @@ class _AuthGate extends StatefulWidget {
   const _AuthGate({
     required this.authGateway,
     required this.sectionGateway,
+    required this.scheduleGateway,
     required this.staffGateway,
     required this.inviteComposer,
     required this.inviteToken,
@@ -54,6 +59,7 @@ class _AuthGate extends StatefulWidget {
 
   final AuthGateway authGateway;
   final SectionGateway sectionGateway;
+  final ScheduleGateway? scheduleGateway;
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final String? inviteToken;
@@ -105,6 +111,7 @@ class _AuthGateState extends State<_AuthGate> {
               return _InviteAcceptance(
                 authGateway: widget.authGateway,
                 sectionGateway: widget.sectionGateway,
+                scheduleGateway: widget.scheduleGateway,
                 staffGateway: widget.staffGateway!,
                 inviteComposer: widget.inviteComposer,
                 inviteToken: widget.inviteToken!,
@@ -113,6 +120,7 @@ class _AuthGateState extends State<_AuthGate> {
             return _ScheduleAccess(
               authGateway: widget.authGateway,
               sectionGateway: widget.sectionGateway,
+              scheduleGateway: widget.scheduleGateway,
               staffGateway: widget.staffGateway,
               inviteComposer: widget.inviteComposer,
             );
@@ -127,6 +135,7 @@ class _InviteAcceptance extends StatefulWidget {
   const _InviteAcceptance({
     required this.authGateway,
     required this.sectionGateway,
+    required this.scheduleGateway,
     required this.staffGateway,
     required this.inviteComposer,
     required this.inviteToken,
@@ -134,6 +143,7 @@ class _InviteAcceptance extends StatefulWidget {
 
   final AuthGateway authGateway;
   final SectionGateway sectionGateway;
+  final ScheduleGateway? scheduleGateway;
   final StaffGateway staffGateway;
   final InviteComposer? inviteComposer;
   final String inviteToken;
@@ -183,6 +193,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
         return _ScheduleAccess(
           authGateway: widget.authGateway,
           sectionGateway: widget.sectionGateway,
+          scheduleGateway: widget.scheduleGateway,
           staffGateway: widget.staffGateway,
           inviteComposer: widget.inviteComposer,
         );
@@ -195,12 +206,14 @@ class _ScheduleAccess extends StatefulWidget {
   const _ScheduleAccess({
     required this.authGateway,
     required this.sectionGateway,
+    required this.scheduleGateway,
     required this.staffGateway,
     required this.inviteComposer,
   });
 
   final AuthGateway authGateway;
   final SectionGateway sectionGateway;
+  final ScheduleGateway? scheduleGateway;
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
 
@@ -258,6 +271,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
         return MonthGridPage(
           month: DateTime(now.year, now.month),
           sections: sections,
+          scheduleGateway: widget.scheduleGateway,
           onSignOut: widget.authGateway.signOut,
           onManageStaff:
               data?.canManageStaff == true &&

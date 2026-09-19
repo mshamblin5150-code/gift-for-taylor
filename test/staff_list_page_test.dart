@@ -71,6 +71,39 @@ void main() {
     expect(gateway.resentStaffMemberId, 'staff-1');
     expect(composer.openedToken, 'fresh-token');
   });
+
+  testWidgets('a person loaded from the printed page waits for a cell number', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(
+        sections: [days],
+        members: [
+          StaffListMember(
+            id: 'page-1',
+            displayName: 'Page Nurse',
+            cellNumber: null,
+            sectionId: 'days',
+            displayOrder: 0,
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Page Nurse'), findsOneWidget);
+    expect(find.text('No cell number yet'), findsOneWidget);
+    expect(find.byTooltip('Resend Invite to Page Nurse'), findsNothing);
+  });
 }
 
 final class _FakeStaffGateway implements StaffGateway {
