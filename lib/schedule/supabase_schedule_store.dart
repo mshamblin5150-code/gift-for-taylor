@@ -271,6 +271,25 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
+  Future<void> writeCellPair(SaveCellPair action) async {
+    await _client.rpc<void>(
+      'save_schedule_cell_pair',
+      params: {
+        'p_first_staff_member_id': action.first.staffMemberId,
+        'p_first_section_id': action.first.sectionId,
+        'p_first_work_date': _date(action.first.date),
+        'p_first_expected_code': action.expectedFirstCode,
+        'p_first_new_code': action.first.shiftCode,
+        'p_second_staff_member_id': action.second.staffMemberId,
+        'p_second_section_id': action.second.sectionId,
+        'p_second_work_date': _date(action.second.date),
+        'p_second_expected_code': action.expectedSecondCode,
+        'p_second_new_code': action.second.shiftCode,
+      },
+    );
+  }
+
+  @override
   Stream<void> monthUpdates(DateTime month) {
     late final StreamController<void> controller;
     RealtimeChannel? channel;

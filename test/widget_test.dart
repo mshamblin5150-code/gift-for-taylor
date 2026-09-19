@@ -1,6 +1,8 @@
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:er_schedule/schedule/print_wording_gateway.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
@@ -188,6 +190,142 @@ void main() {
     expect(find.text('T'), findsWidgets);
     expect(find.byKey(const ValueKey('weekday-2026-09-18')), findsNWidgets(2));
     expect(find.byKey(const ValueKey('weekend-2026-09-19')), findsNWidgets(2));
+  });
+
+  testWidgets('dragging across rows swaps Shift codes and Undo restores them', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: september18,
+        shiftCode: '7A',
+      ),
+    );
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-2',
+        sectionId: 'nights',
+        date: september18,
+        shiftCode: 'X',
+      ),
+    );
+    await pumpGrid(tester);
+    final source = tester.getCenter(cell('rn-1', september18));
+    final target = tester.getCenter(cell('rn-2', september18));
+    final gesture = await tester.startGesture(source);
+    await gesture.moveBy(const Offset(20, 0));
+    await tester.pump();
+    await gesture.moveTo(target);
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      (await manager.monthGrid(september)).shiftCodeFor('rn-1', september18),
+      'X',
+    );
+    expect(
+      (await manager.monthGrid(september)).shiftCodeFor('rn-2', september18),
+      '7A',
+    );
+    await tester.tap(find.text('Undo'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      (await manager.monthGrid(september)).shiftCodeFor('rn-1', september18),
+      '7A',
+    );
+    expect(
+      (await manager.monthGrid(september)).shiftCodeFor('rn-2', september18),
+      'X',
+    );
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('Ctrl-drop copies a Shift code to another day', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final nextDay = DateTime(2026, 9, 19);
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: september18,
+        shiftCode: '7A',
+      ),
+    );
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: nextDay,
+        shiftCode: 'X',
+      ),
+    );
+    await pumpGrid(tester);
+    final source = tester.getCenter(cell('rn-1', september18));
+    final target = tester.getCenter(cell('rn-1', nextDay));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    final gesture = await tester.startGesture(source);
+    await gesture.moveBy(const Offset(20, 0));
+    await tester.pump();
+    await gesture.moveTo(target);
+    await tester.pump();
+    await gesture.up();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(
+      (await manager.monthGrid(september)).shiftCodeFor('rn-1', september18),
+      '7A',
+    );
+    expect(
+      (await manager.monthGrid(september)).shiftCodeFor('rn-1', nextDay),
+      '7A',
+    );
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('phone long press picks up a shift', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final nextDay = DateTime(2026, 9, 19);
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: september18,
+        shiftCode: '7A',
+      ),
+    );
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: nextDay,
+        shiftCode: 'X',
+      ),
+    );
+    await pumpGrid(tester);
+    final source = tester.getCenter(cell('rn-1', september18));
+    final target = tester.getCenter(cell('rn-1', nextDay));
+    final gesture = await tester.startGesture(source);
+    await tester.pump(const Duration(milliseconds: 700));
+    await gesture.moveTo(target);
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+    expect(
+      (await manager.monthGrid(september)).shiftCodeFor('rn-1', september18),
+      'X',
+    );
+    expect(
+      (await manager.monthGrid(september)).shiftCodeFor('rn-1', nextDay),
+      '7A',
+    );
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets(
