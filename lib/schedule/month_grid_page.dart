@@ -22,6 +22,7 @@ class MonthGridPage extends StatefulWidget {
     required this.month,
     this.staffMemberId,
     this.onSignOut,
+    this.onCalendarFeed,
     this.onManageStaff,
     this.messagesComposer,
     this.noticeGateway,
@@ -32,6 +33,7 @@ class MonthGridPage extends StatefulWidget {
   final DateTime month;
   final String? staffMemberId;
   final VoidCallback? onSignOut;
+  final VoidCallback? onCalendarFeed;
   final VoidCallback? onManageStaff;
   final MessagesComposer? messagesComposer;
   final NoticeGateway? noticeGateway;
@@ -386,6 +388,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
               onPressed: () =>
                   _open((context) => NoticesPage(gateway: gateway)),
               icon: const Icon(Icons.notifications_outlined),
+            ),
+          if (widget.onCalendarFeed != null)
+            IconButton(
+              tooltip: 'My Calendar feed',
+              onPressed: widget.onCalendarFeed,
+              icon: const Icon(Icons.calendar_month_outlined),
             ),
           if (_canEdit) ...[
             IconButton(

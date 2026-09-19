@@ -54,6 +54,20 @@ device. A Month release creates a notice for each active Staff member; a
 post-release shift change creates one only for the affected Staff member when
 the scheduler marks the text announcement sent.
 
+## Calendar feed
+
+Deploy the Calendar feed Edge Function alongside the database migrations:
+
+```powershell
+supabase functions deploy calendar-feed --no-verify-jwt
+```
+
+The function uses Supabase's `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+environment values. Each signed-in Staff member opens **My Calendar feed**, creates
+a link, and copies it into their phone calendar's subscription screen. The link
+is shown only when created or reset; resetting invalidates the previous one.
+Keep the link private because a calendar app reads it without signing in.
+
 Supabase Flutter persists and refreshes the session in browser storage. The app
 offers one emailed-code flow for accepting an Invite and signing in, and exposes
 explicit sign-out. Before production use, create the Manager's `staff_members`,
@@ -111,6 +125,7 @@ flutter test
 dart test packages/schedule_rules/test
 supabase start
 supabase test db
+deno test supabase/functions/calendar-feed/index_test.ts
 flutter build web --release
 ```
 

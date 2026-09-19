@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'auth/auth_gateway.dart';
+import 'calendar/calendar_feed_page.dart';
 import 'notifications/notice_gateway.dart';
 import 'schedule/book_page_printer.dart';
 import 'schedule/messages_composer.dart';
@@ -42,6 +43,7 @@ Future<void> main() async {
       ),
       inviteToken: Uri.base.queryParameters['invite'],
       printBookPage: printBookPage,
+      calendarFeedGateway: SupabaseCalendarFeedGateway(client, supabaseUrl),
     ),
   );
 }

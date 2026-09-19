@@ -3,6 +3,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 import 'auth/auth_gateway.dart';
 import 'auth/sign_in_page.dart';
+import 'calendar/calendar_feed_page.dart';
 import 'notifications/notice_gateway.dart';
 import 'schedule/messages_composer.dart';
 import 'schedule/month_grid_page.dart';
@@ -20,6 +21,7 @@ class ScheduleApp extends StatelessWidget {
     this.noticeGateway,
     this.inviteToken,
     this.printBookPage,
+    this.calendarFeedGateway,
   });
 
   final AuthGateway authGateway;
@@ -30,6 +32,7 @@ class ScheduleApp extends StatelessWidget {
   final NoticeGateway? noticeGateway;
   final String? inviteToken;
   final ValueChanged<String>? printBookPage;
+  final CalendarFeedGateway? calendarFeedGateway;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +51,7 @@ class ScheduleApp extends StatelessWidget {
         noticeGateway: noticeGateway,
         inviteToken: inviteToken,
         printBookPage: printBookPage,
+        calendarFeedGateway: calendarFeedGateway,
       ),
     );
   }
@@ -63,6 +67,7 @@ class _AuthGate extends StatefulWidget {
     required this.noticeGateway,
     required this.inviteToken,
     required this.printBookPage,
+    required this.calendarFeedGateway,
   });
 
   final AuthGateway authGateway;
@@ -73,6 +78,7 @@ class _AuthGate extends StatefulWidget {
   final NoticeGateway? noticeGateway;
   final String? inviteToken;
   final ValueChanged<String>? printBookPage;
+  final CalendarFeedGateway? calendarFeedGateway;
 
   @override
   State<_AuthGate> createState() => _AuthGateState();
@@ -127,6 +133,7 @@ class _AuthGateState extends State<_AuthGate> {
                 noticeGateway: widget.noticeGateway,
                 inviteToken: widget.inviteToken!,
                 printBookPage: widget.printBookPage,
+                calendarFeedGateway: widget.calendarFeedGateway,
               );
             }
             return _ScheduleAccess(
@@ -137,6 +144,7 @@ class _AuthGateState extends State<_AuthGate> {
               messagesComposer: widget.messagesComposer,
               noticeGateway: widget.noticeGateway,
               printBookPage: widget.printBookPage,
+              calendarFeedGateway: widget.calendarFeedGateway,
             );
           },
         );
@@ -155,6 +163,7 @@ class _InviteAcceptance extends StatefulWidget {
     required this.noticeGateway,
     required this.inviteToken,
     required this.printBookPage,
+    required this.calendarFeedGateway,
   });
 
   final AuthGateway authGateway;
@@ -165,6 +174,7 @@ class _InviteAcceptance extends StatefulWidget {
   final NoticeGateway? noticeGateway;
   final String inviteToken;
   final ValueChanged<String>? printBookPage;
+  final CalendarFeedGateway? calendarFeedGateway;
 
   @override
   State<_InviteAcceptance> createState() => _InviteAcceptanceState();
@@ -216,6 +226,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           messagesComposer: widget.messagesComposer,
           noticeGateway: widget.noticeGateway,
           printBookPage: widget.printBookPage,
+          calendarFeedGateway: widget.calendarFeedGateway,
         );
       },
     );
@@ -231,6 +242,7 @@ class _ScheduleAccess extends StatefulWidget {
     required this.messagesComposer,
     required this.noticeGateway,
     required this.printBookPage,
+    required this.calendarFeedGateway,
   });
 
   final AuthGateway authGateway;
@@ -240,6 +252,7 @@ class _ScheduleAccess extends StatefulWidget {
   final MessagesComposer? messagesComposer;
   final NoticeGateway? noticeGateway;
   final ValueChanged<String>? printBookPage;
+  final CalendarFeedGateway? calendarFeedGateway;
 
   @override
   State<_ScheduleAccess> createState() => _ScheduleAccessState();
@@ -321,6 +334,14 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           messagesComposer: widget.messagesComposer,
           noticeGateway: widget.noticeGateway,
           printBookPage: widget.printBookPage,
+          onCalendarFeed: widget.calendarFeedGateway == null
+              ? null
+              : () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) =>
+                        CalendarFeedPage(gateway: widget.calendarFeedGateway!),
+                  ),
+                ),
           onManageStaff:
               data?.canManageStaff == true &&
                   widget.staffGateway != null &&
