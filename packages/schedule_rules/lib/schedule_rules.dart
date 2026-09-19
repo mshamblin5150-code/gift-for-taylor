@@ -45,7 +45,7 @@ abstract interface class ScheduleRules {
 
   /// Starts the month after [month] from it, unpublished. Each day copies the
   /// same weekday of the same week, a fifth week repeats the fourth, and
-  /// R/O, H, S/L and A/L are cleared.
+  /// R/O, H, S/L and A/L are cleared. [month] must have been started itself.
   Future<void> startNextMonth(DateTime month);
 
   /// Makes an unpublished month the live Schedule. Edits made while building
@@ -406,8 +406,12 @@ final class _ScheduleRules implements ScheduleRules {
   Future<void> startNextMonth(DateTime month) async {
     final current = DateTime(month.year, month.month);
     final next = DateTime(month.year, month.month + 1);
+    if (!await _store.canEditSchedule()) throw const ScheduleEditRefused();
     if (await _store.monthStatus(next) != MonthStatus.notStarted) {
       throw const MonthAlreadyStarted();
+    }
+    if (await _store.monthStatus(current) == MonthStatus.notStarted) {
+      throw StateError('There is no Schedule to start from');
     }
     final (rows, currentCells) = await (
       _store.rows(next),
@@ -423,7 +427,7 @@ final class _ScheduleRules implements ScheduleRules {
       for (var day = 1; day <= lastDay; day++) {
         final date = DateTime(next.year, next.month, day);
         final code =
-            currentCodes[_cellKey(row.staffMemberId, _sameWeekday(date))] ??
+            currentCodes[_cellKey(row.staffMemberId, _sameWeekdayLastMonth(date))] ??
             '';
         if (code.isEmpty || _clearedOnStart.contains(code.toUpperCase())) {
           continue;
@@ -453,7 +457,7 @@ const _clearedOnStart = {'R/O', 'H', 'S/L', 'A/L'};
 /// The day of the previous month on the same weekday of the same week as
 /// [date]: four weeks earlier, or five in a fifth week so that it repeats the
 /// fourth.
-DateTime _sameWeekday(DateTime date) {
+DateTime _sameWeekdayLastMonth(DateTime date) {
   final fourWeeksEarlier = DateTime(date.year, date.month, date.day - 28);
   return fourWeeksEarlier.month != date.month
       ? fourWeeksEarlier

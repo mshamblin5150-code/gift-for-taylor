@@ -101,6 +101,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _edit(ScheduleRow row, DateTime date) async {
     final grid = _grid;
     if (!_canEdit || grid == null) return;
+    if (grid.status == MonthStatus.notStarted) {
+      // An edit would create the month empty, and it could then no longer be
+      // started from last month.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Start ${DateFormat.MMMM().format(_month)} first.'),
+        ),
+      );
+      return;
+    }
     final edit = await showCellEditSheet(
       context,
       row: row,
@@ -182,6 +192,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
         const SnackBar(content: Text('This month has already been started.')),
       );
       await _reload();
+    } on StateError {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${DateFormat.MMMM().format(_previousMonth)} has no Schedule '
+            'to start from.',
+          ),
+        ),
+      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -231,7 +251,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         message:
             'Check this month against your Excel file. '
             'Tap any cell to correct it.',
-        action: 'Confirm month',
+        actionLabel: 'Confirm month',
         onPressed: _confirmMonth,
       );
     }
@@ -240,12 +260,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
         message:
             "${DateFormat.MMMM().format(_month)} hasn't been started. "
             'Start it from last month, lined up by weekday.',
-        action: 'Start from ${DateFormat.MMMM().format(_previousMonth)}',
+        actionLabel: 'Start from ${DateFormat.MMMM().format(_previousMonth)}',
         onPressed: _startMonth,
       ),
       MonthStatus.unpublished => _Banner(
         message: "Unpublished: staff can't see this month yet.",
-        action: 'Release month',
+        actionLabel: 'Release month',
         onPressed: _releaseMonth,
       ),
       MonthStatus.released => null,
@@ -365,12 +385,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
 class _Banner extends StatelessWidget {
   const _Banner({
     required this.message,
-    required this.action,
+    required this.actionLabel,
     required this.onPressed,
   });
 
   final String message;
-  final String action;
+  final String actionLabel;
   final VoidCallback onPressed;
 
   @override
@@ -383,7 +403,7 @@ class _Banner extends StatelessWidget {
           children: [
             Expanded(child: Text(message)),
             const SizedBox(width: 12),
-            FilledButton(onPressed: onPressed, child: Text(action)),
+            FilledButton(onPressed: onPressed, child: Text(actionLabel)),
           ],
         ),
       ),

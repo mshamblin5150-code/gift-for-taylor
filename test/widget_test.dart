@@ -26,12 +26,14 @@ void main() {
       sections: const [days, nights],
       rows: const [dayNurse, nightNurse],
       editors: const {'manager', 'other-manager'},
+      releasedMonths: {september},
     );
   });
 
   Future<ScheduleRules> pumpGrid(
     WidgetTester tester, {
     String actingAs = 'manager',
+    DateTime? month,
   }) async {
     tester.view.physicalSize = const Size(2400, 1600);
     tester.view.devicePixelRatio = 1;
@@ -39,7 +41,7 @@ void main() {
     final rules = ScheduleRules.inMemory(database, actingAs: actingAs);
     await tester.pumpWidget(
       MaterialApp(
-        home: MonthGridPage(rules: rules, month: september),
+        home: MonthGridPage(rules: rules, month: month ?? september),
       ),
     );
     await tester.pumpAndSettle();
@@ -278,11 +280,24 @@ void main() {
       expect(find.text('4P-8A'), findsOneWidget);
     });
 
+    testWidgets('a month is started before it is edited', (tester) async {
+      await pumpGrid(tester, month: DateTime(2026, 10));
+
+      await tester.tap(cell('rn-1', DateTime(2026, 10, 16)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Other Shift code'), findsNothing);
+      expect(find.text('Start October first.'), findsOneWidget);
+    });
+
     testWidgets('staff do not see a month before it is released', (
       tester,
     ) async {
-      // Saving a cell in September started it, unpublished.
-      await pumpGrid(tester, actingAs: 'rn-1');
+      await ScheduleRules.inMemory(
+        database,
+        actingAs: 'manager',
+      ).startNextMonth(september);
+      await pumpGrid(tester, actingAs: 'rn-1', month: DateTime(2026, 10));
 
       expect(find.textContaining("hasn't been released"), findsOneWidget);
       expect(find.text('4P-8A'), findsNothing);

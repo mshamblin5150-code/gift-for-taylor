@@ -179,7 +179,19 @@ void main() {
       expect(grid.shiftCodeFor('rn-1', DateTime(2026, 11, 2)), 'D');
     });
 
-    test('only a scheduler may start a month', () async {
+    test('needs a Schedule in the month to start from', () async {
+      await expectLater(
+        manager.startNextMonth(DateTime(2026, 10)),
+        throwsA(isA<StateError>()),
+      );
+      expect(
+        (await manager.monthGrid(DateTime(2026, 11))).status,
+        MonthStatus.notStarted,
+      );
+    });
+
+    test('only the Manager may start a month', () async {
+      await save(dayNurse, DateTime(2026, 10, 5), '7A');
       final staffMember = ScheduleRules.inMemory(database, actingAs: 'rn-1');
 
       await expectLater(
