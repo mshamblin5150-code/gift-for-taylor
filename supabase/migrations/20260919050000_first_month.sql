@@ -1,7 +1,7 @@
 -- The first month is transcribed from the printed book page and loaded straight
 -- into the production database. The Manager checks it in the app, correcting
--- cells through the ordinary edit path, and confirms it before it replaces her
--- Excel file.
+-- cells through save_schedule_cell like any other edit, and confirms it before
+-- it replaces her Excel file.
 
 alter table public.schedule_months
 add column loaded_from_page_at timestamptz,
@@ -9,150 +9,6 @@ add column confirmed_at timestamptz,
 add column confirmed_by_staff_member_id uuid references public.staff_members(id),
 add check ((confirmed_at is null) = (confirmed_by_staff_member_id is null)),
 add check (confirmed_at is null or loaded_from_page_at is not null);
-
-create table public.schedule_changes (
-  id uuid primary key default gen_random_uuid(),
-  schedule_month_id uuid not null references public.schedule_months(id),
-  staff_member_id uuid not null references public.staff_members(id),
-  section_id uuid not null references public.sections(id),
-  work_date date not null,
-  old_shift_code text not null,
-  new_shift_code text not null,
-  changed_by_staff_member_id uuid not null references public.staff_members(id),
-  changed_by_display_name text not null,
-  changed_at timestamptz not null default now(),
-  announced_at timestamptz,
-  check (old_shift_code <> new_shift_code)
-);
-
-create index schedule_changes_by_month
-on public.schedule_changes (schedule_month_id, changed_at);
-
-alter table public.schedule_changes enable row level security;
-
-grant select on public.schedule_changes to authenticated;
-
-create policy "schedulers can read the change log"
-on public.schedule_changes for select
-using (
-  public.current_staff_role() in ('manager', 'administrator', 'night_scheduler')
-);
-
-create function public.current_staff_member_id()
-returns uuid
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select member.id
-  from public.staff_accounts account
-  join public.staff_members member on member.id = account.staff_member_id
-  where account.auth_user_id = auth.uid()
-    and member.active
-    and account.accepted_invite_at is not null
-$$;
-
-revoke all on function public.current_staff_member_id() from public;
-
-create function public.save_schedule_cell(
-  p_staff_member_id uuid,
-  p_work_date date,
-  p_shift_code text
-)
-returns void
-language plpgsql
-volatile
-security definer
-set search_path = ''
-as $$
-declare
-  v_actor_id uuid := public.current_staff_member_id();
-  v_month_id uuid;
-  v_section_id uuid;
-  v_old_code text;
-  v_new_code text := trim(coalesce(p_shift_code, ''));
-begin
-  if public.current_staff_role() is distinct from 'manager' then
-    raise exception 'Only the Manager can edit the Schedule';
-  end if;
-
-  select month.id
-  into v_month_id
-  from public.schedule_months month
-  where month.month_start = date_trunc('month', p_work_date)::date;
-  if not found then
-    raise exception 'That month has not been started';
-  end if;
-
-  select cell.section_id, cell.shift_code
-  into v_section_id, v_old_code
-  from public.schedule_cells cell
-  where cell.schedule_month_id = v_month_id
-    and cell.staff_member_id = p_staff_member_id
-    and cell.work_date = p_work_date
-  for update;
-
-  if not found then
-    select assignment.section_id
-    into v_section_id
-    from public.staff_section_assignments assignment
-    join public.staff_members member on member.id = assignment.staff_member_id
-    where assignment.staff_member_id = p_staff_member_id
-      and assignment.effective_through is null
-      and member.active;
-    if not found then
-      raise exception 'Staff member not found';
-    end if;
-    v_old_code := '';
-  end if;
-
-  if v_old_code = v_new_code then
-    return;
-  end if;
-
-  insert into public.schedule_cells (
-    schedule_month_id,
-    staff_member_id,
-    section_id,
-    work_date,
-    shift_code
-  ) values (
-    v_month_id,
-    p_staff_member_id,
-    v_section_id,
-    p_work_date,
-    v_new_code
-  )
-  on conflict (schedule_month_id, staff_member_id, work_date)
-  do update set shift_code = excluded.shift_code, updated_at = now();
-
-  insert into public.schedule_changes (
-    schedule_month_id,
-    staff_member_id,
-    section_id,
-    work_date,
-    old_shift_code,
-    new_shift_code,
-    changed_by_staff_member_id,
-    changed_by_display_name
-  )
-  select
-    v_month_id,
-    p_staff_member_id,
-    v_section_id,
-    p_work_date,
-    v_old_code,
-    v_new_code,
-    actor.id,
-    actor.display_name
-  from public.staff_members actor
-  where actor.id = v_actor_id;
-end;
-$$;
-
-revoke all on function public.save_schedule_cell(uuid, date, text) from public;
-grant execute on function public.save_schedule_cell(uuid, date, text) to authenticated;
 
 -- Confirming the month loaded from the printed page is the moment it replaces
 -- her Excel file, so it also releases that month. Corrections made while she
@@ -167,7 +23,7 @@ as $$
 declare
   v_actor_id uuid := public.current_staff_member_id();
 begin
-  if public.current_staff_role() is distinct from 'manager' then
+  if not public.can_edit_schedule() then
     raise exception 'Only the Manager can confirm the month';
   end if;
 

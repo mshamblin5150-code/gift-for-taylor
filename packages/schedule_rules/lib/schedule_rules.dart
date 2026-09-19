@@ -1,15 +1,81 @@
 library;
 
+import 'dart:async';
+
 export 'src/first_month_transcript.dart';
 
 /// Every schedule rule is reached through this public interface.
 abstract interface class ScheduleRules {
-  factory ScheduleRules.inMemory({required List<ScheduleSection> sections}) =
-      _InMemoryScheduleRules;
+  /// Rules backed by [store], the database seen by one signed-in person.
+  factory ScheduleRules(ScheduleStore store) = _ScheduleRules;
 
+  /// Rules backed by an in-memory [database], acting as one Staff member.
+  factory ScheduleRules.inMemory(
+    InMemoryScheduleDatabase database, {
+    required String actingAs,
+  }) {
+    return _ScheduleRules(database.storeFor(actingAs));
+  }
+
+  /// Whether the signed-in person may change the Schedule.
+  Future<bool> canEditSchedule();
+
+  /// Saves a Shift code; it is live at once and written to the change log.
   Future<void> saveCell(SaveCell action);
 
+  /// Restores a changed, unannounced cell to its published value.
+  Future<void> undoCell(UndoCell action);
+
   Future<MonthGrid> monthGrid(DateTime month);
+
+  /// Every change to cells in [month], oldest first.
+  Future<List<ScheduleChange>> changeLog(DateTime month);
+
+  /// Emits whenever any scheduler saves a change in [month].
+  Stream<void> monthUpdates(DateTime month);
+
+  /// The month loaded from the printed page that the Manager has not yet
+  /// checked, if any.
+  Future<DateTime?> monthAwaitingConfirmation();
+
+  /// The Manager's check of the loaded month is done: it replaces her Excel
+  /// file and is released. Corrections made while checking it need no Change
+  /// announcement.
+  Future<void> confirmLoadedMonth(DateTime month);
+}
+
+/// The database behind the rules. The in-memory stand-in and the Supabase
+/// adapter both implement it.
+abstract interface class ScheduleStore {
+  Future<List<ScheduleSection>> sections();
+
+  /// Staff list rows, in Section and manual order.
+  Future<List<ScheduleRow>> rows(DateTime month);
+
+  Future<List<ScheduleCell>> cellsForMonth(DateTime month);
+
+  Future<List<ScheduleChange>> changesForMonth(DateTime month);
+
+  /// Stores the cell and appends its change log entry in one step, recording
+  /// the signed-in person and the time.
+  Future<void> writeCell(ScheduleCell cell);
+
+  Stream<void> monthUpdates(DateTime month);
+
+  Future<bool> canEditSchedule();
+
+  /// Months loaded from the printed page and not yet confirmed, earliest first.
+  Future<List<DateTime>> monthsAwaitingConfirmation();
+
+  Future<void> confirmLoadedMonth(DateTime month);
+}
+
+/// Thrown when the signed-in person may not change the Schedule.
+final class ScheduleEditRefused implements Exception {
+  const ScheduleEditRefused();
+
+  @override
+  String toString() => 'Only the Manager can edit the Schedule';
 }
 
 final class SaveCell {
@@ -26,6 +92,18 @@ final class SaveCell {
   final String shiftCode;
 }
 
+final class UndoCell {
+  const UndoCell({
+    required this.staffMemberId,
+    required this.sectionId,
+    required this.date,
+  });
+
+  final String staffMemberId;
+  final String sectionId;
+  final DateTime date;
+}
+
 final class ScheduleSection {
   const ScheduleSection({required this.id, required this.name});
 
@@ -33,104 +111,7 @@ final class ScheduleSection {
   final String name;
 }
 
-final class MonthGrid {
-  const MonthGrid({
-    required this.sections,
-    required this.cells,
-    this.rows = const [],
-    this.started = false,
-    this.awaitingConfirmation = false,
-  });
-
-  /// Lays out a month the way the book page does: each person once, in the
-  /// Section their cells are in, in Staff list order. Current Staff members
-  /// placed by the end of the month get a row even before they have cells.
-  /// [displayNames] names people with cells who are no longer placed.
-  factory MonthGrid.arrange({
-    required DateTime month,
-    required List<ScheduleSection> sections,
-    required List<ScheduleCell> cells,
-    required List<StaffPlacement> staff,
-    Map<String, String> displayNames = const {},
-    bool started = false,
-    bool awaitingConfirmation = false,
-  }) {
-    final monthEnd = DateTime(month.year, month.month + 1, 0);
-    final placements = {for (final person in staff) person.staffMemberId: person};
-    final sectionByPerson = <String, String>{};
-    for (final cell in [...cells]..sort((a, b) => a.date.compareTo(b.date))) {
-      sectionByPerson.putIfAbsent(cell.staffMemberId, () => cell.sectionId);
-    }
-    for (final person in staff) {
-      if (!person.effectiveFrom.isAfter(monthEnd)) {
-        sectionByPerson.putIfAbsent(person.staffMemberId, () => person.sectionId);
-      }
-    }
-
-    final rows = [
-      for (final MapEntry(key: staffMemberId, value: sectionId)
-          in sectionByPerson.entries)
-        ScheduleRow(
-          staffMemberId: staffMemberId,
-          displayName:
-              placements[staffMemberId]?.displayName ??
-              displayNames[staffMemberId] ??
-              '',
-          sectionId: sectionId,
-        ),
-    ];
-    int? orderOf(ScheduleRow row) {
-      final placement = placements[row.staffMemberId];
-      return placement?.sectionId == row.sectionId
-          ? placement!.displayOrder
-          : null;
-    }
-
-    rows.sort((left, right) {
-      final leftOrder = orderOf(left);
-      final rightOrder = orderOf(right);
-      if (leftOrder != null && rightOrder != null) {
-        return leftOrder.compareTo(rightOrder);
-      }
-      if (leftOrder != null) return -1;
-      if (rightOrder != null) return 1;
-      return left.displayName.compareTo(right.displayName);
-    });
-
-    return MonthGrid(
-      sections: sections,
-      cells: cells,
-      rows: List.unmodifiable(rows),
-      started: started,
-      awaitingConfirmation: awaitingConfirmation,
-    );
-  }
-
-  final List<ScheduleSection> sections;
-  final List<ScheduleCell> cells;
-  final List<ScheduleRow> rows;
-
-  /// Whether the month exists yet, so its cells can be edited.
-  final bool started;
-
-  /// Loaded from the printed page and not yet checked by the Manager.
-  final bool awaitingConfirmation;
-
-  List<ScheduleRow> rowsIn(String sectionId) {
-    return rows.where((row) => row.sectionId == sectionId).toList();
-  }
-
-  String? shiftCodeFor(String staffMemberId, DateTime date) {
-    for (final cell in cells) {
-      if (cell.staffMemberId == staffMemberId &&
-          _sameCalendarDay(cell.date, date)) {
-        return cell.shiftCode;
-      }
-    }
-    return null;
-  }
-}
-
+/// One Staff list row on the Schedule.
 final class ScheduleRow {
   const ScheduleRow({
     required this.staffMemberId,
@@ -141,23 +122,6 @@ final class ScheduleRow {
   final String staffMemberId;
   final String displayName;
   final String sectionId;
-}
-
-/// A Staff member's current place on the Staff list.
-final class StaffPlacement {
-  const StaffPlacement({
-    required this.staffMemberId,
-    required this.displayName,
-    required this.sectionId,
-    required this.displayOrder,
-    required this.effectiveFrom,
-  });
-
-  final String staffMemberId;
-  final String displayName;
-  final String sectionId;
-  final int displayOrder;
-  final DateTime effectiveFrom;
 }
 
 final class ScheduleCell {
@@ -174,67 +138,380 @@ final class ScheduleCell {
   final String shiftCode;
 }
 
-abstract interface class _ScheduleDatabase {
-  Future<void> saveCell(ScheduleCell cell);
+/// One change log entry.
+final class ScheduleChange {
+  const ScheduleChange({
+    required this.staffMemberId,
+    required this.date,
+    required this.oldShiftCode,
+    required this.newShiftCode,
+    required this.changedBy,
+    required this.changedAt,
+    required this.announced,
+  });
 
-  Future<List<ScheduleCell>> cellsForMonth(DateTime month);
+  final String staffMemberId;
+  final DateTime date;
+  final String oldShiftCode;
+  final String newShiftCode;
+
+  /// The Staff member id of the scheduler who saved it.
+  final String changedBy;
+  final DateTime changedAt;
+  final bool announced;
 }
 
-final class _InMemoryScheduleDatabase implements _ScheduleDatabase {
-  final Map<String, ScheduleCell> _cells = {};
+/// A common Shift code from the printed legend.
+final class LegendCode {
+  const LegendCode(this.code, {this.hours, this.meaning});
 
-  @override
-  Future<void> saveCell(ScheduleCell cell) async {
-    _cells[_cellKey(cell.staffMemberId, cell.date)] = cell;
-  }
+  final String code;
 
-  @override
-  Future<List<ScheduleCell>> cellsForMonth(DateTime month) async {
-    return _cells.values
-        .where(
-          (cell) =>
-              cell.date.year == month.year && cell.date.month == month.month,
-        )
-        .toList(growable: false);
-  }
+  /// Working hours, such as 7A–7P; null for codes that are not a shift.
+  final String? hours;
+  final String? meaning;
 }
 
-final class _InMemoryScheduleRules implements ScheduleRules {
-  _InMemoryScheduleRules({required List<ScheduleSection> sections})
-    : _sections = List.unmodifiable(sections),
-      _database = _InMemoryScheduleDatabase();
+/// The printed legend: shortcuts, not a closed list.
+const shiftLegend = <LegendCode>[
+  LegendCode('16D', hours: '7A–11P'),
+  LegendCode('7A', hours: '7A–7P'),
+  LegendCode('D', hours: '7A–3P'),
+  LegendCode('MM', hours: '11A–7P'),
+  LegendCode('11A', hours: '11A–11P'),
+  LegendCode('3P', hours: '3P–3A'),
+  LegendCode('7P', hours: '7P–7A'),
+  LegendCode('ME', hours: '7P–3A'),
+  LegendCode('N', hours: '11P–7A'),
+  LegendCode('X', meaning: 'Off'),
+  LegendCode('R/O', meaning: 'Requested off'),
+  LegendCode('H'),
+  LegendCode('S/L', meaning: 'Sick leave'),
+];
 
-  final List<ScheduleSection> _sections;
-  final _ScheduleDatabase _database;
+/// A person's code on one day, for the day and one-person views.
+final class RowDay {
+  const RowDay({
+    required this.row,
+    required this.date,
+    required this.shiftCode,
+    required this.unannounced,
+  });
+
+  final ScheduleRow row;
+  final DateTime date;
+  final String shiftCode;
+  final bool unannounced;
+}
+
+final class MonthGrid {
+  MonthGrid._(
+    this._codes,
+    this._published, {
+    required this.month,
+    required this.sections,
+    required this.rows,
+    required this.awaitingConfirmation,
+  });
+
+  final DateTime month;
+  final List<ScheduleSection> sections;
+  final List<ScheduleRow> rows;
+
+  /// Loaded from the printed page and not yet checked by the Manager.
+  final bool awaitingConfirmation;
+  final Map<String, String> _codes;
+
+  /// Published values of cells whose current code differs from them.
+  final Map<String, String> _published;
+
+  List<DateTime> get days => List.generate(
+    DateTime(month.year, month.month + 1, 0).day,
+    (index) => DateTime(month.year, month.month, index + 1),
+  );
+
+  List<ScheduleRow> rowsIn(String sectionId) =>
+      rows.where((row) => row.sectionId == sectionId).toList(growable: false);
+
+  String? shiftCodeFor(String staffMemberId, DateTime date) =>
+      _codes[_cellKey(staffMemberId, date)];
+
+  /// Whether the cell was changed since it was last announced.
+  bool isUnannounced(String staffMemberId, DateTime date) =>
+      _published.containsKey(_cellKey(staffMemberId, date));
+
+  /// The value the cell had when last announced.
+  String publishedCodeFor(String staffMemberId, DateTime date) =>
+      _published[_cellKey(staffMemberId, date)] ??
+      shiftCodeFor(staffMemberId, date) ??
+      '';
+
+  /// Everyone's code on [date], in Section and row order.
+  List<RowDay> rowsOn(DateTime date) => [
+    for (final section in sections)
+      for (final row in rowsIn(section.id)) _rowDay(row, date),
+  ];
+
+  /// One person's code for every day of the month.
+  List<RowDay> monthFor(String staffMemberId) {
+    final row = rows.firstWhere((row) => row.staffMemberId == staffMemberId);
+    return [for (final day in days) _rowDay(row, day)];
+  }
+
+  RowDay _rowDay(ScheduleRow row, DateTime date) => RowDay(
+    row: row,
+    date: date,
+    shiftCode: shiftCodeFor(row.staffMemberId, date) ?? '',
+    unannounced: isUnannounced(row.staffMemberId, date),
+  );
+}
+
+final class _ScheduleRules implements ScheduleRules {
+  _ScheduleRules(this._store);
+
+  final ScheduleStore _store;
 
   @override
-  Future<void> saveCell(SaveCell action) {
-    return _database.saveCell(
+  Future<void> saveCell(SaveCell action) async {
+    final date = _day(action.date);
+    final code = action.shiftCode.trim();
+    final current = (await _store.cellsForMonth(
+      DateTime(date.year, date.month),
+    )).where((cell) => _sameCell(cell, action.staffMemberId, date)).firstOrNull;
+    if ((current?.shiftCode ?? '') == code) return;
+    await _store.writeCell(
       ScheduleCell(
         staffMemberId: action.staffMemberId,
         sectionId: action.sectionId,
-        date: DateTime(action.date.year, action.date.month, action.date.day),
-        shiftCode: action.shiftCode,
+        date: date,
+        shiftCode: code,
+      ),
+    );
+  }
+
+  @override
+  Future<void> undoCell(UndoCell action) async {
+    final date = _day(action.date);
+    final grid = await monthGrid(DateTime(date.year, date.month));
+    if (!grid.isUnannounced(action.staffMemberId, date)) return;
+    await saveCell(
+      SaveCell(
+        staffMemberId: action.staffMemberId,
+        sectionId: action.sectionId,
+        date: date,
+        shiftCode: grid.publishedCodeFor(action.staffMemberId, date),
       ),
     );
   }
 
   @override
   Future<MonthGrid> monthGrid(DateTime month) async {
-    return MonthGrid(
-      sections: _sections,
-      cells: await _database.cellsForMonth(month),
+    final start = DateTime(month.year, month.month);
+    final results = await Future.wait([
+      _store.sections(),
+      _store.rows(start),
+      _store.cellsForMonth(start),
+      _store.changesForMonth(start),
+      _store.monthsAwaitingConfirmation(),
+    ]);
+    final cells = results[2] as List<ScheduleCell>;
+    final changes = results[3] as List<ScheduleChange>;
+
+    final codes = {
+      for (final cell in cells)
+        _cellKey(cell.staffMemberId, cell.date): cell.shiftCode,
+    };
+    final published = <String, String>{};
+    for (final change in changes.where((change) => !change.announced)) {
+      published.putIfAbsent(
+        _cellKey(change.staffMemberId, change.date),
+        () => change.oldShiftCode,
+      );
+    }
+    published.removeWhere((key, value) => (codes[key] ?? '') == value);
+
+    return MonthGrid._(
+      codes,
+      published,
+      month: start,
+      sections: results[0] as List<ScheduleSection>,
+      rows: results[1] as List<ScheduleRow>,
+      awaitingConfirmation: (results[4] as List<DateTime>).contains(start),
     );
+  }
+
+  @override
+  Future<List<ScheduleChange>> changeLog(DateTime month) {
+    return _store.changesForMonth(DateTime(month.year, month.month));
+  }
+
+  @override
+  Stream<void> monthUpdates(DateTime month) {
+    return _store.monthUpdates(DateTime(month.year, month.month));
+  }
+
+  @override
+  Future<bool> canEditSchedule() => _store.canEditSchedule();
+
+  @override
+  Future<DateTime?> monthAwaitingConfirmation() async {
+    return (await _store.monthsAwaitingConfirmation()).firstOrNull;
+  }
+
+  @override
+  Future<void> confirmLoadedMonth(DateTime month) {
+    return _store.confirmLoadedMonth(DateTime(month.year, month.month));
   }
 }
 
-bool _sameCalendarDay(DateTime left, DateTime right) {
-  return left.year == right.year &&
-      left.month == right.month &&
-      left.day == right.day;
+/// An in-memory stand-in for the database, shared by every scheduler in a
+/// test.
+final class InMemoryScheduleDatabase {
+  InMemoryScheduleDatabase({
+    required List<ScheduleSection> sections,
+    List<ScheduleRow> rows = const [],
+    this.editors,
+    DateTime Function()? clock,
+  }) : _sections = List.unmodifiable(sections),
+       _rows = List.unmodifiable(rows),
+       _clock = clock ?? DateTime.now;
+
+  final List<ScheduleSection> _sections;
+
+  /// Staff member ids who may edit; null lets everyone edit.
+  final Set<String>? editors;
+  final List<ScheduleRow> _rows;
+  final DateTime Function() _clock;
+  final Map<String, ScheduleCell> _cells = {};
+  final List<ScheduleChange> _changes = [];
+  final StreamController<DateTime> _updates = StreamController.broadcast();
+  final List<DateTime> _awaitingConfirmation = [];
+
+  /// Loads [month] as transcribed from the printed page, without logging a
+  /// change, to wait for the Manager's check.
+  void loadFromPage(DateTime month, List<ScheduleCell> cells) {
+    for (final cell in cells) {
+      _cells[_cellKey(cell.staffMemberId, cell.date)] = cell;
+    }
+    _awaitingConfirmation.add(DateTime(month.year, month.month));
+  }
+
+  /// Marks every logged change announced.
+  void markAllAnnounced() => _markAnnounced((_) => true);
+
+  void _markAnnounced(bool Function(ScheduleChange change) where) {
+    for (final (index, change) in _changes.indexed) {
+      if (!where(change)) continue;
+      _changes[index] = ScheduleChange(
+        staffMemberId: change.staffMemberId,
+        date: change.date,
+        oldShiftCode: change.oldShiftCode,
+        newShiftCode: change.newShiftCode,
+        changedBy: change.changedBy,
+        changedAt: change.changedAt,
+        announced: true,
+      );
+    }
+  }
+
+  /// The database as seen by [staffMemberId].
+  ScheduleStore storeFor(String staffMemberId) =>
+      _InMemoryScheduleStore(this, staffMemberId);
 }
+
+final class _InMemoryScheduleStore implements ScheduleStore {
+  _InMemoryScheduleStore(this._database, this._actingAs);
+
+  final InMemoryScheduleDatabase _database;
+  final String _actingAs;
+
+  @override
+  Future<List<ScheduleSection>> sections() async => _database._sections;
+
+  @override
+  Future<List<ScheduleRow>> rows(DateTime month) async {
+    final sectionOrder = [
+      for (final section in _database._sections) section.id,
+    ];
+    final ordered = _database._rows.indexed.toList()
+      ..sort((left, right) {
+        final bySection = sectionOrder
+            .indexOf(left.$2.sectionId)
+            .compareTo(sectionOrder.indexOf(right.$2.sectionId));
+        return bySection != 0 ? bySection : left.$1.compareTo(right.$1);
+      });
+    return [for (final (_, row) in ordered) row];
+  }
+
+  @override
+  Future<List<ScheduleCell>> cellsForMonth(DateTime month) async {
+    return _database._cells.values
+        .where((cell) => _inMonth(cell.date, month))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<ScheduleChange>> changesForMonth(DateTime month) async {
+    return _database._changes
+        .where((change) => _inMonth(change.date, month))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> writeCell(ScheduleCell cell) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    final key = _cellKey(cell.staffMemberId, cell.date);
+    final old = _database._cells[key]?.shiftCode ?? '';
+    _database._cells[key] = cell;
+    _database._changes.add(
+      ScheduleChange(
+        staffMemberId: cell.staffMemberId,
+        date: cell.date,
+        oldShiftCode: old,
+        newShiftCode: cell.shiftCode,
+        changedBy: _actingAs,
+        changedAt: _database._clock(),
+        announced: false,
+      ),
+    );
+    _database._updates.add(cell.date);
+  }
+
+  @override
+  Stream<void> monthUpdates(DateTime month) {
+    return _database._updates.stream.where((date) => _inMonth(date, month));
+  }
+
+  @override
+  Future<bool> canEditSchedule() async =>
+      _database.editors?.contains(_actingAs) ?? true;
+
+  @override
+  Future<List<DateTime>> monthsAwaitingConfirmation() async {
+    return [..._database._awaitingConfirmation]..sort();
+  }
+
+  @override
+  Future<void> confirmLoadedMonth(DateTime month) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (!_database._awaitingConfirmation.remove(month)) {
+      throw StateError('There is no loaded month waiting to be confirmed');
+    }
+    _database._markAnnounced((change) => _inMonth(change.date, month));
+  }
+}
+
+DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
+
+bool _inMonth(DateTime date, DateTime month) =>
+    date.year == month.year && date.month == month.month;
+
+bool _sameCell(ScheduleCell cell, String staffMemberId, DateTime date) =>
+    cell.staffMemberId == staffMemberId &&
+    cell.date.year == date.year &&
+    cell.date.month == date.month &&
+    cell.date.day == date.day;
 
 String _cellKey(String staffMemberId, DateTime date) {
   return '$staffMemberId:${date.year}-${date.month}-${date.day}';
 }
-

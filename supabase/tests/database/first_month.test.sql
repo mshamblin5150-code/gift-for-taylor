@@ -206,6 +206,7 @@ select throws_ok(
 select lives_ok(
   $$select public.save_schedule_cell(
       (select id from public.staff_members where display_name = 'Page Nurse'),
+      '00000000-0000-0000-0000-000000000211',
       '2027-02-01',
       ' 7P '
     )$$,
@@ -213,16 +214,17 @@ select lives_ok(
 );
 
 select results_eq(
-  $$select old_shift_code, new_shift_code, changed_by_display_name
+  $$select old_shift_code, new_shift_code, changed_by_staff_member_id
     from public.schedule_changes change
     join public.staff_members member on member.id = change.staff_member_id
     where member.display_name = 'Page Nurse' and change.work_date = '2027-02-01'$$,
-  $$values ('4P-8A', '7P', 'Test Manager')$$,
+  $$values ('4P-8A', '7P', '00000000-0000-0000-0000-000000000221'::uuid)$$,
   'the correction is written to the change log like any other edit'
 );
 
 select public.save_schedule_cell(
   (select id from public.staff_members where display_name = 'Page Nurse'),
+  '00000000-0000-0000-0000-000000000211',
   '2027-02-01',
   '7P'
 );
@@ -241,6 +243,7 @@ select set_config(
 select throws_ok(
   $$select public.save_schedule_cell(
       (select id from public.staff_members where display_name = 'Page Nurse'),
+      '00000000-0000-0000-0000-000000000211',
       '2027-02-02',
       'X'
     )$$,

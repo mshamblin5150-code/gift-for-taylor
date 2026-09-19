@@ -1,36 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
-import 'schedule_gateway.dart';
+import 'cell_edit_sheet.dart';
+
+enum ScheduleView { month, day, person }
 
 class MonthGridPage extends StatefulWidget {
   const MonthGridPage({
     super.key,
+    required this.rules,
     required this.month,
-    required this.sections,
-    this.scheduleGateway,
     this.onSignOut,
     this.onManageStaff,
   });
 
-  static Widget testable({
-    required DateTime month,
-    required List<ScheduleSection> sections,
-    ScheduleGateway? scheduleGateway,
-  }) {
-    return MaterialApp(
-      home: MonthGridPage(
-        month: month,
-        sections: sections,
-        scheduleGateway: scheduleGateway,
-      ),
-    );
-  }
-
+  final ScheduleRules rules;
   final DateTime month;
-  final List<ScheduleSection> sections;
-  final ScheduleGateway? scheduleGateway;
   final VoidCallback? onSignOut;
   final VoidCallback? onManageStaff;
 
@@ -39,67 +27,106 @@ class MonthGridPage extends StatefulWidget {
 }
 
 class _MonthGridPageState extends State<MonthGridPage> {
-  late DateTime _month = DateTime(widget.month.year, widget.month.month);
-  late final Future<bool> _canEdit =
-      widget.scheduleGateway?.canEditSchedule() ?? Future.value(false);
-  late Future<_MonthView> _view = _loadView();
+  late final DateTime _month = DateTime(widget.month.year, widget.month.month);
+  StreamSubscription<void>? _updates;
+  MonthGrid? _grid;
+  bool _canEdit = false;
+  Object? _loadError;
+  ScheduleView _view = ScheduleView.month;
+  late DateTime _day = _defaultDay();
+  String? _personId;
 
-  /// Without a gateway the page shows the empty Sections at once.
-  late final _MonthView? _emptyView = widget.scheduleGateway == null
-      ? (
-          month: _month,
-          grid: MonthGrid(sections: widget.sections, cells: const []),
-          canEdit: false,
-        )
-      : null;
-
-  Future<_MonthView> _loadView() async {
-    final gateway = widget.scheduleGateway;
-    if (gateway == null) return _emptyView!;
-    final month = _month;
-    final grid = gateway.loadMonth(month);
-    return (month: month, grid: await grid, canEdit: await _canEdit);
+  @override
+  void initState() {
+    super.initState();
+    _updates = widget.rules.monthUpdates(_month).listen((_) => _reload());
+    _load();
   }
 
-  void _reload() {
-    setState(() {
-      _view = _loadView();
-    });
+  @override
+  void dispose() {
+    _updates?.cancel();
+    super.dispose();
   }
 
-  void _moveMonth(int offset) {
-    _month = DateTime(_month.year, _month.month + offset);
-    _reload();
+  DateTime _defaultDay() {
+    final now = DateTime.now();
+    return now.year == _month.year && now.month == _month.month
+        ? DateTime(now.year, now.month, now.day)
+        : _month;
   }
 
-  Future<void> _editCell(ScheduleRow row, DateTime day, String code) async {
-    final newCode = await showDialog<String>(
-      context: context,
-      builder: (context) => _ShiftCodeDialog(
-        title: '${row.displayName}, ${DateFormat.MMMd().format(day)}',
-        initialCode: code,
-      ),
-    );
-    if (newCode == null || !mounted) return;
+  Future<void> _load() async {
     try {
-      await widget.scheduleGateway!.saveCell(
-        staffMemberId: row.staffMemberId,
-        date: day,
-        shiftCode: newCode,
-      );
-    } catch (_) {
-      if (mounted) _showMessage('That change was not saved. Try again.');
-      return;
+      final canEdit = await widget.rules.canEditSchedule();
+      final grid = await widget.rules.monthGrid(_month);
+      if (!mounted) return;
+      setState(() {
+        _canEdit = canEdit;
+        _grid = grid;
+        _loadError = null;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _loadError = error);
     }
-    _reload();
+  }
+
+  Future<void> _reload() async {
+    try {
+      final grid = await widget.rules.monthGrid(_month);
+      if (mounted) setState(() => _grid = grid);
+    } catch (_) {
+      // The next save or update reloads again.
+    }
+  }
+
+  Future<void> _edit(ScheduleRow row, DateTime date) async {
+    final grid = _grid;
+    if (!_canEdit || grid == null) return;
+    final edit = await showCellEditSheet(
+      context,
+      row: row,
+      date: date,
+      currentCode: grid.shiftCodeFor(row.staffMemberId, date) ?? '',
+      publishedCode: grid.isUnannounced(row.staffMemberId, date)
+          ? grid.publishedCodeFor(row.staffMemberId, date)
+          : null,
+    );
+    if (edit == null) return;
+    try {
+      switch (edit) {
+        case SaveCode(:final shiftCode):
+          await widget.rules.saveCell(
+            SaveCell(
+              staffMemberId: row.staffMemberId,
+              sectionId: row.sectionId,
+              date: date,
+              shiftCode: shiftCode,
+            ),
+          );
+        case UndoToPublished():
+          await widget.rules.undoCell(
+            UndoCell(
+              staffMemberId: row.staffMemberId,
+              sectionId: row.sectionId,
+              date: date,
+            ),
+          );
+      }
+      await _reload();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("That change wasn't saved. Try again.")),
+      );
+    }
   }
 
   Future<void> _confirmMonth() async {
-    final monthName = DateFormat.yMMMM().format(_month);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Confirm $monthName?'),
+        title: Text('Confirm ${DateFormat.yMMMM().format(_month)}?'),
         content: const Text(
           'This month then replaces your Excel file as the live Schedule.',
         ),
@@ -115,44 +142,25 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true) return;
     try {
-      await widget.scheduleGateway!.confirmMonth(_month);
+      await widget.rules.confirmLoadedMonth(_month);
+      await _reload();
     } catch (_) {
-      if (mounted) _showMessage('The month was not confirmed. Try again.');
-      return;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("The month wasn't confirmed. Try again.")),
+      );
     }
-    _reload();
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
-    final days = List.generate(
-      DateTime(_month.year, _month.month + 1, 0).day,
-      (index) => DateTime(_month.year, _month.month, index + 1),
-    );
-    final canNavigate = widget.scheduleGateway != null;
-
+    final grid = _grid;
     return Scaffold(
       appBar: AppBar(
         title: Text(DateFormat.yMMMM().format(_month)),
         actions: [
-          if (canNavigate) ...[
-            IconButton(
-              tooltip: 'Previous month',
-              onPressed: () => _moveMonth(-1),
-              icon: const Icon(Icons.chevron_left),
-            ),
-            IconButton(
-              tooltip: 'Next month',
-              onPressed: () => _moveMonth(1),
-              icon: const Icon(Icons.chevron_right),
-            ),
-          ],
           if (widget.onManageStaff != null)
             IconButton(
               tooltip: 'Manage Staff list',
@@ -166,64 +174,73 @@ class _MonthGridPageState extends State<MonthGridPage> {
               icon: const Icon(Icons.logout),
             ),
         ],
-      ),
-      body: SafeArea(
-        child: FutureBuilder<_MonthView>(
-          future: _view,
-          initialData: _emptyView,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return const Center(
-                child: Text('The Schedule could not be loaded.'),
-              );
-            }
-            // A reload after an edit keeps the grid (and its scroll position)
-            // on screen; a different month waits for its own data.
-            final data = snapshot.data;
-            if (data == null || data.month != _month) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final (month: _, :grid, :canEdit) = data;
-            final editable = canEdit && grid.started;
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (canEdit && grid.awaitingConfirmation)
-                  _ConfirmBanner(onConfirm: _confirmMonth),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _DayHeader(days: days),
-                          for (final section in grid.sections) ...[
-                            _SectionBand(section: section, days: days),
-                            for (final row in grid.rowsIn(section.id))
-                              _StaffRow(
-                                row: row,
-                                days: days,
-                                grid: grid,
-                                onEdit: editable ? _editCell : null,
-                              ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: SegmentedButton<ScheduleView>(
+              segments: const [
+                ButtonSegment(
+                  value: ScheduleView.month,
+                  label: Text('Month'),
+                  icon: Icon(Icons.grid_on),
+                ),
+                ButtonSegment(
+                  value: ScheduleView.day,
+                  label: Text('Day'),
+                  icon: Icon(Icons.today),
+                ),
+                ButtonSegment(
+                  value: ScheduleView.person,
+                  label: Text('Person'),
+                  icon: Icon(Icons.person_outline),
                 ),
               ],
-            );
-          },
+              selected: {_view},
+              showSelectedIcon: false,
+              onSelectionChanged: (selection) =>
+                  setState(() => _view = selection.single),
+            ),
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_canEdit && grid != null && grid.awaitingConfirmation)
+              _ConfirmBanner(onConfirm: _confirmMonth),
+            Expanded(child: _body(grid)),
+          ],
         ),
       ),
     );
   }
-}
 
-typedef _MonthView = ({DateTime month, MonthGrid grid, bool canEdit});
+  Widget _body(MonthGrid? grid) {
+    return switch ((grid, _loadError)) {
+      (null, null) => const Center(child: CircularProgressIndicator()),
+      (null, _) => const Center(
+        child: Text("The Schedule couldn't be loaded."),
+      ),
+      (final MonthGrid grid, _) => switch (_view) {
+        ScheduleView.month => _MonthView(grid: grid, onEdit: _edit),
+        ScheduleView.day => _DayView(
+          grid: grid,
+          day: _day,
+          onDayChanged: (day) => setState(() => _day = day),
+          onEdit: _edit,
+        ),
+        ScheduleView.person => _PersonView(
+          grid: grid,
+          staffMemberId: _personId ?? grid.rows.firstOrNull?.staffMemberId,
+          onPersonChanged: (id) => setState(() => _personId = id),
+          onEdit: _edit,
+        ),
+      },
+    };
+  }
+}
 
 class _ConfirmBanner extends StatelessWidget {
   const _ConfirmBanner({required this.onConfirm});
@@ -233,7 +250,7 @@ class _ConfirmBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: Theme.of(context).colorScheme.tertiaryContainer,
+      color: Theme.of(context).colorScheme.secondaryContainer,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: Row(
@@ -256,45 +273,32 @@ class _ConfirmBanner extends StatelessWidget {
   }
 }
 
-class _ShiftCodeDialog extends StatefulWidget {
-  const _ShiftCodeDialog({required this.title, required this.initialCode});
+typedef _OnEdit = Future<void> Function(ScheduleRow row, DateTime date);
 
-  final String title;
-  final String initialCode;
+class _MonthView extends StatelessWidget {
+  const _MonthView({required this.grid, required this.onEdit});
 
-  @override
-  State<_ShiftCodeDialog> createState() => _ShiftCodeDialogState();
-}
-
-class _ShiftCodeDialogState extends State<_ShiftCodeDialog> {
-  late final _controller = TextEditingController(text: widget.initialCode);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _save() => Navigator.of(context).pop(_controller.text.trim());
+  final MonthGrid grid;
+  final _OnEdit onEdit;
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        textCapitalization: TextCapitalization.characters,
-        decoration: const InputDecoration(labelText: 'Shift code'),
-        onSubmitted: (_) => _save(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+    final days = grid.days;
+    return SingleChildScrollView(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DayHeader(days: days),
+            for (final section in grid.sections) ...[
+              _SectionBand(section: section, days: days),
+              for (final row in grid.rowsIn(section.id))
+                _StaffRow(grid: grid, row: row, days: days, onEdit: onEdit),
+            ],
+          ],
         ),
-        FilledButton(onPressed: _save, child: const Text('Save')),
-      ],
+      ),
     );
   }
 }
@@ -308,7 +312,7 @@ class _DayHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const SizedBox(width: _sectionWidth, height: _cellHeight),
+        const SizedBox(width: _nameWidth, height: _cellHeight),
         for (final day in days)
           Container(
             width: _dayWidth,
@@ -339,8 +343,8 @@ class _SectionBand extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: _sectionWidth,
-          height: _cellHeight,
+          width: _nameWidth,
+          height: _bandHeight,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.centerLeft,
           color: Theme.of(context).colorScheme.primaryContainer,
@@ -352,10 +356,10 @@ class _SectionBand extends StatelessWidget {
         for (final day in days)
           Container(
             key: ValueKey(
-              '${_isWeekend(day) ? 'weekend' : 'weekday'}-${_dayKey(day)}',
+              '${_isWeekend(day) ? 'weekend' : 'weekday'}-${_dateKey(day)}',
             ),
             width: _dayWidth,
-            height: _cellHeight,
+            height: _bandHeight,
             decoration: _cellDecoration(day, context),
           ),
       ],
@@ -365,23 +369,23 @@ class _SectionBand extends StatelessWidget {
 
 class _StaffRow extends StatelessWidget {
   const _StaffRow({
+    required this.grid,
     required this.row,
     required this.days,
-    required this.grid,
     required this.onEdit,
   });
 
+  final MonthGrid grid;
   final ScheduleRow row;
   final List<DateTime> days;
-  final MonthGrid grid;
-  final void Function(ScheduleRow row, DateTime day, String code)? onEdit;
+  final _OnEdit onEdit;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         Container(
-          width: _sectionWidth,
+          width: _nameWidth,
           height: _cellHeight,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.centerLeft,
@@ -391,24 +395,53 @@ class _StaffRow extends StatelessWidget {
           child: Text(row.displayName, overflow: TextOverflow.ellipsis),
         ),
         for (final day in days)
-          _codeCell(context, day, grid.shiftCodeFor(row.staffMemberId, day)),
+          _GridCell(
+            key: ValueKey('cell-${row.staffMemberId}-${_dateKey(day)}'),
+            day: day,
+            code: grid.shiftCodeFor(row.staffMemberId, day) ?? '',
+            unannounced: grid.isUnannounced(row.staffMemberId, day),
+            unannouncedKey: ValueKey(
+              'unannounced-${row.staffMemberId}-${_dateKey(day)}',
+            ),
+            onTap: () => onEdit(row, day),
+          ),
       ],
     );
   }
+}
 
-  Widget _codeCell(BuildContext context, DateTime day, String? code) {
-    final onEdit = this.onEdit;
+class _GridCell extends StatelessWidget {
+  const _GridCell({
+    super.key,
+    required this.day,
+    required this.code,
+    required this.unannounced,
+    required this.unannouncedKey,
+    required this.onTap,
+  });
+
+  final DateTime day;
+  final String code;
+  final bool unannounced;
+  final Key unannouncedKey;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final decoration = _cellDecoration(day, context);
     return InkWell(
-      key: ValueKey('cell-${row.staffMemberId}-${_dayKey(day)}'),
-      onTap: onEdit == null ? null : () => onEdit(row, day, code ?? ''),
+      onTap: onTap,
       child: Container(
+        key: unannounced ? unannouncedKey : null,
         width: _dayWidth,
         height: _cellHeight,
         alignment: Alignment.center,
-        decoration: _cellDecoration(day, context),
+        decoration: unannounced
+            ? decoration.copyWith(color: _unannouncedColor(context))
+            : decoration,
         child: Text(
-          code ?? '',
-          style: const TextStyle(fontSize: 12),
+          code,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           textAlign: TextAlign.center,
         ),
       ),
@@ -416,7 +449,189 @@ class _StaffRow extends StatelessWidget {
   }
 }
 
-String _dayKey(DateTime day) => DateFormat('yyyy-MM-dd').format(day);
+class _DayView extends StatelessWidget {
+  const _DayView({
+    required this.grid,
+    required this.day,
+    required this.onDayChanged,
+    required this.onEdit,
+  });
+
+  final MonthGrid grid;
+  final DateTime day;
+  final ValueChanged<DateTime> onDayChanged;
+  final _OnEdit onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = grid.days;
+    final entries = grid.rowsOn(day);
+    return Column(
+      children: [
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Previous day',
+              onPressed: day.day > 1
+                  ? () => onDayChanged(days[day.day - 2])
+                  : null,
+              icon: const Icon(Icons.chevron_left),
+            ),
+            Expanded(
+              child: Text(
+                DateFormat.MMMMEEEEd().format(day),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            IconButton(
+              tooltip: 'Pick a date',
+              onPressed: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: day,
+                  firstDate: days.first,
+                  lastDate: days.last,
+                );
+                if (picked != null) onDayChanged(picked);
+              },
+              icon: const Icon(Icons.calendar_month),
+            ),
+            IconButton(
+              tooltip: 'Next day',
+              onPressed: day.day < days.length
+                  ? () => onDayChanged(days[day.day])
+                  : null,
+              icon: const Icon(Icons.chevron_right),
+            ),
+          ],
+        ),
+        Expanded(
+          child: ListView(
+            children: [
+              for (final section in grid.sections) ...[
+                _SectionHeading(section.name),
+                for (final entry in entries.where(
+                  (entry) => entry.row.sectionId == section.id,
+                ))
+                  _EntryTile(
+                    title: entry.row.displayName,
+                    entry: entry,
+                    onTap: () => onEdit(entry.row, entry.date),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PersonView extends StatelessWidget {
+  const _PersonView({
+    required this.grid,
+    required this.staffMemberId,
+    required this.onPersonChanged,
+    required this.onEdit,
+  });
+
+  final MonthGrid grid;
+  final String? staffMemberId;
+  final ValueChanged<String> onPersonChanged;
+  final _OnEdit onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = grid.rows.any((row) => row.staffMemberId == staffMemberId)
+        ? staffMemberId
+        : null;
+    if (selected == null) {
+      return const Center(child: Text('No one is on the Staff list yet.'));
+    }
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: DropdownButton<String>(
+            isExpanded: true,
+            value: selected,
+            onChanged: (id) {
+              if (id != null) onPersonChanged(id);
+            },
+            items: [
+              for (final row in grid.rows)
+                DropdownMenuItem(
+                  value: row.staffMemberId,
+                  child: Text(row.displayName),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            children: [
+              for (final entry in grid.monthFor(selected))
+                _EntryTile(
+                  title: DateFormat('EEE d').format(entry.date),
+                  entry: entry,
+                  shaded: _isWeekend(entry.date),
+                  onTap: () => onEdit(entry.row, entry.date),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading(this.name);
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+class _EntryTile extends StatelessWidget {
+  const _EntryTile({
+    required this.title,
+    required this.entry,
+    required this.onTap,
+    this.shaded = false,
+  });
+
+  final String title;
+  final RowDay entry;
+  final VoidCallback onTap;
+  final bool shaded;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return ListTile(
+      title: Text(title),
+      trailing: Text(
+        entry.shiftCode,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      tileColor: entry.unannounced
+          ? _unannouncedColor(context)
+          : shaded
+          ? colors.surfaceContainerHighest
+          : null,
+      onTap: onTap,
+    );
+  }
+}
 
 BoxDecoration _cellDecoration(DateTime day, BuildContext context) {
   return BoxDecoration(
@@ -427,10 +642,17 @@ BoxDecoration _cellDecoration(DateTime day, BuildContext context) {
   );
 }
 
+Color _unannouncedColor(BuildContext context) {
+  return Theme.of(context).colorScheme.tertiaryContainer;
+}
+
 bool _isWeekend(DateTime day) {
   return day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
 }
 
-const _sectionWidth = 180.0;
+String _dateKey(DateTime day) => DateFormat('yyyy-MM-dd').format(day);
+
+const _nameWidth = 160.0;
 const _dayWidth = 48.0;
-const _cellHeight = 58.0;
+const _cellHeight = 44.0;
+const _bandHeight = 32.0;

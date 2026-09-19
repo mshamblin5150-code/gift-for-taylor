@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:er_schedule/app.dart';
 import 'package:er_schedule/auth/auth_gateway.dart';
 import 'package:er_schedule/auth/sign_in_page.dart';
-import 'package:er_schedule/schedule/section_gateway.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
@@ -44,7 +43,7 @@ void main() {
     await tester.pumpWidget(
       ScheduleApp(
         authGateway: gateway,
-        sectionGateway: const _FakeSectionGateway([
+        scheduleStore: _scheduleStore(const [
           ScheduleSection(id: 'days', name: 'State dayshift RN'),
         ]),
       ),
@@ -65,7 +64,7 @@ void main() {
     await tester.pumpWidget(
       ScheduleApp(
         authGateway: _FakeAuthGateway(true),
-        sectionGateway: const _FakeSectionGateway([]),
+        scheduleStore: _scheduleStore(const []),
       ),
     );
     await tester.pumpAndSettle();
@@ -74,14 +73,12 @@ void main() {
     expect(find.text('State dayshift RN'), findsNothing);
   });
 
-  testWidgets('invitee signs in before the Invite is accepted', (
-    tester,
-  ) async {
+  testWidgets('invitee signs in before the Invite is accepted', (tester) async {
     final staffGateway = _FakeStaffGateway();
     await tester.pumpWidget(
       ScheduleApp(
         authGateway: _FakeAuthGateway(),
-        sectionGateway: const _FakeSectionGateway([
+        scheduleStore: _scheduleStore(const [
           ScheduleSection(id: 'days', name: 'State dayshift RN'),
         ]),
         staffGateway: staffGateway,
@@ -116,7 +113,7 @@ void main() {
     await tester.pumpWidget(
       ScheduleApp(
         authGateway: authGateway,
-        sectionGateway: const _FakeSectionGateway([]),
+        scheduleStore: _scheduleStore(const []),
         staffGateway: staffGateway,
         inviteToken: 'fresh-token',
       ),
@@ -129,13 +126,8 @@ void main() {
   });
 }
 
-final class _FakeSectionGateway implements SectionGateway {
-  const _FakeSectionGateway(this.sections);
-
-  final List<ScheduleSection> sections;
-
-  @override
-  Future<List<ScheduleSection>> loadSections() async => sections;
+ScheduleStore _scheduleStore(List<ScheduleSection> sections) {
+  return InMemoryScheduleDatabase(sections: sections).storeFor('manager');
 }
 
 final class _FakeAuthGateway implements AuthGateway {
