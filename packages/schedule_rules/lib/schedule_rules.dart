@@ -7,6 +7,7 @@ export 'src/first_month_transcript.dart';
 
 part 'src/change_announcement.dart';
 part 'src/swaps.dart';
+part 'src/request_off.dart';
 
 /// Every schedule rule is reached through this public interface.
 abstract interface class ScheduleRules {
@@ -116,6 +117,21 @@ abstract interface class ScheduleRules {
   /// Makes an unpublished month the live Schedule. Edits made while building
   /// it were never seen by staff, so they need no Change announcement.
   Future<void> releaseMonth(DateTime month);
+
+  /// Submit a Request off as the signed-in Staff member. Returns the email
+  /// draft destination and text; sending remains under the member's control.
+  Future<RequestOffEmail> requestOff(RequestOffDraft draft);
+  Future<void> confirmRequestOffEmail(String requestId);
+  Future<List<RequestOff>> myRequestsOff();
+  Future<List<RequestOff>> approvalQueue();
+  Future<List<RequestOff>> requestOffHistory();
+  Future<void> decideRequestOff(
+    String requestId,
+    RequestOffDecision decision, {
+    String? reason,
+  });
+  Future<int> unreadRequestOffNotices();
+  Future<void> acknowledgeRequestOffNotices();
 }
 
 /// The database behind the rules. The in-memory stand-in and the Supabase
@@ -183,6 +199,17 @@ abstract interface class ScheduleStore {
   Future<List<DatedJobRole>> jobRoles(String staffMemberId);
 
   Future<List<StaffChange>> staffChanges();
+
+  Future<RequestOffEmail> createRequestOff(RequestOffDraft draft);
+  Future<void> confirmRequestOffEmail(String requestId);
+  Future<List<RequestOff>> requestsOff({required bool pendingOnly});
+  Future<void> decideRequestOff(
+    String requestId,
+    RequestOffDecision decision,
+    String? reason,
+  );
+  Future<int> unreadRequestOffNotices();
+  Future<void> acknowledgeRequestOffNotices();
 }
 
 enum MonthStatus {
@@ -624,6 +651,45 @@ final class _ScheduleRules implements ScheduleRules {
   final ScheduleStore _store;
 
   @override
+  Future<RequestOffEmail> requestOff(RequestOffDraft draft) {
+    final dates = draft.dates.map(_day).toSet().toList()..sort();
+    if (dates.isEmpty) throw ArgumentError('Choose at least one day');
+    return _store.createRequestOff(
+      RequestOffDraft(dates: dates, reason: draft.reason?.trim()),
+    );
+  }
+
+  @override
+  Future<void> confirmRequestOffEmail(String requestId) =>
+      _store.confirmRequestOffEmail(requestId);
+
+  @override
+  Future<List<RequestOff>> myRequestsOff() =>
+      _store.requestsOff(pendingOnly: false);
+
+  @override
+  Future<List<RequestOff>> approvalQueue() =>
+      _store.requestsOff(pendingOnly: true);
+
+  @override
+  Future<List<RequestOff>> requestOffHistory() =>
+      _store.requestsOff(pendingOnly: false);
+
+  @override
+  Future<void> decideRequestOff(
+    String requestId,
+    RequestOffDecision decision, {
+    String? reason,
+  }) => _store.decideRequestOff(requestId, decision, reason?.trim());
+
+  @override
+  Future<int> unreadRequestOffNotices() => _store.unreadRequestOffNotices();
+
+  @override
+  Future<void> acknowledgeRequestOffNotices() =>
+      _store.acknowledgeRequestOffNotices();
+
+  @override
   Future<void> saveCell(SaveCell action) async {
     final date = _day(action.date);
     final code = action.shiftCode.trim();
@@ -925,6 +991,7 @@ final class InMemoryScheduleDatabase {
     List<ScheduleRow> rows = const [],
     this.editors,
     Map<String, String> names = const {},
+    this.managerEmail = 'manager@example.test',
     Set<DateTime> releasedMonths = const {},
     DateTime Function()? clock,
   }) : _monthStatus = {
@@ -952,6 +1019,7 @@ final class InMemoryScheduleDatabase {
   /// Staff member ids who act as the Manager; null lets everyone who is not a
   /// Night scheduler.
   final Set<String>? editors;
+  final String managerEmail;
 
   /// Display names of everyone, including people not on a Schedule row such
   /// as the Manager.
@@ -969,6 +1037,8 @@ final class InMemoryScheduleDatabase {
   final List<ScheduleChange> _changes = [];
   final List<ShortShift> _shortShifts = [];
   final List<StaffChange> _staffChanges = [];
+  final List<RequestOff> _requestsOff = [];
+  final Map<String, int> _unreadRequestOffNotices = {};
   final StreamController<DateTime> _updates = StreamController.broadcast();
   final List<DateTime> _awaitingConfirmation = [];
   final Map<DateTime, MonthStatus> _monthStatus;
@@ -1065,6 +1135,143 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   final InMemoryScheduleDatabase _database;
   final String _actingAs;
+
+  @override
+  Future<RequestOffEmail> createRequestOff(RequestOffDraft draft) async {
+    if (!_database._isActive(_actingAs)) {
+      throw StateError('Not on the Staff list');
+    }
+    final request = RequestOff(
+      id: 'request-${_database._requestsOff.length + 1}',
+      staffMemberId: _actingAs,
+      staffMemberName: _database._names[_actingAs]!,
+      dates: List.unmodifiable(draft.dates),
+      reason: draft.reason,
+      submittedAt: _database._clock(),
+      emailConfirmedAt: null,
+      decision: RequestOffDecision.pending,
+      decisionReason: null,
+      decidedAt: null,
+    );
+    _database._requestsOff.add(request);
+    for (final manager in _database.editors ?? const <String>{}) {
+      _database._unreadRequestOffNotices.update(
+        manager,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    return RequestOffEmail.forRequest(
+      requestId: request.id,
+      to: _database.managerEmail,
+      staffMemberName: request.staffMemberName,
+      dates: request.dates,
+      reason: request.reason,
+    );
+  }
+
+  @override
+  Future<void> confirmRequestOffEmail(String requestId) async {
+    final index = _database._requestsOff.indexWhere(
+      (r) => r.id == requestId && r.staffMemberId == _actingAs,
+    );
+    if (index < 0) throw StateError('Request off not found');
+    final request = _database._requestsOff[index];
+    if (request.emailConfirmedAt == null) {
+      _database._requestsOff[index] = request.withEmailConfirmed(
+        _database._clock(),
+      );
+    }
+  }
+
+  @override
+  Future<List<RequestOff>> requestsOff({required bool pendingOnly}) async {
+    final manager = await canEditSchedule();
+    if (pendingOnly && !manager) throw const ScheduleEditRefused();
+    return [
+      for (final request in _database._requestsOff)
+        if (pendingOnly
+            ? request.decision == RequestOffDecision.pending
+            : manager || request.staffMemberId == _actingAs)
+          request,
+    ];
+  }
+
+  @override
+  Future<void> decideRequestOff(
+    String requestId,
+    RequestOffDecision decision,
+    String? reason,
+  ) async {
+    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (decision == RequestOffDecision.pending) {
+      throw ArgumentError('Choose approve or decline');
+    }
+    final index = _database._requestsOff.indexWhere((r) => r.id == requestId);
+    if (index < 0) throw StateError('Request off not found');
+    final request = _database._requestsOff[index];
+    if (request.decision != RequestOffDecision.pending) {
+      throw StateError('Already decided');
+    }
+    if (decision == RequestOffDecision.approved) {
+      for (final date in request.dates) {
+        final row = (await rows(DateTime(date.year, date.month)))
+            .where((r) => r.staffMemberId == request.staffMemberId)
+            .firstOrNull;
+        if (row == null ||
+            (row.lastDay != null && date.isAfter(row.lastDay!))) {
+          throw StateError('Staff member is not on the Schedule for that day');
+        }
+      }
+      for (final date in request.dates) {
+        final row = (await rows(DateTime(date.year, date.month)))
+            .firstWhere((r) => r.staffMemberId == request.staffMemberId);
+        final old =
+            _database
+                ._cells[_cellKey(request.staffMemberId, date)]
+                ?.shiftCode ??
+            '';
+        if (old == 'R/O') continue;
+        _write(
+          ScheduleCell(
+            staffMemberId: request.staffMemberId,
+            sectionId: row.sectionId,
+            date: date,
+            shiftCode: 'R/O',
+          ),
+        );
+        if (isWorkingShift(old)) {
+          _database._shortShifts.add(
+            ShortShift(
+              sectionId: row.sectionId,
+              date: date,
+              shiftCode: old,
+              staffMemberId: request.staffMemberId,
+            ),
+          );
+        }
+      }
+    }
+    _database._requestsOff[index] = request.withDecision(
+      decision,
+      reason,
+      _database._clock(),
+    );
+    _database._unreadRequestOffNotices.update(
+      request.staffMemberId,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
+  }
+
+  @override
+  Future<int> unreadRequestOffNotices() async =>
+      _database._unreadRequestOffNotices[_actingAs] ?? 0;
+
+  @override
+  Future<void> acknowledgeRequestOffNotices() async {
+    _database._unreadRequestOffNotices.remove(_actingAs);
+  }
 
   @override
   Future<List<ScheduleSection>> sections() async => _database._sections;
