@@ -58,11 +58,14 @@ class _SwapsPageState extends State<SwapsPage> {
       await action();
       if (mounted) _refresh();
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -128,11 +131,12 @@ class _SwapsPageState extends State<SwapsPage> {
                       final date = await _pickDate(context, mine);
                       if (date == null) return;
                       final loaded = await _gridOn(date);
-                      if (loaded != null && context.mounted)
+                      if (loaded != null && context.mounted) {
                         setDialogState(() {
                           mine = date;
                           mineGrid = loaded;
                         });
+                      }
                     },
                   ),
                   ListTile(
@@ -150,11 +154,12 @@ class _SwapsPageState extends State<SwapsPage> {
                       final date = await _pickDate(context, theirs ?? mine);
                       if (date == null) return;
                       final loaded = await _gridOn(date);
-                      if (loaded != null && context.mounted)
+                      if (loaded != null && context.mounted) {
                         setDialogState(() {
                           theirs = date;
                           theirGrid = loaded;
                         });
+                      }
                     },
                   ),
                 ],
@@ -212,7 +217,7 @@ class _SwapsPageState extends State<SwapsPage> {
         '${swap.colleagueCode} shift? Please answer in the ER Schedule app.',
       );
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -220,6 +225,7 @@ class _SwapsPageState extends State<SwapsPage> {
             ),
           ),
         );
+      }
     }
   }
 
@@ -227,12 +233,13 @@ class _SwapsPageState extends State<SwapsPage> {
     try {
       return await widget.rules.monthGrid(date);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('This month could not be loaded. Try again.'),
           ),
         );
+      }
       return null;
     }
   }
@@ -281,12 +288,13 @@ class _SwapsPageState extends State<SwapsPage> {
     body: FutureBuilder<(MonthGrid, List<Swap>)>(
       future: _data,
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return Center(
             child: snapshot.hasError
                 ? Text(snapshot.error.toString())
                 : const CircularProgressIndicator(),
           );
+        }
         final (grid, swaps) = snapshot.data!;
         return ListView(
           children: [
