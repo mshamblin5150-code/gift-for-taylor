@@ -116,7 +116,7 @@ class _NightSchedulerPageState extends State<NightSchedulerPage> {
           children: [
             for (final scheduler in _schedulers)
               ListTile(
-                title: Text(_nameOf(grid, scheduler.staffMemberId)),
+                title: Text(grid.displayNameOf(scheduler.staffMemberId)),
                 subtitle: Text(
                   [
                     for (final section in grid.sections)
@@ -128,7 +128,7 @@ class _NightSchedulerPageState extends State<NightSchedulerPage> {
                 trailing: IconButton(
                   tooltip:
                       'Remove the role from '
-                      '${_nameOf(grid, scheduler.staffMemberId)}',
+                      '${grid.displayNameOf(scheduler.staffMemberId)}',
                   onPressed: () => _remove(scheduler),
                   icon: const Icon(Icons.remove_circle_outline),
                 ),
@@ -139,13 +139,6 @@ class _NightSchedulerPageState extends State<NightSchedulerPage> {
     );
   }
 }
-
-String _nameOf(MonthGrid grid, String staffMemberId) =>
-    grid.rows
-        .where((row) => row.staffMemberId == staffMemberId)
-        .firstOrNull
-        ?.displayName ??
-    'Former Staff member';
 
 class _AssignDialog extends StatefulWidget {
   const _AssignDialog({
@@ -181,7 +174,7 @@ class _AssignDialogState extends State<_AssignDialog> {
       title: Text(
         current == null
             ? 'Give the Night scheduler role'
-            : _nameOf(widget.grid, current.staffMemberId),
+            : widget.grid.displayNameOf(current.staffMemberId),
       ),
       content: SingleChildScrollView(
         child: Column(

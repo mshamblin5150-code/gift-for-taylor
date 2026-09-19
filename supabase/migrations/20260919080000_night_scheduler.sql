@@ -116,7 +116,7 @@ set search_path = ''
 as $$
 begin
   if not public.can_edit_schedule() then
-    raise exception 'Only the Manager can assign the Night scheduler';
+    raise exception 'Only the Manager can remove the Night scheduler';
   end if;
 
   update public.staff_members

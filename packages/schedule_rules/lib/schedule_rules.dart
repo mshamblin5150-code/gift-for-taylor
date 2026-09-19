@@ -39,6 +39,7 @@ abstract interface class ScheduleRules {
   /// Takes the Night scheduler role back. Only the Manager may.
   Future<void> removeNightScheduler(String staffMemberId);
 
+  /// Everyone with the Night scheduler role and the Sections they may edit.
   Future<List<NightScheduler>> nightSchedulers();
 
   /// Restores a changed, unannounced cell to its published value.
@@ -223,6 +224,8 @@ final class ScheduleChange {
 
   /// The Staff member id of the scheduler who saved it.
   final String changedBy;
+
+  /// Their display name, kept even after they leave the Staff list.
   final String changedByName;
   final DateTime changedAt;
   final bool announced;
@@ -299,6 +302,15 @@ final class MonthGrid {
 
   List<ScheduleRow> rowsIn(String sectionId) =>
       rows.where((row) => row.sectionId == sectionId).toList(growable: false);
+
+  /// The name on [staffMemberId]'s row, or a placeholder for someone no
+  /// longer on this month's Schedule.
+  String displayNameOf(String staffMemberId) =>
+      rows
+          .where((row) => row.staffMemberId == staffMemberId)
+          .firstOrNull
+          ?.displayName ??
+      'Former Staff member';
 
   String? shiftCodeFor(String staffMemberId, DateTime date) =>
       _codes[_cellKey(staffMemberId, date)];

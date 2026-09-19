@@ -17,7 +17,7 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
   MonthGrid? _grid;
 
   /// Everyone who changed a cell this month, by id, for the person filter.
-  Map<String, String> _changers = const {};
+  Map<String, String> _peopleWhoChanged = const {};
   List<ScheduleChange>? _entries;
   Object? _loadError;
   String? _changedBy;
@@ -43,7 +43,7 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
       if (!mounted) return;
       setState(() {
         _grid = grid;
-        _changers = {
+        _peopleWhoChanged = {
           for (final change in everything.reversed)
             change.changedBy: change.changedByName,
         };
@@ -124,7 +124,7 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
             onChanged: (id) => _filter(changedBy: id, changedOn: _changedOn),
             items: [
               const DropdownMenuItem(value: null, child: Text('Everyone')),
-              for (final MapEntry(:key, :value) in _changers.entries)
+              for (final MapEntry(:key, :value) in _peopleWhoChanged.entries)
                 DropdownMenuItem(value: key, child: Text(value)),
             ],
           ),
@@ -156,12 +156,7 @@ class _ChangeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final person =
-        grid.rows
-            .where((row) => row.staffMemberId == change.staffMemberId)
-            .firstOrNull
-            ?.displayName ??
-        'Former Staff member';
+    final person = grid.displayNameOf(change.staffMemberId);
     final oldCode = change.oldShiftCode.isEmpty ? 'blank' : change.oldShiftCode;
     final newCode = change.newShiftCode.isEmpty ? 'blank' : change.newShiftCode;
     return ListTile(
