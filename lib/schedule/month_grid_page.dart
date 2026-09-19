@@ -347,6 +347,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
     final targetCode =
         grid.shiftCodeFor(target.row.staffMemberId, target.date) ?? '';
     if (sourceCode.isEmpty || (sourceCode == targetCode)) return;
+    if (!copy && targetCode.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Choose a cell with a Shift code to swap, or hold Ctrl or Option to copy here.',
+          ),
+        ),
+      );
+      return;
+    }
     SaveCell cell(_DraggedCell location, String code) => SaveCell(
       staffMemberId: location.row.staffMemberId,
       sectionId: location.row.sectionId,
@@ -1160,10 +1170,13 @@ class _NameColumn extends StatelessWidget {
             height: _bandHeight,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             alignment: Alignment.centerLeft,
-            color: Theme.of(context).colorScheme.primaryContainer,
+            color: Theme.of(context).colorScheme.primary,
             child: Text(
               section.name,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimary,
+                fontWeight: FontWeight.w600,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -1255,7 +1268,15 @@ class _SectionBand extends StatelessWidget {
               width: _dayWidth,
               height: _bandHeight,
               alignment: Alignment.center,
-              decoration: _cellDecoration(day, context, today),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                border: _isToday(day, today)
+                    ? Border.all(
+                        color: Theme.of(context).colorScheme.tertiary,
+                        width: 2,
+                      )
+                    : null,
+              ),
               child: _ShortMarker(
                 key: ValueKey('short-${section.id}-${_dateKey(day)}'),
                 count:
@@ -1443,39 +1464,35 @@ class _GridCell extends StatelessWidget {
     );
     final location = dragCell;
     if (location == null) return cell;
+    final feedback = Material(
+      elevation: 4,
+      child: SizedBox(
+        width: _dayWidth,
+        height: _cellHeight,
+        child: Center(child: Text(code)),
+      ),
+    );
+    final fadedCell = Opacity(opacity: 0.35, child: cell);
+    void update(DragUpdateDetails details) =>
+        onDragUpdate?.call(details.globalPosition);
+    void end(DraggableDetails details) => onDragStop?.call();
     final draggable = canDrag
         ? switch (defaultTargetPlatform) {
             TargetPlatform.android ||
             TargetPlatform.iOS => LongPressDraggable<_DraggedCell>(
               data: location,
-              feedback: Material(
-                elevation: 4,
-                child: SizedBox(
-                  width: _dayWidth,
-                  height: _cellHeight,
-                  child: Center(child: Text(code)),
-                ),
-              ),
-              childWhenDragging: Opacity(opacity: 0.35, child: cell),
-              onDragUpdate: (details) =>
-                  onDragUpdate?.call(details.globalPosition),
-              onDragEnd: (_) => onDragStop?.call(),
+              feedback: feedback,
+              childWhenDragging: fadedCell,
+              onDragUpdate: update,
+              onDragEnd: end,
               child: cell,
             ),
             _ => Draggable<_DraggedCell>(
               data: location,
-              feedback: Material(
-                elevation: 4,
-                child: SizedBox(
-                  width: _dayWidth,
-                  height: _cellHeight,
-                  child: Center(child: Text(code)),
-                ),
-              ),
-              childWhenDragging: Opacity(opacity: 0.35, child: cell),
-              onDragUpdate: (details) =>
-                  onDragUpdate?.call(details.globalPosition),
-              onDragEnd: (_) => onDragStop?.call(),
+              feedback: feedback,
+              childWhenDragging: fadedCell,
+              onDragUpdate: update,
+              onDragEnd: end,
               child: cell,
             ),
           }
