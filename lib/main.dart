@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'auth/auth_gateway.dart';
 import 'calendar/calendar_feed_page.dart';
+import 'notifications/notice_gateway.dart';
 import 'schedule/book_page_printer.dart';
 import 'schedule/messages_composer.dart';
 import 'schedule/supabase_schedule_store.dart';
@@ -36,6 +37,10 @@ Future<void> main() async {
       staffGateway: SupabaseStaffGateway(client),
       inviteComposer: SmsInviteComposer(Uri.base),
       messagesComposer: const SmsMessagesComposer(),
+      noticeGateway: SupabaseNoticeGateway(
+        client,
+        const String.fromEnvironment('VAPID_PUBLIC_KEY'),
+      ),
       inviteToken: Uri.base.queryParameters['invite'],
       printBookPage: printBookPage,
       calendarFeedGateway: SupabaseCalendarFeedGateway(client, supabaseUrl),

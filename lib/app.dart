@@ -4,6 +4,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'auth/auth_gateway.dart';
 import 'auth/sign_in_page.dart';
 import 'calendar/calendar_feed_page.dart';
+import 'notifications/notice_gateway.dart';
 import 'schedule/messages_composer.dart';
 import 'schedule/month_grid_page.dart';
 import 'staff/staff_gateway.dart';
@@ -17,6 +18,7 @@ class ScheduleApp extends StatelessWidget {
     this.staffGateway,
     this.inviteComposer,
     this.messagesComposer,
+    this.noticeGateway,
     this.inviteToken,
     this.printBookPage,
     this.calendarFeedGateway,
@@ -27,6 +29,7 @@ class ScheduleApp extends StatelessWidget {
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
+  final NoticeGateway? noticeGateway;
   final String? inviteToken;
   final ValueChanged<String>? printBookPage;
   final CalendarFeedGateway? calendarFeedGateway;
@@ -45,6 +48,7 @@ class ScheduleApp extends StatelessWidget {
         staffGateway: staffGateway,
         inviteComposer: inviteComposer,
         messagesComposer: messagesComposer,
+        noticeGateway: noticeGateway,
         inviteToken: inviteToken,
         printBookPage: printBookPage,
         calendarFeedGateway: calendarFeedGateway,
@@ -60,6 +64,7 @@ class _AuthGate extends StatefulWidget {
     required this.staffGateway,
     required this.inviteComposer,
     required this.messagesComposer,
+    required this.noticeGateway,
     required this.inviteToken,
     required this.printBookPage,
     required this.calendarFeedGateway,
@@ -70,6 +75,7 @@ class _AuthGate extends StatefulWidget {
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
+  final NoticeGateway? noticeGateway;
   final String? inviteToken;
   final ValueChanged<String>? printBookPage;
   final CalendarFeedGateway? calendarFeedGateway;
@@ -124,6 +130,7 @@ class _AuthGateState extends State<_AuthGate> {
                 staffGateway: widget.staffGateway!,
                 inviteComposer: widget.inviteComposer,
                 messagesComposer: widget.messagesComposer,
+                noticeGateway: widget.noticeGateway,
                 inviteToken: widget.inviteToken!,
                 printBookPage: widget.printBookPage,
                 calendarFeedGateway: widget.calendarFeedGateway,
@@ -135,6 +142,7 @@ class _AuthGateState extends State<_AuthGate> {
               staffGateway: widget.staffGateway,
               inviteComposer: widget.inviteComposer,
               messagesComposer: widget.messagesComposer,
+              noticeGateway: widget.noticeGateway,
               printBookPage: widget.printBookPage,
               calendarFeedGateway: widget.calendarFeedGateway,
             );
@@ -152,6 +160,7 @@ class _InviteAcceptance extends StatefulWidget {
     required this.staffGateway,
     required this.inviteComposer,
     required this.messagesComposer,
+    required this.noticeGateway,
     required this.inviteToken,
     required this.printBookPage,
     required this.calendarFeedGateway,
@@ -162,6 +171,7 @@ class _InviteAcceptance extends StatefulWidget {
   final StaffGateway staffGateway;
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
+  final NoticeGateway? noticeGateway;
   final String inviteToken;
   final ValueChanged<String>? printBookPage;
   final CalendarFeedGateway? calendarFeedGateway;
@@ -214,6 +224,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           staffGateway: widget.staffGateway,
           inviteComposer: widget.inviteComposer,
           messagesComposer: widget.messagesComposer,
+          noticeGateway: widget.noticeGateway,
           printBookPage: widget.printBookPage,
           calendarFeedGateway: widget.calendarFeedGateway,
         );
@@ -229,6 +240,7 @@ class _ScheduleAccess extends StatefulWidget {
     required this.staffGateway,
     required this.inviteComposer,
     required this.messagesComposer,
+    required this.noticeGateway,
     required this.printBookPage,
     required this.calendarFeedGateway,
   });
@@ -238,6 +250,7 @@ class _ScheduleAccess extends StatefulWidget {
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
+  final NoticeGateway? noticeGateway;
   final ValueChanged<String>? printBookPage;
   final CalendarFeedGateway? calendarFeedGateway;
 
@@ -247,6 +260,14 @@ class _ScheduleAccess extends StatefulWidget {
 
 class _ScheduleAccessState extends State<_ScheduleAccess> {
   late final Future<_ScheduleData> _data = _loadData();
+
+  Future<void> _signOut() async {
+    try {
+      await widget.noticeGateway?.disablePush();
+    } finally {
+      await widget.authGateway.signOut();
+    }
+  }
 
   Future<_ScheduleData> _loadData() async {
     final sections = await widget.scheduleStore.sections();
@@ -282,7 +303,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
               actions: [
                 IconButton(
                   tooltip: 'Sign out',
-                  onPressed: widget.authGateway.signOut,
+                  onPressed: _signOut,
                   icon: const Icon(Icons.logout),
                 ),
               ],
@@ -304,10 +325,14 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
         final now = DateTime.now();
         return MonthGridPage(
           rules: ScheduleRules(widget.scheduleStore),
-          month: data?.monthToCheck ?? DateTime(now.year, now.month),
+          month:
+              data?.monthToCheck ??
+              DateTime.tryParse(Uri.base.queryParameters['month'] ?? '') ??
+              DateTime(now.year, now.month),
           staffMemberId: data?.staffMemberId,
-          onSignOut: widget.authGateway.signOut,
+          onSignOut: _signOut,
           messagesComposer: widget.messagesComposer,
+          noticeGateway: widget.noticeGateway,
           printBookPage: widget.printBookPage,
           onCalendarFeed: widget.calendarFeedGateway == null
               ? null
