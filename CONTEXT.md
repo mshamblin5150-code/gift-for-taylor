@@ -15,7 +15,10 @@ A Staff member the Manager has allowed to edit specific Sections (today, the nig
 _Avoid_: Co-scheduler, assistant manager
 
 **Staff member**:
-A person on the Schedule who can see it, ask for a Request off, a Swap or an Open shift pickup, but not change it.
+A person on the Schedule who can see it, ask for a Request off, a Swap or an
+Open shift pickup, but not change it. The single exception is a Call-in: a Staff
+member working that day may record one for anybody, because the Manager is not
+there at 03:00 and somebody in the department always is.
 _Avoid_: User, employee, member
 
 ### The schedule
@@ -49,8 +52,22 @@ RN and LPN counted as one for coverage, so a Staffing minimum of three nurses is
 _Avoid_: Nurses, RN/LPN, skill mix
 
 **Call-in**:
-A Staff member ringing in to say they will not work a shift they are on for, written in the cell as C/I. It is not worked and leaves the day short. Distinct from Sick leave (S/L).
+A Staff member ringing in to say they will not work a shift they are on for,
+written in the cell as C/I. It is not worked and leaves the day short. Whoever
+takes the call records it, not only the Manager, and recording it opens the Open
+shifts the day is now short by — up to the Staffing minimum she set, never past
+it, because anything past it is her decision to make. It can be withdrawn while
+nobody has taken the shift, and is settled once somebody has. It is what the
+department observed; Sick leave is what the absence is later classified as.
 _Avoid_: No-show, absence, callout
+
+**Sick leave**:
+An absence taken against a Staff member's sick entitlement, written in the cell
+as S/L and reconciled in UKG. It is not worked and opens the same Open shifts a
+Call-in does, but only the Manager decides that an absence is Sick leave: at
+03:00 nobody knows yet, so whoever takes the call records a Call-in and she
+converts it when the paperwork arrives.
+_Avoid_: Sick day, PTO, absence
 
 **Schedule change**:
 Any edit to a published Schedule, such as marking someone off or swapping a shift. It happens about weekly and has to be made in both Excel and UKG, plus a new printout.
@@ -60,8 +77,10 @@ _Avoid_: Schedule update, revision
 The step where a scheduler lets the Staff members affected by a Schedule change
 know it happened. Nothing leaves the app until she marks the changes announced;
 at that moment every affected person the app can reach is notified, and she
-texts the rest herself from the same sheet. Today it is a new printout in the
-Schedule book, or a Facebook group post when more than one person is affected.
+texts the rest herself from the same sheet. A change undone before it was
+announced never happened: neither it nor its reversal reaches the sheet. Today
+it is a new printout in the Schedule book, or a Facebook group post when more
+than one person is affected.
 It is the problem the gift tool solves.
 _Avoid_: Notification, schedule update
 
@@ -130,7 +149,7 @@ An exchange of shifts two Staff members agree to, which takes effect only when t
 _Avoid_: Trade
 
 **Open shift**:
-A scheduled shift left uncovered (for example by an approved Request off) and offered for pickup. Any nurse, RN or LPN, may pick up a nursing shift; other roles pick up within their own role. Each shift records whether pickup needs Manager approval; otherwise an eligible Staff member takes it immediately.
+A scheduled shift left uncovered (for example by an approved Request off, or by a Call-in) and offered for pickup. Any nurse, RN or LPN, may pick up a nursing shift; other roles pick up within their own role. Each shift records whether pickup needs Manager approval; otherwise an eligible Staff member takes it immediately.
 _Avoid_: Hole, vacancy
 
 **Calendar invitation**:
