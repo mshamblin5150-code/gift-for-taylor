@@ -27,7 +27,7 @@ void main() {
   late InMemoryScheduleDatabase database;
   late ScheduleRules manager;
 
-  setUp(() async {
+  setUp(() {
     now = DateTime(2026, 9, 18, 9, 30);
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],
@@ -35,10 +35,6 @@ void main() {
       clock: () => now,
     );
     manager = ScheduleRules.inMemory(database, actingAs: 'manager');
-    for (final id in ['rn-1', 'rn-2', 'rn-3']) {
-      await manager.changeJobRole(ChangeJobRole(
-        staffMemberId: id, jobRole: JobRole.rn, from: DateTime(2026, 1)));
-    }
   });
 
   Future<void> save(String staffMemberId, DateTime date, String code) {
@@ -76,7 +72,10 @@ void main() {
       expect(oct.shiftCodeFor('rn-1', DateTime(2026, 10, 3)) ?? '', '');
     });
 
-    test('marks each cleared working shift short in its Section', () async {
+    test('marks a cleared working shift short in its pool and window', () async {
+      await manager.changeJobRole(ChangeJobRole(
+          staffMemberId: 'rn-1', jobRole: JobRole.rn,
+          from: DateTime(2026, 1)));
       await manager.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
       );
