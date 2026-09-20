@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(29);
 
 insert into auth.users (id, email)
 values
@@ -352,6 +352,81 @@ select is((select count(*)::integer from public.schedule_changes
   where work_date = '2027-04-14' and announced_at is not null
     and reach = 'nobody'), 2,
   'a refreshed batch settles both edits against their shared baseline');
+
+-- A live cell's edits net against the last announced code, independently by day.
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000187',
+  '00000000-0000-0000-0000-000000000190', '2027-04-20', '7P');
+select public.mark_changes_announced(array(select id from public.schedule_changes
+  where work_date = '2027-04-20'), '{}'::uuid[]);
+set local role postgres;
+create temporary table notice_count_before_reversal on commit drop as
+select count(*)::integer as notices from public.staff_notices
+where kind = 'schedule_change'
+  and staff_member_id = '00000000-0000-0000-0000-000000000187';
+set local role authenticated;
+
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000187',
+  '00000000-0000-0000-0000-000000000190', '2027-04-20', 'C/I');
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000187',
+  '00000000-0000-0000-0000-000000000190', '2027-04-20', 'X');
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000187',
+  '00000000-0000-0000-0000-000000000190', '2027-04-20', '7P');
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000187',
+  '00000000-0000-0000-0000-000000000190', '2027-04-21', 'X');
+select public.mark_changes_announced(array(select id from public.schedule_changes
+  where work_date = '2027-04-20'), '{}'::uuid[]);
+select is((select count(*)::integer from public.schedule_changes
+  where work_date = '2027-04-20' and moot_at is not null
+    and announced_at is null and reach is null), 3,
+  'all three unannounced steps back to 7P are moot');
+set local role postgres;
+select is((select count(*)::integer from public.staff_notices
+  where kind = 'schedule_change'
+    and staff_member_id = '00000000-0000-0000-0000-000000000187'),
+  (select notices from notice_count_before_reversal),
+  'a fully reversed cell sends no notice');
+set local role authenticated;
+select is((select count(*)::integer from public.schedule_changes
+  where work_date = '2027-04-21' and announced_at is null and moot_at is null), 1,
+  'a different day for the same person stays pending');
+select public.mark_changes_announced(array(select id from public.schedule_changes
+  where work_date = '2027-04-21'), '{}'::uuid[]);
+select is((select count(*)::integer from public.schedule_changes
+  where work_date = '2027-04-21' and announced_at is not null), 1,
+  'the unrelated day can be announced separately');
+
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000187',
+  '00000000-0000-0000-0000-000000000190', '2027-04-20', 'C/I');
+select public.mark_changes_announced(array(select id from public.schedule_changes
+  where work_date = '2027-04-20' and announced_at is null and moot_at is null),
+  '{}'::uuid[]);
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000187',
+  '00000000-0000-0000-0000-000000000190', '2027-04-20', '7P');
+select public.mark_changes_announced(array(select id from public.schedule_changes
+  where work_date = '2027-04-20' and announced_at is null and moot_at is null),
+  '{}'::uuid[]);
+select is((select count(*)::integer from public.schedule_changes
+  where work_date = '2027-04-20' and announced_at is not null
+    and moot_at is null), 3,
+  'an announced call-in and its later reversal remain announced');
+select is((select count(*)::integer from public.schedule_changes
+  where work_date = '2027-04-20' and announced_at is not null
+    and reach = 'nobody'), 3,
+  'Reach for each announced change remains stamped');
+set local role postgres;
+select is((select count(*)::integer from public.staff_notices
+  where kind = 'schedule_change'
+    and staff_member_id = '00000000-0000-0000-0000-000000000187'),
+  (select notices + 3 from notice_count_before_reversal),
+  'the unrelated day and both post-announcement edits send notices');
+set local role authenticated;
 
 select public.save_schedule_cell(
   '00000000-0000-0000-0000-000000000188',
