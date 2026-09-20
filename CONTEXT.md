@@ -82,9 +82,29 @@ _Avoid_: Trade
 A scheduled shift left uncovered (for example by an approved Request off) and offered for pickup. Any nurse, RN or LPN, may pick up a nursing shift; other roles pick up within their own role. A pickup takes effect when the Manager approves it.
 _Avoid_: Hole, vacancy
 
+**Calendar invitation**:
+The way a Staff member's working shifts reach their calendar: one invitation
+per shift, emailed to the personal email they gave when accepting their Invite,
+replaced in place when the shift changes and withdrawn when it goes away. It
+asks for no reply; a shift is not an offer, and declining one would mean
+nothing. It is the default, and a Staff member has it or a Calendar feed, never
+both.
+_Avoid_: Calendar invite, meeting request, RSVP
+
 **Calendar feed**:
-A Staff member's private, self-updating link that puts their working shifts into their phone's calendar.
-_Avoid_: Calendar export, ICS file
+A Staff member's private link that mirrors their working shifts into a calendar
+app, offered instead of Calendar invitations to someone who would rather have
+one separate calendar they can switch off. It lags, by a day or more on some
+calendars, so each shift it publishes says how current it is.
+_Avoid_: Calendar export, ICS file, self-updating link
+
+**Calendar subscription**:
+One place a Calendar feed has been subscribed to. Sometimes a device, such as an
+iPhone that fetches the feed itself, and sometimes an account elsewhere, such as
+Google, whose servers fetch the feed and sync it on to every device signed into
+it. A Staff member may have several, each with its own link, revocable on its
+own.
+_Avoid_: Device, calendar client
 
 ### Checks and supplies
 
