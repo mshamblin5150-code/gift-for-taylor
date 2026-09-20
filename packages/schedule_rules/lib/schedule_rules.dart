@@ -1064,6 +1064,8 @@ DateTime _sameWeekdayLastMonth(DateTime date) {
 
 /// An in-memory stand-in for the database, shared by every scheduler in a
 /// test.
+enum InMemoryStoreCall { sections, shiftCodes, staffingForMonth }
+
 final class InMemoryScheduleDatabase {
   InMemoryScheduleDatabase({
     required List<ScheduleSection> sections,
@@ -1126,6 +1128,17 @@ final class InMemoryScheduleDatabase {
   final StreamController<DateTime> _updates = StreamController.broadcast();
   final List<DateTime> _awaitingConfirmation = [];
   final Map<DateTime, MonthStatus> _monthStatus;
+  final Map<InMemoryStoreCall, Object> _nextFailures = {};
+
+  /// Makes the next matching read fail, then resumes normal in-memory reads.
+  void failNext(InMemoryStoreCall call, Object error) {
+    _nextFailures[call] = error;
+  }
+
+  void _throwNextFailure(InMemoryStoreCall call) {
+    final error = _nextFailures.remove(call);
+    if (error != null) throw error;
+  }
 
   /// Moves a Staff member to [sectionId] from the first day of [from]'s month,
   /// without logging it, to set up a test.
@@ -1221,8 +1234,12 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   final String _actingAs;
 
   @override
-  Future<List<LegendCode>> shiftCodes() async =>
-      List.unmodifiable(_database._shiftCodes.where((code) => code.active));
+  Future<List<LegendCode>> shiftCodes() async {
+    _database._throwNextFailure(InMemoryStoreCall.shiftCodes);
+    return List.unmodifiable(
+      _database._shiftCodes.where((code) => code.active),
+    );
+  }
 
   @override
   Future<void> saveShiftCode(LegendCode code, {String? originalCode}) async {
@@ -1433,7 +1450,10 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<List<ScheduleSection>> sections() async => _database._sections;
+  Future<List<ScheduleSection>> sections() async {
+    _database._throwNextFailure(InMemoryStoreCall.sections);
+    return _database._sections;
+  }
 
   @override
   Future<List<ScheduleRow>> rows(DateTime month) async {

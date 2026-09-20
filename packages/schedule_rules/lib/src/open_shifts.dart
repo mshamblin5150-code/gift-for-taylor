@@ -273,6 +273,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<List<SectionStaffing>> staffingForMonth(DateTime month) async {
+    database._throwNextFailure(InMemoryStoreCall.staffingForMonth);
     final grid = await ScheduleRules.inMemory(
       database,
       actingAs: actor,
