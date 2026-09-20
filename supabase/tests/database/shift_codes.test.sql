@@ -93,12 +93,13 @@ select is((select active from public.shift_codes where code = '7A'), false,
 select is((select count(*)::int from public.shift_codes where code = 'DAY' and active), 1,
   'new code is available in the active legend');
 
-set local role service_role;
+reset role;
 insert into public.schedule_cells(schedule_month_id, staff_member_id, section_id, work_date, shift_code)
 values ('00000000-0000-0000-0000-000000000576', '00000000-0000-0000-0000-000000000574',
   '00000000-0000-0000-0000-000000000575', '2027-03-05', 'ADHOC');
 select is((select coverage_window from public.shift_codes where code = 'ADHOC'), null,
   'free-hand codes are registered without hours or a window');
+set local role service_role;
 select is((select starts_at from code_feed,
   lateral public.calendar_feed_events(token) where work_date = '2027-03-04'),
   '2027-03-04 13:00:00+00'::timestamptz,

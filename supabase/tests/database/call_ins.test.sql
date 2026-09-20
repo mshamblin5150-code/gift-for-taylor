@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(20);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000901', 'call-manager@example.test'),
@@ -26,7 +26,7 @@ insert into public.schedule_months(id, month_start) values
   ('00000000-0000-0000-0000-000000000909', '2027-10-01');
 insert into public.schedule_cells(schedule_month_id, staff_member_id, section_id, work_date, shift_code)
 select month.id, '00000000-0000-0000-0000-000000000906',
-  '00000000-0000-0000-0000-000000000904', current_date, '7P'
+  '00000000-0000-0000-0000-000000000904', current_date, 'ADHOC'
 from public.schedule_months month where month.month_start = date_trunc('month', current_date)::date;
 insert into public.schedule_cells(schedule_month_id, staff_member_id, section_id, work_date, shift_code) values
   ('00000000-0000-0000-0000-000000000909', '00000000-0000-0000-0000-000000000907',
@@ -68,6 +68,16 @@ select lives_ok($$select public.record_call_in('00000000-0000-0000-0000-00000000
   'working Staff member can record a colleague on the same day');
 select lives_ok($$select public.withdraw_call_in('00000000-0000-0000-0000-000000000907', current_date)$$,
   'same-day Call-in is withdrawable');
+reset role;
+update public.schedule_cells set shift_code = case
+  when (clock_timestamp() at time zone 'America/New_York')::time < time '07:00'
+    or (clock_timestamp() at time zone 'America/New_York')::time >= time '19:00'
+    then '7A' else '7P' end
+where staff_member_id = '00000000-0000-0000-0000-000000000906' and work_date = current_date;
+set local role authenticated;
+select throws_ok($$select public.record_call_in('00000000-0000-0000-0000-000000000907', '2027-10-15')$$,
+  'You must be working when you record a Call-in',
+  'Staff member scheduled later or already off duty cannot record');
 reset role;
 delete from public.schedule_cells where staff_member_id = '00000000-0000-0000-0000-000000000906' and work_date = current_date;
 set local role authenticated;

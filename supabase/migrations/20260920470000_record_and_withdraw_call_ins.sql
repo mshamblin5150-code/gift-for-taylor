@@ -51,18 +51,27 @@ $$;
 -- The Schedule's work date is local to the department. After midnight, a
 -- Staff member still on yesterday's overnight Shift is also on the floor.
 create function public.can_record_call_in(p_section_id uuid)
-returns boolean language sql stable security definer set search_path = '' as $$
-  select public.can_edit_section(p_section_id) or coalesce(
+returns boolean language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_local timestamp := clock_timestamp() at time zone 'America/New_York';
+begin
+  return public.can_edit_section(p_section_id) or coalesce(
     public.current_staff_role() = 'staff_member' and exists (
       select 1 from public.schedule_cells own
       left join public.shift_codes code on code.code = upper(trim(own.shift_code))
       where own.staff_member_id = public.current_staff_member_id()
         and public.is_working_shift(own.shift_code)
-        and (own.work_date = (now() at time zone 'America/New_York')::date
-          or (own.work_date = (now() at time zone 'America/New_York')::date - 1
+        and ((own.work_date = v_local::date
+            and (code.start_time is null
+              or (v_local::time >= code.start_time
+                and (code.end_time > code.start_time
+                  and v_local::time < code.end_time
+                  or code.end_time <= code.start_time))))
+          or (own.work_date = v_local::date - 1
             and code.end_time <= code.start_time
-            and (now() at time zone 'America/New_York')::time < code.end_time))
+            and v_local::time < code.end_time))
     ), false);
+end;
 $$;
 revoke all on function public.can_record_call_in(uuid) from public;
 

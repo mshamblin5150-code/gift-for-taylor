@@ -69,6 +69,7 @@ select is((select starts_at is null and ends_at is null from feed_secrets,
 select is((select sequence from feed_secrets,
   lateral public.calendar_feed_events(old_token) where work_date = '2027-01-04'),
   0::bigint, 'initial event sequence is zero');
+reset role;
 select is((select updated_at from feed_secrets,
   lateral public.calendar_feed_events(old_token) where work_date = '2027-01-04'),
   (select updated_at from public.schedule_cells where staff_member_id =
@@ -106,13 +107,16 @@ select is((select public.calendar_feed_owner(old_token) from feed_secrets),
 select is((select count(*)::integer from feed_secrets,
   lateral public.calendar_feed_events(new_token)), 3,
   'new token serves current shifts');
+reset role;
 update public.calendar_feed_tokens
 set measure_fetches_until = now() + interval '8 days'
 where id = (select old_id from feed_secrets);
+set local role service_role;
 select is((select public.record_calendar_feed_fetch(old_token, 'Test Calendar/1.0',
   '"etag"', null, '192.0.2.10')
   from feed_secrets), '00000000-0000-0000-0000-000000000504'::uuid,
   'valid fetch records its owner');
+reset role;
 select is((select count(*)::integer from public.calendar_feed_fetches
   where subscription_id = (select old_id from feed_secrets)), 1,
   'each valid fetch has a history row');
@@ -122,8 +126,10 @@ select is((select if_none_match from public.calendar_feed_fetches
 select is((select forwarded_for from public.calendar_feed_fetches
   where subscription_id = (select old_id from feed_secrets)), '192.0.2.10',
   'forwarded source address is recorded');
+set local role service_role;
 select is((select public.record_calendar_feed_fetch(repeat('a', 64), null,
   null, null, null)), null::uuid, 'unknown tokens are not recorded');
+reset role;
 select ok((select last_fetched_at is not null from public.calendar_feed_tokens
   where id = (select old_id from feed_secrets)),
   'fetch time is recorded on the fetched subscription');
