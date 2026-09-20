@@ -2054,7 +2054,7 @@ DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
 
 CoverageWindow? _coverageWindowOf(String code, List<LegendCode> codes) {
   final value = codes
-      .where((item) => item.code == code.toUpperCase())
+      .where((item) => item.code == code.trim().toUpperCase())
       .firstOrNull
       ?.coverageWindow;
   return value == null ? null : CoverageWindow.fromValue(value);

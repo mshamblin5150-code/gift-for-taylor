@@ -301,13 +301,8 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     );
   }
 
-  CoverageWindow? _windowForCode(String code) {
-    final value = database._shiftCodes
-        .where((item) => item.code == code.toUpperCase())
-        .firstOrNull
-        ?.coverageWindow;
-    return value == null ? null : CoverageWindow.fromValue(value);
-  }
+  CoverageWindow? _windowForCode(String code) =>
+      _coverageWindowOf(code, database._shiftCodes);
 
   @override
   Future<List<SectionStaffing>> staffingForMonth(DateTime month) async {
