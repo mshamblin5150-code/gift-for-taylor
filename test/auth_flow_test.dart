@@ -6,9 +6,52 @@ import 'package:er_schedule/app.dart';
 import 'package:er_schedule/auth/auth_gateway.dart';
 import 'package:er_schedule/auth/sign_in_page.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
+import 'package:er_schedule/schedule_theme.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 void main() {
+  testWidgets('system appearance updates sign-in and Invite before auth', (
+    tester,
+  ) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    final gateway = _FakeAuthGateway();
+    await tester.pumpWidget(
+      ScheduleApp(
+        authGateway: gateway,
+        scheduleStore: _scheduleStore(const []),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Email me a code'), findsOneWidget);
+    expect(
+      Theme.of(tester.element(find.text('ER Schedule'))).colorScheme.surface,
+      ScheduleTheme.light.colorScheme.surface,
+    );
+
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    await tester.pumpAndSettle();
+    expect(
+      Theme.of(tester.element(find.text('ER Schedule'))).colorScheme.surface,
+      ScheduleTheme.dark.colorScheme.surface,
+    );
+
+    await tester.pumpWidget(
+      ScheduleApp(
+        authGateway: gateway,
+        scheduleStore: _scheduleStore(const []),
+        staffGateway: _FakeStaffGateway(),
+        inviteToken: 'fresh-token',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Cell number'), findsOneWidget);
+    expect(
+      Theme.of(tester.element(find.text('Cell number'))).brightness,
+      Brightness.dark,
+    );
+  });
+
   testWidgets('Manager requests and verifies an emailed one-time code', (
     tester,
   ) async {
@@ -302,7 +345,11 @@ final class _FakeStaffGateway implements StaffGateway {
   @override
   Future<Set<String>> loadNightSchedulerSections(String id) async => {};
   @override
-  Future<void> setAccessRole(String id, String role, Set<String> sections) async {}
+  Future<void> setAccessRole(
+    String id,
+    String role,
+    Set<String> sections,
+  ) async {}
   @override
   Future<String?> currentStaffRole() async => 'staff_member';
 

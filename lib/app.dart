@@ -11,6 +11,7 @@ import 'schedule/print_wording_gateway.dart';
 import 'staff/staff_gateway.dart';
 import 'staff/staff_list_page.dart';
 import 'staff/staff_details_page.dart';
+import 'schedule_theme.dart';
 
 class ScheduleApp extends StatelessWidget {
   const ScheduleApp({
@@ -46,10 +47,9 @@ class ScheduleApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'ER Schedule',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff24535c)),
-        useMaterial3: true,
-      ),
+      theme: ScheduleTheme.light,
+      darkTheme: ScheduleTheme.dark,
+      themeMode: ThemeMode.system,
       home: _AuthGate(
         authGateway: authGateway,
         scheduleStore: scheduleStore,
@@ -320,10 +320,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(
-                  message,
-                  textAlign: TextAlign.center,
-                ),
+                child: Text(message, textAlign: TextAlign.center),
               ),
             ),
           );
@@ -442,8 +439,9 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
     final canManageStaff = await widget.staffGateway?.canManageStaff() ?? false;
     final staffMemberId = await widget.staffGateway?.currentStaffMemberId();
     final editable = await widget.scheduleStore.editableSections();
-    final monthToCheck = await ScheduleRules(widget.scheduleStore)
-        .monthAwaitingConfirmation();
+    final monthToCheck = await ScheduleRules(
+      widget.scheduleStore,
+    ).monthAwaitingConfirmation();
     return _ScheduleData(
       sections,
       invitePending,
