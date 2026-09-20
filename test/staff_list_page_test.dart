@@ -214,6 +214,59 @@ void main() {
     expect(gateway.allowedRecycledCell, isTrue);
   });
 
+  testWidgets('a recycled Cell number offers every matching past person', (
+    tester,
+  ) async {
+    final lastDay = DateTime.now().subtract(const Duration(days: 30));
+    await rules.setLastDay(
+      SetLastDay(staffMemberId: 'staff-1', lastDay: lastDay),
+    );
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: []),
+      pastStaff: [
+        PastStaffMember(
+          id: 'former',
+          displayName: 'First Person',
+          cellNumber: '+15558675309',
+          lastDay: DateTime(2026, 3, 1),
+          sectionId: 'days',
+        ),
+        PastStaffMember(
+          id: 'staff-1',
+          displayName: 'Second Person',
+          cellNumber: '+15558675309',
+          lastDay: lastDay,
+          sectionId: 'days',
+        ),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: StaffListPage(
+        gateway: gateway,
+        rules: rules,
+        inviteComposer: _FakeInviteComposer(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add Staff member'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Second Person');
+    await tester.enterText(find.widgetWithText(TextField, 'Cell number'), '5558675309');
+    await tester.tap(find.text('Add and text Invite'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('First Person was on the Staff list'), findsOneWidget);
+    await tester.tap(find.text('Not this person'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Second Person was on the Staff list'), findsOneWidget);
+    await tester.tap(find.text('Bring them back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reactivate and text Invite'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.added, isNull);
+    expect(gateway.resentStaffMemberId, 'staff-1');
+  });
+
   testWidgets('administrator can resend a fresh Invite', (tester) async {
     final gateway = _FakeStaffGateway(
       const StaffList(

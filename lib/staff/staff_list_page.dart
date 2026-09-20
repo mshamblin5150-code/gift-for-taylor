@@ -80,10 +80,9 @@ class _StaffListPageState extends State<StaffListPage> {
       if (!mounted) return;
       final matches = pastStaff.where(
         (member) => member.cellNumber == draft.cellNumber,
-      );
-      final match = matches.isEmpty ? null : matches.first;
+      ).toList();
       var allowRecycledCell = false;
-      if (match != null) {
+      for (final match in matches) {
         final bringBack = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -101,7 +100,11 @@ class _StaffListPageState extends State<StaffListPage> {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Add different person'),
+                child: Text(
+                  matches.length == 1
+                      ? 'Add different person'
+                      : 'Not this person',
+                ),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
