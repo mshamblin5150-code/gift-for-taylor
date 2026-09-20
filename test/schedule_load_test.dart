@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
-/// The Schedule opens on several backend calls, but only the grid and the
-/// unannounced tray are the Schedule. Section staffing is an adjunct, and an
-/// app deployed ahead of its database is how it goes missing.
+/// The grid is required; Shift codes and Section staffing are adjunct reads.
 void main() {
   const days = ScheduleSection(id: 'days', name: 'State dayshift RN');
   const dayNurse = ScheduleRow(
@@ -48,7 +46,52 @@ void main() {
   testWidgets('Section staffing being unavailable still opens the month', (
     tester,
   ) async {
-    await pumpGrid(tester, openShiftRules: OpenShiftRules(_NoStaffingStore()));
+    database.failNext(
+      InMemoryStoreCall.staffingForMonth,
+      StateError('Could not find public.section_staffing_for_month'),
+    );
+    await pumpGrid(
+      tester,
+      openShiftRules: OpenShiftRules(database.openShiftStoreFor('manager')),
+    );
+
+    expect(find.text("The Schedule couldn't be loaded."), findsNothing);
+    expect(find.text('Day RN'), findsOneWidget);
+    expect(find.text('State dayshift RN'), findsOneWidget);
+  });
+
+  testWidgets('Shift codes being unavailable still opens the month', (
+    tester,
+  ) async {
+    database.failNext(
+      InMemoryStoreCall.shiftCodes,
+      StateError('Could not find public.shift_codes'),
+    );
+    await pumpGrid(tester);
+
+    expect(find.text("The Schedule couldn't be loaded."), findsNothing);
+    expect(find.text('Day RN'), findsOneWidget);
+    expect(find.text('State dayshift RN'), findsOneWidget);
+  });
+
+  testWidgets('a failed month read shows the reason and can be retried', (
+    tester,
+  ) async {
+    database.failNext(
+      InMemoryStoreCall.sections,
+      StateError('Could not read Schedule sections'),
+    );
+    await pumpGrid(tester);
+
+    expect(find.text("The Schedule couldn't be loaded."), findsOneWidget);
+    expect(
+      find.textContaining('Could not read Schedule sections'),
+      findsOneWidget,
+    );
+    expect(find.text('Day RN'), findsNothing);
+
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
 
     expect(find.text("The Schedule couldn't be loaded."), findsNothing);
     expect(find.text('Day RN'), findsOneWidget);
@@ -63,46 +106,4 @@ void main() {
     expect(find.text("The Schedule couldn't be loaded."), findsNothing);
     expect(find.text('Day RN'), findsOneWidget);
   });
-}
-
-/// A database that has not learned about staffing minimums yet.
-final class _NoStaffingStore implements OpenShiftStore {
-  @override
-  Future<List<SectionStaffing>> staffingForMonth(DateTime month) =>
-      throw StateError(
-        'Could not find the function public.section_staffing_for_month',
-      );
-
-  @override
-  Stream<void> updates() => const Stream<void>.empty();
-
-  @override
-  Future<List<OpenShift>> openShifts() => throw UnimplementedError();
-
-  @override
-  Future<List<OpenShiftPickup>> pickups() => throw UnimplementedError();
-
-  @override
-  Future<void> requestPickup(String openShiftId) => throw UnimplementedError();
-
-  @override
-  Future<void> approvePickup(String pickupId) => throw UnimplementedError();
-
-  @override
-  Future<void> setWeekdayMinimum(String sectionId, int weekday, int minimum) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> setDateMinimum(String sectionId, DateTime date, int? minimum) =>
-      throw UnimplementedError();
-
-  @override
-  Future<int> postOpenShifts(
-    String sectionId,
-    DateTime date,
-    String shiftCode,
-    JobRole jobRole,
-    int count, {
-    bool fillGap = false,
-  }) => throw UnimplementedError();
 }
