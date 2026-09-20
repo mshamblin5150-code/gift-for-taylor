@@ -27,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: python3 scripts/check_migration_versions.py
       - uses: supabase/setup-cli@v1
         with:
           version: latest
