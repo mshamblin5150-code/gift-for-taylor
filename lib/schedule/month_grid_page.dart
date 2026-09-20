@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import '../help/help_page.dart';
 import '../notifications/notice_gateway.dart';
 import '../notifications/notices_page.dart';
 
@@ -687,7 +688,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
               onPressed: () => _goToMonth(-1),
               icon: const Icon(Icons.chevron_left),
             ),
-            Text(DateFormat.yMMMM().format(_month)),
+            Flexible(
+              child: Text(
+                DateFormat.yMMMM().format(_month),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             IconButton(
               tooltip: 'Next month',
               onPressed: () => _goToMonth(1),
@@ -696,6 +702,21 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Help',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (context) => HelpPage(
+                  role: _canEdit
+                      ? HelpRole.manager
+                      : _editable.isEmpty
+                      ? HelpRole.staffMember
+                      : HelpRole.nightScheduler,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.help_outline),
+          ),
           if (widget.openShiftRules != null)
             IconButton(
               tooltip: 'Open shifts',

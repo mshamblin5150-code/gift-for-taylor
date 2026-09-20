@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import '../help/help_page.dart';
 import 'contact_picker.dart';
 import 'invite_composer.dart';
 import 'past_staff_page.dart';
@@ -288,9 +289,8 @@ class _StaffListPageState extends State<StaffListPage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -300,6 +300,15 @@ class _StaffListPageState extends State<StaffListPage> {
       appBar: AppBar(
         title: const Text('Staff list'),
         actions: [
+          IconButton(
+            tooltip: 'Help',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (context) => const HelpPage(role: HelpRole.manager),
+              ),
+            ),
+            icon: const Icon(Icons.help_outline),
+          ),
           if (staffList != null)
             IconButton(
               tooltip: 'Past staff',
