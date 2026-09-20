@@ -10,6 +10,12 @@ part 'src/swaps.dart';
 part 'src/request_off.dart';
 part 'src/open_shifts.dart';
 
+/// Character budgets for text printed on the Schedule book page.
+const sectionNameLimit = 32;
+const staffNameLimit = 30;
+const shiftCodeLimit = 5;
+const shiftMeaningLimit = 40;
+
 /// Every schedule rule is reached through this public interface.
 abstract interface class ScheduleRules {
   /// Rules backed by [store], the database seen by one signed-in person.

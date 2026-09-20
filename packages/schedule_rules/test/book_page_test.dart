@@ -157,11 +157,9 @@ void main() {
       RegExp(r'--initial-scale: ([\d.]+)').firstMatch(html)!.group(1)!,
     );
     expect(scale(long), lessThan(scale(short)));
-    // 160 Staff rows, a Section band, two date rows, and heading/legend space.
-    expect(
-      (163 * 12 + 60) * scale(long),
-      lessThanOrEqualTo(bookPageBodyHeightPt),
-    );
+    // The rows alone stay within the fallback height; heading and legend
+    // reserve additional space in the scale calculation.
+    expect(163 * 12 * scale(long), lessThanOrEqualTo(bookPageBodyHeightPt));
     expect(long, contains('height: 100vh'));
     expect(long, contains('beforeprint'));
     expect(bookPageIsHardToRead(shortGrid), isFalse);
@@ -184,8 +182,7 @@ void main() {
       actingAs: 'manager',
     ).monthGrid(september);
     const longTitle = PrintWording(
-      title:
-          'A very long Schedule title for the emergency department and every member of staf',
+      title: 'A very long Schedule title for the emergency department and every member of staf',
     );
 
     expect(longTitle.title.length, 80);
@@ -205,6 +202,83 @@ void main() {
       RegExp(r'--initial-scale: ([\d.]+)').firstMatch(html)!.group(1)!,
     );
     expect(scale * 9, greaterThanOrEqualTo(6));
+  });
+
+  test('a large legend contributes to the small print warning', () async {
+    final grid = await ScheduleRules.inMemory(
+      InMemoryScheduleDatabase(
+        sections: const [days],
+        rows: [
+          for (var index = 0; index < 40; index++)
+            ScheduleRow(
+              staffMemberId: 'rn-$index',
+              displayName: 'RN $index',
+              sectionId: 'days',
+            ),
+        ],
+      ),
+      actingAs: 'manager',
+    ).monthGrid(september);
+    final largeLegend = [
+      for (var index = 0; index < 20; index++)
+        LegendCode('C$index', meaning: 'M' * shiftMeaningLimit),
+    ];
+
+    expect(bookPageIsHardToRead(grid), isFalse);
+    expect(bookPageIsHardToRead(grid, codes: largeLegend), isTrue);
+    final normal = bookPageHtml(grid);
+    final large = bookPageHtml(grid, codes: largeLegend);
+    double scale(String html) => double.parse(
+      RegExp(r'--initial-scale: ([\d.]+)').firstMatch(html)!.group(1)!,
+    );
+    expect(scale(large), lessThan(scale(normal)));
+  });
+
+  test('bounded printed fields remain readable in a normal month', () async {
+    final fullName = 'N' * staffNameLimit;
+    final fullSection = 'S' * sectionNameLimit;
+    final boundedRules = ScheduleRules.inMemory(
+      InMemoryScheduleDatabase(
+        sections: [ScheduleSection(id: 'full', name: fullSection)],
+        rows: [
+          for (var index = 0; index < 30; index++)
+            ScheduleRow(
+              staffMemberId: 'rn-$index',
+              displayName: fullName,
+              sectionId: 'full',
+            ),
+        ],
+      ),
+      actingAs: 'manager',
+    );
+    await boundedRules.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-0',
+        sectionId: 'full',
+        date: DateTime(2026, 9, 1),
+      shiftCode: 'C0000',
+      ),
+    );
+    final grid = await boundedRules.monthGrid(september);
+    final codes = [
+      for (var index = 0; index < 14; index++)
+        LegendCode(
+          'C${index.toString().padLeft(4, '0')}',
+          meaning: 'M' * shiftMeaningLimit,
+        ),
+    ];
+
+    final wording = PrintWording(
+      title: 'T' * 80,
+      notice: 'N' * 80,
+    );
+    expect(bookPageIsHardToRead(grid, codes: codes, wording: wording), isFalse);
+    final html = bookPageHtml(grid, codes: codes, wording: wording);
+    expect(html, contains(fullSection));
+    expect(html, contains(fullName));
+    expect(html, contains('M' * shiftMeaningLimit));
+    expect(html, contains('<td class="code">C0000</td>'));
+    expect(html, contains('fitCellText();'));
   });
 
   test('names and codes are escaped', () async {

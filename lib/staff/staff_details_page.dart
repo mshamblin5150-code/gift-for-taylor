@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
@@ -77,9 +78,8 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _editContact() async {
@@ -419,6 +419,7 @@ class _EditContactDialog extends StatefulWidget {
 
 class _EditContactDialogState extends State<_EditContactDialog> {
   late final _name = TextEditingController(text: widget.details.displayName);
+  String? _nameError;
   late final _cell = TextEditingController(text: widget.details.cellNumber);
   String? _cellError;
 
@@ -442,6 +443,10 @@ class _EditContactDialogState extends State<_EditContactDialog> {
   void _submit() {
     final name = _name.text.trim();
     if (name.isEmpty) return;
+    if (name.runes.length > staffNameLimit) {
+      setState(() => _nameError = 'Use $staffNameLimit characters or fewer.');
+      return;
+    }
     final rawCell = _cell.text.trim();
     String? cell;
     try {
@@ -478,7 +483,13 @@ class _EditContactDialogState extends State<_EditContactDialog> {
             ),
           TextField(
             controller: _name,
-            decoration: const InputDecoration(labelText: 'Name'),
+            maxLength: staffNameLimit,
+            maxLengthEnforcement: MaxLengthEnforcement.none,
+            decoration: InputDecoration(
+              labelText: 'Name',
+              errorText: _nameError,
+            ),
+            onChanged: (_) => setState(() => _nameError = null),
           ),
           TextField(
             controller: _cell,

@@ -140,10 +140,10 @@ select is((select shortfall from public.section_staffing_for_month('2027-03-01')
 
 set local role postgres;
 insert into public.shift_codes(code, is_working, display_order)
-values ('UNKNOWN', true, 1000);
+values ('UNK', true, 1000);
 insert into public.schedule_cells(schedule_month_id, staff_member_id, section_id, work_date, shift_code)
 values ('00000000-0000-0000-0000-00000000053a', '00000000-0000-0000-0000-000000000537',
-  '00000000-0000-0000-0000-000000000535', '2027-03-03', 'UNKNOWN');
+  '00000000-0000-0000-0000-000000000535', '2027-03-03', 'UNK');
 set local role authenticated;
 select is((select shortfall from public.section_staffing_for_month('2027-03-01')
   where pool = 'nurses' and coverage_window = 'day' and work_date = '2027-03-03'), 3,

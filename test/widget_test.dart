@@ -832,6 +832,23 @@ void main() {
     );
   });
 
+  testWidgets('pasted overlong cell code stays visible and cannot save', (
+    tester,
+  ) async {
+    await pumpGrid(tester);
+    await tester.tap(cell('rn-1', september18));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Other Shift code'),
+      'C' * 9,
+    );
+    expect(find.text('C' * 9), findsOneWidget);
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    expect(find.text('Use 5 characters or fewer.'), findsOneWidget);
+    expect(find.text('Other Shift code'), findsOneWidget);
+  });
+
   testWidgets('undo restores the published value', (tester) async {
     final setup = ScheduleRules.inMemory(database, actingAs: 'manager');
     await setup.saveCell(

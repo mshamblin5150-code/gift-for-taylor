@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
@@ -78,9 +79,9 @@ class _StaffListPageState extends State<StaffListPage> {
     try {
       final pastStaff = await widget.gateway.loadPastStaff();
       if (!mounted) return;
-      final matches = pastStaff.where(
-        (member) => member.cellNumber == draft.cellNumber,
-      ).toList();
+      final matches = pastStaff
+          .where((member) => member.cellNumber == draft.cellNumber)
+          .toList();
       var allowRecycledCell = false;
       for (final match in matches) {
         final bringBack = await showDialog<bool>(
@@ -91,7 +92,7 @@ class _StaffListPageState extends State<StaffListPage> {
               match.lastDay == null
                   ? '${match.displayName} was on the Staff list before. Bring them back?'
                   : '${match.displayName} was on the Staff list until '
-                      '${DateFormat.MMMM().format(match.lastDay!)}. Bring them back?',
+                        '${DateFormat.MMMM().format(match.lastDay!)}. Bring them back?',
             ),
             actions: [
               TextButton(
@@ -139,7 +140,8 @@ class _StaffListPageState extends State<StaffListPage> {
   ) async {
     final reactivation = await showDialog<Reactivation>(
       context: context,
-      builder: (context) => ReactivateDialog(member: member, sections: sections),
+      builder: (context) =>
+          ReactivateDialog(member: member, sections: sections),
     );
     if (reactivation == null || !mounted) return;
     try {
@@ -540,7 +542,7 @@ class _SectionStaffList extends StatelessWidget {
                   final contact = member.cellNumber == null
                       ? 'Add a cell number to finish setup'
                       : member.personalEmail ??
-                          '${member.cellNumber} · Invite pending';
+                            '${member.cellNumber} · Invite pending';
                   return ListTile(
                     key: ValueKey(member.id),
                     onTap: () => onOpenDetails(member),
@@ -626,6 +628,7 @@ class _SectionNameDialog extends StatefulWidget {
 
 class _SectionNameDialogState extends State<_SectionNameDialog> {
   late final _name = TextEditingController(text: widget.initialName);
+  String? _nameError;
 
   @override
   void dispose() {
@@ -638,9 +641,15 @@ class _SectionNameDialogState extends State<_SectionNameDialog> {
     title: Text(widget.initialName == null ? 'Add Section' : 'Rename Section'),
     content: TextField(
       controller: _name,
+      maxLength: sectionNameLimit,
+      maxLengthEnforcement: MaxLengthEnforcement.none,
       autofocus: true,
       textCapitalization: TextCapitalization.words,
-      decoration: const InputDecoration(labelText: 'Section name'),
+      decoration: InputDecoration(
+        labelText: 'Section name',
+        errorText: _nameError,
+      ),
+      onChanged: (_) => setState(() => _nameError = null),
       onSubmitted: (_) => _submit(),
     ),
     actions: [
@@ -654,6 +663,10 @@ class _SectionNameDialogState extends State<_SectionNameDialog> {
 
   void _submit() {
     final name = _name.text.trim();
+    if (name.runes.length > sectionNameLimit) {
+      setState(() => _nameError = 'Use $sectionNameLimit characters or fewer.');
+      return;
+    }
     if (name.isNotEmpty) Navigator.pop(context, name);
   }
 }
@@ -673,6 +686,7 @@ class _AddStaffMemberDialog extends StatefulWidget {
 
 class _AddStaffMemberDialogState extends State<_AddStaffMemberDialog> {
   final _name = TextEditingController();
+  String? _nameError;
   final _cellNumber = TextEditingController();
   late String _sectionId = widget.sections.first.id;
   String? _cellError;
@@ -686,6 +700,10 @@ class _AddStaffMemberDialogState extends State<_AddStaffMemberDialog> {
 
   void _submit() {
     if (_name.text.trim().isEmpty || _cellNumber.text.trim().isEmpty) return;
+    if (_name.text.trim().runes.length > staffNameLimit) {
+      setState(() => _nameError = 'Use $staffNameLimit characters or fewer.');
+      return;
+    }
     String cellNumber;
     try {
       cellNumber = normalizeCellNumber(_cellNumber.text);
@@ -738,9 +756,15 @@ class _AddStaffMemberDialogState extends State<_AddStaffMemberDialog> {
               ),
             TextField(
               controller: _name,
+              maxLength: staffNameLimit,
+              maxLengthEnforcement: MaxLengthEnforcement.none,
               autofocus: true,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Name'),
+              decoration: InputDecoration(
+                labelText: 'Name',
+                errorText: _nameError,
+              ),
+              onChanged: (_) => setState(() => _nameError = null),
             ),
             TextField(
               controller: _cellNumber,
