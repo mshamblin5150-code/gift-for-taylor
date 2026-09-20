@@ -13,7 +13,7 @@ final class OpenShift {
     this.requiresApproval = true,
   });
   final String id;
-  final String sectionId;
+  final String? sectionId;
   final DateTime date;
   final String shiftCode;
   final String? originalStaffMemberId;
@@ -23,23 +23,39 @@ final class OpenShift {
 
 final class SectionStaffing {
   const SectionStaffing({
-    required this.sectionId,
+    required this.pool,
+    required this.coverageWindow,
     required this.date,
     required this.minimum,
+    required this.rnFloor,
     required this.workingCount,
+    required this.rnCount,
     required this.openCount,
+    required this.rnOpenCount,
     this.weekdayMinimum,
     this.dateMinimum,
   });
-  final String sectionId;
+  final RolePool pool;
+  final CoverageWindow coverageWindow;
   final DateTime date;
-  final int minimum;
+  final int? minimum;
+  final int? rnFloor;
   final int workingCount;
+  final int rnCount;
   final int openCount;
+  final int rnOpenCount;
   final int? weekdayMinimum;
   final int? dateMinimum;
-  int get shortCount => (minimum - workingCount).clamp(0, 100);
-  int get unpostedCount => (shortCount - openCount).clamp(0, 100);
+  int? get shortCount => minimum == null
+      ? null
+      : [minimum! - workingCount, (rnFloor ?? 0) - rnCount, 0]
+          .reduce((a, b) => a > b ? a : b);
+  int? get rnShortCount => minimum == null
+      ? null
+      : ((rnFloor ?? 0) - rnCount).clamp(0, 100);
+  int? get unpostedCount => shortCount == null
+      ? null
+      : (shortCount! - openCount).clamp(0, 100);
 }
 
 final class OpenShiftPickup {
@@ -65,13 +81,14 @@ abstract interface class OpenShiftStore {
   Future<void> setApprovalDefault(bool requiresApproval);
   Future<void> setShiftApproval(String openShiftId, bool requiresApproval);
   Future<List<SectionStaffing>> staffingForMonth(DateTime month);
-  Future<void> setWeekdayMinimum(String sectionId, int weekday, int minimum);
-  Future<void> setDateMinimum(String sectionId, DateTime date, int? minimum);
+  Future<void> setWeekdayMinimum(RolePool pool, CoverageWindow window,
+      int weekday, int minimum, int rnFloor);
+  Future<void> setDateMinimum(RolePool pool, CoverageWindow window,
+      DateTime date, int? minimum, int? rnFloor);
   Future<int> postOpenShifts(
-    String sectionId,
     DateTime date,
     String shiftCode,
-    JobRole jobRole,
+    RolePool pool,
     int count, {
     bool fillGap = false,
   });
@@ -95,22 +112,22 @@ final class OpenShiftRules {
       store.setShiftApproval(openShiftId, requiresApproval);
   Future<List<SectionStaffing>> staffingForMonth(DateTime month) =>
       store.staffingForMonth(month);
-  Future<void> setWeekdayMinimum(String sectionId, int weekday, int minimum) =>
-      store.setWeekdayMinimum(sectionId, weekday, minimum);
-  Future<void> setDateMinimum(String sectionId, DateTime date, int? minimum) =>
-      store.setDateMinimum(sectionId, date, minimum);
+  Future<void> setWeekdayMinimum(RolePool pool, CoverageWindow window,
+          int weekday, int minimum, int rnFloor) =>
+      store.setWeekdayMinimum(pool, window, weekday, minimum, rnFloor);
+  Future<void> setDateMinimum(RolePool pool, CoverageWindow window,
+          DateTime date, int? minimum, int? rnFloor) =>
+      store.setDateMinimum(pool, window, date, minimum, rnFloor);
   Future<int> postOpenShifts(
-    String sectionId,
     DateTime date,
     String shiftCode,
-    JobRole jobRole,
+    RolePool pool,
     int count, {
     bool fillGap = false,
   }) => store.postOpenShifts(
-    sectionId,
     date,
     shiftCode,
-    jobRole,
+    pool,
     count,
     fillGap: fillGap,
   );
@@ -261,13 +278,6 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
         shiftCode: shift.shiftCode,
       ),
     );
-    if (shift.originalStaffMemberId == null) {
-      database._manualCoverageSections[_cellKey(
-            pickup.staffMemberId,
-            shift.date,
-          )] =
-          shift.sectionId;
-    }
     database._shortShifts.removeWhere(
       (short) => 'short-${identityHashCode(short)}' == shift.id,
     );
@@ -308,6 +318,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     );
   }
 
+  CoverageWindow? _windowForCode(String code) =>
+      _coverageWindowOf(code, database._shiftCodes);
+
   @override
   Future<bool> approvalDefault() async => database._openShiftApprovalDefault;
 
@@ -333,135 +346,121 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       database,
       actingAs: actor,
     ).monthGrid(month);
-    return [
-      for (final section in grid.sections)
-        for (final date in grid.days)
-          SectionStaffing(
-            sectionId: section.id,
+    final result = <SectionStaffing>[];
+    for (final date in grid.days) {
+      final working = <(RolePool, CoverageWindow, JobRole)>[];
+      for (final entry in grid.rowsOn(date)) {
+        if (!isWorkingShift(entry.shiftCode, codes: database._shiftCodes)) continue;
+        final window = _windowForCode(entry.shiftCode);
+        final role = await _role(entry.row.staffMemberId, date);
+        if (window != null && role != null) {
+          working.add((RolePool.forJobRole(role), window, role));
+        }
+      }
+      final opened = <(RolePool, CoverageWindow, JobRole)>[];
+      for (final short in grid.shortShifts.where((item) => _sameDay(item.date, date))) {
+        if (!isWorkingShift(short.shiftCode, codes: database._shiftCodes)) continue;
+        final window = short.coverageWindow ?? _windowForCode(short.shiftCode);
+        final role = short.jobRole ?? _originalRole(short.staffMemberId, date);
+        if (window != null && role != null) {
+          opened.add((RolePool.forJobRole(role), window, role));
+        }
+      }
+      for (final pool in RolePool.values) {
+        for (final window in CoverageWindow.values) {
+          final weekdayKey = '${pool.value}:${window.value}:${date.weekday % 7}';
+          final dateKey = '${pool.value}:${window.value}:${_day(date)}';
+          final onFloor = working.where((item) => item.$1 == pool && item.$2 == window);
+          final open = opened.where((item) => item.$1 == pool && item.$2 == window);
+          result.add(SectionStaffing(
+            pool: pool,
+            coverageWindow: window,
             date: date,
-            minimum:
-                database._dateMinimums['${section.id}:${_day(date)}'] ??
-                database
-                    ._weekdayMinimums['${section.id}:${date.weekday % 7}'] ??
-                0,
-            workingCount:
-                grid
-                    .rowsIn(section.id)
-                    .where(
-                      (row) =>
-                          grid.isOnSchedule(row, date) &&
-                          !database._manualCoverageSections.containsKey(
-                            _cellKey(row.staffMemberId, date),
-                          ) &&
-                          isWorkingShift(
-                            grid.shiftCodeFor(row.staffMemberId, date) ?? '',
-                          ),
-                    )
-                    .length +
-                database._manualCoverageSections.entries
-                    .where(
-                      (coverage) =>
-                          coverage.value == section.id &&
-                          grid.rows.any(
-                            (row) =>
-                                _cellKey(row.staffMemberId, date) ==
-                                    coverage.key &&
-                                isWorkingShift(
-                                  grid.shiftCodeFor(row.staffMemberId, date) ??
-                                      '',
-                                ),
-                          ),
-                    )
-                    .length,
-            openCount: grid
-                .shortShiftsOn(section.id, date)
-                .where(
-                  (shift) => isWorkingShift(
-                    shift.shiftCode,
-                    codes: database._shiftCodes,
-                  ),
-                )
-                .length,
-            weekdayMinimum:
-                database._weekdayMinimums['${section.id}:${date.weekday % 7}'],
-            dateMinimum: database._dateMinimums['${section.id}:${_day(date)}'],
-          ),
-    ];
+            minimum: database._dateMinimums[dateKey] ?? database._weekdayMinimums[weekdayKey],
+            rnFloor: database._dateRnFloors[dateKey] ?? database._weekdayRnFloors[weekdayKey],
+            workingCount: onFloor.length,
+            rnCount: onFloor.where((item) => item.$3 == JobRole.rn).length,
+            openCount: open.length,
+            rnOpenCount: open.where((item) => item.$3 == JobRole.rn).length,
+            weekdayMinimum: database._weekdayMinimums[weekdayKey],
+            dateMinimum: database._dateMinimums[dateKey],
+          ));
+        }
+      }
+    }
+    return result;
   }
 
   @override
-  Future<void> setWeekdayMinimum(
-    String sectionId,
-    int weekday,
-    int minimum,
-  ) async {
-    if (!_manager) {
-      throw StateError('Only the Manager can set staffing minimums');
-    }
-    if (weekday < 0 || weekday > 6 || minimum < 0 || minimum > 100) {
+  Future<void> setWeekdayMinimum(RolePool pool, CoverageWindow window,
+      int weekday, int minimum, int rnFloor) async {
+    if (!_manager) throw StateError('Only the Manager can set staffing minimums');
+    if (weekday < 0 || weekday > 6 || minimum < 0 || minimum > 100 ||
+        rnFloor < 0 || rnFloor > minimum ||
+        (pool != RolePool.nurses && rnFloor != 0)) {
       throw ArgumentError('Invalid staffing minimum');
     }
-    database._weekdayMinimums['$sectionId:$weekday'] = minimum;
+    final key = '${pool.value}:${window.value}:$weekday';
+    database._weekdayMinimums[key] = minimum;
+    database._weekdayRnFloors[key] = rnFloor;
   }
 
   @override
-  Future<void> setDateMinimum(
-    String sectionId,
-    DateTime date,
-    int? minimum,
-  ) async {
-    if (!_manager) {
-      throw StateError('Only the Manager can set staffing minimums');
-    }
-    if (minimum != null && (minimum < 0 || minimum > 100)) {
+  Future<void> setDateMinimum(RolePool pool, CoverageWindow window,
+      DateTime date, int? minimum, int? rnFloor) async {
+    if (!_manager) throw StateError('Only the Manager can set staffing minimums');
+    if (minimum != null && (minimum < 0 || minimum > 100 || rnFloor == null ||
+        rnFloor < 0 || rnFloor > minimum ||
+        (pool != RolePool.nurses && rnFloor != 0))) {
       throw ArgumentError('Invalid staffing minimum');
     }
-    final key = '$sectionId:${_day(date)}';
+    final key = '${pool.value}:${window.value}:${_day(date)}';
     if (minimum == null) {
       database._dateMinimums.remove(key);
+      database._dateRnFloors.remove(key);
     } else {
       database._dateMinimums[key] = minimum;
+      database._dateRnFloors[key] = rnFloor!;
     }
   }
 
   @override
-  Future<int> postOpenShifts(
-    String sectionId,
-    DateTime date,
-    String shiftCode,
-    JobRole jobRole,
-    int count, {
-    bool fillGap = false,
-  }) async {
+  Future<int> postOpenShifts(DateTime date, String shiftCode, RolePool pool,
+      int count, {bool fillGap = false}) async {
     if (!_manager) throw StateError('Only the Manager can post Open shifts');
-    if (!isWorkingShift(shiftCode, codes: database._shiftCodes) ||
-        count < 1 ||
-        count > 100) {
+    final code = shiftCode.trim().toUpperCase();
+    final window = _windowForCode(code);
+    if (!isWorkingShift(code, codes: database._shiftCodes) ||
+        window == null || count < 1 || count > 100) {
       throw ArgumentError('Invalid Open shift');
     }
+    var rnCritical = 0;
     if (fillGap) {
-      final staffing = (await staffingForMonth(
-        date,
-      )).firstWhere((s) => s.sectionId == sectionId && _sameDay(s.date, date));
-      count = count < staffing.unpostedCount ? count : staffing.unpostedCount;
-    }
-    final code = shiftCode.trim().toUpperCase();
-    if (count > 0 && !database._shiftCodes.any((entry) => entry.code == code)) {
-      database._shiftCodes.add(LegendCode(code, isWorking: true));
+      final staffing = (await staffingForMonth(date)).firstWhere((item) =>
+          item.pool == pool && item.coverageWindow == window &&
+          _sameDay(item.date, date));
+      count = count < (staffing.unpostedCount ?? 0)
+          ? count : (staffing.unpostedCount ?? 0);
+      rnCritical = ((staffing.rnShortCount ?? 0) - staffing.rnOpenCount)
+          .clamp(0, count);
     }
     for (var i = 0; i < count; i++) {
-      database._shortShifts.add(
-        ShortShift(
-          sectionId: sectionId,
-          date: date,
-          shiftCode: code,
-          staffMemberId: null,
-          jobRole: jobRole,
-        ),
-      );
+      database._shortShifts.add(ShortShift(
+        date: date,
+        shiftCode: code,
+        staffMemberId: null,
+        jobRole: pool == RolePool.nurses && i < rnCritical
+            ? JobRole.rn
+            : switch (pool) {
+                RolePool.nurses => JobRole.lpn,
+                RolePool.cna => JobRole.cna,
+                RolePool.unitClerk => JobRole.unitClerk,
+              },
+        coverageWindow: window,
+      ));
       database._openShiftApprovalOverrides[
           'short-${identityHashCode(database._shortShifts.last)}'] =
-          database._openShiftApprovalDefault;
+          i < rnCritical ? true : database._openShiftApprovalDefault;
     }
     return count;
   }

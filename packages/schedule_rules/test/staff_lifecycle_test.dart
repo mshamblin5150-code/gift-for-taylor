@@ -27,7 +27,7 @@ void main() {
   late InMemoryScheduleDatabase database;
   late ScheduleRules manager;
 
-  setUp(() {
+  setUp(() async {
     now = DateTime(2026, 9, 18, 9, 30);
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],
@@ -35,6 +35,10 @@ void main() {
       clock: () => now,
     );
     manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    for (final id in ['rn-1', 'rn-2', 'rn-3']) {
+      await manager.changeJobRole(ChangeJobRole(
+        staffMemberId: id, jobRole: JobRole.rn, from: DateTime(2026, 1)));
+    }
   });
 
   Future<void> save(String staffMemberId, DateTime date, String code) {
@@ -78,12 +82,12 @@ void main() {
       );
 
       final oct = await manager.monthGrid(october);
-      final short = oct.shortShiftsOn('days', DateTime(2026, 10, 2));
+      final short = oct.shortShiftsOn(RolePool.nurses, CoverageWindow.day, DateTime(2026, 10, 2));
       expect(short.single.shiftCode, '16D');
       expect(short.single.staffMemberId, 'rn-1');
       // Days off and requested-off days leave no hole.
-      expect(oct.shortShiftsOn('days', DateTime(2026, 10, 1)), isEmpty);
-      expect(oct.shortShiftsOn('days', DateTime(2026, 10, 3)), isEmpty);
+      expect(oct.shortShiftsOn(RolePool.nurses, CoverageWindow.day, DateTime(2026, 10, 1)), isEmpty);
+      expect(oct.shortShiftsOn(RolePool.nurses, CoverageWindow.day, DateTime(2026, 10, 3)), isEmpty);
       expect(oct.shortShifts, hasLength(1));
     });
 

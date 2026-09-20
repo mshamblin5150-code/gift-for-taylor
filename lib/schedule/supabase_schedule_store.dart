@@ -241,22 +241,66 @@ final class SupabaseScheduleStore implements ScheduleStore {
         .toList(growable: false);
   }
 
+  JobRole? _roleForShort(
+    Map<String, dynamic> short,
+    List<Map<String, dynamic>> roles,
+  ) {
+    final postedRole = short['job_role'] as String?;
+    if (postedRole != null) return JobRole.fromValue(postedRole);
+    final staffId = short['staff_member_id'] as String?;
+    if (staffId == null) return null;
+    final date = DateTime.parse(short['work_date'] as String);
+    final earlierRoles = roles.where((role) =>
+        role['staff_member_id'] == staffId &&
+        !DateTime.parse(role['effective_from'] as String).isAfter(date)).toList()
+      ..sort((a, b) => (a['effective_from'] as String)
+          .compareTo(b['effective_from'] as String));
+    final value = earlierRoles.lastOrNull?['job_role'] as String?;
+    return value == null ? null : JobRole.fromValue(value);
+  }
+
+  CoverageWindow? _windowForShort(
+    String shiftCode,
+    List<LegendCode> codes,
+  ) {
+    final value = codes
+        .where((code) => code.code == shiftCode.trim().toUpperCase())
+        .firstOrNull
+        ?.coverageWindow;
+    return value == null ? null : CoverageWindow.fromValue(value);
+  }
+
   @override
   Future<List<ShortShift>> shortShiftsForMonth(DateTime month) async {
     final rows = await _client
         .from('short_shifts')
-        .select('section_id, work_date, shift_code, staff_member_id')
+        .select('section_id, work_date, shift_code, staff_member_id, job_role')
         .gte('work_date', _date(_monthStart(month)))
         .lt('work_date', _date(_nextMonthStart(month)))
         .filter('filled_at', 'is', null)
         .order('work_date', ascending: true);
+    final codes = await shiftCodes();
+    final staffIds = rows
+        .map((row) => row['staff_member_id'] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList();
+    final roles = staffIds.isEmpty
+        ? <Map<String, dynamic>>[]
+        : (await _client
+                .from('staff_job_roles')
+                .select('staff_member_id, job_role, effective_from')
+                .inFilter('staff_member_id', staffIds))
+            .cast<Map<String, dynamic>>();
     return [
       for (final row in rows)
         ShortShift(
-          sectionId: row['section_id'] as String,
+          sectionId: row['section_id'] as String?,
           date: DateTime.parse(row['work_date'] as String),
           shiftCode: row['shift_code'] as String,
           staffMemberId: row['staff_member_id'] as String?,
+          jobRole: _roleForShort(row, roles),
+          coverageWindow: _windowForShort(row['shift_code'] as String, codes),
         ),
     ];
   }

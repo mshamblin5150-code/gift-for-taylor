@@ -16,7 +16,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
         if (seen.add(value['id'] as String))
           OpenShift(
             id: value['id'] as String,
-            sectionId: value['section_id'] as String? ?? '',
+            sectionId: value['section_id'] as String?,
             date: DateTime.parse(value['work_date'] as String),
             shiftCode: value['shift_code'] as String,
             originalStaffMemberId: value['original_staff_member_id'] as String?,
@@ -94,11 +94,15 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     return [
       for (final row in rows.cast<Map<String, dynamic>>())
         SectionStaffing(
-          sectionId: row['section_id'] as String,
+          pool: RolePool.fromValue(row['pool'] as String),
+          coverageWindow: CoverageWindow.fromValue(row['coverage_window'] as String),
           date: DateTime.parse(row['work_date'] as String),
-          minimum: row['minimum'] as int,
+          minimum: row['minimum'] as int?,
+          rnFloor: row['rn_floor'] as int?,
           workingCount: row['working_count'] as int,
+          rnCount: row['rn_count'] as int,
           openCount: row['open_count'] as int,
+          rnOpenCount: row['rn_open_count'] as int,
           weekdayMinimum: row['weekday_minimum'] as int?,
           dateMinimum: row['date_minimum'] as int?,
         ),
@@ -106,33 +110,38 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   }
 
   @override
-  Future<void> setWeekdayMinimum(String sectionId, int weekday, int minimum) =>
+  Future<void> setWeekdayMinimum(RolePool pool, CoverageWindow window,
+      int weekday, int minimum, int rnFloor) =>
       client.rpc<void>(
-        'set_section_weekday_minimum',
+        'set_pool_weekday_minimum',
         params: {
-          'p_section_id': sectionId,
+          'p_pool': pool.value,
+          'p_window': window.value,
           'p_weekday': weekday,
           'p_minimum': minimum,
+          'p_rn_floor': rnFloor,
         },
       );
 
   @override
-  Future<void> setDateMinimum(String sectionId, DateTime date, int? minimum) =>
+  Future<void> setDateMinimum(RolePool pool, CoverageWindow window,
+      DateTime date, int? minimum, int? rnFloor) =>
       client.rpc<void>(
-        'set_section_date_minimum',
+        'set_pool_date_minimum',
         params: {
-          'p_section_id': sectionId,
+          'p_pool': pool.value,
+          'p_window': window.value,
           'p_date': _date(date),
           'p_minimum': minimum,
+          'p_rn_floor': rnFloor,
         },
       );
 
   @override
   Future<int> postOpenShifts(
-    String sectionId,
     DateTime date,
     String shiftCode,
-    JobRole jobRole,
+    RolePool pool,
     int count, {
     bool fillGap = false,
   }) async => await client.rpc<int>(
@@ -140,11 +149,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     params: {
       'p_date': _date(date),
       'p_shift_code': shiftCode,
-      'p_pool': switch (jobRole) {
-        JobRole.rn || JobRole.lpn => 'nurses',
-        JobRole.cna => 'cna',
-        JobRole.unitClerk => 'unit_clerk',
-      },
+      'p_pool': pool.value,
       'p_count': count,
       'p_fill_gap': fillGap,
       'p_requires_approval': null,
