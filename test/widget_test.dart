@@ -260,8 +260,9 @@ void main() {
     );
   });
 
-  testWidgets('Day view still identifies unset Staffing minimums',
-      (tester) async {
+  testWidgets('Day view still identifies unset Staffing minimums', (
+    tester,
+  ) async {
     await pumpGrid(tester);
     await tester.tap(find.text('Day'));
     await tester.pumpAndSettle();
@@ -610,6 +611,118 @@ void main() {
     expect(find.text('Friday, September 18'), findsOneWidget);
   });
 
+  testWidgets('pool bands stay pinned and aligned while staff rows scroll', (
+    tester,
+  ) async {
+    database = InMemoryScheduleDatabase(
+      sections: const [days],
+      rows: [
+        for (var index = 0; index < 24; index++)
+          ScheduleRow(
+            staffMemberId: 'staff-$index',
+            displayName: 'Staff $index',
+            sectionId: days.id,
+          ),
+      ],
+      editors: const {'manager'},
+      releasedMonths: {september},
+    );
+    final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    for (final pool in RolePool.values) {
+      await shifts.setDateMinimum(
+        pool,
+        CoverageWindow.day,
+        DateTime(2026, 9, 4),
+        1,
+        0,
+      );
+    }
+    await pumpGrid(
+      tester,
+      now: () => DateTime(2026, 8, 1),
+      withStaffing: true,
+      size: const Size(390, 600),
+    );
+
+    final labels = [
+      find.text('Nurses'),
+      find.text('CNAs'),
+      find.text('Unit clerks'),
+    ];
+    final poolDays = [
+      for (final pool in ['nurses', 'cna', 'unit_clerk'])
+        find.byKey(ValueKey('pool-$pool-2026-09-04')),
+    ];
+    final initialLabels = labels.map(tester.getRect).toList();
+    final initialDays = poolDays.map(tester.getRect).toList();
+    final staffRow = find.text('Staff 0');
+    final initialStaff = tester.getRect(staffRow);
+
+    final vertical = tester.widget<SingleChildScrollView>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SingleChildScrollView &&
+            widget.scrollDirection == Axis.vertical,
+      ),
+    );
+    vertical.controller!.jumpTo(300);
+    await tester.pumpAndSettle();
+
+    expect(tester.getRect(staffRow).top, lessThan(initialStaff.top));
+    for (var index = 0; index < labels.length; index++) {
+      expect(tester.getRect(labels[index]), initialLabels[index]);
+      expect(tester.getRect(poolDays[index]), initialDays[index]);
+      expect(tester.getRect(labels[index]).top, greaterThanOrEqualTo(0));
+      expect(tester.getRect(poolDays[index]).bottom, lessThan(600));
+    }
+
+    await tester.drag(
+      find.byKey(const ValueKey('month-horizontal-scroll')),
+      const Offset(-96, 0),
+    );
+    await tester.pumpAndSettle();
+    final horizontalShift =
+        initialDays.first.left - tester.getRect(poolDays.first).left;
+    expect(horizontalShift, greaterThan(0));
+    for (var index = 0; index < labels.length; index++) {
+      expect(tester.getRect(labels[index]), initialLabels[index]);
+      expect(
+        tester.getRect(poolDays[index]).left,
+        closeTo(initialDays[index].left - horizontalShift, 1),
+      );
+    }
+    expect(
+      tester.getRect(poolDays.first).center.dx,
+      closeTo(
+        tester.getRect(cell('staff-0', DateTime(2026, 9, 4))).center.dx,
+        1,
+      ),
+    );
+    expect(
+      tester.getRect(poolDays.first).center.dx,
+      closeTo(tester.getRect(find.text('4')).center.dx, 1),
+    );
+
+    final beforePoolDrag = tester.getRect(poolDays.first);
+    await tester.drag(
+      find.byKey(const ValueKey('month-pool-horizontal-scroll')),
+      const Offset(-48, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(poolDays.first).left, lessThan(beforePoolDrag.left));
+    expect(
+      tester.getRect(poolDays.first).center.dx,
+      closeTo(
+        tester.getRect(cell('staff-0', DateTime(2026, 9, 4))).center.dx,
+        1,
+      ),
+    );
+    expect(
+      tester.getRect(poolDays.first).center.dx,
+      closeTo(tester.getRect(find.text('4')).center.dx, 1),
+    );
+  });
+
   testWidgets(
     'Staff member lands on their changed shifts and opens full grid',
     (tester) async {
@@ -840,7 +953,10 @@ void main() {
     expect(cell('rn-1', september18), findsOneWidget);
     expect(cell('rn-1', DateTime(2026, 9, 19)), findsNothing);
     expect(find.byKey(const ValueKey('gone-rn-1-2026-09-19')), findsOneWidget);
-    expect(find.byKey(const ValueKey('pool-nurses-2026-09-20')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('pool-nurses-2026-09-20')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('pool-cna-2026-09-20')), findsNothing);
     expect(
       find.descendant(
