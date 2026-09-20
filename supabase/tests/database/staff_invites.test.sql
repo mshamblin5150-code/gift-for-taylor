@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(17);
 
 insert into auth.users (id, email)
 values
@@ -207,6 +207,37 @@ select throws_ok(
   'P0001',
   'This Staff member has already accepted an Invite',
   'an accepted Staff member is not offered an unusable replacement Invite'
+);
+
+select throws_ok(
+  $$select public.resend_staff_invite(
+    '00000000-0000-0000-0000-000000000158'
+  )$$,
+  'P0001',
+  'Add a cell number before sending an Invite',
+  'a Staff member without a cell number cannot be sent an Invite'
+);
+select throws_ok(
+  $$select public.create_staff_member_with_invite(
+    'No Cell Nurse', null, '00000000-0000-0000-0000-000000000155'
+  )$$,
+  'P0001',
+  'Add a cell number before sending an Invite',
+  'adding a Staff member cannot issue an Invite without a cell number'
+);
+
+reset role;
+select is(
+  (select count(*)::integer from public.invites
+   where staff_member_id = '00000000-0000-0000-0000-000000000158'),
+  0,
+  'a failed resend does not issue an Invite'
+);
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000151","role":"authenticated"}',
+  true
 );
 
 select set_config(

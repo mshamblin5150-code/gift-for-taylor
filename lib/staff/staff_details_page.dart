@@ -240,7 +240,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
             _Detail(label: 'Name', value: person.displayName),
             _Detail(
               label: 'Cell number',
-              value: person.cellNumber ?? 'No cell number yet',
+              value: person.cellNumber ?? 'Add a cell number to finish setup',
             ),
             _Detail(label: 'Section', value: sectionName ?? 'No Section'),
             _Detail(
@@ -298,11 +298,14 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
                 onPressed: _setLastDay,
                 child: const Text('Set Last day'),
               ),
-              if (person.personalEmail == null && person.cellNumber != null)
+              if (person.personalEmail == null) ...[
                 OutlinedButton(
-                  onPressed: _resendInvite,
+                  onPressed: person.cellNumber == null ? null : _resendInvite,
                   child: const Text('Resend Invite'),
                 ),
+                if (person.cellNumber == null)
+                  const Text('Add a cell number before sending an Invite'),
+              ],
             ],
             if (_accessChanges.isNotEmpty) ...[
               const SizedBox(height: 16),
