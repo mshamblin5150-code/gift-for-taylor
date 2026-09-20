@@ -416,15 +416,9 @@ void main() {
     final dayCell = tester.widget<Container>(
       find.descendant(of: firstDay, matching: find.byType(Container)).first,
     );
-    expect(nameCell.color, (dayCell.decoration! as BoxDecoration).color);
-    expect(
-      nameCell.color,
-      isNot(Theme.of(tester.element(label)).colorScheme.surface),
-    );
-    expect(
-      tester.widget<Text>(label).style!.color,
-      Theme.of(tester.element(label)).colorScheme.onPrimary,
-    );
+    expect(nameCell.color, isNull);
+    expect((dayCell.decoration! as BoxDecoration).color, isNotNull);
+    expect(find.text('− = short by'), findsNWidgets(3));
 
     final before = tester.getRect(label);
     await tester.drag(
@@ -493,6 +487,84 @@ void main() {
     expect(find.byKey(const ValueKey('section-name-nights')), findsOneWidget);
     expect(find.byKey(const ValueKey('section-days-nights')), findsOneWidget);
     expect(find.text('PRN nightshift RN'), findsOneWidget);
+  });
+
+  testWidgets('pool band fill distinguishes covered, short 1, and short 4', (
+    tester,
+  ) async {
+    final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    await shifts.setDateMinimum(
+      RolePool.cna,
+      CoverageWindow.day,
+      DateTime(2026, 9, 18),
+      1,
+      0,
+    );
+    await shifts.setDateMinimum(
+      RolePool.cna,
+      CoverageWindow.day,
+      DateTime(2026, 9, 19),
+      4,
+      0,
+    );
+    await shifts.setDateMinimum(
+      RolePool.cna,
+      CoverageWindow.day,
+      DateTime(2026, 9, 20),
+      0,
+      0,
+    );
+    await pumpGrid(tester, now: () => september18, withStaffing: true);
+
+    Finder poolDay(int day) => find.byKey(
+      ValueKey('pool-cna-2026-09-${day.toString().padLeft(2, '0')}'),
+    );
+    Color fill(int day) =>
+        (tester
+                    .widget<Container>(
+                      find
+                          .descendant(
+                            of: poolDay(day),
+                            matching: find.byType(Container),
+                          )
+                          .first,
+                    )
+                    .decoration!
+                as BoxDecoration)
+            .color!;
+
+    expect(fill(18), isNot(fill(19)));
+    expect(fill(20), isNot(fill(18)));
+    expect(
+      find.descendant(of: poolDay(18), matching: find.text('−1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: poolDay(19), matching: find.text('−4')),
+      findsOneWidget,
+    );
+    expect(tester.getSize(poolDay(18)).height, greaterThanOrEqualTo(44));
+    expect(
+      (tester
+                  .widget<Container>(
+                    find
+                        .descendant(
+                          of: poolDay(18),
+                          matching: find.byType(Container),
+                        )
+                        .first,
+                  )
+                  .decoration!
+              as BoxDecoration)
+          .border!
+          .top
+          .color,
+      Theme.of(tester.element(poolDay(18))).colorScheme.tertiary,
+    );
+
+    await tester.tap(poolDay(18));
+    await tester.pumpAndSettle();
+    expect(find.text('Friday, September 18'), findsOneWidget);
   });
 
   testWidgets(
@@ -732,13 +804,16 @@ void main() {
       ),
       findsOneWidget,
     );
-    final shortMarker = tester.widget<Container>(
+    final shortCell = tester.widget<Container>(
       find
-          .ancestor(of: find.text('−1'), matching: find.byType(Container))
+          .descendant(
+            of: find.byKey(const ValueKey('pool-nurses-2026-09-20')),
+            matching: find.byType(Container),
+          )
           .first,
     );
     expect(
-      (shortMarker.decoration! as BoxDecoration).color,
+      (shortCell.decoration! as BoxDecoration).color,
       Theme.of(tester.element(find.text('−1'))).colorScheme.errorContainer,
     );
     expect(
