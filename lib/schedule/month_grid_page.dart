@@ -476,23 +476,18 @@ class _MonthGridPageState extends State<MonthGridPage> {
     ).showSnackBar(SnackBar(content: Text('The drop was not saved: $error')));
   }
 
-  Future<void> _manageSectionDay(ScheduleSection section, DateTime date) async {
+  Future<void> _managePoolDay(
+    RolePool pool,
+    CoverageWindow window,
+    DateTime date,
+  ) async {
     final rules = widget.openShiftRules;
     if (!_isManager || rules == null) return;
-    final staffing = _staffing
-        .where(
-          (item) =>
-              item.sectionId == section.id &&
-              item.date.year == date.year &&
-              item.date.month == date.month &&
-              item.date.day == date.day,
-        )
-        .firstOrNull;
+    final staffing = _staffingOn(_staffing, pool, window, date);
     if (staffing == null) return;
     final changed = await showStaffingSheet(
       context,
       rules: rules,
-      section: section,
       date: date,
       staffing: staffing,
     );
@@ -1002,7 +997,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
           grid: grid,
           today: _today,
           staffing: _staffing,
-          onManageDay: _manageSectionDay,
+          onOpenDay: (day) => setState(() {
+            _day = day;
+            _view = ScheduleView.day;
+          }),
           onEdit: _edit,
           onDrop: _drop,
           editable: _editable,
@@ -1019,7 +1017,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           staffMemberId: _signedInStaffMemberId,
           shiftCodes: _shiftCodes,
           staffing: _staffing,
-          onManageDay: _manageSectionDay,
+          onManageDay: _managePoolDay,
           day: _day,
           onDayChanged: (day) => setState(() => _day = day),
           onEdit: _edit,
@@ -1159,18 +1157,21 @@ final class _DraggedCell {
 }
 
 typedef _OnManageDay = Future<void> Function(
-  ScheduleSection section,
+  RolePool pool,
+  CoverageWindow window,
   DateTime date,
 );
 
 SectionStaffing? _staffingOn(
   List<SectionStaffing> staffing,
-  String sectionId,
+  RolePool pool,
+  CoverageWindow window,
   DateTime day,
 ) => staffing
     .where(
       (item) =>
-          item.sectionId == sectionId &&
+          item.pool == pool &&
+          item.coverageWindow == window &&
           item.date.year == day.year &&
           item.date.month == day.month &&
           item.date.day == day.day,
@@ -1182,7 +1183,7 @@ class _MonthView extends StatefulWidget {
     required this.grid,
     required this.today,
     required this.staffing,
-    required this.onManageDay,
+    required this.onOpenDay,
     required this.onEdit,
     required this.onDrop,
     required this.editable,
@@ -1194,7 +1195,7 @@ class _MonthView extends StatefulWidget {
   final MonthGrid grid;
   final DateTime today;
   final List<SectionStaffing> staffing;
-  final _OnManageDay onManageDay;
+  final ValueChanged<DateTime> onOpenDay;
   final _OnEdit onEdit;
   final _OnDrop onDrop;
   final EditableSections editable;
@@ -1338,15 +1339,19 @@ class _MonthViewState extends State<_MonthView> {
                     scrollDirection: Axis.horizontal,
                     child: Column(
                       children: [
-                        for (final section in widget.grid.sections) ...[
-                          _SectionBand(
+                        for (final pool in RolePool.values)
+                          _PoolBand(
                             grid: widget.grid,
-                            section: section,
+                            pool: pool,
                             days: days,
                             today: widget.today,
                             staffing: widget.staffing,
-                            onManageDay: widget.onManageDay,
+                            onOpenDay: widget.onOpenDay,
                           ),
+                        for (final section in widget.grid.sections) ...[
+                          if (widget.grid.rowsIn(section.id).isEmpty)
+                            SizedBox(width: days.length * _dayWidth,
+                                height: _cellHeight),
                           for (final row in widget.grid.rowsIn(section.id))
                             _StaffRow(
                               grid: widget.grid,
@@ -1385,23 +1390,29 @@ class _NameColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        for (final section in grid.sections) ...[
+        for (final pool in RolePool.values)
           Container(
             width: _nameWidth,
             height: _bandHeight,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             alignment: Alignment.centerLeft,
             color: Theme.of(context).colorScheme.primary,
-            child: Text(
-              section.name,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Text(pool.label,
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontWeight: FontWeight.w600)),
           ),
-          for (final row in grid.rowsIn(section.id))
+        for (final section in grid.sections) ...[
+          if (grid.rowsIn(section.id).isEmpty)
+            Container(
+              width: _nameWidth,
+              height: _cellHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              alignment: Alignment.centerLeft,
+              child: Text(section.name, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall),
+            ),
+          for (final (index, row) in grid.rowsIn(section.id).indexed)
             InkWell(
               onTap: onOpenStaffDetails == null
                   ? null
@@ -1417,7 +1428,16 @@ class _NameColumn extends StatelessWidget {
                 decoration: BoxDecoration(
                   border: Border.all(color: Theme.of(context).dividerColor),
                 ),
-                child: Text(row.displayName, overflow: TextOverflow.ellipsis),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (index == 0)
+                      Text(section.name, overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall),
+                    Text(row.displayName, overflow: TextOverflow.ellipsis),
+                  ],
+                ),
               ),
             ),
         ],
@@ -1458,60 +1478,55 @@ class _DayHeader extends StatelessWidget {
   }
 }
 
-class _SectionBand extends StatelessWidget {
-  const _SectionBand({
-    required this.grid,
-    required this.section,
-    required this.days,
-    required this.today,
-    required this.staffing,
-    required this.onManageDay,
-  });
+class _PoolBand extends StatelessWidget {
+  const _PoolBand({required this.grid, required this.pool, required this.days, required this.today,
+    required this.staffing, required this.onOpenDay});
 
   final MonthGrid grid;
-  final ScheduleSection section;
+  final RolePool pool;
   final List<DateTime> days;
   final DateTime today;
   final List<SectionStaffing> staffing;
-  final _OnManageDay onManageDay;
+  final ValueChanged<DateTime> onOpenDay;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (final day in days)
-          InkWell(
-            key: ValueKey(
-              '${_isWeekend(day) ? 'weekend' : 'weekday'}-${_dateKey(day)}',
-            ),
-            onTap: () => onManageDay(section, day),
-            child: Container(
-              width: _dayWidth,
-              height: _bandHeight,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                border: _isToday(day, today)
-                    ? Border.all(
-                        color: Theme.of(context).colorScheme.tertiary,
-                        width: 2,
-                      )
-                    : null,
-              ),
-              child: _ShortMarker(
-                key: ValueKey('short-${section.id}-${_dateKey(day)}'),
-                count:
-                    grid.shortShiftsOn(section.id, day).length >
-                        (_staffingOn(staffing, section.id, day)?.shortCount ??
-                            0)
-                    ? grid.shortShiftsOn(section.id, day).length
-                    : (_staffingOn(staffing, section.id, day)?.shortCount ?? 0),
-              ),
-            ),
+  Widget build(BuildContext context) => Row(children: [
+    for (final day in days)
+      InkWell(
+        key: ValueKey('pool-${pool.value}-${_dateKey(day)}'),
+        onTap: () => onOpenDay(day),
+        child: Container(
+          width: _dayWidth,
+          height: _bandHeight,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary,
+            border: _isToday(day, today)
+                ? Border.all(color: Theme.of(context).colorScheme.tertiary,
+                    width: 2)
+                : null,
           ),
-      ],
-    );
-  }
+          child: Builder(builder: (context) {
+            final windows = [
+              for (final window in CoverageWindow.values)
+                _staffingOn(staffing, pool, window, day),
+            ];
+            final shortfall = windows.fold<int>(0,
+                (sum, item) => sum + (item?.shortCount ?? 0));
+            final posted = CoverageWindow.values.fold<int>(0,
+                (sum, window) => sum + grid.shortShiftsOn(pool, window, day).length);
+            if (windows.every((item) => item?.minimum == null) && posted == 0) {
+              return Text('not set', style: TextStyle(fontSize: 10,
+                  color: Theme.of(context).colorScheme.onPrimary));
+            }
+            return _ShortMarker(
+              key: ValueKey('short-${pool.value}-${_dateKey(day)}'),
+              count: shortfall > posted ? shortfall : posted,
+            );
+          }),
+        ),
+      ),
+  ]);
 }
 
 class _StaffRow extends StatelessWidget {
@@ -1876,6 +1891,40 @@ class _DayView extends StatelessWidget {
                         ),
                 ],
               ] else ...[
+                for (final pool in RolePool.values) ...[
+                  ListTile(
+                    title: Text(pool == RolePool.nurses
+                        ? 'Nursing pool' : pool.label,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    tileColor: Theme.of(context).colorScheme.primaryContainer,
+                  ),
+                  for (final window in CoverageWindow.values)
+                    Builder(builder: (context) {
+                      final item = _staffingOn(staffing, pool, window, day);
+                      final short = item?.shortCount ?? 0;
+                      final rnShort = item?.rnShortCount ?? 0;
+                      final summary = item?.minimum == null
+                          ? 'not set'
+                          : short == 0
+                              ? 'Covered'
+                              : rnShort == short
+                                  ? 'Short $short RN'
+                                  : rnShort > 0
+                                      ? 'Short $short ${pool.label.toLowerCase()}, $rnShort an RN'
+                                      : 'Short $short ${pool.label.toLowerCase()}';
+                      return ListTile(
+                        title: Text('${window.label}: $summary'),
+                        subtitle: (item?.openCount ?? 0) == 0
+                            ? null
+                            : Text('${item?.openCount} posted Open'),
+                        leading: short > 0
+                            ? Icon(Icons.warning_amber,
+                                color: Theme.of(context).colorScheme.error)
+                            : null,
+                        onTap: () => onManageDay(pool, window, day),
+                      );
+                    }),
+                ],
                 for (final section in grid.sections) ...[
                   ListTile(
                     title: Text(
@@ -1883,34 +1932,7 @@ class _DayView extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     tileColor: Theme.of(context).colorScheme.primaryContainer,
-                    trailing: const Icon(Icons.edit_calendar),
-                    onTap: () => onManageDay(section, day),
                   ),
-                  if ((_staffingOn(staffing, section.id, day)?.shortCount ??
-                          0) >
-                      grid.shortShiftsOn(section.id, day).length)
-                    ListTile(
-                      leading: Icon(
-                        Icons.warning_amber,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      title: Text(
-                        'Short ${_staffingOn(staffing, section.id, day)!.shortCount} against minimum',
-                      ),
-                      onTap: () => onManageDay(section, day),
-                    ),
-                  for (final short in grid.shortShiftsOn(section.id, day))
-                    ListTile(
-                      leading: Icon(
-                        Icons.warning_amber,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      title: const Text('Short'),
-                      trailing: Text(
-                        short.shiftCode,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
                   for (final entry in entries.where(
                     (entry) => entry.row.sectionId == section.id,
                   ))
