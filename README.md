@@ -184,9 +184,10 @@ paste them into an issue.
    **Resend Invite**. Anyone left without a cell number shows "No cell number
    yet" and can't be invited until one is added. The load refuses a month that
    already exists.
-4. The Manager opens that month in the app, checks it against her Excel file,
-   taps any misread cell to correct it (each correction goes into the change
-   log), and taps **Confirm month**. Confirming releases the month.
+4. The Manager opens that month in the app and proofreads it against the printed
+   Schedule page it was transcribed from, taps any misread cell to correct it
+   (each correction goes into the change log), and taps **Confirm month**.
+   Confirming releases the month.
 
 ## Print the book page
 

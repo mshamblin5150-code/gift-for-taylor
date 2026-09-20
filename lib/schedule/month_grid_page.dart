@@ -619,7 +619,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       builder: (context) => AlertDialog(
         title: Text('Confirm ${DateFormat.yMMMM().format(_month)}?'),
         content: const Text(
-          'This month then replaces your Excel file as the live Schedule.',
+          'Confirming releases this month as the live Schedule.',
         ),
         actions: [
           TextButton(
@@ -722,7 +722,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
     if (grid.awaitingConfirmation) {
       return _Banner(
         message:
-            'Check this month against your Excel file. '
+            'Proofread this month against the printed Schedule page '
+            'it was loaded from. '
             'Tap any cell to correct it.',
         actionLabel: 'Confirm month',
         onPressed: _confirmMonth,

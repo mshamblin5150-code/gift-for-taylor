@@ -104,9 +104,9 @@ abstract interface class ScheduleRules {
   /// checked, if any.
   Future<DateTime?> monthAwaitingConfirmation();
 
-  /// The Manager's check of the loaded month is done: it replaces her Excel
-  /// file and is released. Corrections made while checking it need no Change
-  /// announcement.
+  /// The Manager has checked the loaded month against the printed Schedule
+  /// page, and the month is released. Corrections made while checking it need
+  /// no Change announcement.
   Future<void> confirmLoadedMonth(DateTime month);
 
   /// The unannounced changes in [month] within the signed-in person's
