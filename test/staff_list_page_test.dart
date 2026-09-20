@@ -162,9 +162,58 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Page Nurse'), findsOneWidget);
-    expect(find.text('No cell number yet'), findsOneWidget);
-    expect(find.byTooltip('Resend Invite to Page Nurse'), findsNothing);
+    expect(find.text('Add a cell number to finish setup'), findsOneWidget);
+    expect(find.byTooltip('Add a cell number before sending an Invite'), findsOneWidget);
+    final invite = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.sms_outlined),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(invite.onPressed, isNull);
+
+    await tester.tap(find.text('Page Nurse'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add a cell number to finish setup'), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
+    expect(find.text('Add a cell number before sending an Invite'), findsOneWidget);
+    expect(find.text('Edit name and cell number'), findsOneWidget);
   });
+
+  testWidgets(
+    'a cleared cell number reads as unfinished after Invite acceptance',
+    (tester) async {
+      final gateway = _FakeStaffGateway(
+        const StaffList(
+          sections: [days],
+          members: [
+            StaffListMember(
+              id: 'staff-1',
+              displayName: 'Alex Tech',
+              cellNumber: null,
+              sectionId: 'days',
+              displayOrder: 0,
+              personalEmail: 'alex@example.test',
+            ),
+          ],
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StaffListPage(
+            gateway: gateway,
+            rules: rules,
+            inviteComposer: _FakeInviteComposer(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add a cell number to finish setup'), findsOneWidget);
+      expect(find.text('alex@example.test'), findsNothing);
+    },
+  );
 
   testWidgets('Manager sets a Last day from the Staff list', (tester) async {
     final gateway = _FakeStaffGateway(

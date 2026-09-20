@@ -454,11 +454,10 @@ class _SectionStaffList extends StatelessWidget {
                 onReorderItem: onReorder,
                 itemBuilder: (context, index) {
                   final member = members[index];
-                  final contact =
-                      member.personalEmail ??
-                      (member.cellNumber == null
-                          ? 'No cell number yet'
-                          : '${member.cellNumber} · Invite pending');
+                  final contact = member.cellNumber == null
+                      ? 'Add a cell number to finish setup'
+                      : member.personalEmail ??
+                          '${member.cellNumber} · Invite pending';
                   return ListTile(
                     key: ValueKey(member.id),
                     onTap: () => onOpenDetails(member),
@@ -479,11 +478,17 @@ class _SectionStaffList extends StatelessWidget {
                             message: 'Invite accepted',
                             child: Icon(Icons.check_circle_outline),
                           )
-                        else if (member.cellNumber != null)
-                          IconButton(
-                            tooltip: 'Resend Invite to ${member.displayName}',
-                            onPressed: () => onResendInvite(member),
-                            icon: const Icon(Icons.sms_outlined),
+                        else
+                          Tooltip(
+                            message: member.cellNumber == null
+                                ? 'Add a cell number before sending an Invite'
+                                : 'Resend Invite to ${member.displayName}',
+                            child: IconButton(
+                              onPressed: member.cellNumber == null
+                                  ? null
+                                  : () => onResendInvite(member),
+                              icon: const Icon(Icons.sms_outlined),
+                            ),
                           ),
                         PopupMenuButton<_MemberAction>(
                           tooltip: 'Change ${member.displayName}',

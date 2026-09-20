@@ -341,6 +341,14 @@ select results_eq(
   'the same person is back on the Staff list, waiting for a fresh Invite'
 );
 
+-- A returning person whose imported contact lacked a Cell number needs one
+-- before the Manager can send the fresh Invite.
+select public.update_staff_contact(
+  '00000000-0000-0000-0000-000000000197',
+  'Leaving Staff member',
+  '5552223333'
+);
+
 create temporary table fresh_invite as
 select * from public.resend_staff_invite('00000000-0000-0000-0000-000000000197');
 
