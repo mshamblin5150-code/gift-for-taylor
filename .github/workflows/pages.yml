@@ -10,7 +10,8 @@ permissions:
   pages: write
   id-token: write
 
-# This run applies database migrations, which are not safe to interrupt part
+# This run deploys Edge Functions and applies database migrations. Migrations
+# are not safe to interrupt part
 # way through. A superseded run therefore queues rather than cancelling: a
 # second push waits its turn instead of killing a `supabase db push` mid-flight.
 concurrency:
@@ -29,15 +30,23 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      # Pushed straight down a connection string rather than a linked project,
-      # so the only credential stored here reaches this one database. An
-      # account-wide access token would reach every project on the account.
+      # Function deployment needs a Supabase access token and project ref.
+      # Deploy send-push before db push: migrations can insert historical
+      # staff_notices, and the current function skips rows with push_eligible=false.
+      # Name each function so CI never deploys unrelated functions or config.
+      - run: supabase functions deploy send-push --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      - run: supabase functions deploy calendar-feed --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      # Migrations use the session-pooler connection string, which reaches only
+      # this database. The project's direct host publishes only an AAAA record,
+      # while GitHub runners are IPv4-only.
       #
-      # It has to be the session pooler URL: the project's direct host
-      # (db.<ref>.supabase.co) publishes an AAAA record and no A record, and
-      # GitHub's runners are IPv4-only.
-      #
-      # Migrations only. Never `supabase config push`: that applies config.toml
+      # Never `supabase config push`: that applies config.toml
       # over the project's hosted settings, Auth included.
       - run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
         env:
