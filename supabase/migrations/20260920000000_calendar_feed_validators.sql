@@ -3,6 +3,25 @@
 create index schedule_changes_by_staff_date
 on public.schedule_changes (staff_member_id, work_date);
 
+-- Editing a Shift code can change event hours or remove events without writing
+-- a Schedule cell. Advance those cells so subscribers can detect that change.
+create function public.touch_calendar_cells_for_shift_code()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if (old.start_time, old.end_time, old.is_working) is distinct from
+     (new.start_time, new.end_time, new.is_working) then
+    update public.schedule_cells
+    set updated_at = clock_timestamp()
+    where upper(trim(shift_code)) = new.code;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.touch_calendar_cells_for_shift_code() from public;
+create trigger touch_calendar_cells_for_shift_code
+after update of start_time, end_time, is_working on public.shift_codes
+for each row execute function public.touch_calendar_cells_for_shift_code();
+
 create function public.calendar_feed_last_modified(p_token text)
 returns timestamptz
 language sql stable security definer set search_path = ''
