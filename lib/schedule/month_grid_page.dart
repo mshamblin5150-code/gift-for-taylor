@@ -26,6 +26,24 @@ import 'staffing_sheet.dart';
 
 enum ScheduleView { month, day, person }
 
+final class _ScheduleAction {
+  const _ScheduleAction({
+    required this.label,
+    required this.icon,
+    this.onPressed,
+    this.badgeCount = 0,
+    this.children,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final int badgeCount;
+  final List<_ScheduleAction>? children;
+
+  String get menuLabel => badgeCount > 0 ? '$label ($badgeCount)' : label;
+}
+
 typedef _MonthRead = ({
   MonthGrid grid,
   ChangeAnnouncement? announcement,
@@ -745,8 +763,238 @@ class _MonthGridPageState extends State<MonthGridPage> {
     };
   }
 
+  List<_ScheduleAction> _appBarActions(BuildContext context) => [
+    _ScheduleAction(
+      label: 'Help',
+      icon: Icons.help_outline,
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) => HelpPage(
+            role: _isManager
+                ? HelpRole.manager
+                : _editable.isEmpty
+                ? HelpRole.staffMember
+                : HelpRole.nightScheduler,
+          ),
+        ),
+      ),
+    ),
+    if (_isManager && widget.swapRules != null && widget.openShiftRules != null)
+      _ScheduleAction(
+        label: 'Approval queue',
+        icon: Icons.fact_check_outlined,
+        badgeCount: _pendingApprovals,
+        onPressed: () => _open(
+          (context) => ApprovalQueuePage(
+            rules: widget.rules,
+            swapRules: widget.swapRules!,
+            openShiftRules: widget.openShiftRules!,
+            staffGateway: widget.staffGateway,
+          ),
+        ),
+      ),
+    if (!_isManager && widget.openShiftRules != null)
+      _ScheduleAction(
+        label: 'Open shifts',
+        icon: Icons.add_circle_outline,
+        onPressed: () => _open(
+          (context) => OpenShiftsPage(
+            rules: widget.openShiftRules!,
+            scheduleRules: widget.rules,
+            month: _month,
+            staffMemberId: widget.swapStaffMemberId,
+            isManager: _isManager,
+          ),
+        ),
+      ),
+    if (!_isManager && widget.swapRules != null)
+      _ScheduleAction(
+        label: 'Swaps',
+        icon: Icons.swap_horiz,
+        badgeCount: _pendingSwaps,
+        onPressed: () => _open(
+          (context) => SwapsPage(
+            rules: widget.rules,
+            swapRules: widget.swapRules!,
+            month: _month,
+            staffMemberId: widget.swapStaffMemberId,
+            isManager: _isManager,
+            messagesComposer: widget.messagesComposer,
+          ),
+        ),
+      ),
+    if (widget.noticeGateway case final gateway?)
+      _ScheduleAction(
+        label: 'Notices',
+        icon: Icons.notifications_outlined,
+        onPressed: () => _open((context) => NoticesPage(gateway: gateway)),
+      ),
+    if (widget.onCalendarFeed != null)
+      _ScheduleAction(
+        label: 'My calendar',
+        icon: Icons.calendar_month_outlined,
+        onPressed: widget.onCalendarFeed,
+      ),
+    if (!_isManager)
+      _ScheduleAction(
+        label: 'My Requests off',
+        icon: Icons.event_busy_outlined,
+        badgeCount: _unreadRequests,
+        onPressed: () => _open(
+          (context) =>
+              RequestsOffPage(rules: widget.rules, isManager: _isManager),
+        ),
+      ),
+    if (_isManager)
+      _ScheduleAction(
+        label: 'Browse requests',
+        icon: Icons.more_horiz,
+        children: [
+          _ScheduleAction(
+            label: 'Requests off',
+            icon: Icons.event_busy_outlined,
+            onPressed: () => _open(
+              (context) =>
+                  RequestsOffPage(rules: widget.rules, isManager: true),
+            ),
+          ),
+          if (widget.swapRules != null)
+            _ScheduleAction(
+              label: 'Swaps',
+              icon: Icons.swap_horiz,
+              onPressed: () => _open(
+                (context) => SwapsPage(
+                  rules: widget.rules,
+                  swapRules: widget.swapRules!,
+                  month: _month,
+                  staffMemberId: widget.swapStaffMemberId,
+                  isManager: true,
+                  messagesComposer: widget.messagesComposer,
+                ),
+              ),
+            ),
+          if (widget.openShiftRules != null)
+            _ScheduleAction(
+              label: 'Open shifts',
+              icon: Icons.add_circle_outline,
+              onPressed: () => _open(
+                (context) => OpenShiftsPage(
+                  rules: widget.openShiftRules!,
+                  scheduleRules: widget.rules,
+                  month: _month,
+                  staffMemberId: widget.swapStaffMemberId,
+                  isManager: true,
+                ),
+              ),
+            ),
+        ],
+      ),
+    if (_isManager) ...[
+      _ScheduleAction(
+        label: 'Manage Shift codes',
+        icon: Icons.schedule_outlined,
+        onPressed: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (context) => ShiftCodesPage(rules: widget.rules),
+            ),
+          );
+          if (mounted) await _load();
+        },
+      ),
+      _ScheduleAction(
+        label: 'Change log',
+        icon: Icons.history,
+        onPressed: () => _open(
+          (context) => ChangeLogPage(rules: widget.rules, month: _month),
+        ),
+      ),
+    ],
+    if (widget.printBookPage case final printBookPage?)
+      _ScheduleAction(
+        label: _wording?.tooltip.label ?? 'Loading print wording',
+        icon: Icons.print_outlined,
+        onPressed: _wording == null ? null : () => _print(printBookPage),
+      ),
+    if (_isManager && widget.printWordingGateway != null)
+      _ScheduleAction(
+        label: 'Change print wording',
+        icon: Icons.text_fields_outlined,
+        onPressed: _wording == null ? null : _changePrintWording,
+      ),
+    if (widget.onManageStaff != null)
+      _ScheduleAction(
+        label: 'Manage Staff list',
+        icon: Icons.people_outline,
+        onPressed: () async {
+          await widget.onManageStaff?.call();
+          if (mounted) await _load();
+        },
+      ),
+    if (widget.onSignOut != null)
+      _ScheduleAction(
+        label: 'Sign out',
+        icon: Icons.logout,
+        onPressed: widget.onSignOut,
+      ),
+  ];
+
+  PopupMenuItem<_ScheduleAction> _actionMenuItem(_ScheduleAction action) =>
+      PopupMenuItem<_ScheduleAction>(
+        value: action,
+        enabled: action.onPressed != null,
+        child: Row(
+          children: [
+            Icon(action.icon),
+            const SizedBox(width: 12),
+            Flexible(child: Text(action.menuLabel)),
+          ],
+        ),
+      );
+
+  Widget _desktopAction(_ScheduleAction action) {
+    if (action.children case final children?) {
+      return PopupMenuButton<_ScheduleAction>(
+        tooltip: action.label,
+        icon: Icon(action.icon),
+        onSelected: (selected) => selected.onPressed?.call(),
+        itemBuilder: (context) => [
+          for (final child in children) _actionMenuItem(child),
+        ],
+      );
+    }
+    return IconButton(
+      tooltip: action.label,
+      onPressed: action.onPressed,
+      icon: action.badgeCount > 0
+          ? Badge(label: Text('${action.badgeCount}'), child: Icon(action.icon))
+          : Icon(action.icon),
+    );
+  }
+
+  Widget _compactActions(List<_ScheduleAction> actions) =>
+      PopupMenuButton<_ScheduleAction>(
+        tooltip: 'Schedule actions',
+        icon: const Icon(Icons.more_vert),
+        onSelected: (selected) => selected.onPressed?.call(),
+        itemBuilder: (context) => [
+          for (final action in actions)
+            if (action.children case final children?) ...[
+              PopupMenuItem<_ScheduleAction>(
+                enabled: false,
+                child: Text(action.label),
+              ),
+              for (final child in children) _actionMenuItem(child),
+            ] else
+              _actionMenuItem(action),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
+    final appBarActions = _appBarActions(context);
+    final compactActions =
+        MediaQuery.sizeOf(context).width < 240 + appBarActions.length * 48;
     final grid = _grid;
     final announcement = _announcement;
     final unreached = _unreached;
@@ -774,197 +1022,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Help',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (context) => HelpPage(
-                  role: _isManager
-                      ? HelpRole.manager
-                      : _editable.isEmpty
-                      ? HelpRole.staffMember
-                      : HelpRole.nightScheduler,
-                ),
-              ),
-            ),
-            icon: const Icon(Icons.help_outline),
-          ),
-          if (_isManager &&
-              widget.swapRules != null &&
-              widget.openShiftRules != null)
-            IconButton(
-              tooltip: 'Approval queue',
-              onPressed: () => _open(
-                (context) => ApprovalQueuePage(
-                  rules: widget.rules,
-                  swapRules: widget.swapRules!,
-                  openShiftRules: widget.openShiftRules!,
-                  staffGateway: widget.staffGateway,
-                ),
-              ),
-              icon: Badge(
-                isLabelVisible: _pendingApprovals > 0,
-                label: Text('$_pendingApprovals'),
-                child: const Icon(Icons.fact_check_outlined),
-              ),
-            ),
-          if (!_isManager && widget.openShiftRules != null)
-            IconButton(
-              tooltip: 'Open shifts',
-              onPressed: () => _open(
-                (context) => OpenShiftsPage(
-                  rules: widget.openShiftRules!,
-                  scheduleRules: widget.rules,
-                  month: _month,
-                  staffMemberId: widget.swapStaffMemberId,
-                  isManager: _isManager,
-                ),
-              ),
-              icon: const Icon(Icons.add_circle_outline),
-            ),
-          if (!_isManager && widget.swapRules != null)
-            IconButton(
-              tooltip: 'Swaps',
-              onPressed: () => _open(
-                (context) => SwapsPage(
-                  rules: widget.rules,
-                  swapRules: widget.swapRules!,
-                  month: _month,
-                  staffMemberId: widget.swapStaffMemberId,
-                  isManager: _isManager,
-                  messagesComposer: widget.messagesComposer,
-                ),
-              ),
-              icon: Badge(
-                isLabelVisible: _pendingSwaps > 0,
-                label: Text('$_pendingSwaps'),
-                child: const Icon(Icons.swap_horiz),
-              ),
-            ),
-          if (widget.noticeGateway case final gateway?)
-            IconButton(
-              tooltip: 'Notices',
-              onPressed: () =>
-                  _open((context) => NoticesPage(gateway: gateway)),
-              icon: const Icon(Icons.notifications_outlined),
-            ),
-          if (widget.onCalendarFeed != null)
-            IconButton(
-              tooltip: 'My calendar',
-              onPressed: widget.onCalendarFeed,
-              icon: const Icon(Icons.calendar_month_outlined),
-            ),
-          if (!_isManager)
-            IconButton(
-              tooltip: 'My Requests off',
-              onPressed: () => _open(
-                (context) =>
-                    RequestsOffPage(rules: widget.rules, isManager: _isManager),
-              ),
-              icon: Badge(
-                isLabelVisible: _unreadRequests > 0,
-                label: Text('$_unreadRequests'),
-                child: const Icon(Icons.event_busy_outlined),
-              ),
-            ),
-          if (_isManager)
-            PopupMenuButton<String>(
-              tooltip: 'Browse requests',
-              icon: const Icon(Icons.more_horiz),
-              onSelected: (value) {
-                switch (value) {
-                  case 'requests':
-                    _open(
-                      (context) =>
-                          RequestsOffPage(rules: widget.rules, isManager: true),
-                    );
-                  case 'swaps':
-                    _open(
-                      (context) => SwapsPage(
-                        rules: widget.rules,
-                        swapRules: widget.swapRules!,
-                        month: _month,
-                        staffMemberId: widget.swapStaffMemberId,
-                        isManager: true,
-                        messagesComposer: widget.messagesComposer,
-                      ),
-                    );
-                  case 'shifts':
-                    _open(
-                      (context) => OpenShiftsPage(
-                        rules: widget.openShiftRules!,
-                        scheduleRules: widget.rules,
-                        month: _month,
-                        staffMemberId: widget.swapStaffMemberId,
-                        isManager: true,
-                      ),
-                    );
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'requests',
-                  child: Text('Requests off'),
-                ),
-                if (widget.swapRules != null)
-                  const PopupMenuItem(value: 'swaps', child: Text('Swaps')),
-                if (widget.openShiftRules != null)
-                  const PopupMenuItem(
-                    value: 'shifts',
-                    child: Text('Open shifts'),
-                  ),
-              ],
-            ),
-          if (_isManager) ...[
-            IconButton(
-              tooltip: 'Manage Shift codes',
-              onPressed: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (context) => ShiftCodesPage(rules: widget.rules),
-                  ),
-                );
-                if (mounted) await _load();
-              },
-              icon: const Icon(Icons.schedule_outlined),
-            ),
-            IconButton(
-              tooltip: 'Change log',
-              onPressed: () => _open(
-                (context) => ChangeLogPage(rules: widget.rules, month: _month),
-              ),
-              icon: const Icon(Icons.history),
-            ),
-          ],
-          if (widget.printBookPage case final printBookPage?)
-            IconButton(
-              tooltip: _wording?.tooltip.label ?? 'Loading print wording',
-              onPressed: _wording == null ? null : () => _print(printBookPage),
-              icon: const Icon(Icons.print_outlined),
-            ),
-          if (_isManager && widget.printWordingGateway != null)
-            IconButton(
-              tooltip: 'Change print wording',
-              onPressed: _wording == null ? null : _changePrintWording,
-              icon: const Icon(Icons.text_fields_outlined),
-            ),
-          if (widget.onManageStaff != null)
-            IconButton(
-              tooltip: 'Manage Staff list',
-              onPressed: () async {
-                await widget.onManageStaff?.call();
-                if (mounted) await _load();
-              },
-              icon: const Icon(Icons.people_outline),
-            ),
-          if (widget.onSignOut != null)
-            IconButton(
-              tooltip: 'Sign out',
-              onPressed: widget.onSignOut,
-              icon: const Icon(Icons.logout),
-            ),
-        ],
+        actions: compactActions
+            ? [_compactActions(appBarActions)]
+            : [for (final action in appBarActions) _desktopAction(action)],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(
