@@ -244,8 +244,9 @@ void main() {
   testWidgets('a dated minimum leaves other days in its pool band blank', (
     tester,
   ) async {
-    await OpenShiftRules(database.openShiftStoreFor('manager'))
-        .setDateMinimum(RolePool.cna, CoverageWindow.day, september18, 1, 0);
+    await OpenShiftRules(
+      database.openShiftStoreFor('manager'),
+    ).setDateMinimum(RolePool.cna, CoverageWindow.day, september18, 1, 0);
     await pumpGrid(tester, withStaffing: true);
 
     expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsOneWidget);
@@ -1250,6 +1251,17 @@ void main() {
       pasted,
     );
     expect(gateway.wording.title, PrintTitleStyle.hospital.label);
+
+    await tester.enterText(find.byType(TextField).at(1), '😀' * 41);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(gateway.wording.title, '😀' * 41);
+  });
+
+  testWidgets('blank title can be reset to default', (tester) async {
+    await pumpGrid(tester, printWordingGateway: _TestPrintWordingGateway());
+    await tester.tap(find.byTooltip('Change print wording'));
+    await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField).at(1), '   ');
     await tester.tap(find.text('Save'));

@@ -196,6 +196,17 @@ void main() {
     expect(html, contains('A very long Schedule title'));
   });
 
+  test('an 80-character title remains readable on a small month', () async {
+    final wording = PrintWording(title: 'x' * 80);
+    final grid = await rules.monthGrid(september);
+    expect(bookPageIsHardToRead(grid, wording: wording), isFalse);
+    final html = bookPageHtml(grid, wording: wording);
+    final scale = double.parse(
+      RegExp(r'--initial-scale: ([\d.]+)').firstMatch(html)!.group(1)!,
+    );
+    expect(scale * 9, greaterThanOrEqualTo(6));
+  });
+
   test('names and codes are escaped', () async {
     final odd = InMemoryScheduleDatabase(
       sections: const [ScheduleSection(id: 'days', name: 'CNA & <techs>')],

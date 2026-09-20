@@ -38,7 +38,7 @@ class _PrintWordingDialogState extends State<_PrintWordingDialog> {
       tooltip,
       title,
       notice,
-    ].any((field) => field.text.length > 80);
+    ].any((field) => field.text.runes.length > 80);
     if (required || tooLong) {
       setState(
         () => error = [
@@ -71,12 +71,10 @@ class _PrintWordingDialogState extends State<_PrintWordingDialog> {
         maxLength: 80,
         maxLengthEnforcement: MaxLengthEnforcement.none,
         buildCounter:
-            (
-              context, {
-              required currentLength,
-              required isFocused,
-              maxLength,
-            }) => currentLength < 60 ? null : Text('$currentLength/80'),
+            (context, {required currentLength, required isFocused, maxLength}) {
+              final length = controller.text.runes.length;
+              return length < 60 ? null : Text('$length/80');
+            },
         onChanged: (_) => setState(() => error = null),
       ),
       TextButton(
