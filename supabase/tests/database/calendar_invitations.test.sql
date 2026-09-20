@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(20);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000981', 'calendar@example.test');
@@ -110,6 +110,26 @@ delete from public.schedule_cells where work_date = '2027-05-05';
 select is((select method from public.calendar_invitation_outbox
   where work_date = '2027-05-05' and superseded_at is null), 'CANCEL',
   'deleting a released working cell withdraws its invitation');
+
+create temp table named_subscriptions (id uuid);
+grant select, insert on named_subscriptions to authenticated;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000981","role":"authenticated"}', true);
+insert into named_subscriptions
+  select (public.create_calendar_subscription('iPhone') ->> 'id')::uuid;
+insert into named_subscriptions
+  select (public.create_calendar_subscription('Google') ->> 'id')::uuid;
+select is((select count(*)::int from public.list_calendar_subscriptions()), 2,
+  'one Staff member may hold two named Calendar subscriptions');
+select public.revoke_calendar_subscription((select id from named_subscriptions
+  order by id limit 1));
+select is(public.my_calendar_channel(), 'feed',
+  'revoking one subscription leaves the other feed active');
+select public.revoke_calendar_subscription((select id from named_subscriptions
+  order by id desc limit 1));
+select is(public.my_calendar_channel(), 'invitations',
+  'revoking the last subscription restores invitations');
 
 select * from finish();
 rollback;
