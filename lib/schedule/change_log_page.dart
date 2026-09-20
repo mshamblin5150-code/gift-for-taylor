@@ -9,18 +9,20 @@ class ChangeLogPage extends StatefulWidget {
     required this.rules,
     required this.month,
     this.unreachedOnly = false,
+    this.weekStart,
   });
 
   final ScheduleRules rules;
   final DateTime month;
   final bool unreachedOnly;
+  final DateTime? weekStart;
 
   @override
   State<ChangeLogPage> createState() => _ChangeLogPageState();
 }
 
 class _ChangeLogPageState extends State<ChangeLogPage> {
-  MonthGrid? _grid;
+  Map<String, String>? _names;
 
   /// Everyone who changed a cell this month, by id, for the person filter.
   Map<String, String> _peopleWhoChanged = const {};
@@ -38,19 +40,45 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
 
   Future<void> _load() async {
     try {
-      final (grid, everything, entries) = await (
-        widget.rules.monthGrid(widget.month),
-        widget.rules.changeLogView(widget.month),
-        widget.rules.changeLogView(
-          widget.month,
-          changedBy: _changedBy,
-          changedOn: _changedOn,
-          unreachedOnly: _unreachedOnly,
+      final weekStart = widget.weekStart;
+      final weekEnd = weekStart?.add(Duration(days: 7 - weekStart.weekday));
+      final lastMonth = weekEnd == null
+          ? widget.month
+          : DateTime(weekEnd.year, weekEnd.month);
+      final months = [widget.month, if (lastMonth != widget.month) lastMonth];
+      final (grids, allLogs, filteredLogs) = await (
+        Future.wait(months.map(widget.rules.monthGrid)),
+        Future.wait(months.map(widget.rules.changeLogView)),
+        Future.wait(
+          months.map(
+            (month) => widget.rules.changeLogView(
+              month,
+              changedBy: _changedBy,
+              changedOn: _changedOn,
+              unreachedOnly: _unreachedOnly,
+            ),
+          ),
         ),
       ).wait;
       if (!mounted) return;
+      bool inWeek(ScheduleChange change) {
+        if (weekStart == null || weekEnd == null) return true;
+        final date = DateTime(
+          change.date.year,
+          change.date.month,
+          change.date.day,
+        );
+        return !date.isBefore(weekStart) && !date.isAfter(weekEnd);
+      }
+
+      final everything = allLogs.expand((log) => log).where(inWeek).toList();
+      final entries = filteredLogs.expand((log) => log).where(inWeek).toList()
+        ..sort((a, b) => b.changedAt.compareTo(a.changedAt));
       setState(() {
-        _grid = grid;
+        _names = {
+          for (final grid in grids)
+            for (final row in grid.rows) row.staffMemberId: row.displayName,
+        };
         _peopleWhoChanged = {
           for (final change in everything.reversed)
             change.changedBy: change.changedByName,
@@ -90,33 +118,45 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
 
   @override
   Widget build(BuildContext context) {
-    final grid = _grid;
+    final names = _names;
     final entries = _entries;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Change log · ${DateFormat.yMMMM().format(widget.month)}'),
+        title: Text(
+          widget.weekStart == null
+              ? 'Change log · ${DateFormat.yMMMM().format(widget.month)}'
+              : 'Change log · this week',
+        ),
       ),
-      body: switch ((grid, entries, _loadError)) {
+      body: switch ((names, entries, _loadError)) {
         (_, _, Object()) => const Center(
           child: Text("The change log couldn't be loaded."),
         ),
-        (final MonthGrid grid, final List<ScheduleChange> entries, _) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _filters(),
-            const Divider(height: 1),
-            Expanded(
-              child: entries.isEmpty
-                  ? const Center(child: Text('No changes match.'))
-                  : ListView(
-                      children: [
-                        for (final change in entries)
-                          _ChangeTile(grid: grid, change: change),
-                      ],
-                    ),
-            ),
-          ],
-        ),
+        (
+          final Map<String, String> names,
+          final List<ScheduleChange> entries,
+          _,
+        ) =>
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _filters(),
+              const Divider(height: 1),
+              Expanded(
+                child: entries.isEmpty
+                    ? const Center(child: Text('No changes match.'))
+                    : ListView(
+                        children: [
+                          for (final change in entries)
+                            _ChangeTile(
+                              personName: names[change.staffMemberId] ?? '',
+                              change: change,
+                            ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
@@ -171,19 +211,18 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
 }
 
 class _ChangeTile extends StatelessWidget {
-  const _ChangeTile({required this.grid, required this.change});
+  const _ChangeTile({required this.personName, required this.change});
 
-  final MonthGrid grid;
+  final String personName;
   final ScheduleChange change;
 
   @override
   Widget build(BuildContext context) {
-    final person = grid.displayNameOf(change.staffMemberId);
     final oldCode = change.oldShiftCode.isEmpty ? 'blank' : change.oldShiftCode;
     final newCode = change.newShiftCode.isEmpty ? 'blank' : change.newShiftCode;
     return ListTile(
       title: Text(
-        '$person · ${DateFormat('EEE d').format(change.date)}: '
+        '$personName · ${DateFormat('EEE d').format(change.date)}: '
         '$oldCode → $newCode',
       ),
       subtitle: Text(

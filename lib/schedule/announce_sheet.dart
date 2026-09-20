@@ -113,10 +113,7 @@ class _AnnounceSheetState extends State<_AnnounceSheet> {
                     ? () => _open(
                         groupRecipients,
                         groupMessage,
-                        announcement.people
-                            .where((person) =>
-                                person.cellNumber != null &&
-                                !person.row.hasPushSubscription)
+                        announcement.textFallbacks
                             .map((person) => person.row.staffMemberId),
                       )
                     : null,

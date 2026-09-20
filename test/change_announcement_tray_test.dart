@@ -149,18 +149,24 @@ void main() {
     expect(unannounced('rn-1'), findsNothing);
   });
 
-  testWidgets('a reverted-only batch can be cleared without a text', (tester) async {
+  testWidgets('a reverted-only batch can be cleared without a text', (
+    tester,
+  ) async {
     await save(dana, 'X');
     await save(dana, '');
     await pumpGrid(tester);
 
-    expect(find.text('Changes reverted to their announced values'),
-        findsOneWidget);
+    expect(
+      find.text('Changes reverted to their announced values'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Clear reverted changes'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Changes reverted to their announced values'),
-        findsNothing);
+    expect(
+      find.text('Changes reverted to their announced values'),
+      findsNothing,
+    );
     expect(messages.opened, isEmpty);
   });
 
@@ -236,10 +242,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Reach: Nobody'), findsOneWidget);
     expect(
-      tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Unreached'))
+      tester
+          .widget<FilterChip>(find.widgetWithText(FilterChip, 'Unreached'))
           .selected,
       isTrue,
     );
+  });
+
+  testWidgets('the weekly pointer includes changes across a month boundary', (
+    tester,
+  ) async {
+    const unreachable = ScheduleRow(
+      staffMemberId: 'rn-3',
+      displayName: 'Robin Hall',
+      sectionId: 'days',
+    );
+    final october = DateTime(2026, 10);
+    database = InMemoryScheduleDatabase(
+      sections: const [days],
+      rows: const [unreachable],
+      editors: const {'manager'},
+      releasedMonths: {september, october},
+    );
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: unreachable.staffMemberId,
+        sectionId: days.id,
+        date: DateTime(2026, 10, 1),
+        shiftCode: '7A',
+      ),
+    );
+    await manager.markAnnounced(await manager.changeAnnouncement(october));
+    await pumpGrid(tester, now: () => DateTime(2026, 9, 30));
+
+    await tester.tap(
+      find.text("1 person wasn't reached about changes this week"),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Change log · this week'), findsOneWidget);
+    expect(find.textContaining('Robin Hall · Thu 1'), findsOneWidget);
+    expect(find.textContaining('Reach: Nobody'), findsOneWidget);
   });
 }
 

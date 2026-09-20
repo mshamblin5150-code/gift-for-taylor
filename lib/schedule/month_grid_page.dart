@@ -312,7 +312,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       const <SectionStaffing>[],
     );
     final unreachedRead = isManager
-        ? _readUnreachedThisWeek(month)
+        ? _readUnreachedThisWeek()
         : Future<({int count, DateTime month})?>.value();
     // Waits for both required reads whichever fails, so a failure on one side
     // leaves no unobserved error on the other, and reports the error itself
@@ -327,15 +327,17 @@ class _MonthGridPageState extends State<MonthGridPage> {
     );
   }
 
-  Future<({int count, DateTime month})?> _readUnreachedThisWeek(
-    DateTime month,
-  ) async {
+  Future<({int count, DateTime month})?> _readUnreachedThisWeek() async {
     final today = _today;
     final end = today.add(Duration(days: 7 - today.weekday));
-    final changes = await widget.rules.changeLogView(
-      month,
-      unreachedOnly: true,
-    );
+    final month = DateTime(today.year, today.month);
+    final lastMonth = DateTime(end.year, end.month);
+    final logs = await Future.wait([
+      widget.rules.changeLogView(month, unreachedOnly: true),
+      if (lastMonth != month)
+        widget.rules.changeLogView(lastMonth, unreachedOnly: true),
+    ]);
+    final changes = logs.expand((log) => log);
     final upcoming = changes.where((change) {
       final date = _dateOnly(change.date);
       return !date.isBefore(today) && !date.isAfter(end);
@@ -1021,6 +1023,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                     rules: widget.rules,
                     month: unreached.month,
                     unreachedOnly: true,
+                    weekStart: _today,
                   ),
                 ),
               ),
