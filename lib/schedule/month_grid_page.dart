@@ -1349,6 +1349,9 @@ class _MonthViewState extends State<_MonthView> {
                             onOpenDay: widget.onOpenDay,
                           ),
                         for (final section in widget.grid.sections) ...[
+                          if (widget.grid.rowsIn(section.id).isEmpty)
+                            SizedBox(width: days.length * _dayWidth,
+                                height: _cellHeight),
                           for (final row in widget.grid.rowsIn(section.id))
                             _StaffRow(
                               grid: widget.grid,
@@ -1400,6 +1403,15 @@ class _NameColumn extends StatelessWidget {
                     fontWeight: FontWeight.w600)),
           ),
         for (final section in grid.sections) ...[
+          if (grid.rowsIn(section.id).isEmpty)
+            Container(
+              width: _nameWidth,
+              height: _cellHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              alignment: Alignment.centerLeft,
+              child: Text(section.name, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall),
+            ),
           for (final (index, row) in grid.rowsIn(section.id).indexed)
             InkWell(
               onTap: onOpenStaffDetails == null
@@ -1881,7 +1893,8 @@ class _DayView extends StatelessWidget {
               ] else ...[
                 for (final pool in RolePool.values) ...[
                   ListTile(
-                    title: Text(pool.label,
+                    title: Text(pool == RolePool.nurses
+                        ? 'Nursing pool' : pool.label,
                         style: const TextStyle(fontWeight: FontWeight.w600)),
                     tileColor: Theme.of(context).colorScheme.primaryContainer,
                   ),

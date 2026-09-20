@@ -1821,7 +1821,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
             jobRole: await ScheduleRules.inMemory(
               _database,
               actingAs: _actingAs,
-            ).jobRoleOn(id, cell.date),
+            ).jobRoleOn(id, lastDay),
             coverageWindow: _coverageWindowOf(
               cell.shiftCode,
               _database._shiftCodes,

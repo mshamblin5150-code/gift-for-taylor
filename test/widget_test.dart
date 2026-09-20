@@ -761,7 +761,7 @@ void main() {
       final day = DateTime(2026, 10, 16);
       await pumpGrid(tester, month: DateTime(2026, 10), withStaffing: true);
       final marker = find.byKey(const ValueKey('short-nurses-2026-10-16'));
-      expect(find.descendant(of: marker, matching: find.text('−3')),
+      expect(find.descendant(of: marker, matching: find.text('−6')),
           findsOneWidget);
 
       await tester.tap(cell('rn-1', day));
@@ -769,7 +769,7 @@ void main() {
       await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
       await tester.pumpAndSettle();
 
-      expect(find.descendant(of: marker, matching: find.text('−2')),
+      expect(find.descendant(of: marker, matching: find.text('−5')),
           findsOneWidget);
     });
 
