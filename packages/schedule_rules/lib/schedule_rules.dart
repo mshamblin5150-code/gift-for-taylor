@@ -537,6 +537,7 @@ final class LegendCode {
     bool? isWorking,
     this.startTime,
     this.endTime,
+    this.coverageWindow,
     this.active = true,
   }) : isWorking = isWorking ?? hours != null;
 
@@ -550,7 +551,24 @@ final class LegendCode {
   /// Local 24-hour HH:mm values; null means an untimed Calendar event.
   final String? startTime;
   final String? endTime;
+
+  /// Day or Night coverage; null means the code counts toward neither window.
+  final String? coverageWindow;
   final bool active;
+}
+
+String? coverageWindowForHours(String? start, String? end) {
+  if (start == null || end == null || start == end) return null;
+  int minutes(String value) =>
+      int.parse(value.substring(0, 2)) * 60 + int.parse(value.substring(3, 5));
+  final first = minutes(start);
+  final last = minutes(end);
+  bool covers(int anchor) => first < last
+      ? first <= anchor && anchor < last
+      : first <= anchor || anchor < last;
+  if (covers(13 * 60)) return 'day';
+  if (covers(2 * 60)) return 'night';
+  return null;
 }
 
 /// Printable local hours for a timed Shift code.
@@ -567,22 +585,20 @@ String? shiftCodeHours(String? start, String? end) {
 
 /// In-memory test fixture. Production reads the database catalog.
 const shiftLegend = <LegendCode>[
-  LegendCode('16D', hours: '7A–11P'),
-  LegendCode('7A', hours: '7A–7P'),
-  LegendCode('D', hours: '7A–3P'),
-  LegendCode('MM', hours: '11A–7P'),
-  LegendCode('11A', hours: '11A–11P'),
-  LegendCode('3P', hours: '3P–3A'),
-  LegendCode('7P', hours: '7P–7A'),
-  LegendCode('ME', hours: '7P–3A'),
-  LegendCode('N', hours: '11P–7A'),
+  LegendCode('16D', hours: '7A–11P', coverageWindow: 'day'),
+  LegendCode('7A', hours: '7A–7P', coverageWindow: 'day'),
+  LegendCode('D', hours: '7A–3P', coverageWindow: 'day'),
+  LegendCode('MM', hours: '11A–7P', coverageWindow: 'day'),
+  LegendCode('11A', hours: '11A–11P', coverageWindow: 'day'),
+  LegendCode('3P', hours: '3P–3A', coverageWindow: 'night'),
+  LegendCode('7P', hours: '7P–7A', coverageWindow: 'night'),
+  LegendCode('ME', hours: '7P–3A', coverageWindow: 'night'),
+  LegendCode('N', hours: '11P–7A', coverageWindow: 'night'),
   LegendCode('X', meaning: 'Off'),
   LegendCode('R/O', meaning: 'Requested off'),
   LegendCode('H'),
   LegendCode('S/L', meaning: 'Sick leave'),
-  LegendCode('4P', isWorking: true),
-  LegendCode('9-7', isWorking: true),
-  LegendCode('7-5', isWorking: true),
+  LegendCode('C/I', meaning: 'Called in'),
 ];
 
 /// Whether [shiftCode] is a shift someone works: anything but blank or a
@@ -1268,6 +1284,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           isWorking: old.isWorking,
           startTime: old.startTime,
           endTime: old.endTime,
+          coverageWindow: old.coverageWindow,
           active: false,
         );
       } else {
@@ -1284,6 +1301,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
       isWorking: code.isWorking,
       startTime: code.startTime,
       endTime: code.endTime,
+      coverageWindow:
+          code.coverageWindow ??
+          coverageWindowForHours(code.startTime, code.endTime),
     );
     if (index < 0) {
       _database._shiftCodes.add(updated);
@@ -1394,17 +1414,18 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     }
     if (decision == RequestOffDecision.approved) {
       for (final date in request.dates) {
-        final row = (await rows(DateTime(date.year, date.month)))
-            .where((r) => r.staffMemberId == request.staffMemberId)
-            .firstOrNull;
+        final row = (await rows(
+          DateTime(date.year, date.month),
+        )).where((r) => r.staffMemberId == request.staffMemberId).firstOrNull;
         if (row == null ||
             (row.lastDay != null && date.isAfter(row.lastDay!))) {
           throw StateError('Staff member is not on the Schedule for that day');
         }
       }
       for (final date in request.dates) {
-        final row = (await rows(DateTime(date.year, date.month)))
-            .firstWhere((r) => r.staffMemberId == request.staffMemberId);
+        final row = (await rows(
+          DateTime(date.year, date.month),
+        )).firstWhere((r) => r.staffMemberId == request.staffMemberId);
         final old =
             _database
                 ._cells[_cellKey(request.staffMemberId, date)]
@@ -1526,9 +1547,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           ? const ScheduleEditRefused()
           : const ScheduleEditRefused('Only the Manager can edit that Section');
     }
-    final row = (await rows(DateTime(cell.date.year, cell.date.month)))
-        .where((row) => row.staffMemberId == cell.staffMemberId)
-        .firstOrNull;
+    final row = (await rows(
+      DateTime(cell.date.year, cell.date.month),
+    )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
     if (row == null || row.sectionId != cell.sectionId) {
       throw StateError(
         'That Staff member is not on the Staff list in this Section',
@@ -1555,9 +1576,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     final editable = await editableSections();
     for (final cell in [first, second]) {
       if (!editable.contains(cell.sectionId)) throw const ScheduleEditRefused();
-      final row = (await rows(DateTime(cell.date.year, cell.date.month)))
-          .where((row) => row.staffMemberId == cell.staffMemberId)
-          .firstOrNull;
+      final row = (await rows(
+        DateTime(cell.date.year, cell.date.month),
+      )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
       if (row == null ||
           row.sectionId != cell.sectionId ||
           (row.lastDay != null && cell.date.isAfter(row.lastDay!))) {
