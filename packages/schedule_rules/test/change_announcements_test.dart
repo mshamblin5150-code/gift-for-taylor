@@ -121,7 +121,16 @@ void main() {
     await save(sam, 18, 'X');
     await save(sam, 18, '7A');
 
-    expect((await manager.changeAnnouncement(september)).isEmpty, isTrue);
+    final announcement = await manager.changeAnnouncement(september);
+    expect(announcement.isEmpty, isTrue);
+    expect(announcement.hasPendingChanges, isTrue);
+
+    await manager.markAnnounced(announcement);
+    expect((await manager.changeAnnouncement(september)).hasPendingChanges,
+        isFalse);
+    expect((await manager.changeLog(september))
+        .where((change) => !change.announced)
+        .every((change) => change.moot), isTrue);
   });
 
   test('a reverted cell is settled moot alongside a real change', () async {

@@ -59,6 +59,9 @@ final class ChangeAnnouncement {
 
   bool get isEmpty => people.isEmpty;
 
+  /// Includes pending edits that netted back to their announced baseline.
+  bool get hasPendingChanges => _changeIds.isNotEmpty;
+
   /// The number of changed days across everyone affected.
   int get changeCount =>
       people.fold(0, (count, person) => count + person.changedDays.length);

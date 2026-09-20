@@ -92,3 +92,61 @@ $$;
 revoke all on function public.mark_changes_announced(uuid[], uuid[]) from public;
 grant execute on function public.mark_changes_announced(uuid[], uuid[])
   to authenticated;
+
+-- Releasing a month settles drafts made during construction, but it must not
+-- turn an already-moot row into an announced one.
+create or replace function public.release_month(p_month_start date)
+returns void language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_actor_id uuid := public.current_staff_member_id();
+begin
+  if not public.can_edit_schedule() then
+    raise exception 'Only the Manager can release a month';
+  end if;
+
+  update public.schedule_months
+  set release_state = 'released', released_at = now(),
+    released_by_staff_member_id = v_actor_id
+  where month_start = p_month_start
+    and release_state = 'unpublished'
+    and loaded_from_page_at is null;
+  if not found then
+    raise exception 'There is no unpublished month to release';
+  end if;
+
+  update public.schedule_changes change
+  set announced_at = now()
+  from public.schedule_months month
+  where month.id = change.schedule_month_id
+    and month.month_start = p_month_start
+    and change.announced_at is null and change.moot_at is null;
+end;
+$$;
+
+create or replace function public.confirm_loaded_month(p_month_start date)
+returns void language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_actor_id uuid := public.current_staff_member_id();
+begin
+  if not public.can_edit_schedule() then
+    raise exception 'Only the Manager can confirm the month';
+  end if;
+
+  update public.schedule_months
+  set confirmed_at = now(), confirmed_by_staff_member_id = v_actor_id,
+    release_state = 'released', released_at = coalesce(released_at, now()),
+    released_by_staff_member_id = coalesce(released_by_staff_member_id, v_actor_id)
+  where month_start = p_month_start
+    and loaded_from_page_at is not null and confirmed_at is null;
+  if not found then
+    raise exception 'There is no loaded month waiting to be confirmed';
+  end if;
+
+  update public.schedule_changes change
+  set announced_at = now()
+  from public.schedule_months month
+  where month.id = change.schedule_month_id
+    and month.month_start = p_month_start
+    and change.announced_at is null and change.moot_at is null;
+end;
+$$;

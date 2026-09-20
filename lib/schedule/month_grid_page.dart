@@ -316,11 +316,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _announce(ChangeAnnouncement announcement) async {
-    final draftOpenedStaffMemberIds = await showAnnounceSheet(
-      context,
-      announcement: announcement,
-      messagesComposer: widget.messagesComposer,
-    );
+    final draftOpenedStaffMemberIds = announcement.people.isEmpty
+        ? <String>{}
+        : await showAnnounceSheet(
+            context,
+            announcement: announcement,
+            messagesComposer: widget.messagesComposer,
+          );
     if (draftOpenedStaffMemberIds == null) return;
     try {
       await widget.rules.markAnnounced(
@@ -967,9 +969,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
           children: [
             if (banner != null)
               banner
-            else if (announcement != null && !announcement.isEmpty)
+            else if (announcement != null && announcement.hasPendingChanges)
               _AnnounceTray(
                 changeCount: announcement.changeCount,
+                onlyReverted: announcement.people.isEmpty,
                 onAnnounce: () => _announce(announcement),
               ),
             Expanded(child: _body(grid)),
@@ -1110,9 +1113,14 @@ class _Banner extends StatelessWidget {
 
 /// Stays on screen until the changes are announced.
 class _AnnounceTray extends StatelessWidget {
-  const _AnnounceTray({required this.changeCount, required this.onAnnounce});
+  const _AnnounceTray({
+    required this.changeCount,
+    required this.onlyReverted,
+    required this.onAnnounce,
+  });
 
   final int changeCount;
+  final bool onlyReverted;
   final VoidCallback onAnnounce;
 
   @override
@@ -1127,14 +1135,19 @@ class _AnnounceTray extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                changeCount == 1
+                onlyReverted
+                    ? 'Changes reverted to their announced values'
+                    : changeCount == 1
                     ? '1 unannounced change'
                     : '$changeCount unannounced changes',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(width: 12),
-            FilledButton(onPressed: onAnnounce, child: const Text('Announce')),
+            FilledButton(
+              onPressed: onAnnounce,
+              child: Text(onlyReverted ? 'Clear reverted changes' : 'Announce'),
+            ),
           ],
         ),
       ),
