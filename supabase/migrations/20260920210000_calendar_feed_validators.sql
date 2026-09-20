@@ -32,7 +32,7 @@ as $$
     join public.schedule_months month on month.id = cell.schedule_month_id
     where cell.staff_member_id = member.id
       and month.release_state = 'released'
-  ), token.rotated_at)
+  ), token.created_at)
   from public.calendar_feed_tokens token
   join public.staff_members member on member.id = token.staff_member_id
   where p_token ~ '^[0-9a-f]{64}$'
