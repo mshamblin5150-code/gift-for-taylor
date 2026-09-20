@@ -10,6 +10,12 @@ export type FeedEvent = {
   sequence: number;
 };
 
+export type DisconnectedFeed = {
+  state: "ended" | "feed" | "invitations";
+  subscriptionId: string;
+  revokedAt: string;
+};
+
 function escapeText(value: string): string {
   return value.replaceAll(/\r\n?/g, "\n").replaceAll("\\", "\\\\")
     .replaceAll("\n", "\\n")
@@ -52,7 +58,10 @@ function scheduleAsOf(value: string): string {
   return `${part("weekday")} ${part("day")} ${part("month")}, ${part("hour")}:${part("minute")}`;
 }
 
-export function calendar(events: FeedEvent[], feedUpdatedAt: string | null): string {
+export function calendar(
+  events: FeedEvent[], feedUpdatedAt: string | null,
+  disconnected?: DisconnectedFeed,
+): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -64,6 +73,34 @@ export function calendar(events: FeedEvent[], feedUpdatedAt: string | null): str
     "REFRESH-INTERVAL;VALUE=DURATION:PT5M",
   ];
   const stamp = feedUpdatedAt ?? "1970-01-01T00:00:00Z";
+  if (disconnected && disconnected.state !== "ended") {
+    const dateParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date(disconnected.revokedAt));
+    const part = (type: string) => dateParts.find((item) => item.type === type)?.value;
+    const localDate = `${part("year")}-${part("month")}-${part("day")}`;
+    const start = localDate.replaceAll("-", "");
+    const endDate = new Date(`${localDate}T00:00:00Z`);
+    const startMonth = endDate.getUTCMonth();
+    endDate.setUTCFullYear(endDate.getUTCFullYear() + 1);
+    if (endDate.getUTCMonth() !== startMonth) endDate.setUTCDate(0);
+    const end = endDate.toISOString().slice(0, 10).replaceAll("-", "");
+    const explanation = disconnected.state === "feed"
+      ? `This calendar link was disconnected on ${scheduleAsOf(disconnected.revokedAt)}. The shifts below are your schedule as it stood that day. Open the app to set up a new link.`
+      : `This calendar link was disconnected on ${scheduleAsOf(disconnected.revokedAt)}. Your shifts now arrive by email instead — you can delete this calendar.`;
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${disconnected.subscriptionId}-disconnected@er-schedule`,
+      `DTSTAMP:${utcStamp(disconnected.revokedAt)}`,
+      `LAST-MODIFIED:${utcStamp(disconnected.revokedAt)}`,
+      "SEQUENCE:0",
+      `DTSTART;VALUE=DATE:${start}`,
+      `DTEND;VALUE=DATE:${end}`,
+      "SUMMARY:ER Schedule: this calendar is no longer updated",
+      `DESCRIPTION:${escapeText(explanation)}`,
+      "END:VEVENT",
+    );
+  }
   for (const event of events) {
     const date = event.work_date.replaceAll("-", "");
     lines.push(
@@ -73,7 +110,9 @@ export function calendar(events: FeedEvent[], feedUpdatedAt: string | null): str
       `LAST-MODIFIED:${utcStamp(event.updated_at)}`,
       `SEQUENCE:${event.sequence}`,
       `SUMMARY:${escapeText(shiftSummary(event.shift_code, event.starts_at, event.ends_at))}`,
-      `DESCRIPTION:${escapeText(`Schedule as of ${scheduleAsOf(stamp)}. Your calendar refreshes on its own schedule; open the app if this matters.`)}`,
+      `DESCRIPTION:${escapeText(disconnected
+        ? `Schedule as of ${scheduleAsOf(disconnected.revokedAt)}. This calendar is no longer updated.`
+        : `Schedule as of ${scheduleAsOf(stamp)}. Your calendar refreshes on its own schedule; open the app if this matters.`)}`,
     );
     if (event.starts_at && event.ends_at) {
       lines.push(

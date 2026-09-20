@@ -1,4 +1,4 @@
-import { calendar, type FeedEvent } from "./calendar.ts";
+import { calendar, type DisconnectedFeed, type FeedEvent } from "./calendar.ts";
 
 const headers = {
   "Content-Type": "text/calendar; charset=utf-8",
@@ -10,8 +10,9 @@ export async function feedResponse(
   request: Request,
   events: FeedEvent[],
   feedUpdatedAt: string | null,
+  disconnected?: DisconnectedFeed,
 ): Promise<Response> {
-  const body = calendar(events, feedUpdatedAt);
+  const body = calendar(events, feedUpdatedAt, disconnected);
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body));
   const etag = `"${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}"`;
   const responseHeaders = new Headers(headers);
