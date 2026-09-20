@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
-/// The Manager's catalog. A used code can change meaning or hours; renaming
-/// keeps its historical definition for existing cells, and deletion is refused.
+/// The Shift code catalog. The Manager may edit it; Staff members may read it.
+/// A used code can change meaning or hours; renaming keeps its historical
+/// definition for existing cells, and deletion is refused.
 class ShiftCodesPage extends StatefulWidget {
-  const ShiftCodesPage({super.key, required this.rules});
+  const ShiftCodesPage({super.key, required this.rules, this.readOnly = false});
 
   final ScheduleRules rules;
+  final bool readOnly;
 
   @override
   State<ShiftCodesPage> createState() => _ShiftCodesPageState();
@@ -174,11 +176,13 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Shift codes')),
-    floatingActionButton: FloatingActionButton.extended(
-      onPressed: () => _edit(),
-      icon: const Icon(Icons.add),
-      label: const Text('Add code'),
-    ),
+    floatingActionButton: widget.readOnly
+        ? null
+        : FloatingActionButton.extended(
+            onPressed: () => _edit(),
+            icon: const Icon(Icons.add),
+            label: const Text('Add code'),
+          ),
     body: FutureBuilder<List<LegendCode>>(
       future: _codes,
       builder: (context, snapshot) {
@@ -192,7 +196,7 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
         }
         return ListView(
           children: [
-            if (snapshot.data!.any(
+            if (!widget.readOnly && snapshot.data!.any(
               (code) =>
                   code.isWorking &&
                   code.startTime == null &&
@@ -223,12 +227,14 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
                     code.isWorking ? 'Worked shift' : 'Not worked',
                   ].join(' · '),
                 ),
-                onTap: () => _edit(code),
-                trailing: IconButton(
-                  tooltip: 'Delete ${code.code}',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _delete(code),
-                ),
+                onTap: widget.readOnly ? null : () => _edit(code),
+                trailing: widget.readOnly
+                    ? null
+                    : IconButton(
+                        tooltip: 'Delete ${code.code}',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => _delete(code),
+                      ),
               ),
           ],
         );

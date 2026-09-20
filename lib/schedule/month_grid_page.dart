@@ -1024,6 +1024,18 @@ class _MonthGridPageState extends State<MonthGridPage> {
                   ),
                 ),
               ),
+            if (!_isManager)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => _open(
+                    (context) =>
+                        ShiftCodesPage(rules: widget.rules, readOnly: true),
+                  ),
+                  icon: const Icon(Icons.schedule_outlined),
+                  label: const Text('Shift code legend'),
+                ),
+              ),
             Expanded(child: _body(grid)),
           ],
         ),
