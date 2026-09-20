@@ -98,7 +98,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
       ? ScheduleView.month
       : ScheduleView.person;
   late DateTime _day = _defaultDay();
-  late String? _personId = widget.staffMemberId;
+  late String? _personId = _signedInStaffMemberId;
+
+  // Night schedulers keep the full Month view, but are still Staff members.
+  String? get _signedInStaffMemberId =>
+      widget.staffMemberId ?? widget.swapStaffMemberId;
 
   @override
   void initState() {
@@ -867,20 +871,25 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ScheduleView.day => _DayView(
           grid: grid,
           today: _today,
+          canEdit: _canEdit,
+          staffMemberId: _signedInStaffMemberId,
+          shiftCodes: _shiftCodes,
           staffing: _staffing,
           onManageDay: _manageSectionDay,
           day: _day,
           onDayChanged: (day) => setState(() => _day = day),
           onEdit: _edit,
-          highlightStaffMemberId: widget.staffMemberId,
+          highlightStaffMemberId: _signedInStaffMemberId,
         ),
         ScheduleView.person => _PersonView(
           grid: grid,
           today: _today,
+          canEdit: _canEdit,
+          shiftCodes: _shiftCodes,
           staffMemberId: _personId ?? grid.rows.firstOrNull?.staffMemberId,
           onPersonChanged: (id) => setState(() => _personId = id),
           onEdit: _edit,
-          highlightStaffMemberId: widget.staffMemberId,
+          highlightStaffMemberId: _signedInStaffMemberId,
         ),
       },
     };
@@ -1596,6 +1605,9 @@ class _DayView extends StatelessWidget {
   const _DayView({
     required this.grid,
     required this.today,
+    required this.canEdit,
+    required this.staffMemberId,
+    required this.shiftCodes,
     required this.staffing,
     required this.onManageDay,
     required this.day,
@@ -1606,6 +1618,9 @@ class _DayView extends StatelessWidget {
 
   final MonthGrid grid;
   final DateTime today;
+  final bool canEdit;
+  final String? staffMemberId;
+  final List<LegendCode> shiftCodes;
   final List<SectionStaffing> staffing;
   final _OnManageDay onManageDay;
   final DateTime day;
@@ -1617,6 +1632,15 @@ class _DayView extends StatelessWidget {
   Widget build(BuildContext context) {
     final days = grid.days;
     final entries = grid.rowsOn(day);
+    final staffDay = !canEdit && staffMemberId != null;
+    final myEntry = staffDay
+        ? entries
+              .where((entry) => entry.row.staffMemberId == staffMemberId)
+              .firstOrNull
+        : null;
+    final myInterval = myEntry == null
+        ? null
+        : _shiftInterval(myEntry.shiftCode, shiftCodes);
     return Column(
       children: [
         Row(
@@ -1671,55 +1695,94 @@ class _DayView extends StatelessWidget {
         Expanded(
           child: ListView(
             children: [
-              for (final section in grid.sections) ...[
-                ListTile(
-                  title: Text(
-                    section.name,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  tileColor: Theme.of(context).colorScheme.primaryContainer,
-                  trailing: const Icon(Icons.edit_calendar),
-                  onTap: () => onManageDay(section, day),
-                ),
-                if ((_staffingOn(staffing, section.id, day)?.shortCount ?? 0) >
-                    grid.shortShiftsOn(section.id, day).length)
+              if (staffDay) ...[
+                if (myEntry == null ||
+                    !isWorkingShift(myEntry.shiftCode, codes: shiftCodes))
+                  const ListTile(title: Text('You are not working'))
+                else ...[
                   ListTile(
-                    leading: Icon(
-                      Icons.warning_amber,
-                      color: Theme.of(context).colorScheme.error,
+                    title: Text('Your shift: ${myEntry.shiftCode}'),
+                    subtitle: Text(
+                      _shiftHours(myEntry.shiftCode, shiftCodes) ??
+                          'Hours unavailable',
                     ),
+                  ),
+                  for (final entry in entries)
+                    if (entry.row.staffMemberId != staffMemberId &&
+                        isWorkingShift(entry.shiftCode, codes: shiftCodes))
+                      if (_overlapMinutes(
+                            myInterval,
+                            _shiftInterval(entry.shiftCode, shiftCodes),
+                          )
+                          case final overlap when overlap > 0)
+                        ListTile(
+                          title: Text(entry.row.displayName),
+                          subtitle: Text(
+                            '${entry.shiftCode} (${_shiftHours(entry.shiftCode, shiftCodes)}) · ${_overlapLabel(overlap)} together',
+                          ),
+                          tileColor:
+                              _isStaffChange(
+                                highlightStaffMemberId,
+                                grid,
+                                entry.row,
+                                entry.date,
+                              )
+                              ? _changeColor(context)
+                              : null,
+                        ),
+                ],
+              ] else ...[
+                for (final section in grid.sections) ...[
+                  ListTile(
                     title: Text(
-                      'Short ${_staffingOn(staffing, section.id, day)!.shortCount} against minimum',
-                    ),
-                    onTap: () => onManageDay(section, day),
-                  ),
-                for (final short in grid.shortShiftsOn(section.id, day))
-                  ListTile(
-                    leading: Icon(
-                      Icons.warning_amber,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    title: const Text('Short'),
-                    trailing: Text(
-                      short.shiftCode,
+                      section.name,
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
+                    tileColor: Theme.of(context).colorScheme.primaryContainer,
+                    trailing: const Icon(Icons.edit_calendar),
+                    onTap: () => onManageDay(section, day),
                   ),
-                for (final entry in entries.where(
-                  (entry) => entry.row.sectionId == section.id,
-                ))
-                  _EntryTile(
-                    title: entry.row.displayName,
-                    entry: entry,
-                    today: _isToday(entry.date, today),
-                    highlight: _isStaffChange(
-                      highlightStaffMemberId,
-                      grid,
-                      entry.row,
-                      entry.date,
+                  if ((_staffingOn(staffing, section.id, day)?.shortCount ??
+                          0) >
+                      grid.shortShiftsOn(section.id, day).length)
+                    ListTile(
+                      leading: Icon(
+                        Icons.warning_amber,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      title: Text(
+                        'Short ${_staffingOn(staffing, section.id, day)!.shortCount} against minimum',
+                      ),
+                      onTap: () => onManageDay(section, day),
                     ),
-                    onTap: () => onEdit(entry.row, entry.date),
-                  ),
+                  for (final short in grid.shortShiftsOn(section.id, day))
+                    ListTile(
+                      leading: Icon(
+                        Icons.warning_amber,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      title: const Text('Short'),
+                      trailing: Text(
+                        short.shiftCode,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  for (final entry in entries.where(
+                    (entry) => entry.row.sectionId == section.id,
+                  ))
+                    _EntryTile(
+                      title: entry.row.displayName,
+                      entry: entry,
+                      today: _isToday(entry.date, today),
+                      highlight: _isStaffChange(
+                        highlightStaffMemberId,
+                        grid,
+                        entry.row,
+                        entry.date,
+                      ),
+                      onTap: () => onEdit(entry.row, entry.date),
+                    ),
+                ],
               ],
             ],
           ),
@@ -1733,6 +1796,8 @@ class _PersonView extends StatelessWidget {
   const _PersonView({
     required this.grid,
     required this.today,
+    required this.canEdit,
+    required this.shiftCodes,
     required this.staffMemberId,
     required this.onPersonChanged,
     required this.onEdit,
@@ -1741,6 +1806,8 @@ class _PersonView extends StatelessWidget {
 
   final MonthGrid grid;
   final DateTime today;
+  final bool canEdit;
+  final List<LegendCode> shiftCodes;
   final String? staffMemberId;
   final ValueChanged<String> onPersonChanged;
   final _OnEdit onEdit;
@@ -1777,25 +1844,65 @@ class _PersonView extends StatelessWidget {
           child: ListView(
             children: [
               for (final entry in grid.monthFor(selected))
-                _EntryTile(
-                  title: DateFormat('EEE d').format(entry.date),
-                  entry: entry,
-                  today: _isToday(entry.date, today),
-                  highlight: _isStaffChange(
-                    highlightStaffMemberId,
-                    grid,
-                    entry.row,
-                    entry.date,
+                if (canEdit ||
+                    isWorkingShift(entry.shiftCode, codes: shiftCodes))
+                  _EntryTile(
+                    title: DateFormat('EEE d').format(entry.date),
+                    entry: entry,
+                    today: _isToday(entry.date, today),
+                    highlight: _isStaffChange(
+                      highlightStaffMemberId,
+                      grid,
+                      entry.row,
+                      entry.date,
+                    ),
+                    shaded: _isWeekend(entry.date),
+                    onTap: () => onEdit(entry.row, entry.date),
                   ),
-                  shaded: _isWeekend(entry.date),
-                  onTap: () => onEdit(entry.row, entry.date),
-                ),
             ],
           ),
         ),
       ],
     );
   }
+}
+
+/// Minutes since the Schedule date's midnight, extending into the next day.
+(int, int)? _shiftInterval(String shiftCode, List<LegendCode> codes) {
+  final legend = _legendFor(shiftCode, codes);
+  if (legend?.startTime == null || legend?.endTime == null) return null;
+  final start = _clockMinutes(legend!.startTime!);
+  var end = _clockMinutes(legend.endTime!);
+  if (end <= start) end += 24 * 60;
+  return (start, end);
+}
+
+int _clockMinutes(String time) =>
+    int.parse(time.substring(0, 2)) * 60 + int.parse(time.substring(3, 5));
+
+int _overlapMinutes((int, int)? first, (int, int)? second) {
+  if (first == null || second == null) return 0;
+  final start = first.$1 > second.$1 ? first.$1 : second.$1;
+  final end = first.$2 < second.$2 ? first.$2 : second.$2;
+  return end > start ? end - start : 0;
+}
+
+String? _shiftHours(String shiftCode, List<LegendCode> codes) {
+  final legend = _legendFor(shiftCode, codes);
+  return shiftCodeHours(legend?.startTime, legend?.endTime) ?? legend?.hours;
+}
+
+LegendCode? _legendFor(String shiftCode, List<LegendCode> codes) {
+  final code = shiftCode.trim().toUpperCase();
+  return codes.where((item) => item.code == code).firstOrNull;
+}
+
+String _overlapLabel(int minutes) {
+  final hours = minutes ~/ 60;
+  final remainder = minutes % 60;
+  if (hours == 0) return '$remainder ${remainder == 1 ? 'minute' : 'minutes'}';
+  final hourLabel = '$hours ${hours == 1 ? 'hour' : 'hours'}';
+  return remainder == 0 ? hourLabel : '$hourLabel $remainder minutes';
 }
 
 class _EntryTile extends StatelessWidget {
