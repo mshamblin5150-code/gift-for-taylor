@@ -28,6 +28,41 @@ Deploy the contents of `build/web` over HTTPS. In Safari on iPhone, use Share,
 then **Add to Home Screen**. The web manifest and Apple web-app metadata make the
 installed app open in standalone mode.
 
+## Deploying
+
+Pushing to `main`, or running the workflow by hand, applies pending migrations
+to the hosted project and then publishes the web app to GitHub Pages. The app
+only goes live once the migration succeeds, because an app deployed ahead of
+its database arrives as a Schedule that will not load.
+
+The three compile-time values above are repository *variables*
+(`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VAPID_PUBLIC_KEY`), since they
+ship inside the web app. The migration step additionally needs one repository
+*secret*, `SUPABASE_DB_URL`: the project's **session pooler** connection
+string, from Connect in the Supabase dashboard.
+
+It must be the pooler URL, not the direct one. `db.<ref>.supabase.co` publishes
+an AAAA record and no A record, and GitHub's runners are IPv4-only. Percent-
+encode the password if it contains `@ / ? # [ ] %` or a space.
+
+A connection string is deliberately used in place of an access token: it
+reaches this one database, where an account-wide token would reach every
+project on the account.
+
+A superseded run queues rather than cancelling, so a second push cannot
+interrupt a migration midway.
+
+Only migrations are applied. Never run `supabase config push` against the
+project: it writes `config.toml` over the hosted settings, Auth included.
+
+To apply migrations by hand, or to see what is outstanding:
+
+```powershell
+supabase link --project-ref <project-ref>
+supabase migration list --linked
+supabase db push --linked
+```
+
 ## Web push
 
 Create one VAPID key pair (`npx web-push generate-vapid-keys`) and keep its

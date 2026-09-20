@@ -10,11 +10,38 @@ permissions:
   pages: write
   id-token: write
 
+# This run applies database migrations, which are not safe to interrupt part
+# way through. A superseded run therefore queues rather than cancelling: a
+# second push waits its turn instead of killing a `supabase db push` mid-flight.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  # The web app ships every merge, so the database has to keep up with it. A
+  # month that opens against a database missing a migration is the Schedule
+  # failing to load for everyone on it.
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # Pushed straight down a connection string rather than a linked project,
+      # so the only credential stored here reaches this one database. An
+      # account-wide access token would reach every project on the account.
+      #
+      # It has to be the session pooler URL: the project's direct host
+      # (db.<ref>.supabase.co) publishes an AAAA record and no A record, and
+      # GitHub's runners are IPv4-only.
+      #
+      # Migrations only. Never `supabase config push`: that applies config.toml
+      # over the project's hosted settings, Auth included.
+      - run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -36,8 +63,10 @@ jobs:
         with:
           path: build/web
 
+  # The build needs no database, so it runs alongside the migration; only going
+  # live waits on both.
   deploy:
-    needs: build
+    needs: [build, migrate]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
