@@ -67,20 +67,14 @@ void main() {
     );
   });
 
-  test(
-    'approved title and notice choices appear on the printed page',
-    () async {
-      final html = bookPageHtml(
-        await rules.monthGrid(september),
-        wording: const PrintWording(
-          title: PrintTitleStyle.er,
-          notice: PrintNoticeStyle.none,
-        ),
-      );
-      expect(html, contains('<h1>ER Schedule - September 2026</h1>'));
-      expect(html, isNot(contains('Schedule subject to change')));
-    },
-  );
+  test('custom title and empty notice appear on the printed page', () async {
+    final html = bookPageHtml(
+      await rules.monthGrid(september),
+      wording: const PrintWording(title: 'ER <Schedule>', notice: ''),
+    );
+    expect(html, contains('<h1>ER &lt;Schedule&gt; - SEPTEMBER 2026</h1>'));
+    expect(html, isNot(contains('Schedule subject to change')));
+  });
 
   test('Sections band their staff rows in order', () async {
     final html = bookPageHtml(await rules.monthGrid(september));
@@ -172,6 +166,34 @@ void main() {
     expect(long, contains('beforeprint'));
     expect(bookPageIsHardToRead(shortGrid), isFalse);
     expect(bookPageIsHardToRead(longGrid), isTrue);
+  });
+
+  test('the longest title is priced into the readable fit budget', () async {
+    final grid = await ScheduleRules.inMemory(
+      InMemoryScheduleDatabase(
+        sections: const [days],
+        rows: [
+          for (var index = 0; index < 50; index++)
+            ScheduleRow(
+              staffMemberId: 'rn-$index',
+              displayName: 'RN $index',
+              sectionId: 'days',
+            ),
+        ],
+      ),
+      actingAs: 'manager',
+    ).monthGrid(september);
+    const longTitle = PrintWording(
+      title:
+          'A very long Schedule title for the emergency department and every member of staf',
+    );
+
+    expect(longTitle.title.length, 80);
+    expect(bookPageIsHardToRead(grid), isFalse);
+    expect(bookPageIsHardToRead(grid, wording: longTitle), isTrue);
+    final html = bookPageHtml(grid, wording: longTitle);
+    expect(html, contains('beforeprint'));
+    expect(html, contains('A very long Schedule title'));
   });
 
   test('names and codes are escaped', () async {
