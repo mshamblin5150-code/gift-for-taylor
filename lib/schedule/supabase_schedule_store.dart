@@ -15,8 +15,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
         .from('shift_codes')
         .select('code, meaning, start_time, end_time, is_working')
         .eq('active', true)
-        .order('display_order')
-        .order('code');
+        .order('display_order', ascending: true)
+        .order('code', ascending: true);
     return [
       for (final row in rows)
         LegendCode(
@@ -149,7 +149,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
     final rows = await _client
         .from('sections')
         .select('id, name')
-        .order('display_order');
+        .order('display_order', ascending: true);
     return rows
         .map(
           (row) => ScheduleSection(
@@ -186,7 +186,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           .select('staff_member_id, section_id, work_date, shift_code')
           .gte('work_date', _date(_monthStart(month)))
           .lt('work_date', _date(_nextMonthStart(month)))
-          .order('id')
+          .order('id', ascending: true)
           .range(from, to),
     );
     return rows
@@ -213,8 +213,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
           )
           .gte('work_date', _date(_monthStart(month)))
           .lt('work_date', _date(_nextMonthStart(month)))
-          .order('changed_at')
-          .order('id')
+          .order('changed_at', ascending: true)
+          .order('id', ascending: true)
           .range(from, to),
     );
     return rows
@@ -245,7 +245,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
         .gte('work_date', _date(_monthStart(month)))
         .lt('work_date', _date(_nextMonthStart(month)))
         .filter('filled_at', 'is', null)
-        .order('work_date');
+        .order('work_date', ascending: true);
     return [
       for (final row in rows)
         ShortShift(
@@ -358,7 +358,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
     final rows = await _client
         .from('night_scheduler_sections')
         .select('staff_member_id, section_id')
-        .order('created_at');
+        .order('created_at', ascending: true);
     final sections = <String, Set<String>>{};
     for (final row in rows) {
       sections
@@ -378,7 +378,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
         .select('month_start')
         .not('loaded_from_page_at', 'is', null)
         .isFilter('confirmed_at', null)
-        .order('month_start');
+        .order('month_start', ascending: true);
     return [
       for (final row in rows) DateTime.parse(row['month_start'] as String),
     ];
@@ -494,7 +494,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
         .from('staff_job_roles')
         .select('job_role, effective_from, effective_through')
         .eq('staff_member_id', staffMemberId)
-        .order('effective_from');
+        .order('effective_from', ascending: true);
     return [
       for (final row in rows)
         DatedJobRole(
@@ -513,7 +513,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           'staff_member_id, kind, old_value, new_value, effective_from, '
           'changed_by_staff_member_id, changed_at',
         )
-        .order('changed_at');
+        .order('changed_at', ascending: true);
     return [
       for (final row in rows)
         StaffChange(
