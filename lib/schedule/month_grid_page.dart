@@ -9,6 +9,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import '../help/help_page.dart';
 import '../notifications/notice_gateway.dart';
 import '../notifications/notices_page.dart';
+import '../schedule_theme.dart';
 import '../staff/staff_gateway.dart';
 
 import 'announce_sheet.dart';
@@ -1532,7 +1533,8 @@ class _MonthViewState extends State<_MonthView> {
                             decoration: BoxDecoration(
                               border: Border(
                                 top: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline,
+                                  color: ScheduleGridColors.of(context)
+                                      .rosterRule,
                                   width: 2,
                                 ),
                               ),
@@ -1590,7 +1592,10 @@ class _PoolNames extends StatelessWidget {
                 children: [
                   Text(
                     pool.label,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   Text(
                     '− = short by',
@@ -1625,7 +1630,7 @@ class _NameColumn extends StatelessWidget {
             decoration: BoxDecoration(
               border: Border(
                 top: BorderSide(
-                  color: Theme.of(context).colorScheme.outline,
+                  color: ScheduleGridColors.of(context).rosterRule,
                   width: 2,
                 ),
               ),
@@ -1633,8 +1638,10 @@ class _NameColumn extends StatelessWidget {
             child: Text(
               section.name,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: ScheduleGridColors.of(context).rosterText,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           for (final row in grid.rowsIn(section.id))
@@ -1733,20 +1740,16 @@ class _PoolBand extends StatelessWidget {
             final count = shortfall > posted ? shortfall : posted;
             final notSet =
                 windows.every((item) => item?.minimum == null) && posted == 0;
-            final colors = Theme.of(context).colorScheme;
-            final fill = notSet
-                ? colors.surfaceContainerHighest
-                : count == 0
-                ? colors.secondaryContainer
-                : Color.lerp(
-                    colors.errorContainer,
-                    colors.error,
-                    ((count - 1) / 3).clamp(0.0, 1.0),
-                  )!;
-            final foreground =
-                ThemeData.estimateBrightnessForColor(fill) == Brightness.dark
-                ? Colors.white
-                : Colors.black;
+            final gridColors = ScheduleGridColors.of(context);
+            final (fill, foreground) = switch ((notSet, count)) {
+              (true, _) => (
+                Theme.of(context).colorScheme.surfaceContainerHighest,
+                Theme.of(context).colorScheme.onSurface,
+              ),
+              (false, 0) => (gridColors.covered, gridColors.onCovered),
+              (false, 1) => (gridColors.shortOne, gridColors.onShortOne),
+              _ => (gridColors.shortSeveral, gridColors.onShortSeveral),
+            };
             return InkWell(
               key: ValueKey('pool-${pool.value}-${_dateKey(day)}'),
               onTap: () => onOpenDay(day),
@@ -1757,7 +1760,7 @@ class _PoolBand extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: fill,
                   border: _isToday(day, today)
-                      ? Border.all(color: colors.tertiary, width: 2)
+                      ? Border.all(color: gridColors.todayOutline, width: 2)
                       : null,
                 ),
                 child: notSet

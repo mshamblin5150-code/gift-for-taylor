@@ -1,5 +1,6 @@
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:er_schedule/schedule/print_wording_gateway.dart';
+import 'package:er_schedule/schedule_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -579,6 +580,9 @@ void main() {
 
     expect(fill(18), isNot(fill(19)));
     expect(fill(20), isNot(fill(18)));
+    expect(fill(18), ScheduleGridColors.light.shortOne);
+    expect(fill(19), ScheduleGridColors.light.shortSeveral);
+    expect(fill(20), ScheduleGridColors.light.covered);
     expect(
       find.descendant(of: poolDay(18), matching: find.text('−1')),
       findsOneWidget,
@@ -603,7 +607,7 @@ void main() {
           .border!
           .top
           .color,
-      Theme.of(tester.element(poolDay(18))).colorScheme.tertiary,
+      ScheduleGridColors.light.todayOutline,
     );
 
     await tester.tap(poolDay(18));
@@ -1028,7 +1032,7 @@ void main() {
     );
     expect(
       (shortCell.decoration! as BoxDecoration).color,
-      Theme.of(tester.element(find.text('−1'))).colorScheme.errorContainer,
+      ScheduleGridColors.light.shortOne,
     );
     expect(
       find.descendant(
