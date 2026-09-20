@@ -502,6 +502,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
         final now = DateTime.now();
         return MonthGridPage(
           rules: ScheduleRules(widget.scheduleStore),
+          viewerId: widget.authGateway.currentUserId,
           month:
               data?.monthToCheck ??
               DateTime.tryParse(Uri.base.queryParameters['month'] ?? '') ??

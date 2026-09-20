@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 abstract interface class AuthGateway {
   bool get isSignedIn;
+  String? get currentUserId;
   Stream<bool> get signedInChanges;
   Future<void> requestCode(String email);
   Future<void> verifyCode({required String email, required String code});
@@ -15,6 +16,9 @@ final class SupabaseAuthGateway implements AuthGateway {
 
   @override
   bool get isSignedIn => _client.auth.currentSession != null;
+
+  @override
+  String? get currentUserId => _client.auth.currentUser?.id;
 
   @override
   Stream<bool> get signedInChanges => _client.auth.onAuthStateChange

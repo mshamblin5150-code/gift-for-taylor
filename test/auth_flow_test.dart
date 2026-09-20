@@ -8,8 +8,10 @@ import 'package:er_schedule/auth/sign_in_page.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:er_schedule/schedule_theme.dart';
 import 'package:schedule_rules/schedule_rules.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   testWidgets('system appearance updates sign-in and Invite before auth', (
     tester,
   ) async {
@@ -311,6 +313,9 @@ final class _FakeAuthGateway implements AuthGateway {
 
   @override
   bool get isSignedIn => _signedIn;
+
+  @override
+  String? get currentUserId => _signedIn ? 'test-account' : null;
 
   @override
   Stream<bool> get signedInChanges => _controller.stream;
