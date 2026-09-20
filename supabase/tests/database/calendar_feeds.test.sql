@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(19);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000501', 'feed-one@example.test'),
@@ -70,6 +70,15 @@ select is((select updated_at from feed_secrets,
   (select updated_at from public.schedule_cells where staff_member_id =
     '00000000-0000-0000-0000-000000000504' and work_date = '2027-01-04'),
   'event carries its cell modification timestamp');
+delete from public.schedule_cells
+where staff_member_id = '00000000-0000-0000-0000-000000000505';
+insert into public.calendar_feed_tokens (staff_member_id, token_hash)
+values ('00000000-0000-0000-0000-000000000505',
+  encode(sha256(decode(repeat('b', 64), 'hex')), 'hex'));
+select is(public.calendar_feed_last_modified(repeat('b', 64)),
+  (select rotated_at from public.calendar_feed_tokens where staff_member_id =
+    '00000000-0000-0000-0000-000000000505'),
+  'empty feed uses its stable token creation time');
 
 set local role authenticated;
 select set_config('request.jwt.claims',

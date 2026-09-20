@@ -7,16 +7,19 @@ create function public.calendar_feed_last_modified(p_token text)
 returns timestamptz
 language sql stable security definer set search_path = ''
 as $$
-  select max(greatest(cell.updated_at, month.released_at))
+  select coalesce((
+    select max(greatest(cell.updated_at, month.released_at))
+    from public.schedule_cells cell
+    join public.schedule_months month on month.id = cell.schedule_month_id
+    where cell.staff_member_id = member.id
+      and month.release_state = 'released'
+  ), token.rotated_at)
   from public.calendar_feed_tokens token
   join public.staff_members member on member.id = token.staff_member_id
-  join public.schedule_cells cell on cell.staff_member_id = member.id
-  join public.schedule_months month on month.id = cell.schedule_month_id
   where p_token ~ '^[0-9a-f]{64}$'
     and token.token_hash = encode(sha256(decode(p_token, 'hex')), 'hex')
     and token.revoked_at is null
     and member.active
-    and month.release_state = 'released'
 $$;
 revoke all on function public.calendar_feed_last_modified(text) from public, anon, authenticated;
 grant execute on function public.calendar_feed_last_modified(text) to service_role;

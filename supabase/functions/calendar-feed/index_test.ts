@@ -101,3 +101,15 @@ Deno.test("Calendar feed has stable validators and answers conditional GETs", as
     throw new Error("Changed feed was not returned");
   }
 });
+
+Deno.test("Empty feed has a Last-Modified validator", async () => {
+  const timestamp = "2027-03-03T19:05:00Z";
+  const first = await feedResponse(new Request("https://example.test/feed"), [], timestamp);
+  const conditional = await feedResponse(new Request("https://example.test/feed", {
+    headers: { "If-Modified-Since": first.headers.get("Last-Modified")! },
+  }), [], timestamp);
+  if (first.headers.get("Last-Modified") !== "Wed, 03 Mar 2027 19:05:00 GMT" ||
+    conditional.status !== 304) {
+    throw new Error("Empty feed did not honor its Last-Modified validator");
+  }
+});
