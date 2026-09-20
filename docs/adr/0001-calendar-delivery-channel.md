@@ -8,8 +8,10 @@ A Staff member's working shifts reach their phone calendar as **emailed
 calendar invitations** (iMIP, RFC 5546) sent to the personal email they gave
 when accepting their Invite. The subscribed ICS **Calendar feed** survives only
 as an opt-in alternative for someone who wants one separate, switch-off-able
-calendar — never alongside invitations for the same person, because two
-channels means the same shift twice under different UIDs.
+calendar — never alongside invitations for the same person, because both
+channels publish the same shift under the same UID into two different
+calendars, and no client dedupes across them. (Corrected: this sentence
+originally read "under different UIDs"; see ADR-0006.)
 
 We chose this after establishing that a subscribed ICS feed cannot be updated
 promptly on any platform the ED actually uses, and that **no protocol exists
