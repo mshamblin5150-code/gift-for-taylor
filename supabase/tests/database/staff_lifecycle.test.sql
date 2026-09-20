@@ -147,7 +147,8 @@ select is(
   'the inactive and active people may share a recycled Cell number'
 );
 select throws_ok(
-  format('select public.accept_invite(%L)', (select token from recycled_number_invite)),
+  format('select public.accept_invite(%L, %L)',
+    (select token from recycled_number_invite), '5558675309'),
   'This email is already signed in as another Staff member.',
   'a duplicate sign-in fails with a readable message'
 );

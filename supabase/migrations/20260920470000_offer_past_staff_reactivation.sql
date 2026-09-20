@@ -71,11 +71,12 @@ $$;
 
 -- A duplicate auth account may still arise through an import or another
 -- path. Never expose the staff_accounts unique-index error to an invitee.
-create or replace function public.accept_invite(p_token text)
-returns void language plpgsql volatile security definer set search_path = '' as $$
+create or replace function public.accept_invite(p_token text, p_cell_number text)
+returns text language plpgsql volatile security definer set search_path = '' as $$
 declare
   v_invite public.invites%rowtype;
   v_email text;
+  v_cell text;
 begin
   if auth.uid() is null then
     raise exception 'Sign in before accepting an Invite';
@@ -84,12 +85,32 @@ begin
   select invite.* into v_invite
   from public.invites invite
   where invite.token_hash = extensions.digest(convert_to(p_token, 'UTF8'), 'sha256')
-    and invite.accepted_at is null
-    and invite.revoked_at is null
+    and invite.accepted_at is null and invite.revoked_at is null
     and invite.expires_at > now()
   for update;
   if not found then
     raise exception 'This Invite is invalid, expired, or has already been used';
+  end if;
+
+  begin
+    v_cell := public.normalize_cell_number(p_cell_number);
+  exception when others then
+    v_cell := null;
+  end;
+  -- Preserve the mismatch record and backoff from #135. A correct retry is
+  -- always allowed, even during the backoff.
+  if v_cell is distinct from (
+    select member.cell_number from public.staff_members member
+    where member.id = v_invite.staff_member_id and member.active
+  ) or v_cell is null then
+    if (select count(*) from public.invite_cell_mismatches mismatch
+        where mismatch.invite_id = v_invite.id
+          and mismatch.attempted_at > now() - interval '10 minutes') >= 3 then
+      return 'throttled';
+    end if;
+    insert into public.invite_cell_mismatches (invite_id, staff_member_id)
+    values (v_invite.id, v_invite.staff_member_id);
+    return 'cell_mismatch';
   end if;
 
   select auth_user.email into v_email
@@ -117,5 +138,6 @@ begin
   end if;
 
   update public.invites set accepted_at = now() where id = v_invite.id;
+  return 'accepted';
 end;
 $$;
