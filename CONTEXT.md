@@ -44,11 +44,15 @@ Which part of the day a working Shift code puts someone on the floor for: Day or
 _Avoid_: Shift type, day/night, shift block
 
 **Staffing minimum**:
-How many people of one Job role the Manager wants on the floor in one Coverage window on one day, such as three nurses on days. She sets a default per weekday and overrides single dates. A day below its minimum reads short.
+How many people from one Coverage pool the Manager wants on the floor in one Coverage window on one day, such as three nurses on days. She sets a default per weekday and overrides single dates. A day below its minimum reads short.
 _Avoid_: Target, requirement, quota, staffing level
 
+**Coverage pool**:
+A group of Job roles counted together against one Staffing minimum. Each Job role belongs to one Coverage pool on a given date; a pool may also have a floor for one of its Job roles.
+_Avoid_: Role pool, Staffing group
+
 **Nursing pool**:
-RN and LPN counted as one for coverage, so a Staffing minimum of three nurses is met by any three of them. The pool carries a floor — how many of them must be RNs — because part of the work is RN-only. CNA and Unit clerk pool with no one.
+The Coverage pool containing RN and LPN, counted together against one Staffing minimum. It carries an RN floor because part of the work is RN-only.
 _Avoid_: Nurses, RN/LPN, skill mix
 
 **Call-in**:

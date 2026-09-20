@@ -4,6 +4,8 @@ status: accepted
 
 # Staffing minimums by role pool and Coverage window, not by Section
 
+**Later decision:** ADR-0012 makes Coverage pools editable and effective-dated, while preserving this ADR's coverage counting and pickup-eligibility distinction.
+
 A **Staffing minimum** is keyed by **(role pool, Coverage window, date)**. Section
 leaves the key entirely and goes back to being what it always was: a layout
 device deciding where a row is printed. RN and LPN count as one **Nursing pool**
