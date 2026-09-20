@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(59);
+select plan(65);
 
 insert into auth.users (id, email)
 values
@@ -107,6 +107,50 @@ select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000191","role":"authenticated"}',
   true
+);
+
+-- A past Cell number offers reactivation, but may belong to a different person.
+reset role;
+insert into public.staff_members (id, display_name, cell_number, active, last_day)
+values ('00000000-0000-0000-0000-000000000190', 'Jane Kemp',
+  '+15558675309', false, '2026-03-01');
+set local role authenticated;
+select is(
+  (select id from public.past_staff_entries where cell_number = '+15558675309'),
+  '00000000-0000-0000-0000-000000000190'::uuid,
+  'the Manager can find the past Staff member by canonical Cell number'
+);
+select throws_ok(
+  $$select public.create_staff_member_with_invite(
+    'Jane Kemp', '(555) 867-5309', '00000000-0000-0000-0000-000000000194')$$,
+  'A past Staff member has this cell number. Offer reactivation first.',
+  'Add Staff cannot silently duplicate a past Staff member'
+);
+select is(
+  (select count(*)::integer from public.past_staff_entries where cell_number = '+15558675309'),
+  1,
+  'the match creates no new Staff member'
+);
+create temporary table recycled_number_invite as
+select * from public.create_staff_member_with_invite(
+  'Different Person', '555-867-5309',
+  '00000000-0000-0000-0000-000000000194', true
+);
+select isnt(
+  (select staff_member_id from recycled_number_invite),
+  '00000000-0000-0000-0000-000000000190'::uuid,
+  'declining reactivation creates a different Staff member'
+);
+select is(
+  (select count(*)::integer from public.staff_list_entries where cell_number = '+15558675309'),
+  1,
+  'the inactive and active people may share a recycled Cell number'
+);
+select throws_ok(
+  format('select public.accept_invite(%L, %L)',
+    (select token from recycled_number_invite), '5558675309'),
+  'This email is already signed in as another Staff member.',
+  'a duplicate sign-in fails with a readable message'
 );
 
 select throws_ok(

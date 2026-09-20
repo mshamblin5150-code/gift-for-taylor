@@ -87,11 +87,13 @@ final class PastStaffMember {
     required this.displayName,
     required this.lastDay,
     required this.sectionId,
+    this.cellNumber,
   });
 
   final String id;
   final String displayName;
   final DateTime? lastDay;
+  final String? cellNumber;
 
   /// The Section they were last in, if any.
   final String? sectionId;
@@ -122,6 +124,10 @@ final class StaffInvite {
 }
 
 enum InviteAcceptanceResult { accepted, cellMismatch, throttled }
+
+final class StaffInviteAlreadyLinkedException implements Exception {
+  const StaffInviteAlreadyLinkedException();
+}
 
 final class StaffMemberDetails {
   const StaffMemberDetails({
@@ -176,7 +182,10 @@ abstract interface class StaffGateway {
 
   /// Everyone who has left, most recent Last day first.
   Future<List<PastStaffMember>> loadPastStaff();
-  Future<StaffInvite> addStaffMember(StaffMemberDraft draft);
+  Future<StaffInvite> addStaffMember(
+    StaffMemberDraft draft, {
+    bool allowRecycledCell = false,
+  });
   Future<void> reorderSection(String sectionId, List<String> memberIds);
   Future<void> reorderSections(List<String> sectionIds);
   Future<void> addSection(String name);
@@ -363,13 +372,14 @@ final class SupabaseStaffGateway implements StaffGateway {
   Future<List<PastStaffMember>> loadPastStaff() async {
     final rows = await _client
         .from('past_staff_entries')
-        .select('id, display_name, last_day, section_id')
+        .select('id, display_name, cell_number, last_day, section_id')
         .order('last_day', ascending: false);
     return [
       for (final row in rows)
         PastStaffMember(
           id: row['id'] as String,
           displayName: row['display_name'] as String,
+          cellNumber: row['cell_number'] as String?,
           lastDay: switch (row['last_day']) {
             final String value => DateTime.parse(value),
             _ => null,
@@ -380,13 +390,17 @@ final class SupabaseStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<StaffInvite> addStaffMember(StaffMemberDraft draft) async {
+  Future<StaffInvite> addStaffMember(
+    StaffMemberDraft draft, {
+    bool allowRecycledCell = false,
+  }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'create_staff_member_with_invite',
       params: {
         'p_display_name': draft.displayName,
         'p_cell_number': normalizeCellNumber(draft.cellNumber),
         'p_section_id': draft.sectionId,
+        'p_allow_recycled_cell': allowRecycledCell,
       },
     );
     return _inviteFromRow(rows.single as Map<String, dynamic>);
@@ -438,10 +452,20 @@ final class SupabaseStaffGateway implements StaffGateway {
     String token,
     String cellNumber,
   ) async {
-    final result = await _client.rpc<String>(
-      'accept_invite',
-      params: {'p_token': token, 'p_cell_number': cellNumber},
-    );
+    String result;
+    try {
+      result = await _client.rpc<String>(
+        'accept_invite',
+        params: {'p_token': token, 'p_cell_number': cellNumber},
+      );
+    } on PostgrestException catch (error) {
+      if (error.message ==
+              'This email is already signed in as another Staff member.' ||
+          error.code == '23505') {
+        throw const StaffInviteAlreadyLinkedException();
+      }
+      rethrow;
+    }
     return switch (result) {
       'accepted' => InviteAcceptanceResult.accepted,
       'cell_mismatch' => InviteAcceptanceResult.cellMismatch,
