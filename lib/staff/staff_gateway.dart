@@ -19,6 +19,7 @@ final class StaffListMember {
     required this.displayOrder,
     this.personalEmail,
     this.jobRole,
+    this.inviteCellMismatchAt,
   });
 
   final String id;
@@ -29,6 +30,7 @@ final class StaffListMember {
   final String sectionId;
   final int displayOrder;
   final String? personalEmail;
+  final DateTime? inviteCellMismatchAt;
 
   /// Null until the Manager sets one.
   final JobRole? jobRole;
@@ -42,6 +44,7 @@ final class StaffListMember {
       displayOrder: value,
       personalEmail: personalEmail,
       jobRole: jobRole,
+      inviteCellMismatchAt: inviteCellMismatchAt,
     );
   }
 }
@@ -118,6 +121,8 @@ final class StaffInvite {
   final String token;
 }
 
+enum InviteAcceptanceResult { accepted, cellMismatch, throttled }
+
 final class StaffMemberDetails {
   const StaffMemberDetails({
     required this.id,
@@ -178,7 +183,7 @@ abstract interface class StaffGateway {
   Future<void> renameSection(String sectionId, String name);
   Future<void> deleteEmptySection(String sectionId);
   Future<StaffInvite> resendInvite(String staffMemberId);
-  Future<void> acceptInvite(String token);
+  Future<InviteAcceptanceResult> acceptInvite(String token, String cellNumber);
 }
 
 final class SupabaseStaffGateway implements StaffGateway {
@@ -253,7 +258,7 @@ final class SupabaseStaffGateway implements StaffGateway {
           .from('staff_list_entries')
           .select(
             'id, display_name, cell_number, section_id, display_order, '
-            'personal_email, job_role',
+            'personal_email, job_role, invite_cell_mismatch_at',
           )
           .order('display_order', ascending: true),
     ]);
@@ -277,6 +282,10 @@ final class SupabaseStaffGateway implements StaffGateway {
               sectionId: row['section_id'] as String,
               displayOrder: row['display_order'] as int,
               personalEmail: row['personal_email'] as String?,
+              inviteCellMismatchAt: switch (row['invite_cell_mismatch_at']) {
+                final String value => DateTime.parse(value),
+                _ => null,
+              },
               jobRole: switch (row['job_role']) {
                 final String value => JobRole.fromValue(value),
                 _ => null,
@@ -425,8 +434,20 @@ final class SupabaseStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<void> acceptInvite(String token) async {
-    await _client.rpc<void>('accept_invite', params: {'p_token': token});
+  Future<InviteAcceptanceResult> acceptInvite(
+    String token,
+    String cellNumber,
+  ) async {
+    final result = await _client.rpc<String>(
+      'accept_invite',
+      params: {'p_token': token, 'p_cell_number': cellNumber},
+    );
+    return switch (result) {
+      'accepted' => InviteAcceptanceResult.accepted,
+      'cell_mismatch' => InviteAcceptanceResult.cellMismatch,
+      'throttled' => InviteAcceptanceResult.throttled,
+      _ => throw StateError('Unknown Invite acceptance result'),
+    };
   }
 
   StaffInvite _inviteFromRow(Map<String, dynamic> row) {

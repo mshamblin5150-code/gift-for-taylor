@@ -237,8 +237,17 @@ const helpTopics = <HelpTopic>[
   HelpTopic(
     title: 'Invite',
     who: 'Manager',
-    what: 'An Invite is a one-time link for a Staff member to enter their personal email and sign in.',
-    how: 'Add a Staff member to the Staff list and send their Invite by text. Open their details to resend it if needed.',
+    what: 'An Invite is a one-time link a Staff member opens to enter the Cell number on the Staff list, then verify their personal email.',
+    how: 'Add a Staff member to the Staff list and text their Invite. They enter their Cell number before the email step. Open their details to resend the Invite if needed.',
+    searchTerms: 'cell number text sign in email',
+    roles: _manager,
+  ),
+  HelpTopic(
+    title: 'Invite Cell mismatch',
+    who: 'Manager',
+    what: 'The Staff list shows when someone opened a Staff member’s Invite and entered a Cell number that did not match the one on file.',
+    how: 'Find the warning beside that Staff member on the Staff list. Check their Cell number with them and correct it in Staff details if needed. They can retry the same Invite.',
+    searchTerms: 'invite wrong cell number mismatch warning',
     roles: _manager,
   ),
   HelpTopic(

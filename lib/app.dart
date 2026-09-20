@@ -103,6 +103,7 @@ class _AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<_AuthGate> {
   late final Future<void> _prepareInviteSignIn = _prepareInvite();
+  String? _inviteCellNumber;
 
   Future<void> _prepareInvite() async {
     if (widget.inviteToken != null && widget.authGateway.isSignedIn) {
@@ -138,6 +139,12 @@ class _AuthGateState extends State<_AuthGate> {
           initialData: widget.authGateway.isSignedIn,
           builder: (context, snapshot) {
             if (snapshot.data != true) {
+              if (widget.inviteToken != null && _inviteCellNumber == null) {
+                return _InviteCellEntry(
+                  onContinue: (number) =>
+                      setState(() => _inviteCellNumber = number),
+                );
+              }
               return SignInPage(authGateway: widget.authGateway);
             }
             if (widget.inviteToken != null && widget.staffGateway != null) {
@@ -151,6 +158,7 @@ class _AuthGateState extends State<_AuthGate> {
                 openShiftRules: widget.openShiftRules,
                 noticeGateway: widget.noticeGateway,
                 inviteToken: widget.inviteToken!,
+                cellNumber: _inviteCellNumber!,
                 printBookPage: widget.printBookPage,
                 printWordingGateway: widget.printWordingGateway,
                 calendarFeedGateway: widget.calendarFeedGateway,
@@ -176,6 +184,68 @@ class _AuthGateState extends State<_AuthGate> {
   }
 }
 
+class _InviteCellEntry extends StatefulWidget {
+  const _InviteCellEntry({required this.onContinue});
+
+  final ValueChanged<String> onContinue;
+
+  @override
+  State<_InviteCellEntry> createState() => _InviteCellEntryState();
+}
+
+class _InviteCellEntryState extends State<_InviteCellEntry> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Accept your Invite',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Enter the Cell number your Manager has on the Staff list.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _controller,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Cell number'),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () {
+                    if (_controller.text.trim().isNotEmpty) {
+                      widget.onContinue(_controller.text.trim());
+                    }
+                  },
+                  child: const Text('Continue to email'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _InviteAcceptance extends StatefulWidget {
   const _InviteAcceptance({
     required this.authGateway,
@@ -187,6 +257,7 @@ class _InviteAcceptance extends StatefulWidget {
     required this.openShiftRules,
     required this.noticeGateway,
     required this.inviteToken,
+    required this.cellNumber,
     required this.printBookPage,
     required this.printWordingGateway,
     required this.calendarFeedGateway,
@@ -201,6 +272,7 @@ class _InviteAcceptance extends StatefulWidget {
   final OpenShiftRules? openShiftRules;
   final NoticeGateway? noticeGateway;
   final String inviteToken;
+  final String cellNumber;
   final ValueChanged<String>? printBookPage;
   final PrintWordingGateway? printWordingGateway;
   final CalendarFeedGateway? calendarFeedGateway;
@@ -210,13 +282,19 @@ class _InviteAcceptance extends StatefulWidget {
 }
 
 class _InviteAcceptanceState extends State<_InviteAcceptance> {
-  late final Future<void> _acceptance = widget.staffGateway.acceptInvite(
-    widget.inviteToken,
-  );
+  late Future<InviteAcceptanceResult> _acceptance = widget.staffGateway
+      .acceptInvite(widget.inviteToken, widget.cellNumber);
+  final _retryNumber = TextEditingController();
+
+  @override
+  void dispose() {
+    _retryNumber.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<void>(
+    return FutureBuilder<InviteAcceptanceResult>(
       future: _acceptance,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
@@ -242,6 +320,52 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
                   'This Invite is invalid, expired, or has already been used. '
                   'Ask your Manager to resend it.',
                   textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+        }
+        if (snapshot.data != InviteAcceptanceResult.accepted) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        snapshot.data == InviteAcceptanceResult.throttled
+                            ? 'Too many incorrect Cell numbers. Wait 10 minutes, then try again.'
+                            : "That number doesn't match the one on file — check with your Manager.",
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _retryNumber,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Cell number',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: () {
+                          if (_retryNumber.text.trim().isNotEmpty) {
+                            setState(() {
+                              _acceptance = widget.staffGateway.acceptInvite(
+                                widget.inviteToken,
+                                _retryNumber.text.trim(),
+                              );
+                            });
+                          }
+                        },
+                        child: const Text('Try Cell number again'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -467,8 +467,18 @@ class _SectionStaffList extends StatelessWidget {
                       child: const Icon(Icons.drag_handle),
                     ),
                     title: Text(member.displayName),
-                    subtitle: Text(
-                      [?member.jobRole?.label, contact].join(' · '),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text([?member.jobRole?.label, contact].join(' · ')),
+                        if (member.inviteCellMismatchAt != null)
+                          Text(
+                            "Someone opened ${member.displayName}'s Invite and the number didn't match.",
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                      ],
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
