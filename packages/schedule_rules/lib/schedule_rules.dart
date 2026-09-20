@@ -1494,7 +1494,10 @@ final class _InMemoryScheduleStore implements ScheduleStore {
               date: date,
               shiftCode: old,
               staffMemberId: request.staffMemberId,
-              jobRole: await jobRoleOn(request.staffMemberId, date),
+              jobRole: await ScheduleRules.inMemory(
+                _database,
+                actingAs: _actingAs,
+              ).jobRoleOn(request.staffMemberId, date),
               coverageWindow: _coverageWindowOf(old, _database._shiftCodes),
             ),
           );
@@ -1815,7 +1818,10 @@ final class _InMemoryScheduleStore implements ScheduleStore {
             date: cell.date,
             shiftCode: cell.shiftCode,
             staffMemberId: id,
-            jobRole: await jobRoleOn(id, cell.date),
+            jobRole: await ScheduleRules.inMemory(
+              _database,
+              actingAs: _actingAs,
+            ).jobRoleOn(id, cell.date),
             coverageWindow: _coverageWindowOf(
               cell.shiftCode,
               _database._shiftCodes,
