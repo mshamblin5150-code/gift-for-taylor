@@ -90,7 +90,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   bool _savingDrop = false;
 
   /// The Manager: may confirm the month and manage the Night scheduler.
-  bool _canEdit = false;
+  bool _isManager = false;
   EditableSections _editable = const EditableSections.only({});
   Object? _loadError;
   int _unreadRequests = 0;
@@ -181,9 +181,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
     try {
       final month = _month;
       var editable = _editable;
-      var canEdit = _canEdit;
+      var isManager = _isManager;
       if (initial) {
-        (canEdit, editable) = await (
+        (isManager, editable) = await (
           widget.rules.canEditSchedule(),
           widget.rules.editableSections(),
         ).wait;
@@ -192,7 +192,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       if (!mounted || month != _month) return;
       setState(() {
         if (initial) {
-          _canEdit = canEdit;
+          _isManager = isManager;
           _editable = editable;
           _loadError = null;
         }
@@ -223,7 +223,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
               (swap) =>
                   (swap.status == SwapStatus.proposed &&
                       swap.colleagueId == widget.swapStaffMemberId) ||
-                  (swap.status == SwapStatus.accepted && _canEdit),
+                  (swap.status == SwapStatus.accepted && _isManager),
             )
             .length,
       );
@@ -447,7 +447,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _manageSectionDay(ScheduleSection section, DateTime date) async {
     final rules = widget.openShiftRules;
-    if (!_canEdit || rules == null) return;
+    if (!_isManager || rules == null) return;
     final staffing = _staffing
         .where(
           (item) =>
@@ -645,7 +645,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   DateTime get _previousMonth => DateTime(_month.year, _month.month - 1);
 
   Widget? _banner(MonthGrid grid) {
-    if (!_canEdit) return null;
+    if (!_isManager) return null;
     if (grid.awaitingConfirmation) {
       return _Banner(
         message:
@@ -705,7 +705,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                   scheduleRules: widget.rules,
                   month: _month,
                   staffMemberId: widget.swapStaffMemberId,
-                  isManager: _canEdit,
+                  isManager: _isManager,
                 ),
               ),
               icon: const Icon(Icons.add_circle_outline),
@@ -719,7 +719,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                   swapRules: widget.swapRules!,
                   month: _month,
                   staffMemberId: widget.swapStaffMemberId,
-                  isManager: _canEdit,
+                  isManager: _isManager,
                   messagesComposer: widget.messagesComposer,
                 ),
               ),
@@ -743,12 +743,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
               icon: const Icon(Icons.calendar_month_outlined),
             ),
           IconButton(
-            tooltip: _canEdit
+            tooltip: _isManager
                 ? 'Request off approval queue'
                 : 'My Requests off',
             onPressed: () => _open(
               (context) =>
-                  RequestsOffPage(rules: widget.rules, isManager: _canEdit),
+                  RequestsOffPage(rules: widget.rules, isManager: _isManager),
             ),
             icon: Badge(
               isLabelVisible: _unreadRequests > 0,
@@ -756,7 +756,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
               child: const Icon(Icons.event_busy_outlined),
             ),
           ),
-          if (_canEdit) ...[
+          if (_isManager) ...[
             IconButton(
               tooltip: 'Manage Shift codes',
               onPressed: () async {
@@ -791,7 +791,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
               onPressed: _wording == null ? null : () => _print(printBookPage),
               icon: const Icon(Icons.print_outlined),
             ),
-          if (_canEdit && widget.printWordingGateway != null)
+          if (_isManager && widget.printWordingGateway != null)
             IconButton(
               tooltip: 'Change print wording',
               onPressed: _wording == null ? null : _changePrintWording,
@@ -871,7 +871,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       (null, null) => const Center(child: CircularProgressIndicator()),
       (null, final error?) => _LoadFailure(error: error, onRetry: _retry),
       (final MonthGrid grid, _)
-          when !_canEdit && grid.status != MonthStatus.released =>
+          when _editable.isEmpty && grid.status != MonthStatus.released =>
         Center(
           child: Text(
             "${DateFormat.yMMMM().format(_month)} hasn't been released yet.",
@@ -895,7 +895,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ScheduleView.day => _DayView(
           grid: grid,
           today: _today,
-          canEdit: _canEdit,
+          canEdit: !_editable.isEmpty,
           staffMemberId: _signedInStaffMemberId,
           shiftCodes: _shiftCodes,
           staffing: _staffing,
@@ -908,7 +908,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ScheduleView.person => _PersonView(
           grid: grid,
           today: _today,
-          canEdit: _canEdit,
+          canEdit: !_editable.isEmpty,
           shiftCodes: _shiftCodes,
           staffMemberId: _personId ?? grid.rows.firstOrNull?.staffMemberId,
           onPersonChanged: (id) => setState(() => _personId = id),

@@ -1934,7 +1934,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   /// Only schedulers see a month before it is released.
   Future<bool> _canSee(DateTime month) async =>
       _database._monthStatus[month] != MonthStatus.unpublished ||
-      await canEditSchedule();
+      !(await editableSections()).isEmpty;
 
   @override
   Future<void> startMonth(DateTime month, List<ScheduleCell> cells) async {
