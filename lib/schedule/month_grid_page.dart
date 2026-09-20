@@ -1445,6 +1445,18 @@ class _MonthViewState extends State<_MonthView> {
   @override
   Widget build(BuildContext context) {
     final days = widget.grid.days;
+    final visiblePools = [
+      for (final pool in RolePool.values)
+        if (days.any(
+          (day) => CoverageWindow.values.any(
+            (window) =>
+                _staffingOn(widget.staffing, pool, window, day)?.minimum !=
+                    null ||
+                widget.grid.shortShiftsOn(pool, window, day).isNotEmpty,
+          ),
+        ))
+          pool,
+    ];
     return Column(
       children: [
         Row(
@@ -1467,6 +1479,7 @@ class _MonthViewState extends State<_MonthView> {
               children: [
                 _NameColumn(
                   grid: widget.grid,
+                  visiblePools: visiblePools,
                   onOpenStaffDetails: widget.onOpenStaffDetails,
                 ),
                 Expanded(
@@ -1476,7 +1489,7 @@ class _MonthViewState extends State<_MonthView> {
                     scrollDirection: Axis.horizontal,
                     child: Column(
                       children: [
-                        for (final pool in RolePool.values)
+                        for (final pool in visiblePools)
                           _PoolBand(
                             grid: widget.grid,
                             pool: pool,
@@ -1528,16 +1541,18 @@ class _MonthViewState extends State<_MonthView> {
 }
 
 class _NameColumn extends StatelessWidget {
-  const _NameColumn({required this.grid, required this.onOpenStaffDetails});
+  const _NameColumn({required this.grid, required this.visiblePools,
+    required this.onOpenStaffDetails});
 
   final MonthGrid grid;
+  final List<RolePool> visiblePools;
   final Future<void> Function(String)? onOpenStaffDetails;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        for (final pool in RolePool.values)
+        for (final pool in visiblePools)
           Container(
             width: _nameWidth,
             height: _bandHeight,
@@ -1708,10 +1723,7 @@ class _PoolBand extends StatelessWidget {
                       : null,
                 ),
                 child: notSet
-                    ? Text(
-                        'not set',
-                        style: TextStyle(fontSize: 10, color: foreground),
-                      )
+                    ? const SizedBox.shrink()
                     : _ShortMarker(
                         key: ValueKey('short-${pool.value}-${_dateKey(day)}'),
                         count: count,

@@ -207,7 +207,7 @@ void main() {
     expect(todayTile.leading, isA<Icon>());
   });
 
-  testWidgets('month grid shows Sections, rows, weekdays, and weekends', (
+  testWidgets('month grid without minimums or Short shifts has no pool bands', (
     tester,
   ) async {
     await pumpGrid(tester);
@@ -217,15 +217,57 @@ void main() {
     expect(find.text('PRN nightshift RN'), findsOneWidget);
     expect(find.text('Day RN'), findsOneWidget);
     expect(find.text('T'), findsWidgets);
+    expect(find.byKey(const ValueKey('pool-nurses-2026-09-18')), findsNothing);
+    expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('pool-unit_clerk-2026-09-18')),
+      findsNothing,
+    );
+    expect(find.text('not set'), findsNothing);
+  });
+
+  testWidgets('only a pool with a Staffing minimum has a band', (tester) async {
+    await pumpGrid(tester, withStaffing: true);
+
     expect(
       find.byKey(const ValueKey('pool-nurses-2026-09-18')),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsOneWidget);
+    expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsNothing);
     expect(
       find.byKey(const ValueKey('pool-unit_clerk-2026-09-18')),
-      findsOneWidget,
+      findsNothing,
     );
+  });
+
+  testWidgets('a dated minimum leaves other days in its pool band blank', (
+    tester,
+  ) async {
+    await OpenShiftRules(database.openShiftStoreFor('manager'))
+        .setDateMinimum(RolePool.cna, CoverageWindow.day, september18, 1, 0);
+    await pumpGrid(tester, withStaffing: true);
+
+    expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsOneWidget);
+    final otherDay = find.byKey(const ValueKey('pool-cna-2026-09-19'));
+    expect(otherDay, findsOneWidget);
+    expect(
+      find.descendant(of: otherDay, matching: find.text('not set')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: otherDay, matching: find.byType(Text)),
+      findsNothing,
+    );
+  });
+
+  testWidgets('Day view still identifies unset Staffing minimums',
+      (tester) async {
+    await pumpGrid(tester);
+    await tester.tap(find.text('Day'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Days: not set'), findsNWidgets(3));
+    expect(find.text('Nights: not set'), findsNWidgets(3));
   });
 
   testWidgets('dragging across rows swaps Shift codes and Undo restores them', (
@@ -404,6 +446,7 @@ void main() {
   ) async {
     await pumpGrid(
       tester,
+      withStaffing: true,
       now: () => DateTime(2026, 8, 1),
       size: const Size(900, 800),
     );
@@ -418,7 +461,7 @@ void main() {
     );
     expect(nameCell.color, isNull);
     expect((dayCell.decoration! as BoxDecoration).color, isNotNull);
-    expect(find.text('− = short by'), findsNWidgets(3));
+    expect(find.text('− = short by'), findsOneWidget);
 
     final before = tester.getRect(label);
     await tester.drag(
@@ -797,6 +840,8 @@ void main() {
     expect(cell('rn-1', september18), findsOneWidget);
     expect(cell('rn-1', DateTime(2026, 9, 19)), findsNothing);
     expect(find.byKey(const ValueKey('gone-rn-1-2026-09-19')), findsOneWidget);
+    expect(find.byKey(const ValueKey('pool-nurses-2026-09-20')), findsOneWidget);
+    expect(find.byKey(const ValueKey('pool-cna-2026-09-20')), findsNothing);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('short-nurses-2026-09-20')),
