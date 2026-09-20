@@ -6,6 +6,16 @@ on:
     branches: [main]
 
 jobs:
+  calendar-feed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/calendar-feed/index.ts
+      - run: deno test supabase/functions/calendar-feed/index_test.ts
+
   flutter:
     runs-on: ubuntu-latest
     steps:

@@ -38,10 +38,6 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
-      - run: supabase functions deploy calendar-feed --project-ref "$SUPABASE_PROJECT_REF"
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
       # Migrations use the session-pooler connection string, which reaches only
       # this database. The project's direct host publishes only an AAAA record,
       # while GitHub runners are IPv4-only.
@@ -51,6 +47,11 @@ jobs:
       - run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      # The new feed function reads columns and an RPC added by this migration.
+      - run: supabase functions deploy calendar-feed --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
 
   build:
     runs-on: ubuntu-latest

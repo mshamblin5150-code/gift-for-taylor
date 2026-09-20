@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(18);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000501', 'feed-one@example.test'),
@@ -62,6 +62,14 @@ select is((select ends_at from feed_secrets,
 select is((select starts_at is null and ends_at is null from feed_secrets,
   lateral public.calendar_feed_events(old_token) where work_date = '2027-01-08'),
   true, 'off-legend code is all day');
+select is((select sequence from feed_secrets,
+  lateral public.calendar_feed_events(old_token) where work_date = '2027-01-04'),
+  0::bigint, 'initial event sequence is zero');
+select is((select updated_at from feed_secrets,
+  lateral public.calendar_feed_events(old_token) where work_date = '2027-01-04'),
+  (select updated_at from public.schedule_cells where staff_member_id =
+    '00000000-0000-0000-0000-000000000504' and work_date = '2027-01-04'),
+  'event carries its cell modification timestamp');
 
 set local role authenticated;
 select set_config('request.jwt.claims',
@@ -77,11 +85,33 @@ reset role;
 update public.schedule_cells set shift_code = 'D'
 where staff_member_id = '00000000-0000-0000-0000-000000000504'
   and work_date = '2027-01-04';
+insert into public.schedule_changes (schedule_month_id, staff_member_id, section_id,
+  work_date, old_shift_code, new_shift_code, changed_by_staff_member_id)
+values ('00000000-0000-0000-0000-000000000506',
+  '00000000-0000-0000-0000-000000000504',
+  '00000000-0000-0000-0000-000000000503', '2027-01-04', '7A', 'D',
+  '00000000-0000-0000-0000-000000000504');
 set local role service_role;
 select is((select ends_at from feed_secrets,
   lateral public.calendar_feed_events(new_token) where work_date = '2027-01-04'),
   '2027-01-04 20:00:00+00'::timestamptz,
   'feed reflects a saved Schedule change');
+select is((select sequence from feed_secrets,
+  lateral public.calendar_feed_events(new_token) where work_date = '2027-01-04'),
+  1::bigint, 'event sequence counts Schedule changes');
+
+reset role;
+update public.schedule_cells
+set shift_code = 'X', updated_at = '2028-01-01 00:00:00+00'
+where staff_member_id = '00000000-0000-0000-0000-000000000504'
+  and work_date in ('2027-01-04', '2027-01-05', '2027-01-08');
+set local role service_role;
+select is((select count(*)::integer from feed_secrets,
+  lateral public.calendar_feed_events(new_token)), 0,
+  'clearing the final working shifts leaves an empty feed');
+select is((select public.calendar_feed_last_modified(new_token) from feed_secrets),
+  '2028-01-01 00:00:00+00'::timestamptz,
+  'cleared shifts advance the feed timestamp even when no event remains');
 
 reset role;
 update public.staff_members set active = false
