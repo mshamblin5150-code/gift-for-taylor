@@ -450,10 +450,16 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<void> markChangesAnnounced(Set<String> changeIds) async {
+  Future<void> markChangesAnnounced(
+    Set<String> changeIds,
+    Set<String> draftOpenedStaffMemberIds,
+  ) async {
     await _client.rpc<void>(
       'mark_changes_announced',
-      params: {'p_change_ids': changeIds.toList()},
+      params: {
+        'p_change_ids': changeIds.toList(),
+        'p_draft_opened_staff_member_ids': draftOpenedStaffMemberIds.toList(),
+      },
     );
   }
 

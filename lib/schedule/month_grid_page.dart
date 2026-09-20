@@ -354,14 +354,17 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _announce(ChangeAnnouncement announcement) async {
-    final marked = await showAnnounceSheet(
+    final draftOpenedStaffMemberIds = await showAnnounceSheet(
       context,
       announcement: announcement,
       messagesComposer: widget.messagesComposer,
     );
-    if (marked != true) return;
+    if (draftOpenedStaffMemberIds == null) return;
     try {
-      await widget.rules.markAnnounced(announcement);
+      await widget.rules.markAnnounced(
+        announcement,
+        draftOpenedStaffMemberIds: draftOpenedStaffMemberIds,
+      );
       await _reload();
     } catch (_) {
       if (!mounted) return;

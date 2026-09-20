@@ -53,8 +53,8 @@ final class ChangeAnnouncement {
   /// Only the people whose own shifts changed, in Section and row order.
   final List<AffectedPerson> people;
 
-  /// Every unannounced change log entry read for this tray, including edits
-  /// that were changed back, so marking it announced settles them all.
+  /// Every pending change log entry read for this tray, including edits
+  /// that were changed back, so marking settles them all.
   final Set<String> _changeIds;
 
   bool get isEmpty => people.isEmpty;
