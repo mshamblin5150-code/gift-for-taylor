@@ -30,8 +30,8 @@ installed app open in standalone mode.
 
 ## Deploying
 
-Pushing to `main`, or running the workflow by hand, deploys the `send-push` and
-`calendar-feed` Edge Functions, applies pending migrations to the hosted
+Pushing to `main`, or running the workflow by hand, deploys the `send-push`,
+`calendar-feed`, and `send-calendar-invitation` Edge Functions, applies pending migrations to the hosted
 project, and then publishes the web app to GitHub Pages. `send-push` deploys
 first so migrations that insert historical Notices cannot trigger pushes to
 Staff phones. The app only goes live once deployment and migration succeed.
@@ -55,7 +55,7 @@ access token is supplied only to the Edge Function steps. It is never used for
 A superseded run queues rather than cancelling, so a second push cannot
 interrupt a migration midway.
 
-Only the two named Edge Functions and migrations are applied. Never run
+Only the three named Edge Functions and migrations are applied. Never run
 `supabase config push` against the project: it writes `config.toml` over the
 hosted settings, Auth included.
 
@@ -96,7 +96,33 @@ creates a notice for each active Staff member except the person who released it;
 post-release shift change creates one only for the affected Staff member when
 the scheduler marks the text announcement sent.
 
-## Calendar feed
+## Calendar invitations and feed
+
+Calendar invitations are the default for active Staff members with a personal
+email. A Month release queues one `REQUEST` per working shift. Subsequent
+Schedule changes queue a new `REQUEST` or a `CANCEL` for removed shifts. The
+`calendar_invitation_outbox` retains each sequence and delivery state. The
+delivery function sends iMIP mail using the same Resend SMTP provider as Auth.
+Set `RESEND_SMTP_PASSWORD` to a Resend API key allowed to send from the verified
+`axion.healthcare` domain, and set a random `CALENDAR_WEBHOOK_SECRET`, using
+`supabase secrets set`. The sender is `no-reply@axion.healthcare`; Staff can save
+its contact card from **My calendar**.
+
+In Supabase Dashboard, create a Database Webhook for **INSERT** on
+`public.calendar_invitation_outbox`, targeting `send-calendar-invitation`.
+Add the HTTP header `x-calendar-secret` with the exact value of
+`CALENDAR_WEBHOOK_SECRET`. The function rejects other requests and drains up to
+50 pending rows per call. Invoke it again after configuring the webhook to
+drain invitations queued by the migration, and when retrying a failed send.
+Monitor pending rows and function logs; delivery failures leave rows pending.
+The webhook and SMTP secret must be configured before Staff can receive mail.
+
+Staff can switch to the Calendar feed in **My calendar**. Switching queues
+`CANCEL` for their invitations and creates a private feed link. Switching back
+revokes every subscription link and queues current working shifts as
+invitations. Use only the `webcal://` link shown in the app when subscribing.
+
+### Calendar feed
 
 CI deploys the Calendar feed Edge Function alongside the database migrations.
 To deploy it by hand:
@@ -106,7 +132,7 @@ supabase functions deploy calendar-feed --no-verify-jwt
 ```
 
 The function uses Supabase's `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
-environment values. Each signed-in Staff member opens **My Calendar feed** and
+environment values. Each signed-in Staff member opens **My calendar** and
 creates a named link for each place they subscribe, such as iPhone or Google.
 The page shows when each subscription last checked in and can revoke it without
 affecting the others. The page detects the platform and shows one setup path,

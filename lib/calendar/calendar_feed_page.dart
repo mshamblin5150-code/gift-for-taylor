@@ -7,6 +7,7 @@ import 'calendar_link_stub.dart'
     if (dart.library.html) 'calendar_link_web.dart'
     as calendar_link;
 import 'calendar_platform.dart';
+import 'calendar_sender.dart';
 
 final class CalendarSubscription {
   const CalendarSubscription({
@@ -36,9 +37,11 @@ final class CalendarSubscription {
 }
 
 abstract interface class CalendarFeedGateway {
+  Future<String> channel();
   Future<List<CalendarSubscription>> subscriptions();
   Future<Uri> createSubscription(String name);
   Future<void> revokeSubscription(String id);
+  Future<void> useInvitations();
 }
 
 final class SupabaseCalendarFeedGateway implements CalendarFeedGateway {
@@ -46,6 +49,10 @@ final class SupabaseCalendarFeedGateway implements CalendarFeedGateway {
 
   final SupabaseClient _client;
   final String _supabaseUrl;
+
+  @override
+  Future<String> channel() async =>
+      await _client.rpc<String>('my_calendar_channel');
 
   @override
   Future<List<CalendarSubscription>> subscriptions() async {
@@ -78,6 +85,11 @@ final class SupabaseCalendarFeedGateway implements CalendarFeedGateway {
       params: {'p_id': id},
     );
   }
+
+  @override
+  Future<void> useInvitations() async {
+    await _client.rpc('use_calendar_invitations');
+  }
 }
 
 class CalendarFeedPage extends StatefulWidget {
@@ -90,6 +102,7 @@ class CalendarFeedPage extends StatefulWidget {
 }
 
 class _CalendarFeedPageState extends State<CalendarFeedPage> {
+  late Future<String> _channel = widget.gateway.channel();
   late Future<List<CalendarSubscription>> _subscriptions = widget.gateway
       .subscriptions();
   late final CalendarPlatform _detectedPlatform = detectCalendarPlatform();
@@ -211,6 +224,7 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
       setState(() {
         _newLink = link;
         _newName = name;
+        _channel = Future.value('feed');
       });
       _reload();
     } catch (_) {
@@ -253,6 +267,7 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
       await widget.gateway.revokeSubscription(subscription.id);
       if (!mounted) return;
       _reload();
+      setState(() => _channel = widget.gateway.channel());
     } catch (_) {
       if (mounted) {
         setState(
@@ -264,11 +279,80 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
     }
   }
 
+  Future<void> _useInvitations() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.gateway.useInvitations();
+      if (!mounted) return;
+      setState(() {
+        _newLink = null;
+        _channel = Future.value('invitations');
+      });
+      _reload();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error =
+            'Could not switch to Calendar invitations. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My Calendar feed')),
-      body: FutureBuilder<List<CalendarSubscription>>(
+      appBar: AppBar(title: const Text('My calendar')),
+      body: FutureBuilder<String>(
+        future: _channel,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData && !snapshot.hasError) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return const Center(child: Text('Could not load calendar settings.'));
+          }
+          if (snapshot.data == 'invitations') {
+            return ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                const Text('Calendar invitations for working shifts are emailed to your personal address. Changes replace a shift, and removed shifts are withdrawn. No reply is needed.'),
+                const SizedBox(height: 16),
+                const Text('Save ER Schedule to your contacts so your calendar app recognizes future invitations.'),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    onPressed: saveCalendarSender,
+                    icon: const Icon(Icons.person_add_alt_1),
+                    label: const Text('Save calendar sender'),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text('If you prefer one separate calendar, switch to a Calendar feed. Existing invitations will be withdrawn.'),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton(
+                    onPressed: _busy ? null : _create,
+                    child: const Text('Switch to Calendar feed'),
+                  ),
+                ),
+                if (_error != null)
+                  Text(_error!, style: TextStyle(
+                    color: Theme.of(context).colorScheme.error)),
+              ],
+            );
+          }
+          return _feedBody();
+        },
+      ),
+    );
+  }
+
+  Widget _feedBody() => FutureBuilder<List<CalendarSubscription>>(
         future: _subscriptions,
         builder: (context, snapshot) {
           if (!snapshot.hasData && !snapshot.hasError) {
@@ -390,10 +474,17 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
                       ),
                     ),
                   ),
+              const SizedBox(height: 24),
+              const Text('Switching back withdraws your Calendar subscriptions and emails your current working shifts as invitations.'),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton(
+                  onPressed: _busy ? null : _useInvitations,
+                  child: const Text('Switch to Calendar invitations'),
+                ),
+              ),
             ],
           );
         },
-      ),
-    );
-  }
+      );
 }

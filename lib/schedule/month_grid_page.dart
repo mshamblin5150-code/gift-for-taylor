@@ -811,7 +811,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             ),
           if (widget.onCalendarFeed != null)
             IconButton(
-              tooltip: 'My Calendar feed',
+              tooltip: 'My calendar',
               onPressed: widget.onCalendarFeed,
               icon: const Icon(Icons.calendar_month_outlined),
             ),

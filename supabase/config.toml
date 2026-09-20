@@ -7,6 +7,9 @@ project_id = "er-schedule"
 [functions.calendar-feed]
 verify_jwt = false
 
+[functions.send-calendar-invitation]
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.
