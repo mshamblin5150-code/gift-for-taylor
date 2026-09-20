@@ -25,12 +25,32 @@ The ED staff shift schedule for one calendar month, which the ED manager builds 
 _Avoid_: Roster, rota
 
 **Section**:
-A labeled group of staff rows on the Schedule, by role and shift type, such as State dayshift RN, PRN nightshift RN, CNA or Unit clerks. Each staff member belongs to one Section.
+A labeled group of staff rows on the Schedule, by role and shift type, such as State dayshift RN, PRN nightshift RN, CNA or Unit clerks. Each staff member belongs to one Section. It decides where a row is printed, not who counts as on the floor: a Staffing minimum is set per Job role and Coverage window, never per Section.
 _Avoid_: Department, team, unit
 
 **Shift code**:
-The text in one Schedule cell: what a person is doing that day, such as 7A, 16D, MM, X (off), R/O (requested off) or S/L (sick leave). The printed legend defines the common ones, but the set is open; she writes others as needed.
+The text in one Schedule cell: what a person is doing that day, such as 7A, 16D, MM, X (off), R/O (requested off), S/L (sick leave) or C/I (called in). The printed legend defines the common ones, but the set is open; she writes others as needed.
 _Avoid_: Shift type, assignment
+
+**Job role**:
+What a Staff member is licensed and hired to do: RN, LPN, CNA or Unit clerk. It is held over time, so someone who becomes an RN in March still counts as an LPN in February. Narrower than Section, which also records whether they are State or PRN and which Coverage window they usually work.
+_Avoid_: Role, position, title
+
+**Coverage window**:
+Which part of the day a working Shift code puts someone on the floor for: Day or Night. It belongs to the Shift code, not to the person — a night nurse picking up a 7A is on Days that day. It follows from the code's hours and the Manager can correct it; a code with no hours has no window and counts toward neither, so the day reads short until she sets one. It exists because a day fully staffed at 7 AM can still be empty at 7 PM.
+_Avoid_: Shift type, day/night, shift block
+
+**Staffing minimum**:
+How many people of one Job role the Manager wants on the floor in one Coverage window on one day, such as three nurses on days. She sets a default per weekday and overrides single dates. A day below its minimum reads short.
+_Avoid_: Target, requirement, quota, staffing level
+
+**Nursing pool**:
+RN and LPN counted as one for coverage, so a Staffing minimum of three nurses is met by any three of them. The pool carries a floor — how many of them must be RNs — because part of the work is RN-only. CNA and Unit clerk pool with no one.
+_Avoid_: Nurses, RN/LPN, skill mix
+
+**Call-in**:
+A Staff member ringing in to say they will not work a shift they are on for, written in the cell as C/I. It is not worked and leaves the day short. Distinct from Sick leave (S/L).
+_Avoid_: No-show, absence, callout
 
 **Schedule change**:
 Any edit to a published Schedule, such as marking someone off or swapping a shift. It happens about weekly and has to be made in both Excel and UKG, plus a new printout.
