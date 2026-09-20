@@ -4,6 +4,8 @@ status: accepted
 
 # Printed text is budgeted, not policed
 
+**Later decision:** ADR-0012 captures print wording at Month release and permits an audited correction for one released month; changes to the Unit default no longer alter every released month.
+
 #54 shipped customisable print wording under an acceptance criterion reading
 "Nothing patient-related or personal can be added through this setting," and the
 implementer honoured it by making all three fields closed enums —
