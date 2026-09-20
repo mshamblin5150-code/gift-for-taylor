@@ -1,0 +1,291 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:schedule_rules/schedule_rules.dart';
+
+class PendingApprovals {
+  const PendingApprovals({
+    required this.requests,
+    required this.swaps,
+    required this.pickups,
+  });
+
+  final List<RequestOff> requests;
+  final List<Swap> swaps;
+  final List<OpenShiftPickup> pickups;
+
+  int get count => requests.length + swaps.length + pickups.length;
+}
+
+Future<PendingApprovals> readPendingApprovals(
+  ScheduleRules rules,
+  SwapRules swapRules,
+  OpenShiftRules openShiftRules,
+) async {
+  final (requests, swaps, pickups) = await (
+    rules.approvalQueue(),
+    swapRules.swaps(),
+    openShiftRules.pickups(),
+  ).wait;
+  return PendingApprovals(
+    requests: requests,
+    swaps: swaps.where((s) => s.status == SwapStatus.accepted).toList(),
+    pickups: pickups.where((p) => p.status == PickupStatus.pending).toList(),
+  );
+}
+
+/// The Manager's pending decisions across the whole Schedule, including other months.
+class ApprovalQueuePage extends StatefulWidget {
+  const ApprovalQueuePage({
+    super.key,
+    required this.rules,
+    required this.swapRules,
+    required this.openShiftRules,
+  });
+
+  final ScheduleRules rules;
+  final SwapRules swapRules;
+  final OpenShiftRules openShiftRules;
+
+  @override
+  State<ApprovalQueuePage> createState() => _ApprovalQueuePageState();
+}
+
+class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
+  late Future<List<_Decision>> _decisions = _load();
+  Timer? _timer;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<List<_Decision>> _load() async {
+    final (pending, shifts) = await (
+      readPendingApprovals(
+        widget.rules,
+        widget.swapRules,
+        widget.openShiftRules,
+      ),
+      widget.openShiftRules.openShifts(),
+    ).wait;
+    final shiftById = {for (final shift in shifts) shift.id: shift};
+    final dates = <DateTime>{
+      for (final swap in pending.swaps)
+        DateTime(swap.requesterDate.year, swap.requesterDate.month),
+      for (final swap in pending.swaps)
+        DateTime(swap.colleagueDate.year, swap.colleagueDate.month),
+      for (final pickup in pending.pickups)
+        if (shiftById[pickup.openShiftId] case final shift?)
+          DateTime(shift.date.year, shift.date.month),
+    };
+    final grids = <DateTime, MonthGrid>{};
+    await Future.wait(
+      dates.map((month) async {
+        grids[month] = await widget.rules.monthGrid(month);
+      }),
+    );
+    String name(String id, DateTime date) =>
+        grids[DateTime(date.year, date.month)]?.displayNameOf(id) ?? id;
+    final decisions = <_Decision>[
+      for (final request in pending.requests)
+        _Decision(
+          date: request.dates.isEmpty
+              ? request.submittedAt
+              : request.dates.reduce((a, b) => a.isBefore(b) ? a : b),
+          title: 'Request off — ${request.staffMemberName}',
+          detail:
+              '${request.dates.map((d) => DateFormat.yMMMd().format(d)).join(', ')}'
+              '${request.reason?.isNotEmpty == true ? '\nReason: ${request.reason}' : ''}',
+          approvalReasonSupported: true,
+          approve: () => widget.rules.decideRequestOff(
+            request.id,
+            RequestOffDecision.approved,
+            reason: _reason,
+          ),
+          decline: () => widget.rules.decideRequestOff(
+            request.id,
+            RequestOffDecision.declined,
+            reason: _reason,
+          ),
+        ),
+      for (final swap in pending.swaps)
+        _Decision(
+          date: swap.requesterDate.isBefore(swap.colleagueDate)
+              ? swap.requesterDate
+              : swap.colleagueDate,
+          title:
+              'Swap — ${name(swap.requesterId, swap.requesterDate)} ↔ '
+              '${name(swap.colleagueId, swap.colleagueDate)}',
+          detail:
+              '${DateFormat.yMMMd().format(swap.requesterDate)} ${swap.requesterCode}'
+              ' ↔ ${DateFormat.yMMMd().format(swap.colleagueDate)} ${swap.colleagueCode}',
+          approve: () => widget.swapRules.approve(swap.id),
+          decline: () => widget.swapRules.decline(swap.id, reason: _reason),
+        ),
+      for (final pickup in pending.pickups)
+        if (shiftById[pickup.openShiftId] case final shift?)
+          _Decision(
+            date: shift.date,
+            title:
+                'Open shift pickup — ${name(pickup.staffMemberId, shift.date)}',
+            detail:
+                '${DateFormat.yMMMd().format(shift.date)} ${shift.shiftCode} • ${shift.jobRole.label}',
+            approve: () => widget.openShiftRules.approvePickup(pickup.id),
+            decline: () =>
+                widget.openShiftRules.declinePickup(pickup.id, reason: _reason),
+          )
+        else
+          _Decision(
+            date: DateTime(9999),
+            title: 'Open shift pickup — ${pickup.staffMemberId}',
+            detail: 'The Open shift is no longer available.',
+            approve: () => widget.openShiftRules.approvePickup(pickup.id),
+            decline: () =>
+                widget.openShiftRules.declinePickup(pickup.id, reason: _reason),
+          ),
+    ];
+    decisions.sort((a, b) => a.date.compareTo(b.date));
+    return decisions;
+  }
+
+  String? _reason;
+
+  void _refresh() {
+    if (mounted && !_busy) setState(() => _decisions = _load());
+  }
+
+  Future<void> _decide(_Decision item, bool approve) async {
+    var explanation = '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${approve ? 'Approve' : 'Decline'} ${item.title}?'),
+        content: approve && !item.approvalReasonSupported
+            ? null
+            : TextField(
+                onChanged: (value) => explanation = value,
+                decoration: const InputDecoration(
+                  labelText: 'Reason (optional)',
+                ),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    _reason = explanation;
+    if (confirmed != true) return;
+    setState(() => _busy = true);
+    try {
+      await (approve ? item.approve() : item.decline());
+      if (mounted) setState(() => _decisions = _load());
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Decision was not saved: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+      _reason = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Approval queue'),
+      actions: [
+        IconButton(
+          tooltip: 'Refresh approval queue',
+          onPressed: _refresh,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    ),
+    body: FutureBuilder<List<_Decision>>(
+      future: _decisions,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(
+            child: Text('Approval queue could not be loaded.'),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.data!.isEmpty) {
+          return const Center(child: Text('Nothing awaiting approval.'));
+        }
+        return ListView(
+          children: [
+            for (final item in snapshot.data!)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(item.detail),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: _busy
+                                ? null
+                                : () => _decide(item, false),
+                            child: const Text('Decline'),
+                          ),
+                          FilledButton(
+                            onPressed: _busy ? null : () => _decide(item, true),
+                            child: const Text('Approve'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+class _Decision {
+  const _Decision({
+    required this.date,
+    required this.title,
+    required this.detail,
+    required this.approve,
+    required this.decline,
+    this.approvalReasonSupported = false,
+  });
+  final DateTime date;
+  final String title;
+  final String detail;
+  final Future<void> Function() approve;
+  final Future<void> Function() decline;
+  final bool approvalReasonSupported;
+}

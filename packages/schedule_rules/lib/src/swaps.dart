@@ -46,6 +46,7 @@ abstract interface class SwapStore {
     String? reason,
   });
   Future<void> approveSwap(String swapId);
+  Future<void> declineSwap(String swapId, {String? reason});
 }
 
 /// The same public boundary is used by the in-memory rules tests and Supabase.
@@ -71,6 +72,9 @@ final class SwapRules {
       store.answerSwap(swapId, accept: accept, reason: reason?.trim());
 
   Future<void> approve(String swapId) => store.approveSwap(swapId);
+
+  Future<void> decline(String swapId, {String? reason}) =>
+      store.declineSwap(swapId, reason: reason?.trim());
 }
 
 /// Small in-memory counterpart of the Swap transaction for schedule rules tests.
@@ -203,6 +207,21 @@ final class _InMemorySwapStore implements SwapStore {
           swap.requesterCode;
     }
     database._swaps[index] = _copy(swap, SwapStatus.approved, swap.reason);
+  }
+
+  @override
+  Future<void> declineSwap(String swapId, {String? reason}) async {
+    final index = database._swaps.indexWhere((swap) => swap.id == swapId);
+    if (actor != database.managerId ||
+        index < 0 ||
+        database._swaps[index].status != SwapStatus.accepted) {
+      throw StateError('This Swap is not awaiting Manager approval');
+    }
+    database._swaps[index] = _copy(
+      database._swaps[index],
+      SwapStatus.declined,
+      reason,
+    );
   }
 }
 

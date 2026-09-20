@@ -58,6 +58,7 @@ abstract interface class OpenShiftStore {
   Future<List<OpenShiftPickup>> pickups();
   Future<void> requestPickup(String openShiftId);
   Future<void> approvePickup(String pickupId);
+  Future<void> declinePickup(String pickupId, {String? reason});
   Future<List<SectionStaffing>> staffingForMonth(DateTime month);
   Future<void> setWeekdayMinimum(String sectionId, int weekday, int minimum);
   Future<void> setDateMinimum(String sectionId, DateTime date, int? minimum);
@@ -80,6 +81,8 @@ final class OpenShiftRules {
   Future<void> requestPickup(String openShiftId) =>
       store.requestPickup(openShiftId);
   Future<void> approvePickup(String pickupId) => store.approvePickup(pickupId);
+  Future<void> declinePickup(String pickupId, {String? reason}) =>
+      store.declinePickup(pickupId, reason: reason?.trim());
   Future<List<SectionStaffing>> staffingForMonth(DateTime month) =>
       store.staffingForMonth(month);
   Future<void> setWeekdayMinimum(String sectionId, int weekday, int minimum) =>
@@ -269,6 +272,23 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
         );
       }
     }
+  }
+
+  @override
+  Future<void> declinePickup(String pickupId, {String? reason}) async {
+    if (!_manager) throw StateError('Only the Manager can decline a pickup');
+    final index = database._openShiftPickups.indexWhere(
+      (pickup) =>
+          pickup.id == pickupId && pickup.status == PickupStatus.pending,
+    );
+    if (index < 0) throw StateError('Pickup is not awaiting approval');
+    final pickup = database._openShiftPickups[index];
+    database._openShiftPickups[index] = OpenShiftPickup(
+      id: pickup.id,
+      openShiftId: pickup.openShiftId,
+      staffMemberId: pickup.staffMemberId,
+      status: PickupStatus.declined,
+    );
   }
 
   @override

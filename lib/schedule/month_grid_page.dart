@@ -10,6 +10,7 @@ import '../notifications/notice_gateway.dart';
 import '../notifications/notices_page.dart';
 
 import 'announce_sheet.dart';
+import 'approval_queue_page.dart';
 import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
 import 'messages_composer.dart';
@@ -79,6 +80,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   StreamSubscription<void>? _swapUpdates;
   StreamSubscription<void>? _openShiftUpdates;
   int _pendingSwaps = 0;
+  int _pendingApprovals = 0;
   Timer? _requestNoticeTimer;
   Timer? _midnightTimer;
   late DateTime _today = _dateOnly(_now());
@@ -110,17 +112,23 @@ class _MonthGridPageState extends State<MonthGridPage> {
     _scheduleMidnight();
     _listen();
     if (widget.swapRules case final swapRules?) {
-      _swapUpdates = swapRules.updates().listen((_) => _refreshSwaps());
+      _swapUpdates = swapRules.updates().listen((_) {
+        _refreshSwaps();
+        _refreshApprovals();
+      });
     }
     if (widget.openShiftRules case final openShiftRules?) {
-      _openShiftUpdates = openShiftRules.updates().listen((_) => _reload());
+      _openShiftUpdates = openShiftRules.updates().listen((_) {
+        _reload();
+        _refreshApprovals();
+      });
     }
     _load();
     _loadWording();
-    _requestNoticeTimer = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) => _refreshRequestNotices(),
-    );
+    _requestNoticeTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _refreshRequestNotices();
+      _refreshApprovals();
+    });
   }
 
   void _listen() {
@@ -201,7 +209,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
         _staffing = read.staffing;
         _announcement = read.announcement;
       });
-      if (initial) _refreshSwaps();
+      if (initial) {
+        _refreshSwaps();
+        _refreshApprovals();
+      }
     } catch (error) {
       if (initial) {
         if (mounted) setState(() => _loadError = error);
@@ -221,14 +232,33 @@ class _MonthGridPageState extends State<MonthGridPage> {
         () => _pendingSwaps = swaps
             .where(
               (swap) =>
-                  (swap.status == SwapStatus.proposed &&
-                      swap.colleagueId == widget.swapStaffMemberId) ||
-                  (swap.status == SwapStatus.accepted && _isManager),
+                  swap.status == SwapStatus.proposed &&
+                  swap.colleagueId == widget.swapStaffMemberId,
             )
             .length,
       );
     } catch (_) {
       // Schedule access still works if the Swap inbox is temporarily unavailable.
+    }
+  }
+
+  Future<void> _refreshApprovals() async {
+    if (!_isManager ||
+        widget.swapRules == null ||
+        widget.openShiftRules == null) {
+      return;
+    }
+    try {
+      final pending = await readPendingApprovals(
+        widget.rules,
+        widget.swapRules!,
+        widget.openShiftRules!,
+      );
+      if (mounted) {
+        setState(() => _pendingApprovals = pending.count);
+      }
+    } catch (_) {
+      // A temporary queue read failure must not hide the Schedule.
     }
   }
 
@@ -579,7 +609,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
   void _open(Widget Function(BuildContext context) page) {
     Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: page))
-        .then((_) => _refreshRequestNotices());
+        .then((_) {
+          _refreshRequestNotices();
+          _refreshSwaps();
+          _refreshApprovals();
+        });
   }
 
   Future<void> _startMonth() async {
@@ -696,7 +730,25 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ],
         ),
         actions: [
-          if (widget.openShiftRules != null)
+          if (_isManager &&
+              widget.swapRules != null &&
+              widget.openShiftRules != null)
+            IconButton(
+              tooltip: 'Approval queue',
+              onPressed: () => _open(
+                (context) => ApprovalQueuePage(
+                  rules: widget.rules,
+                  swapRules: widget.swapRules!,
+                  openShiftRules: widget.openShiftRules!,
+                ),
+              ),
+              icon: Badge(
+                isLabelVisible: _pendingApprovals > 0,
+                label: Text('$_pendingApprovals'),
+                child: const Icon(Icons.fact_check_outlined),
+              ),
+            ),
+          if (!_isManager && widget.openShiftRules != null)
             IconButton(
               tooltip: 'Open shifts',
               onPressed: () => _open(
@@ -710,7 +762,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
               ),
               icon: const Icon(Icons.add_circle_outline),
             ),
-          if (widget.swapRules != null)
+          if (!_isManager && widget.swapRules != null)
             IconButton(
               tooltip: 'Swaps',
               onPressed: () => _open(
@@ -742,20 +794,67 @@ class _MonthGridPageState extends State<MonthGridPage> {
               onPressed: widget.onCalendarFeed,
               icon: const Icon(Icons.calendar_month_outlined),
             ),
-          IconButton(
-            tooltip: _isManager
-                ? 'Request off approval queue'
-                : 'My Requests off',
-            onPressed: () => _open(
-              (context) =>
-                  RequestsOffPage(rules: widget.rules, isManager: _isManager),
+          if (!_isManager)
+            IconButton(
+              tooltip: 'My Requests off',
+              onPressed: () => _open(
+                (context) =>
+                    RequestsOffPage(rules: widget.rules, isManager: _isManager),
+              ),
+              icon: Badge(
+                isLabelVisible: _unreadRequests > 0,
+                label: Text('$_unreadRequests'),
+                child: const Icon(Icons.event_busy_outlined),
+              ),
             ),
-            icon: Badge(
-              isLabelVisible: _unreadRequests > 0,
-              label: Text('$_unreadRequests'),
-              child: const Icon(Icons.event_busy_outlined),
+          if (_isManager)
+            PopupMenuButton<String>(
+              tooltip: 'Browse requests',
+              icon: const Icon(Icons.more_horiz),
+              onSelected: (value) {
+                switch (value) {
+                  case 'requests':
+                    _open(
+                      (context) =>
+                          RequestsOffPage(rules: widget.rules, isManager: true),
+                    );
+                  case 'swaps':
+                    _open(
+                      (context) => SwapsPage(
+                        rules: widget.rules,
+                        swapRules: widget.swapRules!,
+                        month: _month,
+                        staffMemberId: widget.swapStaffMemberId,
+                        isManager: true,
+                        messagesComposer: widget.messagesComposer,
+                      ),
+                    );
+                  case 'shifts':
+                    _open(
+                      (context) => OpenShiftsPage(
+                        rules: widget.openShiftRules!,
+                        scheduleRules: widget.rules,
+                        month: _month,
+                        staffMemberId: widget.swapStaffMemberId,
+                        isManager: true,
+                      ),
+                    );
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'requests',
+                  child: Text('Requests off'),
+                ),
+                if (widget.swapRules != null)
+                  const PopupMenuItem(value: 'swaps', child: Text('Swaps')),
+                if (widget.openShiftRules != null)
+                  const PopupMenuItem(
+                    value: 'shifts',
+                    child: Text('Open shifts'),
+                  ),
+              ],
             ),
-          ),
           if (_isManager) ...[
             IconButton(
               tooltip: 'Manage Shift codes',

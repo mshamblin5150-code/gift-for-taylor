@@ -76,6 +76,12 @@ final class SupabaseSwapStore implements SwapStore {
   Future<void> approveSwap(String swapId) =>
       client.rpc<void>('approve_swap', params: {'p_swap_id': swapId});
 
+  @override
+  Future<void> declineSwap(String swapId, {String? reason}) => client.rpc<void>(
+    'decline_swap',
+    params: {'p_swap_id': swapId, 'p_reason': reason},
+  );
+
   Swap _swap(Map<String, dynamic> row) => Swap(
     id: row['id'] as String,
     requesterId: row['requester_id'] as String,
