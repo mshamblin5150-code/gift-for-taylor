@@ -1346,6 +1346,7 @@ class _MonthView extends StatefulWidget {
 
 class _MonthViewState extends State<_MonthView> {
   final _headerScroll = ScrollController();
+  final _poolScroll = ScrollController();
   final _daysScroll = ScrollController();
   final _verticalScroll = ScrollController();
   Timer? _dragScrollTimer;
@@ -1354,18 +1355,21 @@ class _MonthViewState extends State<_MonthView> {
   @override
   void initState() {
     super.initState();
-    _headerScroll.addListener(() => _syncScroll(_headerScroll, _daysScroll));
-    _daysScroll.addListener(() => _syncScroll(_daysScroll, _headerScroll));
+    _headerScroll.addListener(() => _syncHorizontalScroll(_headerScroll));
+    _poolScroll.addListener(() => _syncHorizontalScroll(_poolScroll));
+    _daysScroll.addListener(() => _syncHorizontalScroll(_daysScroll));
     WidgetsBinding.instance.addPostFrameCallback((_) => _showToday());
   }
 
-  void _syncScroll(ScrollController source, ScrollController target) {
-    if (!target.hasClients) return;
-    final offset = source.offset.clamp(
-      target.position.minScrollExtent,
-      target.position.maxScrollExtent,
-    );
-    if (target.offset != offset) target.jumpTo(offset);
+  void _syncHorizontalScroll(ScrollController source) {
+    for (final target in [_headerScroll, _poolScroll, _daysScroll]) {
+      if (identical(source, target) || !target.hasClients) continue;
+      final offset = source.offset.clamp(
+        target.position.minScrollExtent,
+        target.position.maxScrollExtent,
+      );
+      if (target.offset != offset) target.jumpTo(offset);
+    }
   }
 
   void _showToday() {
@@ -1389,6 +1393,7 @@ class _MonthViewState extends State<_MonthView> {
   void dispose() {
     _dragScrollTimer?.cancel();
     _headerScroll.dispose();
+    _poolScroll.dispose();
     _daysScroll.dispose();
     _verticalScroll.dispose();
     super.dispose();
@@ -1434,7 +1439,7 @@ class _MonthViewState extends State<_MonthView> {
     );
     scroll(
       _verticalScroll,
-      point.dy < _cellHeight + 36
+      point.dy < _cellHeight + _visiblePools.length * _bandHeight + 36
           ? -1
           : point.dy > height - 36
           ? 1
@@ -1442,10 +1447,9 @@ class _MonthViewState extends State<_MonthView> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  List<RolePool> get _visiblePools {
     final days = widget.grid.days;
-    final visiblePools = [
+    return [
       for (final pool in RolePool.values)
         if (days.any(
           (day) => CoverageWindow.values.any(
@@ -1457,6 +1461,12 @@ class _MonthViewState extends State<_MonthView> {
         ))
           pool,
     ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final days = widget.grid.days;
+    final visiblePools = _visiblePools;
     return Column(
       children: [
         Row(
@@ -1471,6 +1481,32 @@ class _MonthViewState extends State<_MonthView> {
             ),
           ],
         ),
+        if (visiblePools.isNotEmpty)
+          Row(
+            children: [
+              _PoolNames(visiblePools: visiblePools),
+              Expanded(
+                child: SingleChildScrollView(
+                  key: const ValueKey('month-pool-horizontal-scroll'),
+                  controller: _poolScroll,
+                  scrollDirection: Axis.horizontal,
+                  child: Column(
+                    children: [
+                      for (final pool in visiblePools)
+                        _PoolBand(
+                          grid: widget.grid,
+                          pool: pool,
+                          days: days,
+                          today: widget.today,
+                          staffing: widget.staffing,
+                          onOpenDay: widget.onOpenDay,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         Expanded(
           child: SingleChildScrollView(
             controller: _verticalScroll,
@@ -1479,7 +1515,6 @@ class _MonthViewState extends State<_MonthView> {
               children: [
                 _NameColumn(
                   grid: widget.grid,
-                  visiblePools: visiblePools,
                   onOpenStaffDetails: widget.onOpenStaffDetails,
                 ),
                 Expanded(
@@ -1489,15 +1524,6 @@ class _MonthViewState extends State<_MonthView> {
                     scrollDirection: Axis.horizontal,
                     child: Column(
                       children: [
-                        for (final pool in visiblePools)
-                          _PoolBand(
-                            grid: widget.grid,
-                            pool: pool,
-                            days: days,
-                            today: widget.today,
-                            staffing: widget.staffing,
-                            onOpenDay: widget.onOpenDay,
-                          ),
                         for (final section in widget.grid.sections) ...[
                           Container(
                             key: ValueKey('section-days-${section.id}'),
@@ -1540,13 +1566,10 @@ class _MonthViewState extends State<_MonthView> {
   }
 }
 
-class _NameColumn extends StatelessWidget {
-  const _NameColumn({required this.grid, required this.visiblePools,
-    required this.onOpenStaffDetails});
+class _PoolNames extends StatelessWidget {
+  const _PoolNames({required this.visiblePools});
 
-  final MonthGrid grid;
   final List<RolePool> visiblePools;
-  final Future<void> Function(String)? onOpenStaffDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -1577,6 +1600,21 @@ class _NameColumn extends StatelessWidget {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _NameColumn extends StatelessWidget {
+  const _NameColumn({required this.grid, required this.onOpenStaffDetails});
+
+  final MonthGrid grid;
+  final Future<void> Function(String)? onOpenStaffDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
         for (final section in grid.sections) ...[
           Container(
             key: ValueKey('section-name-${section.id}'),
