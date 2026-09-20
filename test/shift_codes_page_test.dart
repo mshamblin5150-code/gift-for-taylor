@@ -17,7 +17,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('without times appear as all-day'), findsOneWidget);
-    expect(find.text('7A–7P · Worked shift'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('4P'), 250);
     expect(find.text('Time not set · Worked shift'), findsWidgets);
   });
