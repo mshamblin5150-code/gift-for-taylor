@@ -164,7 +164,12 @@ void main() {
     expect(find.text('Page Nurse'), findsOneWidget);
     expect(find.text('Add a cell number to finish setup'), findsOneWidget);
     expect(find.byTooltip('Add a cell number before sending an Invite'), findsOneWidget);
-    final invite = tester.widget<IconButton>(find.byIcon(Icons.sms_outlined));
+    final invite = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.sms_outlined),
+        matching: find.byType(IconButton),
+      ),
+    );
     expect(invite.onPressed, isNull);
 
     await tester.tap(find.text('Page Nurse'));
