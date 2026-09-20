@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(18);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000571', 'codes-manager@example.test'),
@@ -19,6 +19,9 @@ values ('00000000-0000-0000-0000-000000000576', '2027-03-01', 'released', now(),
 insert into public.schedule_cells(schedule_month_id, staff_member_id, section_id, work_date, shift_code)
 values ('00000000-0000-0000-0000-000000000576', '00000000-0000-0000-0000-000000000574',
   '00000000-0000-0000-0000-000000000575', '2027-03-04', '7A');
+create temp table code_cell_before as
+select updated_at from public.schedule_cells where work_date = '2027-03-04';
+grant select on code_cell_before to authenticated;
 
 select ok((select count(*) = 16 from public.shift_codes), 'the common catalog includes three untimed codes');
 select is((select is_working from public.shift_codes where code = '4P'), true,
@@ -43,6 +46,10 @@ select lives_ok($$select public.save_shift_code('7A', 'Day coverage', '08:00', '
   'Manager edits an existing code');
 select is((select shift_code from public.schedule_cells where work_date = '2027-03-04'), '7A',
   'editing hours leaves the historical cell unchanged');
+select ok((select cell.updated_at > previous.updated_at
+  from public.schedule_cells cell cross join code_cell_before previous
+  where cell.work_date = '2027-03-04'),
+  'editing hours advances the calendar event modification time');
 select throws_ok($$select public.delete_shift_code('7A')$$,
   'A Shift code in use cannot be deleted', 'used code cannot be deleted');
 select lives_ok($$select public.save_shift_code('TRAIN', 'Training', null, null, false)$$,

@@ -4,6 +4,8 @@ export type FeedEvent = {
   shift_code: string;
   starts_at: string | null;
   ends_at: string | null;
+  updated_at: string;
+  sequence: number;
 };
 
 function escapeText(value: string): string {
@@ -39,7 +41,16 @@ function nextDay(date: string): string {
   return day.toISOString().slice(0, 10).replaceAll("-", "");
 }
 
-export function calendar(events: FeedEvent[]): string {
+function scheduleAsOf(value: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", weekday: "short", day: "numeric",
+    month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(value));
+  const part = (type: string) => parts.find((item) => item.type === type)?.value;
+  return `${part("weekday")} ${part("day")} ${part("month")}, ${part("hour")}:${part("minute")}`;
+}
+
+export function calendar(events: FeedEvent[], feedUpdatedAt: string | null): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -47,14 +58,20 @@ export function calendar(events: FeedEvent[]): string {
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "X-WR-CALNAME:My Schedule",
+    "X-PUBLISHED-TTL:PT15M",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT5M",
   ];
+  const stamp = feedUpdatedAt ?? "1970-01-01T00:00:00Z";
   for (const event of events) {
     const date = event.work_date.replaceAll("-", "");
     lines.push(
       "BEGIN:VEVENT",
       `UID:${event.staff_member_id}-${date}@er-schedule`,
-      `DTSTAMP:${utcStamp(new Date().toISOString())}`,
+      `DTSTAMP:${utcStamp(stamp)}`,
+      `LAST-MODIFIED:${utcStamp(event.updated_at)}`,
+      `SEQUENCE:${event.sequence}`,
       `SUMMARY:${escapeText(event.shift_code)}`,
+      `DESCRIPTION:${escapeText(`Schedule as of ${scheduleAsOf(stamp)}. Your calendar refreshes on its own schedule; open the app if this matters.`)}`,
     );
     if (event.starts_at && event.ends_at) {
       lines.push(

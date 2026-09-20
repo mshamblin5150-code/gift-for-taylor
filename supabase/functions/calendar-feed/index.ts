@@ -1,10 +1,5 @@
-import { calendar, type FeedEvent } from "./calendar.ts";
-
-const headers = {
-  "Content-Type": "text/calendar; charset=utf-8",
-  "Cache-Control": "no-store, private",
-  "Content-Disposition": 'inline; filename="schedule.ics"',
-};
+import type { FeedEvent } from "./calendar.ts";
+import { feedResponse } from "./response.ts";
 
 async function rpc<T>(name: string, params: Record<string, string | null>): Promise<T> {
   const base = Deno.env.get("SUPABASE_URL");
@@ -35,8 +30,11 @@ Deno.serve(async (request) => {
       p_user_agent: request.headers.get("user-agent"),
     });
     if (!owner) return new Response(null, { status: 404 });
-    const events = await rpc<FeedEvent[]>("calendar_feed_events", { p_token: token });
-    return new Response(calendar(events), { status: 200, headers });
+    const [events, feedUpdatedAt] = await Promise.all([
+      rpc<FeedEvent[]>("calendar_feed_events", { p_token: token }),
+      rpc<string | null>("calendar_feed_last_modified", { p_token: token }),
+    ]);
+    return await feedResponse(request, events, feedUpdatedAt);
   } catch (error) {
     console.error(error);
     return new Response(null, { status: 503 });
