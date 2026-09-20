@@ -38,6 +38,7 @@ create function public.queue_calendar_invitation(
 declare
   v_recipient text;
   v_sequence integer;
+  v_last_modified timestamptz;
 begin
   perform pg_advisory_xact_lock(hashtext(p_staff_member_id::text || ':' || p_work_date::text));
   select account.personal_email into v_recipient
@@ -51,14 +52,16 @@ begin
     set superseded_at = clock_timestamp()
     where staff_member_id = p_staff_member_id and work_date = p_work_date
       and sent_at is null and superseded_at is null;
-  select coalesce(max(sequence) + 1, 0) into v_sequence
+  select coalesce(max(sequence) + 1, 0),
+    greatest(clock_timestamp(), coalesce(max(last_modified) + interval '1 second',
+      clock_timestamp())) into v_sequence, v_last_modified
   from public.calendar_invitation_outbox
   where staff_member_id = p_staff_member_id and work_date = p_work_date;
   insert into public.calendar_invitation_outbox
     (staff_member_id, work_date, recipient, method, shift_code,
-     starts_at, ends_at, sequence)
+     starts_at, ends_at, sequence, last_modified)
   values (p_staff_member_id, p_work_date, v_recipient, p_method,
-    p_shift_code, p_starts_at, p_ends_at, v_sequence);
+    p_shift_code, p_starts_at, p_ends_at, v_sequence, v_last_modified);
 end;
 $$;
 revoke all on function public.queue_calendar_invitation(uuid,date,text,text,timestamptz,timestamptz)
@@ -115,6 +118,23 @@ end;
 $$;
 create trigger calendar_cell_changed after insert or update on public.schedule_cells
   for each row execute function public.calendar_cell_changed();
+
+create function public.calendar_cell_deleted()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  -- The latest queued/sent request is the evidence that this cell reached the
+  -- invitation channel; a draft cell never needs a cancellation.
+  if (select method from public.calendar_invitation_outbox
+      where staff_member_id = old.staff_member_id and work_date = old.work_date
+      order by sequence desc limit 1) = 'REQUEST' then
+    perform public.queue_calendar_cell(old.staff_member_id, old.work_date,
+      old.shift_code, 'CANCEL');
+  end if;
+  return old;
+end;
+$$;
+create trigger calendar_cell_deleted before delete on public.schedule_cells
+  for each row execute function public.calendar_cell_deleted();
 
 -- Editing the Shift code legend changes the feed's interpretation of saved
 -- cells. Invitations must follow that same interpretation.

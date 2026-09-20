@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(17);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000981', 'calendar@example.test');
@@ -33,6 +33,13 @@ select is((select sequence from public.calendar_invitation_outbox), 0,
 update public.schedule_cells set shift_code = '7P' where work_date = '2027-04-04';
 select is((select sequence from public.calendar_invitation_outbox
   where superseded_at is null), 1, 'edit increments the sequence');
+select ok((select newer.last_modified > older.last_modified
+  from public.calendar_invitation_outbox newer
+  join public.calendar_invitation_outbox older
+    on older.staff_member_id = newer.staff_member_id
+    and older.work_date = newer.work_date and older.sequence = 0
+  where newer.sequence = 1),
+  'edited invitation advances LAST-MODIFIED even within the same second');
 select is((select starts_at from public.calendar_invitation_outbox
   where superseded_at is null), '2027-04-04 23:00:00+00'::timestamptz,
   'edited night shift uses current Shift code hours');
@@ -94,6 +101,15 @@ update public.shift_codes set is_working = false where code = '7A';
 select is((select method from public.calendar_invitation_outbox
   where work_date = '2027-05-04' and superseded_at is null), 'CANCEL',
   'making a Shift code nonworking withdraws released shifts');
+insert into public.schedule_cells
+  (schedule_month_id, staff_member_id, section_id, work_date, shift_code)
+values ('00000000-0000-0000-0000-000000000985',
+  '00000000-0000-0000-0000-000000000983',
+  '00000000-0000-0000-0000-000000000982', '2027-05-05', 'D');
+delete from public.schedule_cells where work_date = '2027-05-05';
+select is((select method from public.calendar_invitation_outbox
+  where work_date = '2027-05-05' and superseded_at is null), 'CANCEL',
+  'deleting a released working cell withdraws its invitation');
 
 select * from finish();
 rollback;
