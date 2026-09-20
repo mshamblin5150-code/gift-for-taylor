@@ -845,7 +845,7 @@ void main() {
     expect(find.text('C' * 9), findsOneWidget);
     await tester.tap(find.text('Save'));
     await tester.pump();
-    expect(find.text('Use 8 characters or fewer.'), findsOneWidget);
+    expect(find.text('Use 5 characters or fewer.'), findsOneWidget);
     expect(find.text('Other Shift code'), findsOneWidget);
   });
 

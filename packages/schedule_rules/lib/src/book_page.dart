@@ -8,7 +8,9 @@ const bookPageBodyHeightPt = 470.0;
 const _rowHeightPt = 12.0;
 const _headingHeightPt = 30.0;
 const _legendWidthPt = 576.0; // Portrait fallback at Letter width.
-const _legendCharacterWidthPt = 4.5;
+// An 8pt glyph can be nearly 8pt wide (for example M or W). Using the widest
+// allowed glyph keeps the warning ahead of the browser's actual flex wrap.
+const _legendCharacterWidthPt = 8.0;
 const _legendLineHeightPt = 11.0; // 8pt type plus the 2pt flex gap.
 // Warn early: the final size also depends on the browser's page and legend wrap.
 const _minimumReadableFontPt = 6.0;
@@ -206,7 +208,7 @@ body { margin: 0; padding: 12px; font-family: Arial, Helvetica, sans-serif; colo
 .notice { margin: 0; font-size: 9pt; font-style: italic; text-align: center; }
 h1 { margin: 2pt 0 4pt; font-size: 14pt; text-align: center; }
 table { width: 100%; table-layout: fixed; border-collapse: collapse; }
-col.name { width: 12%; }
+col.name { width: 20%; }
 th, td { height: 12pt; padding: 0 1pt; border: 0.5pt solid #000; font-size: 9pt; line-height: 1; text-align: center; white-space: nowrap; overflow: hidden; }
 th.name { text-align: left; font-weight: normal; text-overflow: ellipsis; }
 thead th { font-weight: bold; }
@@ -220,6 +222,31 @@ tr { break-inside: avoid; }
 
 const _fitScript = '''
 <script>
+function fitCellText() {
+  for (const cell of document.querySelectorAll('tbody th.name, td.code')) {
+    if (!cell.textContent.trim()) continue;
+    let label = cell.querySelector('.fitted-text');
+    if (!label) {
+      label = document.createElement('span');
+      label.className = 'fitted-text';
+      label.textContent = cell.textContent;
+      cell.replaceChildren(label);
+      cell.style.position = 'relative';
+      label.style.position = 'absolute';
+      label.style.width = 'max-content';
+      label.style.whiteSpace = 'nowrap';
+      label.style.top = '50%';
+      label.style.transformOrigin = 'left center';
+    }
+    label.style.transform = 'none';
+    const available = cell.clientWidth - 2;
+    const width = label.scrollWidth;
+    const ratio = width > available && available > 0 ? available / width : 1;
+    label.style.left = cell.matches('th.name') ? '1px' :
+      ((cell.clientWidth - width * ratio) / 2) + 'px';
+    label.style.transform = 'translateY(-50%) scaleX(' + ratio + ')';
+  }
+}
 function fitBookPage() {
   const page = document.querySelector('.page');
   const sheet = document.querySelector('.sheet');
@@ -242,6 +269,7 @@ function fitBookPage() {
   const scale = Math.max(low, 0.000001);
   sheet.style.width = (100 / scale) + '%';
   sheet.style.transform = 'scale(' + scale + ')';
+  fitCellText();
 }
 window.addEventListener('beforeprint', fitBookPage);
 const printMedia = window.matchMedia('print');
@@ -253,6 +281,7 @@ if (printMedia.addEventListener) {
 } else {
   printMedia.addListener(onPrintMediaChange);
 }
+fitCellText();
 </script>''';
 
 String _dayClass(DateTime day) => _isWeekend(day) ? 'day weekend' : 'day';

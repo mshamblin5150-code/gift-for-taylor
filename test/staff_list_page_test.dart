@@ -64,7 +64,7 @@ void main() {
     expect(find.text('N' * 41), findsOneWidget);
     await tester.tap(find.text('Add and text Invite'));
     await tester.pump();
-    expect(find.text('Use 40 characters or fewer.'), findsOneWidget);
+    expect(find.text('Use 30 characters or fewer.'), findsOneWidget);
     expect(gateway.added, isNull);
   });
 

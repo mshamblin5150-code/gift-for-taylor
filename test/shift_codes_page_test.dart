@@ -25,7 +25,7 @@ void main() {
     expect(find.text('M' * 41), findsOneWidget);
     await tester.tap(find.text('Save'));
     await tester.pump();
-    expect(find.textContaining('Use at most 8 characters'), findsOneWidget);
+    expect(find.textContaining('Use at most 5 characters'), findsOneWidget);
     expect(find.text('Add Shift code'), findsOneWidget);
   });
 

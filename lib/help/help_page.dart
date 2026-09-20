@@ -140,8 +140,8 @@ const helpTopics = <HelpTopic>[
     title: 'Edit the Schedule',
     who: 'Manager and Night scheduler (in allowed Sections)',
     what: 'Editors can change a Shift code in a Schedule cell. A Night scheduler can edit only the Sections the Manager allows.',
-    how: 'Tap a cell to change its Shift code. On the Month view, long-press a cell and drag it to another cell to exchange Shift codes; hold Ctrl or Option while dropping to copy. A Schedule change must be announced.',
-    searchTerms: 'shift code move drag copy schedule change',
+    how: 'Tap a cell to change its Shift code. An Other Shift code can be up to 5 characters; shorten an overlong entry before saving. On the Month view, long-press a cell and drag it to another cell to exchange Shift codes; hold Ctrl or Option while dropping to copy. A Schedule change must be announced.',
+    searchTerms: 'shift code move drag copy schedule change character limit too long',
     roles: _editors,
   ),
   HelpTopic(
@@ -195,7 +195,8 @@ const helpTopics = <HelpTopic>[
     title: 'Manage Shift codes',
     who: 'Manager',
     what: 'The Shift code list defines the codes available when editing the Schedule, including working hours and non-working codes.',
-    how: 'Tap the clock icon on the Schedule to add a Shift code, or tap an existing code to edit its hours and meaning. Check whether it represents a worked shift.',
+    how: 'Tap the clock icon on the Schedule to add a Shift code, or tap an existing code to edit its hours and meaning. Use up to 5 characters for the code and 40 for its meaning; shorten an overlong entry before saving. Check whether it represents a worked shift.',
+    searchTerms: 'legend meaning code character limit too long',
     roles: _manager,
   ),
   HelpTopic(
@@ -216,8 +217,8 @@ const helpTopics = <HelpTopic>[
     title: 'Print Schedule book page',
     who: 'Everyone',
     what: 'A printed Schedule page can be placed in the Schedule book.',
-    how: 'Tap the print icon on the Schedule to print the current month.',
-    searchTerms: 'print paper',
+    how: 'Tap the print icon on the Schedule to print the current month. If the Staff rows, title and Shift code legend would make the text very small, choose Print anyway or Cancel to return without printing.',
+    searchTerms: 'print paper small text warning legend readability',
   ),
   HelpTopic(
     title: 'Change print wording',
@@ -231,7 +232,8 @@ const helpTopics = <HelpTopic>[
     title: 'Staff list',
     who: 'Manager',
     what: 'The Staff list holds each Staff member’s name, cell number and Section. Removed people move to Past staff and can be returned.',
-    how: 'Tap the people icon on the Schedule. Add a Staff member or open their details.',
+    how: 'Tap the people icon on the Schedule. Add a Staff member or open their details. A name can be up to 30 characters; shorten an overlong name before saving.',
+    searchTerms: 'add staff name character limit too long',
     roles: _manager,
   ),
   HelpTopic(
@@ -261,7 +263,8 @@ const helpTopics = <HelpTopic>[
     title: 'Manage Sections',
     who: 'Manager',
     what: 'Sections group Staff members on the Schedule. Their order in the Staff list also controls their Schedule order.',
-    how: 'On the Staff list, add, rename, move or remove an empty Section using the controls beside its name.',
+    how: 'On the Staff list, add, rename, move or remove an empty Section using the controls beside its name. A Section name can be up to 32 characters; shorten an overlong name before saving.',
+    searchTerms: 'section name rename character limit too long',
     roles: _manager,
   ),
   HelpTopic(
@@ -276,8 +279,8 @@ const helpTopics = <HelpTopic>[
     title: 'Staff member details',
     who: 'Manager',
     what: 'Details include a Staff member’s cell number, Section, Job role, access role, personal email and Last day.',
-    how: 'Tap a person on the Staff list or Schedule to see their details and edit their name or cell number.',
-    searchTerms: 'contact phone number',
+    how: 'Tap a person on the Staff list or Schedule to see their details and edit their name or cell number. A name can be up to 30 characters; shorten an overlong name before saving.',
+    searchTerms: 'contact phone number edit name character limit too long',
     roles: _manager,
   ),
   HelpTopic(

@@ -10,9 +10,9 @@ declare
   v_meaning_count integer;
 begin
   select count(*) into v_section_count from public.sections where char_length(name) > 32;
-  select count(*) into v_staff_count from public.staff_members where char_length(display_name) > 40;
-  select count(*) into v_cell_count from public.schedule_cells where char_length(shift_code) > 8;
-  select count(*) into v_code_count from public.shift_codes where char_length(code) > 8;
+  select count(*) into v_staff_count from public.staff_members where char_length(display_name) > 30;
+  select count(*) into v_cell_count from public.schedule_cells where char_length(shift_code) > 5;
+  select count(*) into v_code_count from public.shift_codes where char_length(code) > 5;
   select count(*) into v_meaning_count from public.shift_codes where char_length(meaning) > 40;
   raise notice 'Legacy over-cap rows retained: sections %, staff %, cells %, codes %, meanings %',
     v_section_count, v_staff_count, v_cell_count, v_code_count, v_meaning_count;
@@ -22,11 +22,11 @@ $$;
 alter table public.sections
   add constraint sections_print_name_limit check (char_length(name) <= 32) not valid;
 alter table public.staff_members
-  add constraint staff_print_name_limit check (char_length(display_name) <= 40) not valid;
+  add constraint staff_print_name_limit check (char_length(display_name) <= 30) not valid;
 alter table public.schedule_cells
-  add constraint schedule_cells_print_code_limit check (char_length(shift_code) <= 8) not valid;
+  add constraint schedule_cells_print_code_limit check (char_length(shift_code) <= 5) not valid;
 alter table public.shift_codes
-  add constraint shift_codes_print_code_limit check (char_length(code) <= 8) not valid,
+  add constraint shift_codes_print_code_limit check (char_length(code) <= 5) not valid,
   add constraint shift_codes_print_meaning_limit check (char_length(meaning) <= 40) not valid;
 
 create or replace function public.add_section(p_name text)
@@ -94,8 +94,8 @@ declare
   v_token text;
   v_cell_number text;
 begin
-  if char_length(trim(coalesce(p_display_name, ''))) > 40 then
-    raise exception 'Staff name must be 40 characters or fewer';
+  if char_length(trim(coalesce(p_display_name, ''))) > 30 then
+    raise exception 'Staff name must be 30 characters or fewer';
   end if;
   if not public.can_manage_staff() then
     raise exception 'Only the Manager or administrator can manage the Staff list';
@@ -146,8 +146,8 @@ declare
   v_name text := nullif(trim(p_display_name), '');
   v_cell text := nullif(trim(p_cell_number), '');
 begin
-  if char_length(v_name) > 40 then
-    raise exception 'Staff name must be 40 characters or fewer';
+  if char_length(v_name) > 30 then
+    raise exception 'Staff name must be 30 characters or fewer';
   end if;
   if not public.can_manage_staff() then
     raise exception 'Only the Manager or administrator can manage the Staff list';
@@ -180,8 +180,8 @@ declare
   v_old_code text;
   v_row public.staff_section_assignments%rowtype;
 begin
-  if char_length(v_new_code) > 8 then
-    raise exception 'Shift code must be 8 characters or fewer';
+  if char_length(v_new_code) > 5 then
+    raise exception 'Shift code must be 5 characters or fewer';
   end if;
   perform 1 from public.staff_members member
   where member.id = p_staff_member_id for share;
@@ -229,8 +229,8 @@ declare
   v_code text := upper(trim(p_code));
   v_order integer;
 begin
-  if char_length(v_code) > 8 then
-    raise exception 'Shift code must be 8 characters or fewer';
+  if char_length(v_code) > 5 then
+    raise exception 'Shift code must be 5 characters or fewer';
   end if;
   if char_length(trim(coalesce(p_meaning, ''))) > 40 then
     raise exception 'Shift meaning must be 40 characters or fewer';

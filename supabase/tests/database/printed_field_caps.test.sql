@@ -32,11 +32,11 @@ select throws_ok($$select public.add_section(repeat('S', 33))$$,
 select throws_ok($$select public.rename_section('00000000-0000-0000-0000-000000000903', repeat('S', 33))$$,
   'Section name must be 32 characters or fewer', 'rename Section rejects overlong name');
 select throws_ok($$select public.update_staff_contact('00000000-0000-0000-0000-000000000902', repeat('N', 41), null)$$,
-  'Staff name must be 40 characters or fewer', 'edit Staff rejects overlong name');
+  'Staff name must be 30 characters or fewer', 'edit Staff rejects overlong name');
 select throws_ok($$select public.create_staff_member_with_invite(repeat('N', 41), '3045550199', '00000000-0000-0000-0000-000000000903')$$,
-  'Staff name must be 40 characters or fewer', 'add Staff rejects overlong name');
+  'Staff name must be 30 characters or fewer', 'add Staff rejects overlong name');
 select throws_ok($$select public.save_shift_code(repeat('C', 9), null, null, null, true, null)$$,
-  'Shift code must be 8 characters or fewer', 'catalog rejects overlong code');
+  'Shift code must be 5 characters or fewer', 'catalog rejects overlong code');
 select throws_ok($$select public.save_shift_code('CAP', repeat('M', 41), null, null, true, null)$$,
   'Shift meaning must be 40 characters or fewer', 'catalog rejects overlong meaning');
 select lives_ok($$select public.save_shift_code('CAP', repeat('M', 40), null, null, true, null)$$,
@@ -44,7 +44,7 @@ select lives_ok($$select public.save_shift_code('CAP', repeat('M', 40), null, nu
 select throws_ok($$select public.save_schedule_cell(
   '00000000-0000-0000-0000-000000000902',
   '00000000-0000-0000-0000-000000000903', '2027-09-01', repeat('C', 9))$$,
-  'Shift code must be 8 characters or fewer', 'cell RPC rejects overlong code');
+  'Shift code must be 5 characters or fewer', 'cell RPC rejects overlong code');
 
 reset role;
 insert into public.schedule_months(id, month_start) values

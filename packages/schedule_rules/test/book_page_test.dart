@@ -209,7 +209,7 @@ void main() {
       InMemoryScheduleDatabase(
         sections: const [days],
         rows: [
-          for (var index = 0; index < 45; index++)
+          for (var index = 0; index < 40; index++)
             ScheduleRow(
               staffMemberId: 'rn-$index',
               displayName: 'RN $index',
@@ -220,7 +220,7 @@ void main() {
       actingAs: 'manager',
     ).monthGrid(september);
     final largeLegend = [
-      for (var index = 0; index < 40; index++)
+      for (var index = 0; index < 20; index++)
         LegendCode('C$index', meaning: 'M' * shiftMeaningLimit),
     ];
 
@@ -256,14 +256,14 @@ void main() {
         staffMemberId: 'rn-0',
         sectionId: 'full',
         date: DateTime(2026, 9, 1),
-        shiftCode: 'C0000000',
+      shiftCode: 'C0000',
       ),
     );
     final grid = await boundedRules.monthGrid(september);
     final codes = [
       for (var index = 0; index < 14; index++)
         LegendCode(
-          'C${index.toString().padLeft(7, '0')}',
+          'C${index.toString().padLeft(4, '0')}',
           meaning: 'M' * shiftMeaningLimit,
         ),
     ];
@@ -277,7 +277,8 @@ void main() {
     expect(html, contains(fullSection));
     expect(html, contains(fullName));
     expect(html, contains('M' * shiftMeaningLimit));
-    expect(html, contains('<td class="code">C0000000</td>'));
+    expect(html, contains('<td class="code">C0000</td>'));
+    expect(html, contains('fitCellText();'));
   });
 
   test('names and codes are escaped', () async {

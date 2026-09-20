@@ -12,8 +12,8 @@ part 'src/open_shifts.dart';
 
 /// Character budgets for text printed on the Schedule book page.
 const sectionNameLimit = 32;
-const staffNameLimit = 40;
-const shiftCodeLimit = 8;
+const staffNameLimit = 30;
+const shiftCodeLimit = 5;
 const shiftMeaningLimit = 40;
 
 /// Every schedule rule is reached through this public interface.
