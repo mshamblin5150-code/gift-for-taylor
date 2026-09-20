@@ -81,6 +81,10 @@ begin
         ) then 'notified'
         when outcome.staff_member_id = any(
           coalesce(p_draft_opened_staff_member_ids, '{}'::uuid[])
+        ) and exists (
+          select 1 from public.staff_members member
+          where member.id = outcome.staff_member_id
+            and nullif(btrim(member.cell_number), '') is not null
         ) then 'draft_opened'
         else 'nobody'
       end

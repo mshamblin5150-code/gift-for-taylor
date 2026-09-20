@@ -270,7 +270,8 @@ select public.mark_changes_announced(
   array(select id from public.schedule_changes
     where work_date between '2027-04-08' and '2027-04-12'),
   array['00000000-0000-0000-0000-000000000186',
-        '00000000-0000-0000-0000-000000000187']::uuid[]
+        '00000000-0000-0000-0000-000000000187',
+        '00000000-0000-0000-0000-000000000188']::uuid[]
 );
 
 select is((select reach from public.schedule_changes
@@ -284,7 +285,7 @@ select is((select reach from public.schedule_changes
   'draft evidence applies to every changed day for that person in the batch');
 select is((select reach from public.schedule_changes
   where work_date = '2027-04-11'), 'nobody',
-  'a person with neither channel is stamped nobody');
+  'a person with no number is nobody even when draft evidence is supplied');
 select is((select count(*)::integer from public.schedule_changes
   where work_date = '2027-04-12' and moot_at is not null
     and announced_at is null and reach is null), 2,
