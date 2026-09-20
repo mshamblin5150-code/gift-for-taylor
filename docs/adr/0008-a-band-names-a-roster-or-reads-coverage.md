@@ -20,6 +20,28 @@ channel each is allowed to use** — coverage owns fill and the column grid, ros
 owns a rule, typography and the frozen name column — never by two grades of the
 same channel.
 
+## Amendment: Section disclosure (#192, 2026-09-20)
+
+After #170 restored the Section band and #188 gave the pool band a distinct
+coverage treatment, a Section may be collapsed from a disclosure triangle beside
+its name. This supersedes the original **wholly inert** rule below only for the
+frozen Section name area. The day-column span remains empty and inert; the
+Section band still carries no coverage reading or fill. A disclosure triangle
+signals expansion, while the pool band still opens the day without one.
+Statements below that call the pool band the only tappable band describe the
+original release.
+
+Everyone who can view the month Schedule may manually collapse a Section. A
+Section with no saved choice starts expanded; the app does not automatically
+fold Sections a Night scheduler cannot edit. The frozen name area is the touch
+target. Collapsing hides only that Section's staff rows. Its band stays visible
+so the rows can be expanded again. An empty Section keeps its band but has no
+disclosure triangle.
+
+Remember the collapsed state by Section identity for each signed-in person on
+each device, across months. Do not sync it between devices or share it between
+people who use the same device. A new Section starts expanded.
+
 ## What follows
 
 - **The Section band is wholly inert.** No shortfall marker, no tap target, no
