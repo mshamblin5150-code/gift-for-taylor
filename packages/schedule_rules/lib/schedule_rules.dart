@@ -599,7 +599,6 @@ final class LegendCode {
   /// Local 24-hour HH:mm values; null means an untimed Calendar event.
   final String? startTime;
   final String? endTime;
-
   /// Day or Night coverage; null means the code counts toward neither window.
   final String? coverageWindow;
   final bool active;
@@ -1493,17 +1492,18 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     }
     if (decision == RequestOffDecision.approved) {
       for (final date in request.dates) {
-        final row = (await rows(DateTime(date.year, date.month)))
-            .where((r) => r.staffMemberId == request.staffMemberId)
-            .firstOrNull;
+        final row = (await rows(
+          DateTime(date.year, date.month),
+        )).where((r) => r.staffMemberId == request.staffMemberId).firstOrNull;
         if (row == null ||
             (row.lastDay != null && date.isAfter(row.lastDay!))) {
           throw StateError('Staff member is not on the Schedule for that day');
         }
       }
       for (final date in request.dates) {
-        final row = (await rows(DateTime(date.year, date.month)))
-            .firstWhere((r) => r.staffMemberId == request.staffMemberId);
+        final row = (await rows(
+          DateTime(date.year, date.month),
+        )).firstWhere((r) => r.staffMemberId == request.staffMemberId);
         final old =
             _database
                 ._cells[_cellKey(request.staffMemberId, date)]
@@ -1633,9 +1633,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           ? const ScheduleEditRefused()
           : const ScheduleEditRefused('Only the Manager can edit that Section');
     }
-    final row = (await rows(DateTime(cell.date.year, cell.date.month)))
-        .where((row) => row.staffMemberId == cell.staffMemberId)
-        .firstOrNull;
+    final row = (await rows(
+      DateTime(cell.date.year, cell.date.month),
+    )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
     if (row == null || row.sectionId != cell.sectionId) {
       throw StateError(
         'That Staff member is not on the Staff list in this Section',
@@ -1662,9 +1662,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     final editable = await editableSections();
     for (final cell in [first, second]) {
       if (!editable.contains(cell.sectionId)) throw const ScheduleEditRefused();
-      final row = (await rows(DateTime(cell.date.year, cell.date.month)))
-          .where((row) => row.staffMemberId == cell.staffMemberId)
-          .firstOrNull;
+      final row = (await rows(
+        DateTime(cell.date.year, cell.date.month),
+      )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
       if (row == null ||
           row.sectionId != cell.sectionId ||
           (row.lastDay != null && cell.date.isAfter(row.lastDay!))) {

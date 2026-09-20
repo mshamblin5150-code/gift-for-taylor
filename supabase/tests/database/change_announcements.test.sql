@@ -225,7 +225,20 @@ set local role authenticated;
 select public.save_schedule_cell(
   '00000000-0000-0000-0000-000000000188',
   '00000000-0000-0000-0000-000000000184', '2027-04-12', '7A');
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000188',
+  '00000000-0000-0000-0000-000000000184', '2027-04-15', '7A');
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000188',
+  '00000000-0000-0000-0000-000000000184', '2027-04-15', '');
+select public.mark_changes_announced(
+  array(select id from public.schedule_changes
+    where work_date = '2027-04-15'), '{}'::uuid[]);
 select public.release_month('2027-04-01');
+select is((select count(*)::integer from public.schedule_changes
+  where work_date = '2027-04-15' and moot_at is not null
+    and announced_at is null), 2,
+  'release leaves already-moot draft edits terminal');
 
 set local role postgres;
 insert into public.push_subscriptions (endpoint, staff_member_id, subscription)
@@ -275,7 +288,8 @@ select public.mark_changes_announced(
   array(select id from public.schedule_changes
     where work_date between '2027-04-08' and '2027-04-12'),
   array['00000000-0000-0000-0000-000000000186',
-        '00000000-0000-0000-0000-000000000187']::uuid[]
+        '00000000-0000-0000-0000-000000000187',
+        '00000000-0000-0000-0000-000000000188']::uuid[]
 );
 
 select is((select reach from public.schedule_changes
@@ -289,7 +303,7 @@ select is((select reach from public.schedule_changes
   'draft evidence applies to every changed day for that person in the batch');
 select is((select reach from public.schedule_changes
   where work_date = '2027-04-11'), 'nobody',
-  'a person with neither channel is stamped nobody');
+  'a person with no number is nobody even when draft evidence is supplied');
 select is((select count(*)::integer from public.schedule_changes
   where work_date = '2027-04-12' and moot_at is not null
     and announced_at is null and reach is null), 2,
@@ -338,6 +352,25 @@ select is((select count(*)::integer from public.schedule_changes
   where work_date = '2027-04-14' and announced_at is not null
     and reach = 'nobody'), 2,
   'a refreshed batch settles both edits against their shared baseline');
+
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000188',
+  '00000000-0000-0000-0000-000000000184', '2027-05-01', '7A');
+select public.save_schedule_cell(
+  '00000000-0000-0000-0000-000000000188',
+  '00000000-0000-0000-0000-000000000184', '2027-05-01', '');
+set local role postgres;
+update public.schedule_months set loaded_from_page_at = now()
+where month_start = '2027-05-01';
+set local role authenticated;
+select public.mark_changes_announced(
+  array(select id from public.schedule_changes
+    where work_date = '2027-05-01'), '{}'::uuid[]);
+select public.confirm_loaded_month('2027-05-01');
+select is((select count(*)::integer from public.schedule_changes
+  where work_date = '2027-05-01' and moot_at is not null
+    and announced_at is null), 2,
+  'confirmation leaves already-moot loaded-month edits terminal');
 
 select * from finish();
 rollback;

@@ -149,6 +149,21 @@ void main() {
     expect(unannounced('rn-1'), findsNothing);
   });
 
+  testWidgets('a reverted-only batch can be cleared without a text', (tester) async {
+    await save(dana, 'X');
+    await save(dana, '');
+    await pumpGrid(tester);
+
+    expect(find.text('Changes reverted to their announced values'),
+        findsOneWidget);
+    await tester.tap(find.text('Clear reverted changes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Changes reverted to their announced values'),
+        findsNothing);
+    expect(messages.opened, isEmpty);
+  });
+
   testWidgets('someone who cannot edit sees no tray', (tester) async {
     await save(dana, 'X');
     await pumpGrid(tester, actingAs: 'rn-1');
