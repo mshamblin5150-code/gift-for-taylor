@@ -99,13 +99,15 @@ change again.
   against a fresh validator and hold it until the next change, which a
   byte-stable feed makes worse rather than better. The dead path needed all
   three existing functions changed anyway.
-- **The deploy window is safe because the old call graph is untouched.** CI
-  applies migrations; Edge Functions are deployed by hand afterwards, so the old
-  deployed `calendar-feed` runs against the new database for a while. It keeps
-  calling `record_calendar_feed_fetch`, `calendar_feed_events` and
-  `calendar_feed_last_modified`, which keep behaving exactly as they do today
-  and keep answering `404` for dead tokens until the new function lands. They
-  are dropped in a later migration. This follows the precedent in
+- **The deploy window is safe because the old call graph is untouched.**
+  `.github/workflows/pages.yml` runs `supabase db push` and then deploys
+  `calendar-feed` in the same job, so the old function meets the new database
+  for seconds rather than days. It does meet it, though, and it meets it for
+  good if that deploy step fails. It keeps calling `record_calendar_feed_fetch`,
+  `calendar_feed_events` and `calendar_feed_last_modified`, which keep behaving
+  exactly as they do today and keep answering `404` for dead tokens until the
+  new function lands. They are dropped in a later migration, once a run has
+  deployed the new one. Same precedent as
   `20260920240000_calendar_feed_measurements.sql`.
 - **A `404` for unknown tokens stays.** There is no reason to answer differently
   for a string we have never seen. The endpoint does now distinguish "token we
