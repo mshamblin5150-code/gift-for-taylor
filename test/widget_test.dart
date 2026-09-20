@@ -74,6 +74,21 @@ void main() {
     ),
   );
 
+  testWidgets('Help opens from Schedule for a Staff member', (tester) async {
+    await pumpGrid(
+      tester,
+      actingAs: 'rn-1',
+      staffMemberId: 'rn-1',
+      size: const Size(390, 844),
+    );
+    await tester.tap(find.byTooltip('Help'));
+    await tester.pumpAndSettle();
+    expect(find.text('Help'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'release month');
+    await tester.pump();
+    expect(find.text('Month release'), findsNothing);
+  });
+
   Color cellColor(WidgetTester tester, String staffMemberId, DateTime date) {
     final container = tester.widget<Container>(
       find

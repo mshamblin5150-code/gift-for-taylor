@@ -38,6 +38,26 @@ void main() {
     rules = ScheduleRules.inMemory(database, actingAs: 'manager');
   });
 
+  testWidgets('Help opens from Staff list with Manager topics', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: _FakeStaffGateway(
+            const StaffList(sections: [days], members: []),
+          ),
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Help'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'release month');
+    await tester.pump();
+    expect(find.text('Month release'), findsOneWidget);
+  });
+
   testWidgets('Manager adds a Staff member and opens their Invite text', (
     tester,
   ) async {
