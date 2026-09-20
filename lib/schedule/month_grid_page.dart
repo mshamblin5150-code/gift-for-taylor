@@ -470,6 +470,30 @@ class _MonthGridPageState extends State<MonthGridPage> {
           await widget.printWordingGateway?.read() ?? const PrintWording();
       if (mounted) setState(() => _wording = wording);
       final grid = await widget.rules.monthGrid(_month);
+      if (!mounted) return;
+      if (bookPageIsHardToRead(grid)) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Small print warning'),
+            content: Text(
+              'This Schedule has ${grid.rows.length} Staff members. '
+              'Fitting it on one sheet will make the text very small.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Print anyway'),
+              ),
+            ],
+          ),
+        );
+        if (proceed != true || !mounted) return;
+      }
       printBookPage(
         bookPageHtml(
           grid,

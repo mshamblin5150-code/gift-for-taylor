@@ -139,11 +139,11 @@ void main() {
     expect(html, contains('print-color-adjust: exact'));
   });
 
-  test('a long Staff list shrinks to stay on one page', () async {
+  test('a large Staff list fits within the shortest printable page', () async {
     final crowded = InMemoryScheduleDatabase(
       sections: const [days],
       rows: [
-        for (var index = 0; index < 80; index++)
+        for (var index = 0; index < 160; index++)
           ScheduleRow(
             staffMemberId: 'rn-$index',
             displayName: 'RN $index',
@@ -151,20 +151,27 @@ void main() {
           ),
       ],
     );
-    final short = bookPageHtml(await rules.monthGrid(september));
-    final long = bookPageHtml(
-      await ScheduleRules.inMemory(
-        crowded,
-        actingAs: 'manager',
-      ).monthGrid(september),
-    );
+    final shortGrid = await rules.monthGrid(september);
+    final longGrid = await ScheduleRules.inMemory(
+      crowded,
+      actingAs: 'manager',
+    ).monthGrid(september);
+    final short = bookPageHtml(shortGrid);
+    final long = bookPageHtml(longGrid);
 
-    double rowHeight(String html) => double.parse(
-      RegExp(r'--row-height: ([\d.]+)pt').firstMatch(html)!.group(1)!,
+    double scale(String html) => double.parse(
+      RegExp(r'--initial-scale: ([\d.]+)').firstMatch(html)!.group(1)!,
     );
-    expect(rowHeight(long), lessThan(rowHeight(short)));
-    // 80 rows, a Section band and two header rows fit in the printable height.
-    expect(rowHeight(long) * 83, lessThanOrEqualTo(bookPageBodyHeightPt));
+    expect(scale(long), lessThan(scale(short)));
+    // 160 Staff rows, a Section band, two date rows, and heading/legend space.
+    expect(
+      (163 * 12 + 60) * scale(long),
+      lessThanOrEqualTo(bookPageBodyHeightPt),
+    );
+    expect(long, contains('height: 100vh'));
+    expect(long, contains('beforeprint'));
+    expect(bookPageIsHardToRead(shortGrid), isFalse);
+    expect(bookPageIsHardToRead(longGrid), isTrue);
   });
 
   test('names and codes are escaped', () async {
