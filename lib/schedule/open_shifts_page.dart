@@ -65,11 +65,44 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
     }
   }
 
+  Future<void> _approvalSettings() async {
+    final current = await widget.rules.approvalDefault();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Open shift approval'),
+        content: Text(current
+            ? 'New Open shifts currently require Manager approval.'
+            : 'Staff currently take new Open shifts immediately unless a shift requires approval.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              await _run(() => widget.rules.setApprovalDefault(!current));
+              if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+            },
+            child: Text(current ? 'Allow immediate pickup' : 'Require approval'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Open shifts'),
       actions: [
+        if (widget.isManager)
+          IconButton(
+            tooltip: 'Open shift approval default',
+            onPressed: _approvalSettings,
+            icon: const Icon(Icons.tune),
+          ),
         IconButton(
           tooltip: 'Refresh Open shifts',
           onPressed: _refresh,
@@ -107,11 +140,18 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
                   ),
                   subtitle: Text(
                     shift.originalStaffMemberId == null
-                        ? '${shift.jobRole.label} • Posted by Manager'
-                        : '${shift.jobRole.label} • ${grid.displayNameOf(shift.originalStaffMemberId!)}',
+                        ? '${shift.jobRole.label} • Posted by Manager • ${shift.requiresApproval ? 'Approval required' : 'Immediate pickup'}'
+                        : '${shift.jobRole.label} • ${grid.displayNameOf(shift.originalStaffMemberId!)} • ${shift.requiresApproval ? 'Approval required' : 'Immediate pickup'}',
                   ),
-                  trailing:
-                      widget.isManager || widget.staffMemberId == null || _busy
+                  trailing: widget.isManager
+                      ? Switch(
+                          value: shift.requiresApproval,
+                          onChanged: _busy
+                              ? null
+                              : (value) => _run(() => widget.rules
+                                  .setShiftApproval(shift.id, value)),
+                        )
+                      : widget.staffMemberId == null || _busy
                       ? null
                       : pickups.any(
                           (pickup) =>

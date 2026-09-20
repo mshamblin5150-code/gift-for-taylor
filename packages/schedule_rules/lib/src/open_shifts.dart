@@ -10,6 +10,7 @@ final class OpenShift {
     required this.shiftCode,
     this.originalStaffMemberId,
     required this.jobRole,
+    this.requiresApproval = true,
   });
   final String id;
   final String? sectionId;
@@ -17,6 +18,7 @@ final class OpenShift {
   final String shiftCode;
   final String? originalStaffMemberId;
   final JobRole jobRole;
+  final bool requiresApproval;
 }
 
 final class SectionStaffing {
@@ -75,6 +77,9 @@ abstract interface class OpenShiftStore {
   Future<void> requestPickup(String openShiftId);
   Future<void> approvePickup(String pickupId);
   Future<void> declinePickup(String pickupId, {String? reason});
+  Future<bool> approvalDefault();
+  Future<void> setApprovalDefault(bool requiresApproval);
+  Future<void> setShiftApproval(String openShiftId, bool requiresApproval);
   Future<List<SectionStaffing>> staffingForMonth(DateTime month);
   Future<void> setWeekdayMinimum(RolePool pool, CoverageWindow window,
       int weekday, int minimum, int rnFloor);
@@ -100,6 +105,11 @@ final class OpenShiftRules {
   Future<void> approvePickup(String pickupId) => store.approvePickup(pickupId);
   Future<void> declinePickup(String pickupId, {String? reason}) =>
       store.declinePickup(pickupId, reason: reason?.trim());
+  Future<bool> approvalDefault() => store.approvalDefault();
+  Future<void> setApprovalDefault(bool requiresApproval) =>
+      store.setApprovalDefault(requiresApproval);
+  Future<void> setShiftApproval(String openShiftId, bool requiresApproval) =>
+      store.setShiftApproval(openShiftId, requiresApproval);
   Future<List<SectionStaffing>> staffingForMonth(DateTime month) =>
       store.staffingForMonth(month);
   Future<void> setWeekdayMinimum(RolePool pool, CoverageWindow window,
@@ -157,6 +167,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     shiftCode: short.shiftCode,
     originalStaffMemberId: short.staffMemberId,
     jobRole: role,
+    requiresApproval: database._openShiftApprovalOverrides[
+            'short-${identityHashCode(short)}'] ??
+        true,
   );
 
   @override
@@ -215,19 +228,23 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     )) {
       throw StateError('Pickup already requested');
     }
-    database._openShiftPickups.add(
-      OpenShiftPickup(
+    final pickup = OpenShiftPickup(
         id: 'pickup-${database._openShiftPickups.length + 1}',
         openShiftId: openShiftId,
         staffMemberId: actor,
         status: PickupStatus.pending,
-      ),
     );
+    database._openShiftPickups.add(pickup);
+    if (!shift.requiresApproval) await _completePickup(pickup.id);
   }
 
   @override
   Future<void> approvePickup(String pickupId) async {
     if (!_manager) throw StateError('Only the Manager can approve a pickup');
+    await _completePickup(pickupId);
+  }
+
+  Future<void> _completePickup(String pickupId) async {
     final index = database._openShiftPickups.indexWhere(
       (pickup) =>
           pickup.id == pickupId && pickup.status == PickupStatus.pending,
@@ -303,6 +320,24 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
 
   CoverageWindow? _windowForCode(String code) =>
       _coverageWindowOf(code, database._shiftCodes);
+
+  @override
+  Future<bool> approvalDefault() async => database._openShiftApprovalDefault;
+
+  @override
+  Future<void> setApprovalDefault(bool requiresApproval) async {
+    if (!_manager) throw StateError('Only the Manager can set Open shift approval');
+    database._openShiftApprovalDefault = requiresApproval;
+  }
+
+  @override
+  Future<void> setShiftApproval(String openShiftId, bool requiresApproval) async {
+    if (!_manager) throw StateError('Only the Manager can set Open shift approval');
+    if (!(await openShifts()).any((shift) => shift.id == openShiftId)) {
+      throw StateError('Open shift is unavailable');
+    }
+    database._openShiftApprovalOverrides[openShiftId] = requiresApproval;
+  }
 
   @override
   Future<List<SectionStaffing>> staffingForMonth(DateTime month) async {
@@ -423,6 +458,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
               },
         coverageWindow: window,
       ));
+      database._openShiftApprovalOverrides[
+          'short-${identityHashCode(database._shortShifts.last)}'] =
+          i < rnCritical ? true : database._openShiftApprovalDefault;
     }
     return count;
   }

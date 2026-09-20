@@ -98,14 +98,14 @@ const helpTopics = <HelpTopic>[
     title: 'Open shift',
     who: 'Staff members and Manager',
     what: 'An Open shift is an uncovered scheduled shift offered for pickup. Nursing shifts can be picked up by an RN or LPN; other roles pick up within their role.',
-    how: 'Open Open shifts from the Schedule and tap Pick up on an eligible shift. The Manager approves the pickup before it takes effect.',
+    how: 'Open Open shifts from the Schedule and tap Pick up on an eligible shift. Some shifts need Manager approval; others appear on your Schedule immediately.',
     searchTerms: 'open shifts extra shift pickup',
   ),
   HelpTopic(
     title: 'Open shift pickup approvals',
     who: 'Manager',
-    what: 'A requested Open shift pickup takes effect only with Manager approval.',
-    how: 'Open the Approval queue from the Schedule, find the pending pickup and tap Approve or Decline. Use Browse requests then Open shifts to see available shifts.',
+    what: 'A pickup needing approval takes effect when the Manager approves it. Other pickups take effect immediately.',
+    how: 'Open the Approval queue from the Schedule, find a pending pickup and tap Approve or Decline. Use Browse requests then Open shifts to see available shifts and set approval on each shift.',
     roles: _manager,
   ),
   HelpTopic(
