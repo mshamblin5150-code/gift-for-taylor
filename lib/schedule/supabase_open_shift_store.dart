@@ -16,11 +16,12 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
         if (seen.add(value['id'] as String))
           OpenShift(
             id: value['id'] as String,
-            sectionId: value['section_id'] as String,
+            sectionId: value['section_id'] as String? ?? '',
             date: DateTime.parse(value['work_date'] as String),
             shiftCode: value['shift_code'] as String,
             originalStaffMemberId: value['original_staff_member_id'] as String?,
             jobRole: JobRole.fromValue(value['job_role'] as String),
+            requiresApproval: value['requires_approval'] as bool,
           ),
     ];
   }
@@ -59,6 +60,26 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
       client.rpc<void>(
         'decline_open_shift_pickup',
         params: {'p_pickup_id': pickupId, 'p_reason': reason},
+      );
+
+  @override
+  Future<bool> approvalDefault() =>
+      client.rpc<bool>('open_shift_approval_default');
+
+  @override
+  Future<void> setApprovalDefault(bool requiresApproval) => client.rpc<void>(
+    'set_open_shift_approval_default',
+    params: {'p_requires_approval': requiresApproval},
+  );
+
+  @override
+  Future<void> setShiftApproval(String openShiftId, bool requiresApproval) =>
+      client.rpc<void>(
+        'set_open_shift_approval',
+        params: {
+          'p_short_shift_id': openShiftId,
+          'p_requires_approval': requiresApproval,
+        },
       );
 
   String _date(DateTime value) =>

@@ -1123,6 +1123,8 @@ final class InMemoryScheduleDatabase {
   final Map<String, int> _dateMinimums = {};
   final Map<String, String> _manualCoverageSections = {};
   final List<OpenShiftPickup> _openShiftPickups = [];
+  bool _openShiftApprovalDefault = true;
+  final Map<String, bool> _openShiftApprovalOverrides = {};
   final List<StaffChange> _staffChanges = [];
   final List<RequestOff> _requestsOff = [];
   final Map<String, int> _unreadRequestOffNotices = {};
