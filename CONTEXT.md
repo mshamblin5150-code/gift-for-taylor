@@ -173,8 +173,18 @@ One place a Calendar feed has been subscribed to. Sometimes a device, such as an
 iPhone that fetches the feed itself, and sometimes an account elsewhere, such as
 Google, whose servers fetch the feed and sync it on to every device signed into
 it. A Staff member may have several, each with its own link, revocable on its
-own.
+own. A revoked one does not go away: it becomes a Disconnected subscription.
 _Avoid_: Device, calendar client
+
+**Disconnected subscription**:
+A Calendar subscription whose link has been revoked, whether by the Staff member
+herself, by her moving back to Calendar invitations, or by her being
+deactivated. It keeps answering rather than going dead: it shows the shifts she
+had up to the day it was disconnected and nothing after, so the calendar it
+feeds can never come to show a shift she might not work. Unless she has left the
+department it also says on its face that it is no longer updated, because a
+calendar app gives no sign of its own when a subscription stops working.
+_Avoid_: Dead feed, tombstone, expired link, broken subscription
 
 ### Checks and supplies
 
