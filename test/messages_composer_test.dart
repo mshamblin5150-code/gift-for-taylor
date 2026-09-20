@@ -28,14 +28,14 @@ void main() {
     );
   });
 
-  test('cell numbers are reduced to what the phone dials', () {
+  test('canonical Cell numbers are passed through to Messages', () {
     expect(
       messagesUri(
-        ['(555) 010-0100', '+1 555.010.0101'],
+        ['+15550100100', '+15550100101'],
         'Hi',
         isIos: true,
       ).toString(),
-      'sms:/open?addresses=5550100100,+15550100101&body=Hi',
+      'sms:/open?addresses=+15550100100,+15550100101&body=Hi',
     );
   });
 }

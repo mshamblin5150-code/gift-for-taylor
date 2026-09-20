@@ -6,6 +6,13 @@ void main() {
     expect(normalizeCellNumber('(555) 867-5309'), '+15558675309');
     expect(normalizeCellNumber('1 555 867 5309'), '+15558675309');
     expect(normalizeCellNumber('+1 (555) 867-5309'), '+15558675309');
+    expect(normalizeCellNumber('(555) 013-7'), '+15550137');
+    expect(normalizeCellNumber('555-0137'), '+15550137');
+    expect(normalizeCellNumber('+1 555 013 7'), '+15550137');
+    expect(
+      () => normalizeCellNumber('+0 555 013 7'),
+      throwsFormatException,
+    );
   });
 
   test('vCard escapes contact data and identifies ER Schedule', () {
@@ -18,8 +25,8 @@ void main() {
 
   test('vCard preserves a legacy short number for import', () {
     expect(
-      staffVCard('Alex Tech', '555-1212'),
-      contains('TEL;TYPE=CELL:555-1212\r\n'),
+      staffVCard('Alex Tech', '555'),
+      contains('TEL;TYPE=CELL:555\r\n'),
     );
   });
 }
