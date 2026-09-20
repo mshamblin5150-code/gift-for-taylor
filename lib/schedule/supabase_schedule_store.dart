@@ -212,7 +212,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           .from('schedule_changes')
           .select(
             'id, staff_member_id, work_date, old_shift_code, new_shift_code, '
-            'changed_by_staff_member_id, changed_at, announced_at, '
+            'changed_by_staff_member_id, changed_at, announced_at, moot_at, '
             'changed_by:staff_members!changed_by_staff_member_id(display_name)',
           )
           .gte('work_date', _date(_monthStart(month)))
@@ -236,6 +236,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
                 '',
             changedAt: DateTime.parse(row['changed_at'] as String).toLocal(),
             announced: row['announced_at'] != null,
+            moot: row['moot_at'] != null,
           ),
         )
         .toList(growable: false);
@@ -441,10 +442,16 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<void> markChangesAnnounced(Set<String> changeIds) async {
+  Future<void> markChangesAnnounced(
+    Set<String> changeIds,
+    Set<String> draftOpenedStaffMemberIds,
+  ) async {
     await _client.rpc<void>(
       'mark_changes_announced',
-      params: {'p_change_ids': changeIds.toList()},
+      params: {
+        'p_change_ids': changeIds.toList(),
+        'p_draft_opened_staff_member_ids': draftOpenedStaffMemberIds.toList(),
+      },
     );
   }
 

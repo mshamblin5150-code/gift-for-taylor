@@ -113,10 +113,13 @@ abstract interface class ScheduleRules {
   /// is released, since releasing it announces the whole month.
   Future<ChangeAnnouncement> changeAnnouncement(DateTime month);
 
-  /// The texts in [announcement] were sent: its changes are announced, which
-  /// clears the tray and the highlights. Changes saved since it was read stay
-  /// unannounced.
-  Future<void> markAnnounced(ChangeAnnouncement announcement);
+  /// Settles the changes in [announcement]. The database stamps Reach from
+  /// push subscriptions and the drafts opened by the Manager. A newer edit to
+  /// the same cell stays pending until the tray is refreshed.
+  Future<void> markAnnounced(
+    ChangeAnnouncement announcement, {
+    Set<String> draftOpenedStaffMemberIds = const {},
+  });
 
   /// Starts the month after [month] from it, unpublished. Each day copies the
   /// same weekday of the same week, a fifth week repeats the fourth, and
@@ -188,9 +191,12 @@ abstract interface class ScheduleStore {
 
   Future<void> confirmLoadedMonth(DateTime month);
 
-  /// Marks the change log entries with [changeIds] announced. Refused for
-  /// someone with no editable Sections; entries outside them are left alone.
-  Future<void> markChangesAnnounced(Set<String> changeIds);
+  /// Settles the selected change log entries using the database's net diff.
+  /// [draftOpenedStaffMemberIds] is evidence from the Messages sheet.
+  Future<void> markChangesAnnounced(
+    Set<String> changeIds,
+    Set<String> draftOpenedStaffMemberIds,
+  );
 
   Future<MonthStatus> monthStatus(DateTime month);
 
@@ -544,6 +550,7 @@ final class ScheduleChange {
     required this.changedByName,
     required this.changedAt,
     required this.announced,
+    this.moot = false,
   });
 
   final String id;
@@ -559,6 +566,7 @@ final class ScheduleChange {
   final String changedByName;
   final DateTime changedAt;
   final bool announced;
+  final bool moot;
 }
 
 /// A common Shift code from the printed legend.
@@ -884,7 +892,9 @@ final class _ScheduleRules implements ScheduleRules {
         _cellKey(cell.staffMemberId, cell.date): cell.shiftCode,
     };
     final published = <String, String>{};
-    for (final change in changes.where((change) => !change.announced)) {
+    for (final change in changes.where(
+      (change) => !change.announced && !change.moot,
+    )) {
       published.putIfAbsent(
         _cellKey(change.staffMemberId, change.date),
         () => change.oldShiftCode,
@@ -1043,15 +1053,21 @@ final class _ScheduleRules implements ScheduleRules {
     }
     return ChangeAnnouncement._from(
       grid,
-      changes.where((change) => !change.announced),
+      changes.where((change) => !change.announced && !change.moot),
       editable,
     );
   }
 
   @override
-  Future<void> markAnnounced(ChangeAnnouncement announcement) async {
+  Future<void> markAnnounced(
+    ChangeAnnouncement announcement, {
+    Set<String> draftOpenedStaffMemberIds = const {},
+  }) async {
     if (announcement._changeIds.isEmpty) return;
-    await _store.markChangesAnnounced(announcement._changeIds);
+    await _store.markChangesAnnounced(
+      announcement._changeIds,
+      draftOpenedStaffMemberIds,
+    );
   }
 
   @override
@@ -1984,7 +2000,10 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<void> markChangesAnnounced(Set<String> changeIds) async {
+  Future<void> markChangesAnnounced(
+    Set<String> changeIds,
+    Set<String> draftOpenedStaffMemberIds,
+  ) async {
     final editable = await editableSections();
     if (editable.isEmpty) throw const ScheduleEditRefused();
     final months = {
@@ -1997,17 +2016,49 @@ final class _InMemoryScheduleStore implements ScheduleStore {
         for (final row in await rows(month))
           (row.staffMemberId, month): row.sectionId,
     };
-    _database._markAnnounced(
-      (change) =>
-          changeIds.contains(change.id) &&
-          editable.contains(
+    final movedByCell = <String, bool>{};
+    for (final change in _database._changes) {
+      if (change.announced || change.moot) continue;
+      final key = _cellKey(change.staffMemberId, change.date);
+      movedByCell.putIfAbsent(
+        key,
+        () => (_database._cells[key]?.shiftCode ?? '') != change.oldShiftCode,
+      );
+    }
+    final unselectedPendingCells = {
+      for (final change in _database._changes)
+        if (!change.announced && !change.moot && !changeIds.contains(change.id))
+          _cellKey(change.staffMemberId, change.date),
+    };
+    for (final (index, change) in _database._changes.indexed) {
+      final key = _cellKey(change.staffMemberId, change.date);
+      if (!changeIds.contains(change.id) ||
+          change.announced ||
+          change.moot ||
+          unselectedPendingCells.contains(key) ||
+          !editable.contains(
             sectionOf[(
                   change.staffMemberId,
                   DateTime(change.date.year, change.date.month),
                 )] ??
                 '',
-          ),
-    );
+          )) {
+        continue;
+      }
+      final moved = movedByCell[key]!;
+      _database._changes[index] = ScheduleChange(
+        id: change.id,
+        staffMemberId: change.staffMemberId,
+        date: change.date,
+        oldShiftCode: change.oldShiftCode,
+        newShiftCode: change.newShiftCode,
+        changedBy: change.changedBy,
+        changedByName: change.changedByName,
+        changedAt: change.changedAt,
+        announced: moved,
+        moot: !moved,
+      );
+    }
   }
 
   @override

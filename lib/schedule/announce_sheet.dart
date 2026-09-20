@@ -4,14 +4,14 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'messages_composer.dart';
 
 /// Lists each affected person's prefilled text, and a group text when more
-/// than one person is affected. Returns true when the scheduler marks the
-/// changes announced.
-Future<bool?> showAnnounceSheet(
+/// than one person is affected. The returned IDs are the people whose Messages drafts
+/// opened successfully; null means the sheet was dismissed.
+Future<Set<String>?> showAnnounceSheet(
   BuildContext context, {
   required ChangeAnnouncement announcement,
   required MessagesComposer? messagesComposer,
 }) {
-  return showModalBottomSheet<bool>(
+  return showModalBottomSheet<Set<String>>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -22,7 +22,7 @@ Future<bool?> showAnnounceSheet(
   );
 }
 
-class _AnnounceSheet extends StatelessWidget {
+class _AnnounceSheet extends StatefulWidget {
   const _AnnounceSheet({
     required this.announcement,
     required this.messagesComposer,
@@ -31,26 +31,39 @@ class _AnnounceSheet extends StatelessWidget {
   final ChangeAnnouncement announcement;
   final MessagesComposer? messagesComposer;
 
+  @override
+  State<_AnnounceSheet> createState() => _AnnounceSheetState();
+}
+
+class _AnnounceSheetState extends State<_AnnounceSheet> {
+  final Set<String> _draftOpenedStaffMemberIds = {};
+  int _openingDrafts = 0;
+
   Future<void> _open(
-    BuildContext context,
     List<String> cellNumbers,
     String body,
+    Iterable<String> staffMemberIds,
   ) async {
+    setState(() => _openingDrafts++);
     try {
-      await messagesComposer!.open(cellNumbers, body);
+      await widget.messagesComposer!.open(cellNumbers, body);
+      _draftOpenedStaffMemberIds.addAll(staffMemberIds);
     } catch (_) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Messages couldn't be opened.")),
       );
+    } finally {
+      if (mounted) setState(() => _openingDrafts--);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final announcement = widget.announcement;
     final groupMessage = announcement.groupMessage;
     final groupRecipients = announcement.groupRecipients;
-    final canText = messagesComposer != null;
+    final canText = widget.messagesComposer != null;
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.8,
@@ -76,7 +89,11 @@ class _AnnounceSheet extends StatelessWidget {
                 null => const Text('No cell number on the Staff list'),
                 final cellNumber => FilledButton.icon(
                   onPressed: canText
-                      ? () => _open(context, [cellNumber], person.message)
+                      ? () => _open(
+                          [cellNumber],
+                          person.message,
+                          [person.row.staffMemberId],
+                        )
                       : null,
                   icon: const Icon(Icons.sms_outlined),
                   label: Text('Text ${person.row.displayName}'),
@@ -89,7 +106,13 @@ class _AnnounceSheet extends StatelessWidget {
               message: groupMessage,
               button: FilledButton.tonalIcon(
                 onPressed: canText && groupRecipients.length > 1
-                    ? () => _open(context, groupRecipients, groupMessage)
+                    ? () => _open(
+                        groupRecipients,
+                        groupMessage,
+                        announcement.people
+                            .where((person) => person.cellNumber != null)
+                            .map((person) => person.row.staffMemberId),
+                      )
                     : null,
                 icon: const Icon(Icons.groups_outlined),
                 label: Text('Group text all ${groupRecipients.length}'),
@@ -97,12 +120,15 @@ class _AnnounceSheet extends StatelessWidget {
             ),
           const SizedBox(height: 16),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: _openingDrafts == 0
+                ? () => Navigator.of(context)
+                    .pop(Set<String>.of(_draftOpenedStaffMemberIds))
+                : null,
             child: const Text('Mark announced'),
           ),
           const SizedBox(height: 4),
           const Text(
-            'Once the texts are sent, this clears the tray and the highlights.',
+            'This sends app notices and clears the tray and highlights.',
             textAlign: TextAlign.center,
           ),
         ],
