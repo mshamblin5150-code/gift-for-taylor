@@ -765,6 +765,33 @@ void main() {
     expect(printed.single, contains('4P-8A'));
   });
 
+  testWidgets('Print warns when one page will be hard to read', (tester) async {
+    database = InMemoryScheduleDatabase(
+      sections: const [days],
+      rows: [
+        for (var index = 0; index < 80; index++)
+          ScheduleRow(
+            staffMemberId: 'rn-$index',
+            displayName: 'RN $index',
+            sectionId: 'days',
+          ),
+      ],
+      editors: const {'manager'},
+      releasedMonths: {september},
+    );
+    final printed = <String>[];
+    await pumpGrid(tester, printBookPage: printed.add);
+
+    await tester.tap(find.byTooltip('Print the book page'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('very small'), findsOneWidget);
+    expect(printed, isEmpty);
+
+    await tester.tap(find.text('Print anyway'));
+    await tester.pumpAndSettle();
+    expect(printed, hasLength(1));
+  });
+
   testWidgets('Manager changes print wording for every month', (tester) async {
     final gateway = _TestPrintWordingGateway();
     final printed = <String>[];

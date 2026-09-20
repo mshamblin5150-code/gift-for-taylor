@@ -149,11 +149,13 @@ paste them into an issue.
 
 ## Print the book page
 
-On the office computer, open the month in the app and tap the printer icon.
+On a phone or office computer, open the month in the app and tap the printer icon.
 The browser's print dialog shows only the book page, laid out like the printed
-Schedule and sized to one landscape page. Choose the printer and print. The page
+Schedule and fitted to one page. It requests landscape, but also fits when a
+phone's print dialog uses portrait. Choose the printer and print. The page
 shows the live month, including changes not yet announced, with each person in
-the Section they're in that month.
+the Section they're in that month. For a very large Staff list, the app warns
+that one-page printing will make the text small.
 
 ## Verify
 
