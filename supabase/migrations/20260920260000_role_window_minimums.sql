@@ -126,8 +126,7 @@ language sql stable security definer set search_path = '' as $$
         else coalesce(short.job_role, original.job_role)::text end as pool,
       code.coverage_window,
       count(*)::integer as open_count,
-      count(*) filter (where short.rn_floor_critical or
-        coalesce(short.job_role, original.job_role) = 'rn')::integer as rn_open_count
+      count(*) filter (where short.rn_floor_critical)::integer as rn_open_count
     from public.short_shifts short
     left join lateral (
       select role.job_role from public.staff_job_roles role

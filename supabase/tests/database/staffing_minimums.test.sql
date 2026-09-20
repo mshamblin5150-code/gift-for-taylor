@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(39);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000531', 'minimum-manager@example.test'),
@@ -175,6 +175,20 @@ select is((select section_id from public.schedule_cells
 select is((select working_count from public.section_staffing_for_month('2027-03-01')
   where pool = 'nurses' and coverage_window = 'day' and work_date = '2027-03-04'), 1,
   'Day pickup counts on Days despite Night Section');
+
+select lives_ok($$select public.set_pool_date_minimum('nurses', 'day', '2027-03-01', 1, 1)$$,
+  'Manager sets RN floor on a covered pool');
+set local role postgres;
+insert into public.short_shifts(schedule_month_id, section_id, work_date, shift_code,
+  staff_member_id, reason)
+values ('00000000-0000-0000-0000-00000000053a', '00000000-0000-0000-0000-000000000535',
+  '2027-03-01', '7A', '00000000-0000-0000-0000-000000000537', 'request_off');
+set local role authenticated;
+select is(public.post_open_shifts('2027-03-01', '7A', 'nurses', 1, true, false), 1,
+  'RN-origin Open shift does not suppress RN-floor posting');
+select is((select count(*)::integer from public.short_shifts
+  where work_date = '2027-03-01' and rn_floor_critical and requires_approval), 1,
+  'new posting is floor critical even with ordinary Open shifts present');
 
 select * from finish();
 rollback;
