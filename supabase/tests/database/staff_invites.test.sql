@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(36);
 
 insert into auth.users (id, email)
 values
@@ -315,6 +315,21 @@ select is((select personal_email from public.staff_accounts
   where auth_user_id = '00000000-0000-0000-0000-000000000153'),
   'invitee@example.test',
   'confirmation binds the accepted personal email'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000153","role":"authenticated"}',
+  true
+);
+select is(public.current_staff_role(), 'staff_member'::public.staff_role,
+  'the confirmed invitee gains the Staff role');
+select is(public.current_staff_member_id(),
+  (select staff_member_id from initial_invite),
+  'the confirmed invitee resolves to the intended Staff member');
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000151","role":"authenticated"}',
+  true
 );
 select throws_ok(
   $$select public.resend_staff_invite(
