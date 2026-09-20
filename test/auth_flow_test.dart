@@ -198,6 +198,8 @@ final class _FakeAuthGateway implements AuthGateway {
 
 final class _FakeStaffGateway implements StaffGateway {
   @override
+  Future<bool> canTransferManagerTo(String id) async => false;
+  @override
   Future<List<StaffAccessChange>> loadStaffAccessChanges(String id) async => [];
   @override
   Future<String?> currentStaffRole() async => 'staff_member';

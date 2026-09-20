@@ -34,6 +34,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
   StaffMemberDetails? _details;
   StaffList? _list;
   String? _currentRole;
+  bool _canTransferManager = false;
   List<StaffAccessChange> _accessChanges = const [];
   Object? _error;
 
@@ -45,11 +46,18 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
 
   Future<void> _load() async {
     try {
-      final (details, list, currentRole, accessChanges) = await (
+      final (
+        details,
+        list,
+        currentRole,
+        accessChanges,
+        canTransferManager,
+      ) = await (
         widget.gateway.loadStaffMemberDetails(widget.staffMemberId),
         widget.gateway.loadStaffList(),
         widget.gateway.currentStaffRole(),
         widget.gateway.loadStaffAccessChanges(widget.staffMemberId),
+        widget.gateway.canTransferManagerTo(widget.staffMemberId),
       ).wait;
       if (mounted) {
         setState(() {
@@ -57,6 +65,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
           _list = list;
           _currentRole = currentRole;
           _accessChanges = accessChanges;
+          _canTransferManager = canTransferManager;
           _error = null;
         });
       }
@@ -276,7 +285,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
               if (_currentRole == 'manager' &&
                   (person.role == 'staff_member' ||
                       person.role == 'administrator') &&
-                  person.personalEmail != null)
+                  _canTransferManager)
                 OutlinedButton(
                   onPressed: () => _changeAccessRole(_AccessAction.transfer),
                   child: const Text('Transfer Manager role'),

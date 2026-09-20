@@ -154,6 +154,7 @@ final class StaffAccessChange {
 abstract interface class StaffGateway {
   Future<bool> canManageStaff();
   Future<String?> currentStaffRole();
+  Future<bool> canTransferManagerTo(String staffMemberId);
   Future<bool> canManageSections();
   Future<String?> currentStaffMemberId();
   Future<StaffList> loadStaffList();
@@ -193,6 +194,18 @@ final class SupabaseStaffGateway implements StaffGateway {
   @override
   Future<String?> currentStaffRole() =>
       _client.rpc<String?>('current_staff_role');
+
+  @override
+  Future<bool> canTransferManagerTo(String staffMemberId) async {
+    final account = await _client
+        .from('staff_accounts')
+        .select('accepted_invite_at, revoked_at')
+        .eq('staff_member_id', staffMemberId)
+        .maybeSingle();
+    return account != null &&
+        account['accepted_invite_at'] != null &&
+        account['revoked_at'] == null;
+  }
 
   @override
   Future<void> assignAdministrator(String staffMemberId) => _client.rpc<void>(

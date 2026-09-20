@@ -342,6 +342,41 @@ void main() {
     expect(find.text('Make administrator'), findsNothing);
   });
 
+  testWidgets('handover waits for the Staff member to accept the Invite', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(
+        sections: [days],
+        members: [
+          StaffListMember(
+            id: 'staff-1',
+            displayName: 'Alex Tech',
+            cellNumber: '5551112222',
+            sectionId: 'days',
+            displayOrder: 0,
+            personalEmail: 'alex@example.test',
+          ),
+        ],
+      ),
+    )..transferEligible = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alex Tech'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
+    expect(find.text('Transfer Manager role'), findsNothing);
+  });
+
   testWidgets(
     'a phone contact fills add fields and saves a normalized number',
     (tester) async {
@@ -640,6 +675,10 @@ void main() {
 }
 
 final class _FakeStaffGateway implements StaffGateway {
+  bool transferEligible = true;
+
+  @override
+  Future<bool> canTransferManagerTo(String id) async => transferEligible;
   @override
   Future<List<StaffAccessChange>> loadStaffAccessChanges(String id) async =>
       accessRole == null
