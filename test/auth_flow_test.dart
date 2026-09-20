@@ -225,7 +225,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Cell number'), '555-0137');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Cell number'),
+      '555-0137',
+    );
     await tester.tap(find.text('Continue to email'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -234,12 +237,17 @@ void main() {
     );
     await tester.tap(find.text('Email me a code'));
     await tester.pump();
-    await tester.enterText(find.widgetWithText(TextField, 'One-time code'), '123456');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'One-time code'),
+      '123456',
+    );
     await tester.tap(find.text('Verify code'));
     await tester.pumpAndSettle();
 
-    expect(find.text('This email is already signed in as another Staff member.'),
-        findsOneWidget);
+    expect(
+      find.text('This email is already signed in as another Staff member.'),
+      findsOneWidget,
+    );
     expect(find.textContaining('23505'), findsNothing);
   });
 }

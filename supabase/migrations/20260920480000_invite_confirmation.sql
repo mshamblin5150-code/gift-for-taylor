@@ -112,16 +112,20 @@ begin
       where id = v_pending.staff_member_id and active) then
     raise exception 'Staff member is no longer active';
   end if;
-  insert into public.staff_accounts
-    (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
-  values (v_pending.staff_member_id, v_pending.auth_user_id,
-    v_pending.personal_email, v_pending.accepted_at)
-  on conflict (staff_member_id) do update
-  set auth_user_id = excluded.auth_user_id,
-      personal_email = excluded.personal_email,
-      accepted_invite_at = excluded.accepted_invite_at,
-      revoked_at = null
-  where public.staff_accounts.revoked_at is not null;
+  begin
+    insert into public.staff_accounts
+      (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
+    values (v_pending.staff_member_id, v_pending.auth_user_id,
+      v_pending.personal_email, v_pending.accepted_at)
+    on conflict (staff_member_id) do update
+    set auth_user_id = excluded.auth_user_id,
+        personal_email = excluded.personal_email,
+        accepted_invite_at = excluded.accepted_invite_at,
+        revoked_at = null
+    where public.staff_accounts.revoked_at is not null;
+  exception when unique_violation then
+    raise exception 'This email is already signed in as another Staff member.';
+  end;
   if not found then
     raise exception 'This Staff member has already accepted an Invite';
   end if;
