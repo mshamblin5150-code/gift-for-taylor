@@ -173,12 +173,23 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
         }
         return ListView(
           children: [
+            if (snapshot.data!.any((code) =>
+                code.isWorking && code.startTime == null && code.endTime == null))
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Working Shift codes without times appear as all-day calendar events. Tap a code to set its hours or mark it not worked.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
             for (final code in snapshot.data!)
               ListTile(
                 title: Text(code.code),
                 subtitle: Text(
                   [
                     if (code.hours != null) code.hours!,
+                    if (code.isWorking && code.startTime == null && code.endTime == null)
+                      'Time not set',
                     if (code.meaning?.isNotEmpty == true) code.meaning!,
                     code.isWorking ? 'Worked shift' : 'Not worked',
                   ].join(' · '),

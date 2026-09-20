@@ -31,6 +31,21 @@ Deno.test("Calendar invitation requests a shift without asking for a reply", () 
   }
 });
 
+Deno.test("Untimed working shift remains visible with an honest title", () => {
+  const untimed = { ...shift, shift_code: "9-7", starts_at: null, ends_at: null };
+  const result = invitationCalendar(untimed);
+  if (!result.includes("SUMMARY:Working — 9-7 (time not set)\r\n") ||
+    !result.includes("DTSTART;VALUE=DATE:20270104\r\n") ||
+    !result.includes("DTEND;VALUE=DATE:20270105\r\n")) {
+    throw new Error("Untimed shift was not shown as a labeled all-day event");
+  }
+  const message = invitationMessage(untimed);
+  if (!message.subject.includes("Working — 9-7 (time not set)") ||
+    !message.text.includes("Working — 9-7 (time not set)")) {
+    throw new Error("Invitation email omitted the unknown time");
+  }
+});
+
 Deno.test("Cancellation retains the event identity and advances its sequence", () => {
   const result = invitationCalendar({
     ...shift,
