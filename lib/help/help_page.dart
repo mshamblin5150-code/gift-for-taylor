@@ -141,8 +141,16 @@ const helpTopics = <HelpTopic>[
     title: 'Staffing minimums',
     who: 'Manager',
     what: 'A Section’s minimum staffing shows when a day is short. A Short shift also shows an uncovered scheduled shift.',
-    how: 'On the Schedule, tap a Section’s day heading to set a minimum for this date or every matching weekday and review Short shifts. Enter a Shift code and pickup role to post one or all uncovered Open shifts.',
+    how: 'On the Schedule, tap a Section’s day heading to set a minimum for this date or every matching weekday and review Short shifts.',
     searchTerms: 'short staffing coverage',
+    roles: _manager,
+  ),
+  HelpTopic(
+    title: 'Post Open shifts',
+    who: 'Manager',
+    what: 'Post one Open shift or offer all uncovered shifts in a Section on a day for pickup.',
+    how: 'On the Schedule, tap the Section’s day heading, enter an Open shift Shift code and pickup role, then tap Post one or Post Open shifts.',
+    searchTerms: 'short staffing pickup coverage',
     roles: _manager,
   ),
   HelpTopic(
@@ -163,8 +171,8 @@ const helpTopics = <HelpTopic>[
   HelpTopic(
     title: 'Load a printed Schedule',
     who: 'Manager',
-    what: 'The first month can be loaded from the printed Schedule page and checked against the Excel file.',
-    how: 'After the printed page is loaded, open that month in the Schedule. Check each Shift code against Excel, correct any cell, and tap Confirm month before Month release.',
+    what: 'The first month is transcribed from the printed Schedule page and loaded outside the app. It must then be checked against the Excel file.',
+    how: 'Ask the person setting up the app to load the printed page. Open that month in the Schedule, check each Shift code against Excel, correct any cell, and tap Confirm month. This confirms and releases the month.',
     searchTerms: 'first month paper import confirm',
     roles: _manager,
   ),
