@@ -8,6 +8,8 @@ import 'staff_dialogs.dart';
 import 'staff_gateway.dart';
 import 'staff_contacts.dart';
 
+enum _AccessAction { grant, revoke, transfer }
+
 class StaffDetailsPage extends StatefulWidget {
   const StaffDetailsPage({
     super.key,
@@ -31,6 +33,8 @@ class StaffDetailsPage extends StatefulWidget {
 class _StaffDetailsPageState extends State<StaffDetailsPage> {
   StaffMemberDetails? _details;
   StaffList? _list;
+  String? _currentRole;
+  List<StaffAccessChange> _accessChanges = const [];
   Object? _error;
 
   @override
@@ -41,14 +45,18 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
 
   Future<void> _load() async {
     try {
-      final (details, list) = await (
+      final (details, list, currentRole, accessChanges) = await (
         widget.gateway.loadStaffMemberDetails(widget.staffMemberId),
         widget.gateway.loadStaffList(),
+        widget.gateway.currentStaffRole(),
+        widget.gateway.loadStaffAccessChanges(widget.staffMemberId),
       ).wait;
       if (mounted) {
         setState(() {
           _details = details;
           _list = list;
+          _currentRole = currentRole;
+          _accessChanges = accessChanges;
           _error = null;
         });
       }
@@ -58,9 +66,8 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _editContact() async {
@@ -156,6 +163,52 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
     }
   }
 
+  Future<void> _changeAccessRole(_AccessAction action) async {
+    final details = _details!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(switch (action) {
+          _AccessAction.grant =>
+            'Make ${details.displayName} an administrator?',
+          _AccessAction.revoke =>
+            'Remove administrator access from ${details.displayName}?',
+          _AccessAction.transfer =>
+            'Transfer Manager role to ${details.displayName}?',
+        }),
+        content: action == _AccessAction.transfer
+            ? const Text(
+                'They will become Manager and you will become an administrator immediately.',
+              )
+            : null,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      switch (action) {
+        case _AccessAction.grant:
+          await widget.gateway.assignAdministrator(details.id);
+        case _AccessAction.revoke:
+          await widget.gateway.removeAdministrator(details.id);
+        case _AccessAction.transfer:
+          await widget.gateway.transferManager(details.id);
+      }
+      await _load();
+    } catch (_) {
+      if (mounted) _showError('Could not change the access role.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final details = _details;
@@ -210,6 +263,24 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
               child: const Text('Edit name and cell number'),
             ),
             if (person.lastDay == null) ...[
+              if (_currentRole == 'manager' && person.role == 'staff_member')
+                OutlinedButton(
+                  onPressed: () => _changeAccessRole(_AccessAction.grant),
+                  child: const Text('Make administrator'),
+                ),
+              if (_currentRole == 'manager' && person.role == 'administrator')
+                OutlinedButton(
+                  onPressed: () => _changeAccessRole(_AccessAction.revoke),
+                  child: const Text('Remove administrator access'),
+                ),
+              if (_currentRole == 'manager' &&
+                  (person.role == 'staff_member' ||
+                      person.role == 'administrator') &&
+                  person.personalEmail != null)
+                OutlinedButton(
+                  onPressed: () => _changeAccessRole(_AccessAction.transfer),
+                  child: const Text('Transfer Manager role'),
+                ),
               OutlinedButton(
                 onPressed: _changeSectionOrRole,
                 child: const Text('Change Section or role'),
@@ -222,6 +293,19 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
                 OutlinedButton(
                   onPressed: _resendInvite,
                   child: const Text('Resend Invite'),
+                ),
+            ],
+            if (_accessChanges.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text('Access role history'),
+              for (final change in _accessChanges)
+                ListTile(
+                  title: Text(
+                    '${change.oldRole.replaceAll('_', ' ')} → ${change.newRole.replaceAll('_', ' ')}',
+                  ),
+                  subtitle: Text(
+                    DateFormat.yMMMd().add_jm().format(change.changedAt),
+                  ),
                 ),
             ],
           ],

@@ -400,7 +400,8 @@ enum StaffChangeKind {
   lastDay('last_day'),
   reactivated('reactivated'),
   section('section'),
-  jobRole('job_role');
+  jobRole('job_role'),
+  accessRole('access_role');
 
   const StaffChangeKind(this.value);
 
