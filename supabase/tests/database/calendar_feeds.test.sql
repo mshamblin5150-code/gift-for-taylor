@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(23);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000501', 'feed-one@example.test'),
@@ -29,14 +29,18 @@ insert into public.schedule_cells
   ('00000000-0000-0000-0000-000000000506', '00000000-0000-0000-0000-000000000505', '00000000-0000-0000-0000-000000000503', '2027-01-04', 'D'),
   ('00000000-0000-0000-0000-000000000507', '00000000-0000-0000-0000-000000000504', '00000000-0000-0000-0000-000000000503', '2027-02-01', 'D');
 
-create temp table feed_secrets (old_token text, new_token text);
+create temp table feed_secrets (old_token text, new_token text, old_id uuid);
 grant select, insert, update on feed_secrets to authenticated, service_role;
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000501","role":"authenticated"}', true);
-select is(public.has_calendar_feed(), false, 'new Staff member has no feed yet');
-insert into feed_secrets (old_token) select public.reset_calendar_feed();
-select is(public.has_calendar_feed(), true, 'Staff member creates a feed');
+select is((select count(*)::integer from public.list_calendar_subscriptions()), 0,
+  'new Staff member has no subscriptions');
+insert into feed_secrets (old_token, old_id)
+select result->>'token', (result->>'id')::uuid
+from (select public.create_calendar_subscription('iPhone') result) created;
+select is((select name from public.list_calendar_subscriptions()), 'iPhone',
+  'Staff member names a subscription');
 select throws_ok(
   $$select public.calendar_feed_events('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')$$,
   '42501', null, 'Staff cannot call the privileged feed query');
@@ -66,13 +70,49 @@ select is((select starts_at is null and ends_at is null from feed_secrets,
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000501","role":"authenticated"}', true);
-update feed_secrets set new_token = public.reset_calendar_feed();
+update feed_secrets set new_token =
+  (public.create_calendar_subscription('Google')->>'token');
+select is((select count(*)::integer from public.list_calendar_subscriptions()), 2,
+  'Staff member can have two subscriptions');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000502","role":"authenticated"}', true);
+select is((select count(*)::integer from public.list_calendar_subscriptions()), 0,
+  'another Staff member cannot list these subscriptions');
+select throws_ok(
+  $$select public.revoke_calendar_subscription((select old_id from feed_secrets))$$,
+  'Calendar subscription not found',
+  'another Staff member cannot revoke this subscription');
 set local role service_role;
-select is((select public.calendar_feed_owner(old_token) from feed_secrets), null::uuid,
-  'reset revokes old token');
+select is((select public.calendar_feed_owner(old_token) from feed_secrets),
+  '00000000-0000-0000-0000-000000000504'::uuid,
+  'creating another subscription leaves the first active');
 select is((select count(*)::integer from feed_secrets,
   lateral public.calendar_feed_events(new_token)), 3,
   'new token serves current shifts');
+select is((select public.record_calendar_feed_fetch(old_token, 'Test Calendar/1.0')
+  from feed_secrets), '00000000-0000-0000-0000-000000000504'::uuid,
+  'valid fetch records its owner');
+select ok((select last_fetched_at is not null from public.calendar_feed_tokens
+  where id = (select old_id from feed_secrets)),
+  'fetch time is recorded on the fetched subscription');
+select is((select fetching_user_agent from public.calendar_feed_tokens
+  where id = (select old_id from feed_secrets)), 'Test Calendar/1.0',
+  'fetching user-agent is recorded on the fetched subscription');
+select is((select last_fetched_at from public.calendar_feed_tokens
+  where token_hash = encode(sha256(decode((select new_token from feed_secrets), 'hex')), 'hex')),
+  null::timestamptz, 'other subscription remains unchecked');
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000501","role":"authenticated"}', true);
+select public.revoke_calendar_subscription((select old_id from feed_secrets));
+select is((select count(*)::integer from public.list_calendar_subscriptions()), 1,
+  'revoking one subscription leaves the other listed');
+set local role service_role;
+select is((select public.calendar_feed_owner(old_token) from feed_secrets), null::uuid,
+  'revoked subscription stops serving its feed');
+select is((select public.calendar_feed_owner(new_token) from feed_secrets),
+  '00000000-0000-0000-0000-000000000504'::uuid,
+  'other subscription keeps serving its feed');
 reset role;
 update public.schedule_cells set shift_code = 'D'
 where staff_member_id = '00000000-0000-0000-0000-000000000504'

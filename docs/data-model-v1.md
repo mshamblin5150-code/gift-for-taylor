@@ -78,9 +78,11 @@ also append `schedule_changes` rows.
 
 ## Delivery channels
 
-- `calendar_feed_tokens`: one hashed active token per Staff member, rotation and
-  revocation timestamps. A feed includes working shifts only; off-legend codes
-  become all-day events. Deactivation blocks the feed immediately.
+- `calendar_feed_tokens`: one hashed token per named Calendar subscription, with
+  its own creation, revocation, last fetch, and fetching user-agent fields. A
+  Staff member may have several active subscriptions. A feed includes working
+  shifts only; off-legend codes become all-day events. Deactivation blocks every
+  subscription immediately.
 - `push_subscriptions`: endpoint and encrypted browser subscription material per
   Staff member/device, plus last-used and revoked timestamps.
 - `in_app_notices`: recipient, kind, payload reference, read time, and creation

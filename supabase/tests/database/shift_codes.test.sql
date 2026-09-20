@@ -34,7 +34,8 @@ select is((select count(*)::int from public.shift_codes), 16,
 
 create temp table code_feed(token text);
 grant select, insert on code_feed to authenticated, service_role;
-insert into code_feed select public.reset_calendar_feed();
+insert into code_feed
+select public.create_calendar_subscription('Shift code test')->>'token';
 
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000571","role":"authenticated"}', true);
