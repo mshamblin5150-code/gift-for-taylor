@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(52);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000501', 'feed-one@example.test'),
@@ -189,6 +189,108 @@ where id = '00000000-0000-0000-0000-000000000504';
 set local role service_role;
 select is((select public.calendar_feed_owner(new_token) from feed_secrets), null::uuid,
   'deactivation revokes the feed immediately');
+
+select is(public.calendar_feed_state(repeat('a', 64), null, null, null, null),
+  null::jsonb, 'unknown token has no feed state');
+select is(public.calendar_feed_state('not-a-token', null, null, null, null),
+  null::jsonb, 'garbage token has no feed state');
+reset role;
+update public.staff_members set active = true
+where id = '00000000-0000-0000-0000-000000000504';
+set local role service_role;
+select is((select public.calendar_feed_state(old_token, null, null, null, null)->>'state'
+  from feed_secrets), 'feed', 'reactivated old link is classified from current channel');
+reset role;
+
+-- Restore a live link to compare the combined RPC with the original queries.
+update public.calendar_feed_tokens set revoked_at = null
+where token_hash = encode(sha256(decode((select new_token from feed_secrets), 'hex')), 'hex');
+set local role service_role;
+select is((select public.calendar_feed_state(new_token, null, null, null, null)->>'state'
+  from feed_secrets), 'live', 'unrevoked active link is live');
+select is((select (public.calendar_feed_state(new_token, null, null, null, null)
+  ->>'last_modified')::timestamptz from feed_secrets),
+  (select public.calendar_feed_last_modified(new_token) from feed_secrets),
+  'live validator matches the existing computation');
+select is((select public.calendar_feed_state(new_token, null, null, null, null)->'events'
+  from feed_secrets),
+  (select coalesce(jsonb_agg(to_jsonb(event) order by event.work_date), '[]'::jsonb)
+   from feed_secrets, lateral public.calendar_feed_events(new_token) event),
+  'live event objects match the old query');
+reset role;
+
+update public.schedule_cells set shift_code = 'D'
+where staff_member_id = '00000000-0000-0000-0000-000000000504'
+  and work_date in ('2027-01-04', '2027-01-05', '2027-01-08');
+update public.calendar_feed_tokens
+set revoked_at = '2027-01-05 18:00:00+00', last_fetched_at = null,
+  measure_fetches_until = now() + interval '8 days'
+where token_hash = encode(sha256(decode((select new_token from feed_secrets), 'hex')), 'hex');
+update public.staff_members set active = false
+where id = '00000000-0000-0000-0000-000000000504';
+set local role service_role;
+select is((select public.calendar_feed_state(new_token, 'Dead Calendar/1.0',
+  '"etag"', null, '192.0.2.11')->>'state' from feed_secrets),
+  'ended', 'deactivated Staff member has a silent Disconnected subscription');
+select is((select public.calendar_feed_state(new_token, null, null, null, null)->>'last_modified'
+  from feed_secrets), '2027-01-05T18:00:00+00:00',
+  'Disconnected subscription validator is fixed at revocation time');
+select is((select jsonb_array_length(public.calendar_feed_state(new_token,
+  null, null, null, null)->'events') from feed_secrets), 2,
+  'Disconnected subscription includes the revocation day and excludes later shifts');
+select is((select public.calendar_feed_state(new_token, null, null, null, null)
+  ->'events'->1->>'work_date' from feed_secrets), '2027-01-05',
+  'Eastern revocation day is included');
+reset role;
+select ok((select last_fetched_at is not null from public.calendar_feed_tokens
+  where token_hash = encode(sha256(decode((select new_token from feed_secrets), 'hex')), 'hex')),
+  'Disconnected subscription records its fetch');
+select is((select fetching_user_agent from public.calendar_feed_tokens
+  where token_hash = encode(sha256(decode((select new_token from feed_secrets), 'hex')), 'hex')),
+  null::text, 'later fetch updates the Disconnected subscription user-agent');
+select ok((select count(*) > 0 from public.calendar_feed_fetches
+  where subscription_id = (select id from public.calendar_feed_tokens
+    where token_hash = encode(sha256(decode((select new_token from feed_secrets), 'hex')), 'hex'))),
+  'measured Disconnected subscription fetch is retained');
+select is((select jsonb_build_object('user_agent', user_agent,
+  'if_none_match', if_none_match, 'if_modified_since', if_modified_since,
+  'forwarded_for', forwarded_for) from public.calendar_feed_fetches
+  where user_agent = 'Dead Calendar/1.0'),
+  jsonb_build_object('user_agent', 'Dead Calendar/1.0',
+    'if_none_match', true, 'if_modified_since', false,
+    'forwarded_for', '192.0.2.11'),
+  'Disconnected subscription fetch retains request metadata');
+
+update public.staff_members set active = true
+where id = '00000000-0000-0000-0000-000000000504';
+set local role service_role;
+select is((select public.calendar_feed_state(new_token, null, null, null, null)->>'state'
+  from feed_secrets), 'feed', 'reactivation makes the old link speak');
+select is((select public.calendar_feed_state(new_token, null, null, null, null)->>'last_modified'
+  from feed_secrets), '2027-01-05T18:00:00+00:00',
+  'reactivated Disconnected subscription keeps its original validator');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000501","role":"authenticated"}', true);
+create temp table transition_links (first_id uuid, last_id uuid);
+insert into transition_links (first_id, last_id) values
+  ((public.create_calendar_subscription('First replacement')->>'id')::uuid,
+   (public.create_calendar_subscription('Last replacement')->>'id')::uuid);
+select public.revoke_calendar_subscription((select first_id from transition_links));
+set local role service_role;
+select is((select public.calendar_feed_state(new_token, null, null, null, null)->>'state'
+  from feed_secrets), 'feed',
+  'revoking one of two live subscriptions leaves earlier Disconnected subscription on feed channel');
+set local role authenticated;
+select public.revoke_calendar_subscription((select last_id from transition_links));
+set local role service_role;
+select is((select public.calendar_feed_state(new_token, null, null, null, null)->>'state'
+  from feed_secrets where new_token is not null), 'invitations',
+  'revoking the last live link changes earlier Disconnected subscriptions to invitations');
+select is((select public.calendar_feed_state(new_token, null, null, null, null)
+  ->'events'->1->>'work_date' from feed_secrets where new_token is not null),
+  '2027-01-05', 'invitations state retains the frozen cutoff');
 
 select * from finish();
 rollback;
