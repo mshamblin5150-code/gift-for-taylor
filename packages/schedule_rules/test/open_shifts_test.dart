@@ -207,6 +207,22 @@ void main() {
     expect((await other.pickups()).single.status, PickupStatus.declined);
   });
 
+  test('Manager default and per-shift choice control immediate pickup', () async {
+    final lpn = OpenShiftRules(database.openShiftStoreFor('lpn'));
+    final existing = (await lpn.openShifts()).single;
+    await managerShifts.setApprovalDefault(false);
+    expect((await lpn.openShifts()).single.requiresApproval, isTrue);
+    await managerShifts.setShiftApproval(existing.id, false);
+    expect((await lpn.openShifts()).single.requiresApproval, isFalse);
+    await lpn.requestPickup(existing.id);
+    expect((await lpn.pickups()).single.status, PickupStatus.approved);
+    expect(
+      (await manager.monthGrid(DateTime(2026, 10))).shiftCodeFor('lpn', day),
+      '7A',
+    );
+    expect(await managerShifts.openShifts(), isEmpty);
+  });
+
   test(
     'manual pickup covers its posted Section across nursing Sections',
     () async {
