@@ -693,6 +693,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Alex Tech'));
     await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Change access role'));
     await tester.tap(find.text('Change access role'));
     await tester.pumpAndSettle();
@@ -735,6 +737,8 @@ void main() {
     await tester.tap(find.byTooltip('Past staff'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Alex Tech'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Change access role'));
     await tester.tap(find.text('Change access role'));

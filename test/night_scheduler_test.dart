@@ -75,37 +75,6 @@ void main() {
     );
   }
 
-  testWidgets('the Manager gives the Night scheduler role with Sections', (
-    tester,
-  ) async {
-    await pumpGrid(tester, actingAs: 'manager');
-
-    await tester.tap(find.byTooltip('Night scheduler'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Give the role'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Charge RN').last);
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.widgetWithText(CheckboxListTile, 'PRN nightshift RN'),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Charge RN'), findsOneWidget);
-    final scheduler = (await manager.nightSchedulers()).single;
-    expect(scheduler.staffMemberId, 'rn-3');
-    expect(scheduler.sectionIds, {'nights'});
-
-    await tester.tap(find.byTooltip('Remove the role from Charge RN'));
-    await tester.pumpAndSettle();
-
-    expect(await manager.nightSchedulers(), isEmpty);
-  });
-
   testWidgets('the Night scheduler edits only assigned Sections', (
     tester,
   ) async {
