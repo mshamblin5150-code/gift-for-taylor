@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(33);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000501', 'feed-one@example.test'),
@@ -106,9 +106,24 @@ select is((select public.calendar_feed_owner(old_token) from feed_secrets),
 select is((select count(*)::integer from feed_secrets,
   lateral public.calendar_feed_events(new_token)), 3,
   'new token serves current shifts');
-select is((select public.record_calendar_feed_fetch(old_token, 'Test Calendar/1.0')
+update public.calendar_feed_tokens
+set measure_fetches_until = now() + interval '8 days'
+where id = (select old_id from feed_secrets);
+select is((select public.record_calendar_feed_fetch(old_token, 'Test Calendar/1.0',
+  '"etag"', null, '192.0.2.10')
   from feed_secrets), '00000000-0000-0000-0000-000000000504'::uuid,
   'valid fetch records its owner');
+select is((select count(*)::integer from public.calendar_feed_fetches
+  where subscription_id = (select old_id from feed_secrets)), 1,
+  'each valid fetch has a history row');
+select is((select if_none_match from public.calendar_feed_fetches
+  where subscription_id = (select old_id from feed_secrets)), true,
+  'ETag request is recorded');
+select is((select forwarded_for from public.calendar_feed_fetches
+  where subscription_id = (select old_id from feed_secrets)), '192.0.2.10',
+  'forwarded source address is recorded');
+select is((select public.record_calendar_feed_fetch(repeat('a', 64), null,
+  null, null, null)), null::uuid, 'unknown tokens are not recorded');
 select ok((select last_fetched_at is not null from public.calendar_feed_tokens
   where id = (select old_id from feed_secrets)),
   'fetch time is recorded on the fetched subscription');

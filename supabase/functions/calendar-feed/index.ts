@@ -28,6 +28,9 @@ Deno.serve(async (request) => {
     const owner = await rpc<string | null>("record_calendar_feed_fetch", {
       p_token: token,
       p_user_agent: request.headers.get("user-agent"),
+      p_if_none_match: request.headers.get("if-none-match"),
+      p_if_modified_since: request.headers.get("if-modified-since"),
+      p_forwarded_for: request.headers.get("x-forwarded-for"),
     });
     if (!owner) return new Response(null, { status: 404 });
     const [events, feedUpdatedAt] = await Promise.all([
