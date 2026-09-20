@@ -30,30 +30,34 @@ installed app open in standalone mode.
 
 ## Deploying
 
-Pushing to `main`, or running the workflow by hand, applies pending migrations
-to the hosted project and then publishes the web app to GitHub Pages. The app
-only goes live once the migration succeeds, because an app deployed ahead of
-its database arrives as a Schedule that will not load.
+Pushing to `main`, or running the workflow by hand, deploys the `send-push` and
+`calendar-feed` Edge Functions, applies pending migrations to the hosted
+project, and then publishes the web app to GitHub Pages. `send-push` deploys
+first so migrations that insert historical Notices cannot trigger pushes to
+Staff phones. The app only goes live once deployment and migration succeed.
 
 The three compile-time values above are repository *variables*
 (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VAPID_PUBLIC_KEY`), since they
-ship inside the web app. The migration step additionally needs one repository
-*secret*, `SUPABASE_DB_URL`: the project's **session pooler** connection
-string, from Connect in the Supabase dashboard.
+ship inside the web app. Set `SUPABASE_PROJECT_REF` as a repository variable
+to the project ref in `SUPABASE_URL`. The workflow also needs two repository
+*secrets*: `SUPABASE_ACCESS_TOKEN` for named Edge Function deployment and
+`SUPABASE_DB_URL` for migrations. The latter is the project's **session pooler**
+connection string, from Connect in the Supabase dashboard.
 
 It must be the pooler URL, not the direct one. `db.<ref>.supabase.co` publishes
 an AAAA record and no A record, and GitHub's runners are IPv4-only. Percent-
 encode the password if it contains `@ / ? # [ ] %` or a space.
 
-A connection string is deliberately used in place of an access token: it
-reaches this one database, where an account-wide token would reach every
-project on the account.
+Migrations use the connection string, which reaches only this database. The
+access token is supplied only to the Edge Function steps. It is never used for
+`supabase config push`.
 
 A superseded run queues rather than cancelling, so a second push cannot
 interrupt a migration midway.
 
-Only migrations are applied. Never run `supabase config push` against the
-project: it writes `config.toml` over the hosted settings, Auth included.
+Only the two named Edge Functions and migrations are applied. Never run
+`supabase config push` against the project: it writes `config.toml` over the
+hosted settings, Auth included.
 
 To apply migrations by hand, or to see what is outstanding:
 
@@ -69,11 +73,11 @@ Create one VAPID key pair (`npx web-push generate-vapid-keys`) and keep its
 private key out of source control. Build the app with the public key above.
 Set the Edge Function secrets `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
 `VAPID_SUBJECT` (a `mailto:` address), and `PUSH_WEBHOOK_SECRET` using
-`supabase secrets set`, then deploy with `supabase functions deploy send-push`.
+`supabase secrets set`. CI deploys `send-push` before migrations.
 Use the same public key in the web build and Edge Function. Do not use a
 localhost URL for `VAPID_SUBJECT`; Safari rejects it.
-Deploy the updated Edge Function before applying new database migrations so
-historical Request off notices move into the shared feed without new pushes.
+That order lets historical Request off notices move into the shared feed
+without new pushes.
 
 In Supabase Dashboard, create a Database Webhook for **INSERT** on
 `public.staff_notices`, targeting the `send-push` Edge Function. Add the HTTP
@@ -94,7 +98,8 @@ the scheduler marks the text announcement sent.
 
 ## Calendar feed
 
-Deploy the Calendar feed Edge Function alongside the database migrations:
+CI deploys the Calendar feed Edge Function alongside the database migrations.
+To deploy it by hand:
 
 ```powershell
 supabase functions deploy calendar-feed --no-verify-jwt
