@@ -138,12 +138,16 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   }) async => await client.rpc<int>(
     'post_open_shifts',
     params: {
-      'p_section_id': sectionId,
       'p_date': _date(date),
       'p_shift_code': shiftCode,
-      'p_job_role': jobRole.value,
+      'p_pool': switch (jobRole) {
+        JobRole.rn || JobRole.lpn => 'nurses',
+        JobRole.cna => 'cna',
+        JobRole.unitClerk => 'unit_clerk',
+      },
       'p_count': count,
       'p_fill_gap': fillGap,
+      'p_requires_approval': null,
     },
   );
 

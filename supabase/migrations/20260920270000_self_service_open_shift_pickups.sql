@@ -139,6 +139,72 @@ $$;
 revoke all on function public.visible_open_shifts() from public;
 grant execute on function public.visible_open_shifts() to authenticated;
 
+-- Both Manager saves and self-service pickups use the same placement checks,
+-- row lock, cell write, and Schedule change log. Only the guarded entry points
+-- may call this function.
+create function public.write_schedule_cell(
+  p_staff_member_id uuid, p_section_id uuid, p_work_date date, p_shift_code text)
+returns void language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_month_start date := date_trunc('month', p_work_date)::date;
+  v_month_id uuid;
+  v_new_code text := trim(coalesce(p_shift_code, ''));
+  v_old_code text;
+  v_row public.staff_section_assignments%rowtype;
+begin
+  perform 1 from public.staff_members member
+  where member.id = p_staff_member_id for share;
+  select assignment.* into v_row
+  from public.staff_section_assignments assignment
+  where assignment.staff_member_id = p_staff_member_id
+    and assignment.effective_from < (v_month_start + interval '1 month')::date
+    and (assignment.effective_through is null or assignment.effective_through >= v_month_start)
+  order by assignment.effective_from desc limit 1;
+  if not found or v_row.section_id <> p_section_id then
+    raise exception 'That Staff member is not on the Staff list in this Section';
+  end if;
+  if p_work_date > v_row.effective_through then
+    raise exception 'That day is after their Last day';
+  end if;
+  insert into public.schedule_months(month_start) values (v_month_start)
+  on conflict (month_start) do nothing;
+  select month.id into v_month_id from public.schedule_months month
+  where month.month_start = v_month_start;
+  perform pg_advisory_xact_lock(hashtext(p_staff_member_id::text || ':' || p_work_date::text));
+  select cell.shift_code into v_old_code from public.schedule_cells cell
+  where cell.schedule_month_id = v_month_id
+    and cell.staff_member_id = p_staff_member_id and cell.work_date = p_work_date;
+  v_old_code := coalesce(v_old_code, '');
+  if v_old_code = v_new_code then return; end if;
+  insert into public.schedule_cells(schedule_month_id, staff_member_id, section_id,
+    work_date, shift_code)
+  values (v_month_id, p_staff_member_id, p_section_id, p_work_date, v_new_code)
+  on conflict (schedule_month_id, staff_member_id, work_date) do update
+  set shift_code = excluded.shift_code, section_id = excluded.section_id,
+    updated_at = now();
+  insert into public.schedule_changes(schedule_month_id, staff_member_id,
+    section_id, work_date, old_shift_code, new_shift_code, changed_by_staff_member_id)
+  values (v_month_id, p_staff_member_id, p_section_id, p_work_date,
+    v_old_code, v_new_code, public.current_staff_member_id());
+end;
+$$;
+revoke all on function public.write_schedule_cell(uuid, uuid, date, text) from public;
+
+create or replace function public.save_schedule_cell(
+  p_staff_member_id uuid, p_section_id uuid, p_work_date date, p_shift_code text)
+returns void language plpgsql volatile security definer set search_path = '' as $$
+begin
+  if not public.can_edit_section(p_section_id) then
+    if public.current_staff_role() = 'night_scheduler' then
+      raise exception 'Only the Manager can edit that Section';
+    end if;
+    raise exception 'Only the Manager can edit the Schedule';
+  end if;
+  perform public.write_schedule_cell(p_staff_member_id, p_section_id,
+    p_work_date, p_shift_code);
+end;
+$$;
+
 -- Preserve the dated eligibility and the row and advisory locks from the
 -- existing pickup RPC. Self-service completion happens in this transaction.
 create or replace function public.request_open_shift_pickup(p_short_shift_id uuid)
@@ -157,7 +223,7 @@ begin
     raise exception 'Only Staff members can request a pickup';
   end if;
   select * into v_short from public.short_shifts where id = p_short_shift_id for update;
-  if not found or v_short.filled_at is not null or not exists (
+  if not found or not exists (
     select 1 from public.schedule_months where id = v_short.schedule_month_id and release_state = 'released'
   ) then raise exception 'Open shift is unavailable'; end if;
   select coalesce(v_short.job_role, (
@@ -184,6 +250,23 @@ begin
   if v_cell is not null and v_cell not in ('', 'X') then
     raise exception 'You already have a shift that day';
   end if;
+  if v_short.filled_at is not null then
+    insert into public.open_shift_pickups(short_shift_id, staff_member_id, status)
+    values (p_short_shift_id, v_staff, 'declined')
+    on conflict (short_shift_id, staff_member_id) do nothing
+    returning * into v_pickup;
+    if found then
+      insert into public.staff_notices(staff_member_id, kind, title, body, month_start)
+      values (v_staff, 'open_shift_pickup', 'Open shift filled',
+        'The ' || v_short.shift_code || ' shift on ' || v_short.work_date::text ||
+          ' was picked up by another Staff member.',
+        date_trunc('month', v_short.work_date)::date);
+    else
+      select * into v_pickup from public.open_shift_pickups
+      where short_shift_id = p_short_shift_id and staff_member_id = v_staff;
+    end if;
+    return v_pickup;
+  end if;
   insert into public.open_shift_pickups(short_shift_id, staff_member_id)
   values (p_short_shift_id, v_staff) returning * into v_pickup;
   if v_short.requires_approval then
@@ -193,19 +276,8 @@ begin
         v_short.work_date::text || '.', date_trunc('month', v_short.work_date)::date
     from public.staff_members manager where manager.role = 'manager' and manager.active;
   else
-    -- save_schedule_cell is Manager-only. Write the same cell and change log
-    -- here after the dated eligibility, section and cell checks above.
-    insert into public.schedule_cells(schedule_month_id, staff_member_id, section_id,
-      work_date, shift_code)
-    values (v_short.schedule_month_id, v_staff, v_section, v_short.work_date,
-      v_short.shift_code)
-    on conflict (schedule_month_id, staff_member_id, work_date) do update
-    set shift_code = excluded.shift_code, section_id = excluded.section_id,
-      updated_at = now();
-    insert into public.schedule_changes(schedule_month_id, staff_member_id, section_id,
-      work_date, old_shift_code, new_shift_code, changed_by_staff_member_id)
-    values (v_short.schedule_month_id, v_staff, v_section, v_short.work_date,
-      coalesce(v_cell, ''), v_short.shift_code, v_staff);
+    perform public.write_schedule_cell(v_staff, v_section,
+      v_short.work_date, v_short.shift_code);
     update public.open_shift_pickups set status = 'approved',
       approved_at = clock_timestamp(), approved_by = null
     where id = v_pickup.id returning * into v_pickup;

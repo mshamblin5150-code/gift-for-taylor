@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(25);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000601', 'self-manager@example.test'),
@@ -60,9 +60,16 @@ select is((select count(*)::integer from public.staff_notices where staff_member
   '00000000-0000-0000-0000-000000000608' and title = 'Open shift pickup approved'), 1,
   'picker receives confirmation');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000602","role":"authenticated"}', true);
-select throws_ok($$select public.request_open_shift_pickup((select id from public.short_shifts
-  where work_date = '2027-03-10'))$$, 'Open shift is unavailable', 'second picker cannot take filled shift');
+select lives_ok($$select public.request_open_shift_pickup((select id from public.short_shifts
+  where work_date = '2027-03-10'))$$, 'second picker loses without taking the shift');
 reset role;
+select is((select status from public.open_shift_pickups where staff_member_id =
+  '00000000-0000-0000-0000-000000000607' and short_shift_id =
+  (select id from public.short_shifts where work_date = '2027-03-10')), 'declined',
+  'losing pickup is recorded as declined');
+select is((select count(*)::integer from public.staff_notices where staff_member_id =
+  '00000000-0000-0000-0000-000000000607' and title = 'Open shift filled'), 1,
+  'losing picker hears that shift filled');
 insert into public.short_shifts(schedule_month_id, work_date, shift_code, reason, job_role,
   rn_floor_critical, requires_approval)
 values ('00000000-0000-0000-0000-000000000609', '2027-03-11', '7A', 'manual', 'rn', true, true);
