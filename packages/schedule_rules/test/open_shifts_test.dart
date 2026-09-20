@@ -95,6 +95,24 @@ void main() {
     },
   );
 
+  test(
+    'Manager can decline a pending pickup without filling its Open shift',
+    () async {
+      final shift = (await managerShifts.openShifts()).single;
+      final staff = OpenShiftRules(database.openShiftStoreFor('lpn'));
+      await staff.requestPickup(shift.id);
+      final pickup = (await staff.pickups()).single;
+      await expectLater(staff.declinePickup(pickup.id), throwsStateError);
+      await managerShifts.declinePickup(pickup.id, reason: 'Coverage changed');
+      expect((await staff.pickups()).single.status, PickupStatus.declined);
+      expect((await managerShifts.openShifts()).single.id, shift.id);
+      await expectLater(
+        managerShifts.approvePickup(pickup.id),
+        throwsStateError,
+      );
+    },
+  );
+
   test('CNA and unit clerk each see only Open shifts in their role', () async {
     for (final (id, section, code) in [
       ('cna', 'cna', '7C'),
@@ -193,7 +211,11 @@ void main() {
     'manual pickup covers its posted Section across nursing Sections',
     () async {
       await manager.changeSection(
-        ChangeSection(staffMemberId: 'lpn', sectionId: 'other-nursing', from: day),
+        ChangeSection(
+          staffMemberId: 'lpn',
+          sectionId: 'other-nursing',
+          from: day,
+        ),
       );
       await managerShifts.setWeekdayMinimum('nursing', day.weekday % 7, 1);
       await managerShifts.postOpenShifts('nursing', day, '7P', JobRole.rn, 1);
@@ -214,7 +236,9 @@ void main() {
       );
       expect(
         staffing
-            .singleWhere((item) => item.sectionId == 'other-nursing' && item.date == day)
+            .singleWhere(
+              (item) => item.sectionId == 'other-nursing' && item.date == day,
+            )
             .workingCount,
         0,
       );
@@ -236,9 +260,8 @@ void main() {
       await manager.setLastDay(
         SetLastDay(staffMemberId: 'original', lastDay: day),
       );
-      final visible = await OpenShiftRules(
-        database.openShiftStoreFor('lpn'),
-      ).openShifts();
+      final visible = await OpenShiftRules(database.openShiftStoreFor('lpn'))
+          .openShifts();
       expect(
         visible.where((shift) => shift.date == later).single.shiftCode,
         '7P',

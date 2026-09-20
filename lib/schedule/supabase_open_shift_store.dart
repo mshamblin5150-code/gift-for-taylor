@@ -54,6 +54,13 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     params: {'p_pickup_id': pickupId},
   );
 
+  @override
+  Future<void> declinePickup(String pickupId, {String? reason}) =>
+      client.rpc<void>(
+        'decline_open_shift_pickup',
+        params: {'p_pickup_id': pickupId, 'p_reason': reason},
+      );
+
   String _date(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 

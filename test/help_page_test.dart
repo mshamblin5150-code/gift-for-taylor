@@ -48,6 +48,16 @@ void main() {
     expect(find.textContaining('Manager'), findsWidgets);
   });
 
+  testWidgets('Manager can find the combined Approval queue', (tester) async {
+    await openHelp(tester, HelpRole.manager);
+    await tester.enterText(find.byType(TextField), 'approval queue');
+    await tester.pump();
+    expect(find.text('Approval queue'), findsOneWidget);
+    await tester.tap(find.text('Approval queue'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('pending Requests off'), findsWidgets);
+  });
+
   testWidgets('Night scheduler sees editing but not Manager-only features', (
     tester,
   ) async {

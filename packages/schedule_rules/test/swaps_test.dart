@@ -59,6 +59,18 @@ void main() {
     await expectLater(manager.approve(swap.id), throwsStateError);
   });
 
+  test('Manager can decline an accepted Swap with a reason', () async {
+    final swap = await requester.propose('sam', first, second);
+    await colleague.answer(swap.id, accept: true);
+    await expectLater(requester.decline(swap.id), throwsStateError);
+    await manager.decline(swap.id, reason: '  Coverage needed  ');
+    final decided = (await requester.swaps()).single;
+    expect(decided.status, SwapStatus.declined);
+    expect(decided.reason, 'Coverage needed');
+    expect(database.shiftCodeFor('alex', first), '7A');
+    await expectLater(manager.approve(swap.id), throwsStateError);
+  });
+
   test('a day off or leave cannot be offered as a working shift', () async {
     final unavailable = InMemorySwapDatabase(
       managerId: 'manager',

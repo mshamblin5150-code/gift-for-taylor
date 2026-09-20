@@ -66,10 +66,18 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'day off days off time off vacation leave requests off',
   ),
   HelpTopic(
+    title: 'Approval queue',
+    who: 'Manager',
+    what: 'One list holds pending Requests off, accepted Swaps and requested Open shift pickups. The badge counts all three, with the earliest affected dates first.',
+    how: 'Tap the approval queue icon on the Schedule. Review each item and tap Approve or Decline. Add a reason when the decision offers one. To browse history, open Browse requests on the Schedule and choose the individual screen.',
+    searchTerms: 'pending approval requests off swaps pickups decisions',
+    roles: _manager,
+  ),
+  HelpTopic(
     title: 'Request off approvals',
     who: 'Manager',
     what: 'The Manager approves or declines each pending Request off.',
-    how: 'Open the Request off approval queue from the Schedule, review the dates and email-copy status, and tap Approve or Decline. Use History to see earlier decisions.',
+    how: 'Open the Approval queue from the Schedule, review the dates, and tap Approve or Decline. Use Browse requests then Requests off and History to see earlier decisions and email-copy status.',
     roles: _manager,
   ),
   HelpTopic(
@@ -83,7 +91,7 @@ const helpTopics = <HelpTopic>[
     title: 'Approve a Swap',
     who: 'Manager',
     what: 'An accepted Swap takes effect only with Manager approval.',
-    how: 'Open Swaps from the Schedule, find an accepted Swap and tap Approve.',
+    how: 'Open the Approval queue from the Schedule, find an accepted Swap and tap Approve or Decline. Use Browse requests then Swaps to see other Swaps.',
     roles: _manager,
   ),
   HelpTopic(
@@ -97,7 +105,7 @@ const helpTopics = <HelpTopic>[
     title: 'Open shift pickup approvals',
     who: 'Manager',
     what: 'A requested Open shift pickup takes effect only with Manager approval.',
-    how: 'Open Open shifts from the Schedule, find the pending pickup under Pickup approvals and tap Approve.',
+    how: 'Open the Approval queue from the Schedule, find the pending pickup and tap Approve or Decline. Use Browse requests then Open shifts to see available shifts.',
     roles: _manager,
   ),
   HelpTopic(
