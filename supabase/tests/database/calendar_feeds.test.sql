@@ -93,8 +93,8 @@ select is((select count(*)::integer from public.list_calendar_subscriptions()), 
   'Staff member can have two subscriptions');
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000502","role":"authenticated"}', true);
-select is((select count(*)::integer from public.list_calendar_subscriptions()), 0,
-  'another Staff member cannot list these subscriptions');
+select is((select string_agg(name, ',') from public.list_calendar_subscriptions()),
+  'Empty feed', 'another Staff member sees only their own subscription');
 select throws_ok(
   $$select public.revoke_calendar_subscription((select old_id from feed_secrets))$$,
   'Calendar subscription not found',
