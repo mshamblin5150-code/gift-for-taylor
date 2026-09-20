@@ -98,8 +98,19 @@ The physical binder where the current printed Schedule is kept for staff to read
 The ED staff the ED manager announces changes to: each person's name, cell number and Section, plus the personal email they enter themselves when they accept their Invite. A removed person is deactivated, never deleted, and can be reactivated.
 _Avoid_: Roster, contacts, directory
 
+**Cell number**:
+The one phone number the Staff list holds for a Staff member. It both reaches
+them and identifies them: it is where their Invite is texted, and what they type
+to prove the Invite is theirs. Two active Staff members never share one, and a
+Staff member without one is missing a detail rather than opting out — they can be
+on the Schedule, but not in the app until the Manager adds it.
+_Avoid_: Phone, mobile, contact number
+
 **Invite**:
-A one-time link the Manager texts to a person she has added to the Staff list. Opening it lets them enter their own email and sign in; only invited people can get in.
+A one-time link the Manager texts to a person she has added to the Staff list.
+The link alone gets nobody in: opening it, the person gives their Cell number as
+it stands on the Staff list and their own email, and the Manager confirms it was
+really them before the account works. It lapses after a month if unused.
 _Avoid_: Registration, sign-up
 
 **Last day**:
