@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../help/help_page.dart';
 import '../notifications/notice_gateway.dart';
@@ -58,6 +59,7 @@ class MonthGridPage extends StatefulWidget {
     super.key,
     required this.rules,
     required this.month,
+    this.viewerId,
     this.staffMemberId,
     this.swapStaffMemberId,
     this.onSignOut,
@@ -76,6 +78,9 @@ class MonthGridPage extends StatefulWidget {
 
   final ScheduleRules rules;
   final DateTime month;
+
+  /// Stable signed-in account identity for device-local Schedule layout.
+  final String? viewerId;
   final String? staffMemberId;
   final String? swapStaffMemberId;
   final VoidCallback? onSignOut;
@@ -1123,6 +1128,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       (final MonthGrid grid, _) => switch (_view) {
         ScheduleView.month => _MonthView(
           grid: grid,
+          viewerId: widget.viewerId,
           today: _today,
           staffing: _staffing,
           onOpenDay: (day) => setState(() {
@@ -1319,6 +1325,7 @@ SectionStaffing? _staffingOn(
 class _MonthView extends StatefulWidget {
   const _MonthView({
     required this.grid,
+    required this.viewerId,
     required this.today,
     required this.staffing,
     required this.onOpenDay,
@@ -1331,6 +1338,7 @@ class _MonthView extends StatefulWidget {
   });
 
   final MonthGrid grid;
+  final String? viewerId;
   final DateTime today;
   final List<SectionStaffing> staffing;
   final ValueChanged<DateTime> onOpenDay;
@@ -1346,6 +1354,10 @@ class _MonthView extends StatefulWidget {
 }
 
 class _MonthViewState extends State<_MonthView> {
+  Future<void> _pendingPreferenceWrites = Future<void>.value();
+  Set<String> _collapsedSections = {};
+  bool _collapseStateReady = false;
+  int _preferenceLoad = 0;
   final _headerScroll = ScrollController();
   final _poolScroll = ScrollController();
   final _daysScroll = ScrollController();
@@ -1354,8 +1366,80 @@ class _MonthViewState extends State<_MonthView> {
   Offset? _dragPointer;
 
   @override
+  void didUpdateWidget(_MonthView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.viewerId != widget.viewerId) _loadCollapsedSections();
+  }
+
+  Future<void> _loadCollapsedSections() async {
+    final load = ++_preferenceLoad;
+    final viewerId = widget.viewerId;
+    if (viewerId == null) {
+      setState(() {
+        _collapsedSections = {};
+        _collapseStateReady = true;
+      });
+      return;
+    }
+    setState(() => _collapseStateReady = false);
+    Set<String> collapsedSections = {};
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final prefix = _collapseKeyPrefix(viewerId);
+      collapsedSections = {
+        for (final key in preferences.getKeys())
+          if (key.startsWith(prefix) && preferences.getBool(key) == true)
+            key.substring(prefix.length),
+      };
+    } catch (_) {
+      // A failed local preference read must not prevent the Schedule opening.
+    }
+    if (!mounted || load != _preferenceLoad) return;
+    setState(() {
+      _collapsedSections = collapsedSections;
+      _collapseStateReady = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showToday());
+  }
+
+  void _toggleSection(String sectionId) {
+    final viewerId = widget.viewerId;
+    final collapsed = !_collapsedSections.contains(sectionId);
+    setState(() {
+      if (collapsed) {
+        _collapsedSections.add(sectionId);
+      } else {
+        _collapsedSections.remove(sectionId);
+      }
+    });
+    if (viewerId != null) {
+      _pendingPreferenceWrites = _pendingPreferenceWrites.then(
+        (_) => _saveCollapsedSection(viewerId, sectionId, collapsed),
+      );
+      unawaited(_pendingPreferenceWrites);
+    }
+  }
+
+  Future<void> _saveCollapsedSection(
+    String viewerId,
+    String sectionId,
+    bool collapsed,
+  ) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool(
+        '${_collapseKeyPrefix(viewerId)}$sectionId',
+        collapsed,
+      );
+    } catch (_) {
+      // The current layout still works if device storage is unavailable.
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
+    _loadCollapsedSections();
     _headerScroll.addListener(() => _syncHorizontalScroll(_headerScroll));
     _poolScroll.addListener(() => _syncHorizontalScroll(_poolScroll));
     _daysScroll.addListener(() => _syncHorizontalScroll(_daysScroll));
@@ -1466,6 +1550,9 @@ class _MonthViewState extends State<_MonthView> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_collapseStateReady) {
+      return const Center(child: CircularProgressIndicator());
+    }
     final days = widget.grid.days;
     final visiblePools = _visiblePools;
     return Column(
@@ -1516,6 +1603,8 @@ class _MonthViewState extends State<_MonthView> {
               children: [
                 _NameColumn(
                   grid: widget.grid,
+                  collapsedSections: _collapsedSections,
+                  onToggleSection: _toggleSection,
                   onOpenStaffDetails: widget.onOpenStaffDetails,
                 ),
                 Expanded(
@@ -1540,20 +1629,21 @@ class _MonthViewState extends State<_MonthView> {
                               ),
                             ),
                           ),
-                          for (final row in widget.grid.rowsIn(section.id))
-                            _StaffRow(
-                              grid: widget.grid,
-                              row: row,
-                              days: days,
-                              today: widget.today,
-                              onEdit: widget.onEdit,
-                              onDrop: widget.onDrop,
-                              onDragUpdate: _scrollDuringDrag,
-                              onDragStop: _stopDragScroll,
-                              editable: widget.editable,
-                              dragEnabled: widget.dragEnabled,
-                              staffMemberId: widget.staffMemberId,
-                            ),
+                          if (!_collapsedSections.contains(section.id))
+                            for (final row in widget.grid.rowsIn(section.id))
+                              _StaffRow(
+                                grid: widget.grid,
+                                row: row,
+                                days: days,
+                                today: widget.today,
+                                onEdit: widget.onEdit,
+                                onDrop: widget.onDrop,
+                                onDragUpdate: _scrollDuringDrag,
+                                onDragStop: _stopDragScroll,
+                                editable: widget.editable,
+                                dragEnabled: widget.dragEnabled,
+                                staffMemberId: widget.staffMemberId,
+                              ),
                         ],
                       ],
                     ),
@@ -1611,9 +1701,16 @@ class _PoolNames extends StatelessWidget {
 }
 
 class _NameColumn extends StatelessWidget {
-  const _NameColumn({required this.grid, required this.onOpenStaffDetails});
+  const _NameColumn({
+    required this.grid,
+    required this.collapsedSections,
+    required this.onToggleSection,
+    required this.onOpenStaffDetails,
+  });
 
   final MonthGrid grid;
+  final Set<String> collapsedSections;
+  final ValueChanged<String> onToggleSection;
   final Future<void> Function(String)? onOpenStaffDetails;
 
   @override
@@ -1621,48 +1718,80 @@ class _NameColumn extends StatelessWidget {
     return Column(
       children: [
         for (final section in grid.sections) ...[
-          Container(
-            key: ValueKey('section-name-${section.id}'),
-            width: _nameWidth,
-            height: _sectionBandHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            alignment: Alignment.centerLeft,
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: ScheduleGridColors.of(context).rosterRule,
-                  width: 2,
-                ),
-              ),
-            ),
-            child: Text(
-              section.name,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: ScheduleGridColors.of(context).rosterText,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          for (final row in grid.rowsIn(section.id))
-            InkWell(
-              onTap: onOpenStaffDetails == null
+          Semantics(
+            value: grid.rowsIn(section.id).isEmpty
+                ? null
+                : collapsedSections.contains(section.id)
+                ? 'Collapsed'
+                : 'Expanded',
+            hint: grid.rowsIn(section.id).isEmpty
+                ? null
+                : collapsedSections.contains(section.id)
+                ? 'Expand Section'
+                : 'Collapse Section',
+            button: grid.rowsIn(section.id).isNotEmpty,
+            child: InkWell(
+              onTap: grid.rowsIn(section.id).isEmpty
                   ? null
-                  : () => onOpenStaffDetails!(row.staffMemberId),
-              onDoubleTap: onOpenStaffDetails == null
-                  ? null
-                  : () => onOpenStaffDetails!(row.staffMemberId),
+                  : () => onToggleSection(section.id),
               child: Container(
+                key: ValueKey('section-name-${section.id}'),
                 width: _nameWidth,
-                height: _cellHeight,
+                height: _sectionBandHeight,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 alignment: Alignment.centerLeft,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Theme.of(context).dividerColor),
+                  border: Border(
+                    top: BorderSide(
+                      color: ScheduleGridColors.of(context).rosterRule,
+                      width: 2,
+                    ),
+                  ),
                 ),
-                child: Text(row.displayName, overflow: TextOverflow.ellipsis),
+                child: Row(
+                  children: [
+                    if (grid.rowsIn(section.id).isNotEmpty)
+                      Icon(
+                        collapsedSections.contains(section.id)
+                            ? Icons.arrow_right
+                            : Icons.arrow_drop_down,
+                        size: 24,
+                      ),
+                    Expanded(
+                      child: Text(
+                        section.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: ScheduleGridColors.of(context).rosterText,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+          ),
+          if (!collapsedSections.contains(section.id))
+            for (final row in grid.rowsIn(section.id))
+              InkWell(
+                onTap: onOpenStaffDetails == null
+                    ? null
+                    : () => onOpenStaffDetails!(row.staffMemberId),
+                onDoubleTap: onOpenStaffDetails == null
+                    ? null
+                    : () => onOpenStaffDetails!(row.staffMemberId),
+                child: Container(
+                  width: _nameWidth,
+                  height: _cellHeight,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  alignment: Alignment.centerLeft,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Theme.of(context).dividerColor),
+                  ),
+                  child: Text(row.displayName, overflow: TextOverflow.ellipsis),
+                ),
+              ),
         ],
       ],
     );
@@ -2458,4 +2587,7 @@ const _nameWidth = 160.0;
 const _dayWidth = 48.0;
 const _cellHeight = 44.0;
 const _bandHeight = 44.0;
-const _sectionBandHeight = 40.0;
+const _sectionBandHeight = 48.0;
+
+String _collapseKeyPrefix(String viewerId) =>
+    'section-collapse.v1.${Uri.encodeComponent(viewerId)}.';
