@@ -129,6 +129,20 @@ final class StaffInviteAlreadyLinkedException implements Exception {
   const StaffInviteAlreadyLinkedException();
 }
 
+final class PendingInviteAcceptance {
+  const PendingInviteAcceptance({
+    required this.inviteId,
+    required this.staffMemberName,
+    required this.personalEmail,
+    required this.acceptedAt,
+  });
+
+  final String inviteId;
+  final String staffMemberName;
+  final String personalEmail;
+  final DateTime acceptedAt;
+}
+
 final class StaffMemberDetails {
   const StaffMemberDetails({
     required this.id,
@@ -193,6 +207,10 @@ abstract interface class StaffGateway {
   Future<void> deleteEmptySection(String sectionId);
   Future<StaffInvite> resendInvite(String staffMemberId);
   Future<InviteAcceptanceResult> acceptInvite(String token, String cellNumber);
+  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances();
+  Future<void> confirmInviteAcceptance(String inviteId);
+  Future<void> rejectInviteAcceptance(String inviteId);
+  Future<bool> isInviteAcceptancePending();
 }
 
 final class SupabaseStaffGateway implements StaffGateway {
@@ -246,14 +264,7 @@ final class SupabaseStaffGateway implements StaffGateway {
 
   @override
   Future<String?> currentStaffMemberId() async {
-    final authUserId = _client.auth.currentUser?.id;
-    if (authUserId == null) return null;
-    final row = await _client
-        .from('staff_accounts')
-        .select('staff_member_id')
-        .eq('auth_user_id', authUserId)
-        .maybeSingle();
-    return row?['staff_member_id'] as String?;
+    return _client.rpc<String?>('current_staff_member_id');
   }
 
   @override
@@ -473,6 +484,43 @@ final class SupabaseStaffGateway implements StaffGateway {
       _ => throw StateError('Unknown Invite acceptance result'),
     };
   }
+
+  @override
+  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async {
+    final rows = await _client
+        .from('pending_invite_acceptances')
+        .select(
+          'invite_id, personal_email, accepted_at, '
+          'staff_members!inner(display_name)',
+        );
+    return [
+      for (final row in rows)
+        PendingInviteAcceptance(
+          inviteId: row['invite_id'] as String,
+          staffMemberName:
+              (row['staff_members'] as Map<String, dynamic>)['display_name']
+                  as String,
+          personalEmail: row['personal_email'] as String,
+          acceptedAt: DateTime.parse(row['accepted_at'] as String).toLocal(),
+        ),
+    ];
+  }
+
+  @override
+  Future<void> confirmInviteAcceptance(String inviteId) => _client.rpc<void>(
+    'confirm_invite_acceptance',
+    params: {'p_invite_id': inviteId},
+  );
+
+  @override
+  Future<void> rejectInviteAcceptance(String inviteId) => _client.rpc<void>(
+    'reject_invite_acceptance',
+    params: {'p_invite_id': inviteId},
+  );
+
+  @override
+  Future<bool> isInviteAcceptancePending() async =>
+      await _client.rpc<bool>('my_invite_acceptance_pending');
 
   StaffInvite _inviteFromRow(Map<String, dynamic> row) {
     return StaffInvite(

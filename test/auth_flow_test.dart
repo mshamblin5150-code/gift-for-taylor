@@ -102,47 +102,46 @@ void main() {
     expect(find.text('State dayshift RN'), findsNothing);
   });
 
-  testWidgets('invitee gives their Cell number before email and acceptance', (
-    tester,
-  ) async {
-    final staffGateway = _FakeStaffGateway();
-    await tester.pumpWidget(
-      ScheduleApp(
-        authGateway: _FakeAuthGateway(),
-        scheduleStore: _scheduleStore(const [
-          ScheduleSection(id: 'days', name: 'State dayshift RN'),
-        ]),
-        staffGateway: staffGateway,
-        inviteToken: 'fresh-token',
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'invitee gives their Cell number and waits for Manager confirmation',
+    (tester) async {
+      final staffGateway = _FakeStaffGateway();
+      await tester.pumpWidget(
+        ScheduleApp(
+          authGateway: _FakeAuthGateway(),
+          scheduleStore: _scheduleStore(const []),
+          staffGateway: staffGateway,
+          inviteToken: 'fresh-token',
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Email me a code'), findsNothing);
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Cell number'),
-      '555-0137',
-    );
-    await tester.tap(find.text('Continue to email'));
-    await tester.pumpAndSettle();
+      expect(find.text('Email me a code'), findsNothing);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Cell number'),
+        '555-0137',
+      );
+      await tester.tap(find.text('Continue to email'));
+      await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Email'),
-      'invitee@example.test',
-    );
-    await tester.tap(find.text('Email me a code'));
-    await tester.pump();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'One-time code'),
-      '123456',
-    );
-    await tester.tap(find.text('Verify code'));
-    await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Email'),
+        'invitee@example.test',
+      );
+      await tester.tap(find.text('Email me a code'));
+      await tester.pump();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'One-time code'),
+        '123456',
+      );
+      await tester.tap(find.text('Verify code'));
+      await tester.pumpAndSettle();
 
-    expect(staffGateway.acceptedToken, 'fresh-token');
-    expect(staffGateway.acceptedCellNumber, '555-0137');
-    expect(find.text('State dayshift RN'), findsOneWidget);
-  });
+      expect(staffGateway.acceptedToken, 'fresh-token');
+      expect(staffGateway.acceptedCellNumber, '555-0137');
+      expect(find.textContaining('waiting for the Manager'), findsOneWidget);
+    },
+  );
 
   testWidgets('Invite signs out an existing account before asking for email', (
     tester,
@@ -226,7 +225,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Cell number'), '555-0137');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Cell number'),
+      '555-0137',
+    );
     await tester.tap(find.text('Continue to email'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -235,12 +237,17 @@ void main() {
     );
     await tester.tap(find.text('Email me a code'));
     await tester.pump();
-    await tester.enterText(find.widgetWithText(TextField, 'One-time code'), '123456');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'One-time code'),
+      '123456',
+    );
     await tester.tap(find.text('Verify code'));
     await tester.pumpAndSettle();
 
-    expect(find.text('This email is already signed in as another Staff member.'),
-        findsOneWidget);
+    expect(
+      find.text('This email is already signed in as another Staff member.'),
+      findsOneWidget,
+    );
     expect(find.textContaining('23505'), findsNothing);
   });
 }
@@ -327,6 +334,18 @@ final class _FakeStaffGateway implements StaffGateway {
     acceptedCellNumber = cellNumber;
     return acceptanceResult;
   }
+
+  @override
+  Future<bool> isInviteAcceptancePending() async => acceptedToken != null;
+
+  @override
+  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async => [];
+
+  @override
+  Future<void> confirmInviteAcceptance(String inviteId) async {}
+
+  @override
+  Future<void> rejectInviteAcceptance(String inviteId) async {}
 
   @override
   Future<StaffInvite> addStaffMember(

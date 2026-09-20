@@ -9,6 +9,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import '../help/help_page.dart';
 import '../notifications/notice_gateway.dart';
 import '../notifications/notices_page.dart';
+import '../staff/staff_gateway.dart';
 
 import 'announce_sheet.dart';
 import 'approval_queue_page.dart';
@@ -49,6 +50,7 @@ class MonthGridPage extends StatefulWidget {
     this.swapRules,
     this.openShiftRules,
     this.noticeGateway,
+    this.staffGateway,
     this.printBookPage,
     this.printWordingGateway,
     this.now,
@@ -66,6 +68,7 @@ class MonthGridPage extends StatefulWidget {
   final SwapRules? swapRules;
   final OpenShiftRules? openShiftRules;
   final NoticeGateway? noticeGateway;
+  final StaffGateway? staffGateway;
 
   /// Prints a Schedule book page, given as an HTML document.
   final ValueChanged<String>? printBookPage;
@@ -258,6 +261,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         widget.rules,
         widget.swapRules!,
         widget.openShiftRules!,
+        widget.staffGateway,
       );
       if (mounted) {
         setState(() => _pendingApprovals = pending.count);
@@ -796,6 +800,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                   rules: widget.rules,
                   swapRules: widget.swapRules!,
                   openShiftRules: widget.openShiftRules!,
+                  staffGateway: widget.staffGateway,
                 ),
               ),
               icon: Badge(
