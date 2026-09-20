@@ -11,64 +11,68 @@ const _headingAndLegendHeightPt = 60.0;
 const _minimumReadableFontPt = 6.0;
 const _fontSizePt = 9.0;
 
-double _initialScale(MonthGrid grid) {
+double _initialScale(MonthGrid grid, PrintWording wording) {
   final lines = grid.sections.length + grid.rows.length + 2;
-  final height = lines * _rowHeightPt + _headingAndLegendHeightPt;
+  // Allow for a second heading line on a portrait fallback. At 14pt Arial,
+  // roughly seven points per character is a conservative width estimate.
+  const portraitHeadingWidthPt = 576.0;
+  final headingLines =
+      (wording.titleFor(grid.month).length * 7 / portraitHeadingWidthPt).ceil();
+  final height =
+      lines * _rowHeightPt +
+      _headingAndLegendHeightPt +
+      (headingLines - 1).clamp(0, 1) * 18;
   final scale = (bookPageBodyHeightPt / height).clamp(0.0, 1.0);
   // Rounding down preserves the fallback height bound in the emitted CSS.
   return (scale * 1000000).floor() / 1000000;
 }
 
 /// A conservative warning that one-page printing may make text very small.
-bool bookPageIsHardToRead(MonthGrid grid) =>
-    _fontSizePt * _initialScale(grid) < _minimumReadableFontPt;
+bool bookPageIsHardToRead(
+  MonthGrid grid, {
+  PrintWording wording = const PrintWording(),
+}) => _fontSizePt * _initialScale(grid, wording) < _minimumReadableFontPt;
 
-/// Approved, unit-wide print wording. Only these choices can be persisted;
-/// arbitrary text could put patient or personal details on the book page.
+/// Defaults for the unit-wide print wording.
 enum PrintTooltipStyle {
-  bookPage('Print the book page'),
-  schedule('Print Schedule'),
-  binder('Print for the Schedule book');
+  bookPage(defaultLabel);
 
   const PrintTooltipStyle(this.label);
+  static const defaultLabel = 'Print the book page';
   final String label;
 }
 
 enum PrintTitleStyle {
-  hospital('Welch Community Hospital - Emergency Room Schedule'),
-  emergencyRoom('Emergency Room Schedule'),
-  er('ER Schedule');
+  hospital(defaultLabel);
 
   const PrintTitleStyle(this.label);
+  static const defaultLabel =
+      'Welch Community Hospital - Emergency Room Schedule';
   final String label;
 }
 
 enum PrintNoticeStyle {
-  subjectToChange('Schedule subject to change'),
-  checkForChanges('Check for Schedule changes'),
-  none('');
+  subjectToChange(defaultLabel);
 
   const PrintNoticeStyle(this.label);
+  static const defaultLabel = 'Schedule subject to change';
   final String label;
 }
 
 final class PrintWording {
   const PrintWording({
-    this.tooltip = PrintTooltipStyle.bookPage,
-    this.title = PrintTitleStyle.hospital,
-    this.notice = PrintNoticeStyle.subjectToChange,
+    this.tooltip = PrintTooltipStyle.defaultLabel,
+    this.title = PrintTitleStyle.defaultLabel,
+    this.notice = PrintNoticeStyle.defaultLabel,
   });
 
-  final PrintTooltipStyle tooltip;
-  final PrintTitleStyle title;
-  final PrintNoticeStyle notice;
+  final String tooltip;
+  final String title;
+  final String notice;
 
   String titleFor(DateTime month) {
-    final name = _monthNames[month.month - 1];
-    final monthName = title == PrintTitleStyle.hospital
-        ? name.toUpperCase()
-        : name;
-    return '${title.label} - $monthName ${month.year}';
+    final monthName = _monthNames[month.month - 1].toUpperCase();
+    return '$title - $monthName ${month.year}';
   }
 }
 
@@ -83,7 +87,7 @@ String bookPageHtml(
 }) {
   final days = grid.days;
   final title = wording.titleFor(grid.month);
-  final initialScale = _initialScale(grid);
+  final initialScale = _initialScale(grid, wording);
   final dayCount = days.length;
 
   final html = StringBuffer()
@@ -99,9 +103,9 @@ String bookPageHtml(
     ..writeln('<body>')
     ..writeln('<div class="page"><div class="sheet">')
     ..writeln(
-      wording.notice == PrintNoticeStyle.none
+      wording.notice.isEmpty
           ? ''
-          : '<p class="notice">${_escape(wording.notice.label)}</p>',
+          : '<p class="notice">${_escape(wording.notice)}</p>',
     )
     ..writeln('<h1>${_escape(title)}</h1>')
     ..writeln('<table>')

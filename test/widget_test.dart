@@ -244,8 +244,9 @@ void main() {
   testWidgets('a dated minimum leaves other days in its pool band blank', (
     tester,
   ) async {
-    await OpenShiftRules(database.openShiftStoreFor('manager'))
-        .setDateMinimum(RolePool.cna, CoverageWindow.day, september18, 1, 0);
+    await OpenShiftRules(
+      database.openShiftStoreFor('manager'),
+    ).setDateMinimum(RolePool.cna, CoverageWindow.day, september18, 1, 0);
     await pumpGrid(tester, withStaffing: true);
 
     expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsOneWidget);
@@ -1214,26 +1215,64 @@ void main() {
 
     await tester.tap(find.byTooltip('Change print wording'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Print the book page').last);
+    await tester.enterText(find.byType(TextField).at(0), 'Print this Schedule');
+    await tester.enterText(find.byType(TextField).at(1), 'ER Schedule');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Print Schedule').last);
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.text('Welch Community Hospital - Emergency Room Schedule').last,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('ER Schedule').last);
-    await tester.pumpAndSettle();
+    expect(find.text('Example: ER Schedule - SEPTEMBER 2026'), findsOneWidget);
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    expect(gateway.wording.title, PrintTitleStyle.er);
-    expect(find.byTooltip('Print Schedule'), findsOneWidget);
+    expect(gateway.wording.title, 'ER Schedule');
+    expect(find.byTooltip('Print this Schedule'), findsOneWidget);
     await tester.tap(find.byTooltip('Next month'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Print Schedule'));
+    await tester.tap(find.byTooltip('Print this Schedule'));
     await tester.pumpAndSettle();
-    expect(printed.single, contains('ER Schedule - October 2026</h1>'));
+    expect(printed.single, contains('ER Schedule - OCTOBER 2026</h1>'));
+  });
+
+  testWidgets('wording over 80 is retained for editing but refused on save', (
+    tester,
+  ) async {
+    final gateway = _TestPrintWordingGateway();
+    await pumpGrid(tester, printWordingGateway: gateway);
+    await tester.tap(find.byTooltip('Change print wording'));
+    await tester.pumpAndSettle();
+    final pasted = 'x' * 81;
+    await tester.enterText(find.byType(TextField).at(1), pasted);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Each field must be 80 characters or fewer.'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField).at(1)).controller!.text,
+      pasted,
+    );
+    expect(gateway.wording.title, PrintTitleStyle.hospital.label);
+
+    await tester.enterText(find.byType(TextField).at(1), '😀' * 41);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(gateway.wording.title, '😀' * 41);
+  });
+
+  testWidgets('blank title can be reset to default', (tester) async {
+    await pumpGrid(tester, printWordingGateway: _TestPrintWordingGateway());
+    await tester.tap(find.byTooltip('Change print wording'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).at(1), '   ');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('The title and tooltip are required.'), findsOneWidget);
+    await tester.tap(find.text('Reset Printed title to default'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).at(1)).controller!.text,
+      PrintTitleStyle.hospital.label,
+    );
   });
 
   testWidgets('Staff cannot change print wording', (tester) async {

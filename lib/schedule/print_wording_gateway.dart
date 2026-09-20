@@ -15,13 +15,13 @@ final class SupabasePrintWordingGateway implements PrintWordingGateway {
   Future<PrintWording> read() async {
     final row = await _client
         .from('print_wording')
-        .select('tooltip_style, title_style, notice_style')
+        .select('tooltip, title, notice')
         .eq('id', true)
         .single();
     return PrintWording(
-      tooltip: PrintTooltipStyle.values.byName(row['tooltip_style'] as String),
-      title: PrintTitleStyle.values.byName(row['title_style'] as String),
-      notice: PrintNoticeStyle.values.byName(row['notice_style'] as String),
+      tooltip: row['tooltip'] as String,
+      title: row['title'] as String,
+      notice: row['notice'] as String,
     );
   }
 
@@ -29,9 +29,9 @@ final class SupabasePrintWordingGateway implements PrintWordingGateway {
   Future<void> save(PrintWording wording) => _client.rpc<void>(
     'set_print_wording',
     params: {
-      'p_tooltip_style': wording.tooltip.name,
-      'p_title_style': wording.title.name,
-      'p_notice_style': wording.notice.name,
+      'p_tooltip': wording.tooltip,
+      'p_title': wording.title,
+      'p_notice': wording.notice,
     },
   );
 }

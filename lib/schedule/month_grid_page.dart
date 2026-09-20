@@ -562,14 +562,14 @@ class _MonthGridPageState extends State<MonthGridPage> {
       if (mounted) setState(() => _wording = wording);
       final grid = await widget.rules.monthGrid(_month);
       if (!mounted) return;
-      if (bookPageIsHardToRead(grid)) {
+      if (bookPageIsHardToRead(grid, wording: wording)) {
         final proceed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Small print warning'),
             content: Text(
-              'This Schedule has ${grid.rows.length} Staff members. '
-              'Fitting it on one sheet will make the text very small.',
+              'Fitting this Schedule, its title and legend on one sheet '
+              'will make the text very small.',
             ),
             actions: [
               TextButton(
@@ -913,7 +913,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     ],
     if (widget.printBookPage case final printBookPage?)
       _ScheduleAction(
-        label: _wording?.tooltip.label ?? 'Loading print wording',
+        label: _wording?.tooltip ?? 'Loading print wording',
         icon: Icons.print_outlined,
         onPressed: _wording == null ? null : () => _print(printBookPage),
       ),
