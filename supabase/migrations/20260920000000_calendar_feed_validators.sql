@@ -38,12 +38,12 @@ returns table (
 language sql stable security definer set search_path = ''
 as $$
   select member.id, cell.work_date, cell.shift_code,
-    case when legend.start_time is not null then
-      (cell.work_date + legend.start_time) at time zone 'America/New_York'
+    case when code.start_time is not null then
+      (cell.work_date + code.start_time) at time zone 'America/New_York'
     end,
-    case when legend.end_time is not null then
-      (cell.work_date + legend.end_time +
-        case when legend.end_time <= legend.start_time
+    case when code.end_time is not null then
+      (cell.work_date + code.end_time +
+        case when code.end_time <= code.start_time
           then interval '1 day' else interval '0 day' end)
         at time zone 'America/New_York'
     end,
@@ -55,18 +55,7 @@ as $$
   join public.staff_members member on member.id = token.staff_member_id
   join public.schedule_cells cell on cell.staff_member_id = member.id
   join public.schedule_months month on month.id = cell.schedule_month_id
-  left join (values
-    ('16D', time '07:00', time '23:00'),
-    ('7A',  time '07:00', time '19:00'),
-    ('D',   time '07:00', time '15:00'),
-    ('MM',  time '11:00', time '19:00'),
-    ('11A', time '11:00', time '23:00'),
-    ('3P',  time '15:00', time '03:00'),
-    ('7P',  time '19:00', time '07:00'),
-    ('ME',  time '19:00', time '03:00'),
-    ('N',   time '23:00', time '07:00')
-  ) as legend(code, start_time, end_time)
-    on legend.code = upper(trim(cell.shift_code))
+  left join public.shift_codes code on code.code = upper(trim(cell.shift_code))
   where p_token ~ '^[0-9a-f]{64}$'
     and token.token_hash = encode(sha256(decode(p_token, 'hex')), 'hex')
     and token.revoked_at is null
