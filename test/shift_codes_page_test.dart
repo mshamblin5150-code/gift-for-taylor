@@ -12,12 +12,19 @@ void main() {
       editors: const {'manager'},
     );
     final rules = ScheduleRules.inMemory(database, actingAs: 'manager');
+    await rules.saveShiftCode(const LegendCode('CUSTOM', isWorking: true));
 
     await tester.pumpWidget(MaterialApp(home: ShiftCodesPage(rules: rules)));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('without times appear as all-day'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('4P'), 250);
-    expect(find.text('Time not set · Worked shift'), findsWidgets);
+    expect(
+      find.textContaining('without times appear as all-day'),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(find.text('CUSTOM'), 250);
+    expect(
+      find.text('Time not set · No Coverage window · Worked shift'),
+      findsWidgets,
+    );
   });
 }
