@@ -37,10 +37,17 @@ its database arrives as a Schedule that will not load.
 
 The three compile-time values above are repository *variables*
 (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VAPID_PUBLIC_KEY`), since they
-ship inside the web app. The migration step additionally needs two repository
-*secrets*: `SUPABASE_ACCESS_TOKEN` (from the Supabase dashboard) and
-`SUPABASE_DB_PASSWORD` (the project's Postgres password). The target project is
-read from `SUPABASE_URL`, so it is named in one place.
+ship inside the web app. The migration step additionally needs one repository
+*secret*, `SUPABASE_DB_URL`: the project's **session pooler** connection
+string, from Connect in the Supabase dashboard.
+
+It must be the pooler URL, not the direct one. `db.<ref>.supabase.co` publishes
+an AAAA record and no A record, and GitHub's runners are IPv4-only. Percent-
+encode the password if it contains `@ / ? # [ ] %` or a space.
+
+A connection string is deliberately used in place of an access token: it
+reaches this one database, where an account-wide token would reach every
+project on the account.
 
 A superseded run queues rather than cancelling, so a second push cannot
 interrupt a migration midway.
