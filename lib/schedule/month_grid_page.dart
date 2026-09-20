@@ -24,6 +24,13 @@ import 'staffing_sheet.dart';
 
 enum ScheduleView { month, day, person }
 
+typedef _MonthRead = ({
+  MonthGrid grid,
+  ChangeAnnouncement? announcement,
+  List<LegendCode> codes,
+  List<SectionStaffing> staffing,
+});
+
 class MonthGridPage extends StatefulWidget {
   const MonthGridPage({
     super.key,
@@ -159,31 +166,44 @@ class _MonthGridPageState extends State<MonthGridPage> {
     });
   }
 
-  Future<void> _load() async {
+  Future<void> _load() {
     _refreshRequestNotices();
+    return _readMonth(initial: true);
+  }
+
+  Future<void> _reload() => _readMonth(initial: false);
+
+  Future<void> _readMonth({required bool initial}) async {
     try {
       final month = _month;
-      final (canEdit, editable) = await (
-        widget.rules.canEditSchedule(),
-        widget.rules.editableSections(),
-      ).wait;
-      final (grid, announcement, codes, staffing) = await _read(
-        month,
-        editable,
-      );
+      var editable = _editable;
+      var canEdit = _canEdit;
+      if (initial) {
+        (canEdit, editable) = await (
+          widget.rules.canEditSchedule(),
+          widget.rules.editableSections(),
+        ).wait;
+      }
+      final read = await _read(month, editable);
       if (!mounted || month != _month) return;
       setState(() {
-        _canEdit = canEdit;
-        _editable = editable;
-        _grid = grid;
-        _shiftCodes = codes;
-        _staffing = staffing;
-        _announcement = announcement;
-        _loadError = null;
+        if (initial) {
+          _canEdit = canEdit;
+          _editable = editable;
+          _loadError = null;
+        }
+        _grid = read.grid;
+        _shiftCodes = read.codes;
+        _staffing = read.staffing;
+        _announcement = read.announcement;
       });
-      _refreshSwaps();
+      if (initial) _refreshSwaps();
     } catch (error) {
-      if (mounted) setState(() => _loadError = error);
+      if (initial) {
+        if (mounted) setState(() => _loadError = error);
+      } else {
+        // The next save or update reloads again.
+      }
     }
   }
 
@@ -217,25 +237,6 @@ class _MonthGridPageState extends State<MonthGridPage> {
     }
   }
 
-  Future<void> _reload() async {
-    try {
-      final month = _month;
-      final (grid, announcement, codes, staffing) = await _read(
-        month,
-        _editable,
-      );
-      if (!mounted || month != _month) return;
-      setState(() {
-        _grid = grid;
-        _shiftCodes = codes;
-        _staffing = staffing;
-        _announcement = announcement;
-      });
-    } catch (_) {
-      // The next save or update reloads again.
-    }
-  }
-
   Future<void> _openStaffDetails(String staffMemberId) async {
     await widget.onOpenStaffDetails?.call(staffMemberId);
     if (mounted) await _reload();
@@ -254,10 +255,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   /// of. An older database missing either must not take the month down with
   /// it. The tray is deliberately not among them: no tray reads as "everyone
   /// has been told", which is a claim, not an absence.
-  Future<
-    (MonthGrid, ChangeAnnouncement?, List<LegendCode>, List<SectionStaffing>)
-  >
-  _read(DateTime month, EditableSections editable) async {
+  Future<_MonthRead> _read(DateTime month, EditableSections editable) async {
     // Started together so nothing here costs an extra round trip.
     final gridRead = widget.rules.monthGrid(month);
     final announcementRead = editable.isEmpty
@@ -275,10 +273,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
     // rather than a wrapper.
     final required = await Future.wait<Object?>([gridRead, announcementRead]);
     return (
-      required[0]! as MonthGrid,
-      required[1] as ChangeAnnouncement?,
-      await codesRead,
-      await staffingRead,
+      grid: required[0]! as MonthGrid,
+      announcement: required[1] as ChangeAnnouncement?,
+      codes: await codesRead,
+      staffing: await staffingRead,
     );
   }
 
