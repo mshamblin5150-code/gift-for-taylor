@@ -124,6 +124,31 @@ void main() {
     expect((await manager.changeAnnouncement(september)).isEmpty, isTrue);
   });
 
+  test('a reverted cell is settled moot alongside a real change', () async {
+    await publishStartingMonth();
+    await save(sam, 18, 'X');
+    await save(sam, 18, '7A');
+    await save(dana, 18, 'X');
+
+    await manager.markAnnounced(await manager.changeAnnouncement(september));
+
+    final log = await manager.changeLog(september);
+    expect(
+      log
+          .where((change) =>
+              change.staffMemberId == sam.staffMemberId && !change.announced)
+          .every((change) => change.moot && !change.announced),
+      isTrue,
+    );
+    expect(
+      log
+          .where((change) => change.staffMemberId == dana.staffMemberId)
+          .every((change) => change.announced && !change.moot),
+      isTrue,
+    );
+    expect((await manager.changeAnnouncement(september)).isEmpty, isTrue);
+  });
+
   test('a blank cell reads as blank in the message', () async {
     await save(lee, 3, 'MM');
 
@@ -234,6 +259,22 @@ void main() {
 
     final remaining = await manager.changeAnnouncement(september);
     expect(remaining.people.single.row.displayName, 'Sam Ortiz');
+  });
+
+  test('a newer edit to the same cell keeps its first batch pending', () async {
+    await publishStartingMonth();
+    await save(dana, 18, 'X');
+    final firstRead = await manager.changeAnnouncement(september);
+    await save(dana, 18, '16D');
+
+    await manager.markAnnounced(firstRead);
+
+    final pending = (await manager.changeLog(september))
+        .where((change) => !change.announced && !change.moot)
+        .toList();
+    expect(pending, hasLength(2));
+    await manager.markAnnounced(await manager.changeAnnouncement(september));
+    expect((await manager.changeAnnouncement(september)).isEmpty, isTrue);
   });
 
   test('only a scheduler may mark changes announced', () async {
