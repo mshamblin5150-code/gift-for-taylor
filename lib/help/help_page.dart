@@ -179,8 +179,8 @@ const helpTopics = <HelpTopic>[
   HelpTopic(
     title: 'Load a printed Schedule',
     who: 'Manager',
-    what: 'The first month is transcribed from the printed Schedule page and loaded outside the app. It must then be checked against the Excel file.',
-    how: 'Ask the person setting up the app to load the printed page. Open that month in the Schedule, check each Shift code against Excel, correct any cell, and tap Confirm month. This confirms and releases the month.',
+    what: 'The first month is transcribed from the printed Schedule page and loaded outside the app. Proofread the loaded month against that printed page.',
+    how: 'Ask the person setting up the app to load the printed page. Open that month in the Schedule, check each Shift code against the printed page, correct any cell, and tap Confirm month. This confirms and releases the month.',
     searchTerms: 'first month paper import confirm',
     roles: _manager,
   ),
