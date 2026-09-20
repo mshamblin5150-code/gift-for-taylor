@@ -2410,7 +2410,10 @@ TextStyle? _todayTextStyle(
   DateTime today,
   BuildContext context,
 ) => _isToday(day, today)
-    ? TextStyle(color: Theme.of(context).colorScheme.onSecondaryContainer)
+    ? TextStyle(
+        color: Theme.of(context).colorScheme.onSecondaryContainer,
+        fontWeight: FontWeight.bold,
+      )
     : null;
 
 bool _isToday(DateTime day, DateTime today) =>
