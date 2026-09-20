@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import '../help/help_page.dart';
@@ -75,12 +76,91 @@ class _StaffListPageState extends State<StaffListPage> {
     if (draft == null) return;
 
     try {
-      final invite = await widget.gateway.addStaffMember(draft);
+      final pastStaff = await widget.gateway.loadPastStaff();
+      if (!mounted) return;
+      final matches = pastStaff.where(
+        (member) => member.cellNumber == draft.cellNumber,
+      );
+      final match = matches.isEmpty ? null : matches.first;
+      var allowRecycledCell = false;
+      if (match != null) {
+        final bringBack = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Past Staff member found'),
+            content: Text(
+              match.lastDay == null
+                  ? '${match.displayName} was on the Staff list before. Bring them back?'
+                  : '${match.displayName} was on the Staff list until '
+                      '${DateFormat.MMMM().format(match.lastDay!)}. Bring them back?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Add different person'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Bring them back'),
+              ),
+            ],
+          ),
+        );
+        if (bringBack == null || !mounted) return;
+        if (bringBack) {
+          await _reactivateMatchedStaff(match, staffList.sections);
+          return;
+        }
+        allowRecycledCell = true;
+      }
+      final invite = await widget.gateway.addStaffMember(
+        draft,
+        allowRecycledCell: allowRecycledCell,
+      );
       await widget.inviteComposer.open(invite);
       await _load();
     } catch (error) {
       if (mounted) {
         _showError('Could not add the Staff member or open Messages.');
+      }
+    }
+  }
+
+  Future<void> _reactivateMatchedStaff(
+    PastStaffMember member,
+    List<StaffSection> sections,
+  ) async {
+    final reactivation = await showDialog<Reactivation>(
+      context: context,
+      builder: (context) => ReactivateDialog(member: member, sections: sections),
+    );
+    if (reactivation == null || !mounted) return;
+    try {
+      await widget.rules.reactivate(
+        Reactivate(
+          staffMemberId: member.id,
+          sectionId: reactivation.sectionId,
+          firstDay: reactivation.firstDay,
+        ),
+      );
+    } catch (_) {
+      if (mounted) _showError('Could not reactivate ${member.displayName}.');
+      return;
+    }
+    await _load();
+    try {
+      final invite = await widget.gateway.resendInvite(member.id);
+      await widget.inviteComposer.open(invite);
+    } catch (_) {
+      if (mounted) {
+        _showError(
+          '${member.displayName} is back on the Staff list. '
+          'Resend their Invite from there.',
+        );
       }
     }
   }

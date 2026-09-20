@@ -303,6 +303,10 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           );
         }
         if (snapshot.hasError) {
+          final message = snapshot.error is StaffInviteAlreadyLinkedException
+              ? 'This email is already signed in as another Staff member.'
+              : 'This Invite is invalid, expired, or has already been used. '
+                    'Ask your Manager to resend it.';
           return Scaffold(
             appBar: AppBar(
               actions: [
@@ -313,12 +317,11 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
                 ),
               ],
             ),
-            body: const Center(
+            body: Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: Text(
-                  'This Invite is invalid, expired, or has already been used. '
-                  'Ask your Manager to resend it.',
+                  message,
                   textAlign: TextAlign.center,
                 ),
               ),
