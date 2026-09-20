@@ -899,18 +899,18 @@ void main() {
       ]);
     });
 
-    testWidgets('the Manager checks it and confirms it', (tester) async {
+    testWidgets('the Manager proofreads it and confirms it', (tester) async {
       await pumpGrid(tester);
 
       expect(find.text('4P-8A'), findsOneWidget);
-      expect(find.textContaining('Check this month'), findsOneWidget);
+      expect(find.textContaining('Proofread this month'), findsOneWidget);
 
       await tester.tap(find.text('Confirm month'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Confirm'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Check this month'), findsNothing);
+      expect(find.textContaining('Proofread this month'), findsNothing);
       expect(find.text('4P-8A'), findsOneWidget);
     });
 
