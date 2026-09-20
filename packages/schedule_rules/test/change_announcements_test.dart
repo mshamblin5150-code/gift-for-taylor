@@ -133,6 +133,67 @@ void main() {
         .every((change) => change.moot), isTrue);
   });
 
+  test('a Call-in followed by off announces one change from 7P to X', () async {
+    await save(sam, 18, '7P');
+    database.markAllAnnounced();
+    await save(sam, 18, 'C/I');
+    await save(sam, 18, 'X');
+
+    final announcement = await manager.changeAnnouncement(september);
+    expect(announcement.changeCount, 1);
+    final day = announcement.people.single.changedDays.single;
+    expect(day.oldShiftCode, '7P');
+    expect(day.newShiftCode, 'X');
+    expect(announcement.people.single.message, contains('off (was 7P)'));
+  });
+
+  test('a multi-step reversal leaves another day in the announcement', () async {
+    await publishStartingMonth();
+    await save(sam, 18, 'C/I');
+    await save(sam, 18, 'X');
+    await save(sam, 18, '7A');
+    await save(sam, 19, 'X');
+
+    final announcement = await manager.changeAnnouncement(september);
+    expect(announcement.changeCount, 1);
+    final changedDay = announcement.people.single.changedDays.single;
+    expect(changedDay.date.day, 19);
+    expect(changedDay.oldShiftCode, '7A');
+    expect(changedDay.newShiftCode, 'X');
+
+    await manager.markAnnounced(announcement);
+    final log = await manager.changeLog(september);
+    expect(log.where((change) => change.date.day == 18).every(
+      (change) => change.moot && !change.announced && change.reach == null,
+    ), isTrue);
+    expect(log.where((change) => change.date.day == 19).every(
+      (change) => change.announced && !change.moot,
+    ), isTrue);
+  });
+
+  test('reversing after an announcement leaves its Reach intact', () async {
+    await publishStartingMonth();
+    await save(sam, 18, 'C/I');
+    await manager.markAnnounced(await manager.changeAnnouncement(september));
+    final first = (await manager.changeLog(september)).last;
+
+    await save(sam, 18, '7A');
+    final reversal = await manager.changeAnnouncement(september);
+    final day = reversal.people.single.changedDays.single;
+    expect(day.oldShiftCode, 'C/I');
+    expect(day.newShiftCode, '7A');
+    await manager.markAnnounced(reversal);
+
+    final log = await manager.changeLog(september);
+    final edits = log.where((change) =>
+        change.staffMemberId == sam.staffMemberId &&
+        change.date.day == 18 &&
+        change.oldShiftCode.isNotEmpty).toList();
+    expect(edits, hasLength(2));
+    expect(edits.first.reach, first.reach);
+    expect(edits.every((change) => change.announced && !change.moot), isTrue);
+  });
+
   test('a reverted cell is settled moot alongside a real change', () async {
     await publishStartingMonth();
     await save(sam, 18, 'X');
