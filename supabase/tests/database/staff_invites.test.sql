@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(36);
 
 insert into auth.users (id, email)
 values
@@ -277,15 +277,15 @@ select is(
   'a correct Cell number in another format accepts the Invite'
 );
 
-select is(
-  (
-    select personal_email
-    from public.staff_accounts
-    where auth_user_id = '00000000-0000-0000-0000-000000000153'
-  ),
-  'invitee@example.test',
-  'accepting an Invite links the personal email to the Staff member'
-);
+select is(public.current_staff_role()::text, null::text,
+  'a pending acceptance gives no Staff role');
+select is(public.current_staff_member_id(), null::uuid,
+  'a pending acceptance gives no Staff identity');
+select is((select count(*)::integer from public.staff_accounts
+  where auth_user_id = '00000000-0000-0000-0000-000000000153'), 0,
+  'accepting an Invite creates no account binding');
+select ok(public.my_invite_acceptance_pending(),
+  'the invitee can see that confirmation is pending');
 
 select throws_ok(
   $$select public.accept_invite((select token from invite_tokens), '+15550137')$$,
@@ -304,6 +304,17 @@ select is(
    where id = (select staff_member_id from initial_invite)),
   true,
   'the Manager sees the Staff member with a mismatched Invite'
+);
+select lives_ok(
+  $$select public.confirm_invite_acceptance(
+    (select invite_id from public.pending_invite_acceptances
+     where auth_user_id = '00000000-0000-0000-0000-000000000153'))$$,
+  'the Manager confirms the acceptance'
+);
+select is((select personal_email from public.staff_accounts
+  where auth_user_id = '00000000-0000-0000-0000-000000000153'),
+  'invitee@example.test',
+  'confirmation binds the accepted personal email'
 );
 select throws_ok(
   $$select public.resend_staff_invite(

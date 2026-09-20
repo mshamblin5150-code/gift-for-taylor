@@ -1041,6 +1041,18 @@ final class _FakeStaffGateway implements StaffGateway {
   ) async => InviteAcceptanceResult.accepted;
 
   @override
+  Future<bool> isInviteAcceptancePending() async => false;
+
+  @override
+  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async => [];
+
+  @override
+  Future<void> confirmInviteAcceptance(String inviteId) async {}
+
+  @override
+  Future<void> rejectInviteAcceptance(String inviteId) async {}
+
+  @override
   Future<bool> canManageStaff() async => true;
 
   @override

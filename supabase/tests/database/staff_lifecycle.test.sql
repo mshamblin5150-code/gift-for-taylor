@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(65);
+select plan(67);
 
 insert into auth.users (id, email)
 values
@@ -441,6 +441,26 @@ select is(
   public.accept_invite((select token from fresh_invite), '5552223333'),
   'accepted',
   'the returning person accepts the fresh Invite'
+);
+
+select is(public.current_staff_role(), null::public.staff_role,
+  'the returning person waits for Manager confirmation');
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000191","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  $$select public.confirm_invite_acceptance(
+    (select invite_id from public.pending_invite_acceptances
+     where staff_member_id = '00000000-0000-0000-0000-000000000197'))$$,
+  'the Manager confirms the returning person'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000192","role":"authenticated"}',
+  true
 );
 
 select is(

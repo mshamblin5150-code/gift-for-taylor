@@ -4,34 +4,43 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import '../staff/staff_gateway.dart';
+
 class PendingApprovals {
   const PendingApprovals({
     required this.requests,
     required this.swaps,
     required this.pickups,
+    this.invites = const [],
   });
 
   final List<RequestOff> requests;
   final List<Swap> swaps;
   final List<OpenShiftPickup> pickups;
+  final List<PendingInviteAcceptance> invites;
 
-  int get count => requests.length + swaps.length + pickups.length;
+  int get count =>
+      requests.length + swaps.length + pickups.length + invites.length;
 }
 
 Future<PendingApprovals> readPendingApprovals(
   ScheduleRules rules,
   SwapRules swapRules,
-  OpenShiftRules openShiftRules,
-) async {
-  final (requests, swaps, pickups) = await (
+  OpenShiftRules openShiftRules, [
+  StaffGateway? staffGateway,
+]) async {
+  final (requests, swaps, pickups, invites) = await (
     rules.approvalQueue(),
     swapRules.swaps(),
     openShiftRules.pickups(),
+    staffGateway?.pendingInviteAcceptances() ??
+        Future.value(const <PendingInviteAcceptance>[]),
   ).wait;
   return PendingApprovals(
     requests: requests,
     swaps: swaps.where((s) => s.status == SwapStatus.accepted).toList(),
     pickups: pickups.where((p) => p.status == PickupStatus.pending).toList(),
+    invites: invites,
   );
 }
 
@@ -42,11 +51,13 @@ class ApprovalQueuePage extends StatefulWidget {
     required this.rules,
     required this.swapRules,
     required this.openShiftRules,
+    this.staffGateway,
   });
 
   final ScheduleRules rules;
   final SwapRules swapRules;
   final OpenShiftRules openShiftRules;
+  final StaffGateway? staffGateway;
 
   @override
   State<ApprovalQueuePage> createState() => _ApprovalQueuePageState();
@@ -75,6 +86,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
         widget.rules,
         widget.swapRules,
         widget.openShiftRules,
+        widget.staffGateway,
       ),
       widget.openShiftRules.openShifts(),
     ).wait;
@@ -97,6 +109,20 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
     String name(String id, DateTime date) =>
         grids[DateTime(date.year, date.month)]?.displayNameOf(id) ?? id;
     final decisions = <_Decision>[
+      for (final invite in pending.invites)
+        _Decision(
+          date: invite.acceptedAt,
+          title: 'Invite — ${invite.staffMemberName}',
+          detail:
+              '${invite.staffMemberName} accepted as ${invite.personalEmail}. '
+              'Confirm this is the right person before granting access.',
+          approve: () =>
+              widget.staffGateway!.confirmInviteAcceptance(invite.inviteId),
+          decline: () =>
+              widget.staffGateway!.rejectInviteAcceptance(invite.inviteId),
+          approveLabel: 'Confirm',
+          declineLabel: 'Reject',
+        ),
       for (final request in pending.requests)
         _Decision(
           date: request.dates.isEmpty
@@ -169,7 +195,9 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${approve ? 'Approve' : 'Decline'} ${item.title}?'),
+        title: Text(
+          '${approve ? item.approveLabel : item.declineLabel} ${item.title}?',
+        ),
         content: approve && !item.approvalReasonSupported
             ? null
             : TextField(
@@ -254,11 +282,11 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                             onPressed: _busy
                                 ? null
                                 : () => _decide(item, false),
-                            child: const Text('Decline'),
+                            child: Text(item.declineLabel),
                           ),
                           FilledButton(
                             onPressed: _busy ? null : () => _decide(item, true),
-                            child: const Text('Approve'),
+                            child: Text(item.approveLabel),
                           ),
                         ],
                       ),
@@ -281,6 +309,8 @@ class _Decision {
     required this.approve,
     required this.decline,
     this.approvalReasonSupported = false,
+    this.approveLabel = 'Approve',
+    this.declineLabel = 'Decline',
   });
   final DateTime date;
   final String title;
@@ -288,4 +318,6 @@ class _Decision {
   final Future<void> Function() approve;
   final Future<void> Function() decline;
   final bool approvalReasonSupported;
+  final String approveLabel;
+  final String declineLabel;
 }

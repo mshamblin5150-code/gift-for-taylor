@@ -102,16 +102,14 @@ void main() {
     expect(find.text('State dayshift RN'), findsNothing);
   });
 
-  testWidgets('invitee gives their Cell number before email and acceptance', (
+  testWidgets('invitee gives their Cell number and waits for Manager confirmation', (
     tester,
   ) async {
     final staffGateway = _FakeStaffGateway();
     await tester.pumpWidget(
       ScheduleApp(
         authGateway: _FakeAuthGateway(),
-        scheduleStore: _scheduleStore(const [
-          ScheduleSection(id: 'days', name: 'State dayshift RN'),
-        ]),
+        scheduleStore: _scheduleStore(const []),
         staffGateway: staffGateway,
         inviteToken: 'fresh-token',
       ),
@@ -141,7 +139,7 @@ void main() {
 
     expect(staffGateway.acceptedToken, 'fresh-token');
     expect(staffGateway.acceptedCellNumber, '555-0137');
-    expect(find.text('State dayshift RN'), findsOneWidget);
+    expect(find.textContaining('waiting for the Manager'), findsOneWidget);
   });
 
   testWidgets('Invite signs out an existing account before asking for email', (
@@ -327,6 +325,18 @@ final class _FakeStaffGateway implements StaffGateway {
     acceptedCellNumber = cellNumber;
     return acceptanceResult;
   }
+
+  @override
+  Future<bool> isInviteAcceptancePending() async => acceptedToken != null;
+
+  @override
+  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async => [];
+
+  @override
+  Future<void> confirmInviteAcceptance(String inviteId) async {}
+
+  @override
+  Future<void> rejectInviteAcceptance(String inviteId) async {}
 
   @override
   Future<StaffInvite> addStaffMember(

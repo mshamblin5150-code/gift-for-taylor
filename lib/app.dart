@@ -424,7 +424,7 @@ class _ScheduleAccess extends StatefulWidget {
 }
 
 class _ScheduleAccessState extends State<_ScheduleAccess> {
-  late final Future<_ScheduleData> _data = _loadData();
+  late Future<_ScheduleData> _data = _loadData();
 
   Future<void> _signOut() async {
     try {
@@ -436,6 +436,9 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
 
   Future<_ScheduleData> _loadData() async {
     final sections = await widget.scheduleStore.sections();
+    final invitePending = sections.isEmpty && widget.staffGateway != null
+        ? await widget.staffGateway!.isInviteAcceptancePending()
+        : false;
     final canManageStaff = await widget.staffGateway?.canManageStaff() ?? false;
     final staffMemberId = await widget.staffGateway?.currentStaffMemberId();
     final editable = await widget.scheduleStore.editableSections();
@@ -443,6 +446,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
         .monthAwaitingConfirmation();
     return _ScheduleData(
       sections,
+      invitePending,
       canManageStaff,
       monthToCheck,
       !canManageStaff && editable.isEmpty ? staffMemberId : null,
@@ -467,6 +471,12 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           return Scaffold(
             appBar: AppBar(
               actions: [
+                if (data?.invitePending == true)
+                  IconButton(
+                    tooltip: 'Check confirmation',
+                    onPressed: () => setState(() => _data = _loadData()),
+                    icon: const Icon(Icons.refresh),
+                  ),
                 IconButton(
                   tooltip: 'Sign out',
                   onPressed: _signOut,
@@ -474,12 +484,15 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
                 ),
               ],
             ),
-            body: const Center(
+            body: Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: Text(
-                  "This email isn't on the ER staff list. "
-                  'Ask your manager to add you.',
+                  data?.invitePending == true
+                      ? 'Your Invite is waiting for the Manager to confirm it. '
+                            'Check again after they review it.'
+                      : "This email isn't on the ER staff list. "
+                            'Ask your manager to add you.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -502,6 +515,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           onSignOut: _signOut,
           messagesComposer: widget.messagesComposer,
           noticeGateway: widget.noticeGateway,
+          staffGateway: widget.staffGateway,
           printBookPage: widget.printBookPage,
           printWordingGateway: widget.printWordingGateway,
           onCalendarFeed: widget.calendarFeedGateway == null
@@ -552,6 +566,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
 final class _ScheduleData {
   const _ScheduleData(
     this.sections,
+    this.invitePending,
     this.canManageStaff,
     this.monthToCheck,
     this.staffMemberId,
@@ -559,6 +574,7 @@ final class _ScheduleData {
   );
 
   final List<ScheduleSection> sections;
+  final bool invitePending;
   final bool canManageStaff;
   final DateTime? monthToCheck;
   final String? staffMemberId;
