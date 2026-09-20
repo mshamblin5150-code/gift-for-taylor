@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(13);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000331', 'cell-manager@example.test');
@@ -63,13 +63,17 @@ $$;
 select lives_ok($$select public.load_first_month('2027-02-01', jsonb_build_array(
   jsonb_build_object('section', 'Cell test Section', 'name', 'No Cell',
     'codes', pg_temp.codes()),
+  jsonb_build_object('section', 'Cell test Section', 'name', 'Blank Cell',
+    'cell', '  ', 'codes', pg_temp.codes()),
   jsonb_build_object('section', 'Cell test Section', 'name', 'Imported Cell',
     'cell', '555-0199', 'codes', pg_temp.codes())))$$,
-  'the import accepts a missing Cell column');
+  'the import accepts missing and blank Cell columns');
 select is((select cell_number from public.staff_members where display_name = 'Imported Cell'),
   '+15550199', 'the import canonicalizes Cell numbers');
 select is((select cell_number from public.staff_members where display_name = 'No Cell'),
   null, 'a missing imported Cell number remains null');
+select is((select cell_number from public.staff_members where display_name = 'Blank Cell'),
+  null, 'a blank imported Cell number remains null');
 
 select * from finish();
 rollback;
