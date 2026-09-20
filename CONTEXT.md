@@ -99,7 +99,7 @@ An exchange of shifts two Staff members agree to, which takes effect only when t
 _Avoid_: Trade
 
 **Open shift**:
-A scheduled shift left uncovered (for example by an approved Request off) and offered for pickup. Any nurse, RN or LPN, may pick up a nursing shift; other roles pick up within their own role. A pickup takes effect when the Manager approves it.
+A scheduled shift left uncovered (for example by an approved Request off) and offered for pickup. Any nurse, RN or LPN, may pick up a nursing shift; other roles pick up within their own role. Each shift records whether pickup needs Manager approval; otherwise an eligible Staff member takes it immediately.
 _Avoid_: Hole, vacancy
 
 **Calendar invitation**:
