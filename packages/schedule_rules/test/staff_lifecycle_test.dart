@@ -72,18 +72,21 @@ void main() {
       expect(oct.shiftCodeFor('rn-1', DateTime(2026, 10, 3)) ?? '', '');
     });
 
-    test('marks each cleared working shift short in its Section', () async {
+    test('marks a cleared working shift short in its pool and window', () async {
+      await manager.changeJobRole(ChangeJobRole(
+          staffMemberId: 'rn-1', jobRole: JobRole.rn,
+          from: DateTime(2026, 1)));
       await manager.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
       );
 
       final oct = await manager.monthGrid(october);
-      final short = oct.shortShiftsOn('days', DateTime(2026, 10, 2));
+      final short = oct.shortShiftsOn(RolePool.nurses, CoverageWindow.day, DateTime(2026, 10, 2));
       expect(short.single.shiftCode, '16D');
       expect(short.single.staffMemberId, 'rn-1');
       // Days off and requested-off days leave no hole.
-      expect(oct.shortShiftsOn('days', DateTime(2026, 10, 1)), isEmpty);
-      expect(oct.shortShiftsOn('days', DateTime(2026, 10, 3)), isEmpty);
+      expect(oct.shortShiftsOn(RolePool.nurses, CoverageWindow.day, DateTime(2026, 10, 1)), isEmpty);
+      expect(oct.shortShiftsOn(RolePool.nurses, CoverageWindow.day, DateTime(2026, 10, 3)), isEmpty);
       expect(oct.shortShifts, hasLength(1));
     });
 

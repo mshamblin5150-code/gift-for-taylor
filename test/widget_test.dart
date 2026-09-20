@@ -24,13 +24,19 @@ void main() {
 
   late InMemoryScheduleDatabase database;
 
-  setUp(() {
+  setUp(() async {
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],
       rows: const [dayNurse, nightNurse],
       editors: const {'manager', 'other-manager'},
       releasedMonths: {september},
     );
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    for (final id in ['rn-1', 'rn-2']) {
+      await manager.changeJobRole(ChangeJobRole(
+          staffMemberId: id, jobRole: JobRole.rn,
+          from: DateTime(2026, 1)));
+    }
   });
 
   Future<ScheduleRules> pumpGrid(
@@ -41,6 +47,7 @@ void main() {
     ValueChanged<String>? printBookPage,
     PrintWordingGateway? printWordingGateway,
     DateTime Function()? now,
+    bool withStaffing = false,
     Size size = const Size(2400, 1600),
   }) async {
     tester.view.physicalSize = size;
@@ -54,6 +61,9 @@ void main() {
           rules: rules,
           month: month ?? september,
           staffMemberId: staffMemberId,
+          openShiftRules: withStaffing
+              ? OpenShiftRules(database.openShiftStoreFor(actingAs))
+              : null,
           printBookPage: printBookPage,
           printWordingGateway: printWordingGateway,
           now: now,
@@ -203,8 +213,9 @@ void main() {
     expect(find.text('PRN nightshift RN'), findsOneWidget);
     expect(find.text('Day RN'), findsOneWidget);
     expect(find.text('T'), findsWidgets);
-    expect(find.byKey(const ValueKey('weekday-2026-09-18')), findsNWidgets(2));
-    expect(find.byKey(const ValueKey('weekend-2026-09-19')), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('pool-nurses-2026-09-18')), findsOneWidget);
+    expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsOneWidget);
+    expect(find.byKey(const ValueKey('pool-unit_clerk-2026-09-18')), findsOneWidget);
   });
 
   testWidgets('dragging across rows swaps Shift codes and Undo restores them', (
@@ -378,7 +389,7 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('Section bar stays visible and continuous while days scroll', (
+  testWidgets('pool band label stays visible while days scroll', (
     tester,
   ) async {
     await pumpGrid(
@@ -387,11 +398,11 @@ void main() {
       size: const Size(900, 800),
     );
 
-    final label = find.text('State dayshift RN');
+    final label = find.text('Nurses');
     final nameCell = tester.widget<Container>(
       find.ancestor(of: label, matching: find.byType(Container)).first,
     );
-    final firstDay = find.byKey(const ValueKey('weekday-2026-09-01')).first;
+    final firstDay = find.byKey(const ValueKey('pool-nurses-2026-09-01'));
     final dayCell = tester.widget<Container>(
       find.descendant(of: firstDay, matching: find.byType(Container)).first,
     );
@@ -648,7 +659,7 @@ void main() {
     expect(find.byKey(const ValueKey('gone-rn-1-2026-09-19')), findsOneWidget);
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('short-days-2026-09-20')),
+        of: find.byKey(const ValueKey('short-nurses-2026-09-20')),
         matching: find.text('−1'),
       ),
       findsOneWidget,
@@ -664,7 +675,7 @@ void main() {
     );
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('short-nights-2026-09-20')),
+        of: find.byKey(const ValueKey('short-cna-2026-09-20')),
         matching: find.text('−1'),
       ),
       findsNothing,
@@ -741,6 +752,25 @@ void main() {
 
       expect(find.text('Other Shift code'), findsNothing);
       expect(find.text('Start October first.'), findsOneWidget);
+    });
+
+    testWidgets('an unpublished cell edit refreshes the nursing marker',
+        (tester) async {
+      final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+      await manager.startNextMonth(september);
+      final day = DateTime(2026, 10, 16);
+      await pumpGrid(tester, month: DateTime(2026, 10), withStaffing: true);
+      final marker = find.byKey(const ValueKey('short-nurses-2026-10-16'));
+      expect(find.descendant(of: marker, matching: find.text('−6')),
+          findsOneWidget);
+
+      await tester.tap(cell('rn-1', day));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
+      await tester.pumpAndSettle();
+
+      expect(find.descendant(of: marker, matching: find.text('−5')),
+          findsOneWidget);
     });
 
     testWidgets('staff do not see a month before it is released', (

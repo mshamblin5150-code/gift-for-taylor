@@ -382,6 +382,37 @@ enum JobRole {
       values.firstWhere((role) => role.value == value);
 }
 
+enum RolePool {
+  nurses('nurses', 'Nurses'),
+  cna('cna', 'CNAs'),
+  unitClerk('unit_clerk', 'Unit clerks');
+
+  const RolePool(this.value, this.label);
+  final String value;
+  final String label;
+
+  static RolePool fromValue(String value) =>
+      values.firstWhere((pool) => pool.value == value);
+
+  static RolePool forJobRole(JobRole role) => switch (role) {
+    JobRole.rn || JobRole.lpn => nurses,
+    JobRole.cna => cna,
+    JobRole.unitClerk => unitClerk,
+  };
+}
+
+enum CoverageWindow {
+  day('day', 'Days'),
+  night('night', 'Nights');
+
+  const CoverageWindow(this.value, this.label);
+  final String value;
+  final String label;
+
+  static CoverageWindow fromValue(String value) =>
+      values.firstWhere((window) => window.value == value);
+}
+
 final class DatedJobRole {
   const DatedJobRole({
     required this.jobRole,
@@ -437,14 +468,15 @@ final class StaffChange {
 /// A shift left uncovered, such as one cleared after a Last day.
 final class ShortShift {
   const ShortShift({
-    required this.sectionId,
+    this.sectionId,
     required this.date,
     required this.shiftCode,
     required this.staffMemberId,
     this.jobRole,
+    this.coverageWindow,
   });
 
-  final String sectionId;
+  final String? sectionId;
   final DateTime date;
 
   /// The shift that is no longer covered.
@@ -453,6 +485,7 @@ final class ShortShift {
   /// Whose shift it was.
   final String? staffMemberId;
   final JobRole? jobRole;
+  final CoverageWindow? coverageWindow;
 }
 
 final class ScheduleSection {
@@ -551,7 +584,6 @@ final class LegendCode {
   /// Local 24-hour HH:mm values; null means an untimed Calendar event.
   final String? startTime;
   final String? endTime;
-
   /// Day or Night coverage; null means the code counts toward neither window.
   final String? coverageWindow;
   final bool active;
@@ -673,9 +705,17 @@ final class MonthGrid {
     return lastDay == null || !_day(date).isAfter(lastDay);
   }
 
-  List<ShortShift> shortShiftsOn(String sectionId, DateTime date) => shortShifts
+  List<ShortShift> shortShiftsOn(
+    RolePool pool,
+    CoverageWindow window,
+    DateTime date,
+  ) => shortShifts
       .where(
-        (short) => short.sectionId == sectionId && _sameDay(short.date, date),
+        (short) =>
+            _sameDay(short.date, date) &&
+            short.jobRole != null &&
+            RolePool.forJobRole(short.jobRole!) == pool &&
+            short.coverageWindow == window,
       )
       .toList(growable: false);
 
@@ -1135,9 +1175,18 @@ final class InMemoryScheduleDatabase {
   final List<ScheduleChange> _changes = [];
   final List<ShortShift> _shortShifts = [];
   final List<LegendCode> _shiftCodes = [...shiftLegend];
-  final Map<String, int> _weekdayMinimums = {};
+  final Map<String, int> _weekdayMinimums = {
+    for (var weekday = 0; weekday < 7; weekday++)
+      for (final window in CoverageWindow.values)
+        'nurses:${window.value}:$weekday': 3,
+  };
+  final Map<String, int> _weekdayRnFloors = {
+    for (var weekday = 0; weekday < 7; weekday++)
+      for (final window in CoverageWindow.values)
+        'nurses:${window.value}:$weekday': 1,
+  };
   final Map<String, int> _dateMinimums = {};
-  final Map<String, String> _manualCoverageSections = {};
+  final Map<String, int> _dateRnFloors = {};
   final List<OpenShiftPickup> _openShiftPickups = [];
   final List<StaffChange> _staffChanges = [];
   final List<RequestOff> _requestsOff = [];
@@ -1445,6 +1494,11 @@ final class _InMemoryScheduleStore implements ScheduleStore {
               date: date,
               shiftCode: old,
               staffMemberId: request.staffMemberId,
+              jobRole: await ScheduleRules.inMemory(
+                _database,
+                actingAs: _actingAs,
+              ).jobRoleOn(request.staffMemberId, date),
+              coverageWindow: _coverageWindowOf(old, _database._shiftCodes),
             ),
           );
         }
@@ -1764,6 +1818,14 @@ final class _InMemoryScheduleStore implements ScheduleStore {
             date: cell.date,
             shiftCode: cell.shiftCode,
             staffMemberId: id,
+            jobRole: await ScheduleRules.inMemory(
+              _database,
+              actingAs: _actingAs,
+            ).jobRoleOn(id, lastDay),
+            coverageWindow: _coverageWindowOf(
+              cell.shiftCode,
+              _database._shiftCodes,
+            ),
           ),
         );
       }
@@ -1989,6 +2051,14 @@ String _dateText(DateTime date) =>
     '${date.day.toString().padLeft(2, '0')}';
 
 DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
+
+CoverageWindow? _coverageWindowOf(String code, List<LegendCode> codes) {
+  final value = codes
+      .where((item) => item.code == code.trim().toUpperCase())
+      .firstOrNull
+      ?.coverageWindow;
+  return value == null ? null : CoverageWindow.fromValue(value);
+}
 
 bool _inMonth(DateTime date, DateTime month) =>
     date.year == month.year && date.month == month.month;
