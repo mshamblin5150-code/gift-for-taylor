@@ -59,6 +59,13 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'my shifts when am I working',
   ),
   HelpTopic(
+    title: 'Shift code legend',
+    who: 'Everyone',
+    what: 'The legend explains the Shift codes on the Schedule, including their meaning, hours and whether they are worked shifts.',
+    how: 'Staff members and Night schedulers tap Shift code legend on the Schedule to look up a code. The Manager uses Manage Shift codes to maintain the list.',
+    searchTerms: 'what does a code mean hours worked shift',
+  ),
+  HelpTopic(
     title: 'Request off',
     who: 'Staff members and Manager',
     what: 'A Request off asks the Manager for specific days off. An approved day is marked R/O on the Schedule.',
