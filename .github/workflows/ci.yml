@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  calendar-feed:
+  calendar-edge-functions:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,6 +15,8 @@ jobs:
           deno-version: v2.x
       - run: deno check supabase/functions/calendar-feed/index.ts
       - run: deno test supabase/functions/calendar-feed/index_test.ts
+      - run: deno check supabase/functions/send-calendar-invitation/index.ts
+      - run: deno test --allow-env supabase/functions/send-calendar-invitation/calendar_test.ts
 
   flutter:
     runs-on: ubuntu-latest
