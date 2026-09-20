@@ -30,7 +30,8 @@ Deno.test("Calendar feed serializes timed and off-legend shifts", () => {
   for (
     const line of [
       "DTSTART:20270105T000000Z\r\nDTEND:20270105T120000Z",
-      "SUMMARY:4P-8A\\, extra\\; shift",
+      "SUMMARY:Working — 4P-8A\\, extra\\; shift (time not set)",
+      "SUMMARY:7P",
       "DTSTART;VALUE=DATE:20270106\r\nDTEND;VALUE=DATE:20270107",
       "DTSTAMP:20270303T190500Z",
       "LAST-MODIFIED:20270303T190500Z",
@@ -57,7 +58,7 @@ Deno.test("Calendar feed cannot gain a property from a Shift code", () => {
     updated_at: updated,
     sequence: 0,
   }], updated);
-  if (!result.includes("SUMMARY:A\\nDESCRIPTION:injected")) {
+  if (!result.includes("SUMMARY:Working — A\\nDESCRIPTION:injected (time not set)")) {
     throw new Error("Shift code newline was not escaped");
   }
   if (result.includes("\r\nDESCRIPTION:injected")) {

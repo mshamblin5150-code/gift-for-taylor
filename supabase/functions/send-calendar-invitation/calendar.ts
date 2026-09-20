@@ -1,3 +1,5 @@
+import { shiftSummary } from "../_shared/shift_summary.ts";
+
 export type Invitation = {
   id: string;
   staff_member_id: string;
@@ -60,7 +62,7 @@ export function invitationCalendar(event: Invitation): string {
     `SEQUENCE:${event.sequence}`,
     `ORGANIZER;CN=ER Schedule:mailto:${sender}`,
     `ATTENDEE;RSVP=FALSE;PARTSTAT=ACCEPTED:mailto:${event.recipient}`,
-    `SUMMARY:${text(event.shift_code)}`,
+    `SUMMARY:${text(shiftSummary(event.shift_code, event.starts_at, event.ends_at))}`,
   ];
   if (event.method === "CANCEL") lines.push("STATUS:CANCELLED");
   if (event.starts_at && event.ends_at) {
@@ -75,15 +77,16 @@ export function invitationCalendar(event: Invitation): string {
 }
 
 export function invitationMessage(event: Invitation) {
+  const summary = shiftSummary(event.shift_code, event.starts_at, event.ends_at);
   return {
     from: `ER Schedule <${sender}>`,
     to: event.recipient,
     subject: event.method === "CANCEL"
       ? `Shift removed: ${event.work_date}`
-      : `${event.shift_code} — ${event.work_date}`,
+      : `${summary} — ${event.work_date}`,
     text: event.method === "CANCEL"
       ? `Your ${event.work_date} shift was removed from the Schedule. The attached calendar event withdraws it. Check the app for the current Schedule.`
-      : `Your ${event.work_date} shift is ${event.shift_code}. The attached calendar event keeps your calendar in sync. Check the app for the current Schedule. No reply is needed.`,
+      : `Your ${event.work_date} shift is ${summary}. The attached calendar event keeps your calendar in sync. Check the app for the current Schedule. No reply is needed.`,
     icalEvent: { method: event.method, content: invitationCalendar(event),
       filename: "schedule-shift.ics" },
   };

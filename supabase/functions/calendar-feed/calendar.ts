@@ -1,3 +1,5 @@
+import { shiftSummary } from "../_shared/shift_summary.ts";
+
 export type FeedEvent = {
   staff_member_id: string;
   work_date: string;
@@ -70,7 +72,7 @@ export function calendar(events: FeedEvent[], feedUpdatedAt: string | null): str
       `DTSTAMP:${utcStamp(stamp)}`,
       `LAST-MODIFIED:${utcStamp(event.updated_at)}`,
       `SEQUENCE:${event.sequence}`,
-      `SUMMARY:${escapeText(event.shift_code)}`,
+      `SUMMARY:${escapeText(shiftSummary(event.shift_code, event.starts_at, event.ends_at))}`,
       `DESCRIPTION:${escapeText(`Schedule as of ${scheduleAsOf(stamp)}. Your calendar refreshes on its own schedule; open the app if this matters.`)}`,
     );
     if (event.starts_at && event.ends_at) {
