@@ -709,6 +709,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(gateway.accessRole, 'night_scheduler');
     expect(gateway.nightSections, {'nights'});
+    await tester.scrollUntilVisible(
+      find.text('Access role history'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('Access role history'), findsOneWidget);
   });
 
