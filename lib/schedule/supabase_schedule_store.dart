@@ -243,22 +243,54 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ShortShift>> shortShiftsForMonth(DateTime month) async {
-    final rows = await _client
-        .from('short_shifts')
-        .select('section_id, work_date, shift_code, staff_member_id')
+      final rows = await _client
+          .from('short_shifts')
+          .select('section_id, work_date, shift_code, staff_member_id, job_role')
         .gte('work_date', _date(_monthStart(month)))
         .lt('work_date', _date(_nextMonthStart(month)))
-        .filter('filled_at', 'is', null)
-        .order('work_date', ascending: true);
-    return [
-      for (final row in rows)
-        ShortShift(
-          sectionId: row['section_id'] as String,
-          date: DateTime.parse(row['work_date'] as String),
-          shiftCode: row['shift_code'] as String,
-          staffMemberId: row['staff_member_id'] as String?,
-        ),
-    ];
+          .filter('filled_at', 'is', null)
+          .order('work_date', ascending: true);
+      final codes = await shiftCodes();
+      final staffIds = rows
+          .map((row) => row['staff_member_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final roles = staffIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : (await _client
+                  .from('staff_job_roles')
+                  .select('staff_member_id, job_role, effective_from, effective_through')
+                  .inFilter('staff_member_id', staffIds))
+              .cast<Map<String, dynamic>>();
+      return [
+        for (final row in rows)
+          ShortShift(
+            sectionId: row['section_id'] as String?,
+            date: DateTime.parse(row['work_date'] as String),
+            shiftCode: row['shift_code'] as String,
+            staffMemberId: row['staff_member_id'] as String?,
+            jobRole: switch (row['job_role'] as String?) {
+              final role? => JobRole.fromValue(role),
+              null => roles
+                  .where((role) =>
+                      role['staff_member_id'] == row['staff_member_id'] &&
+                      DateTime.parse(role['effective_from'] as String)
+                          .compareTo(DateTime.parse(row['work_date'] as String)) <= 0 &&
+                      (role['effective_through'] == null ||
+                          DateTime.parse(role['effective_through'] as String)
+                              .compareTo(DateTime.parse(row['work_date'] as String)) >= 0))
+                  .map((role) => JobRole.fromValue(role['job_role'] as String))
+                  .firstOrNull,
+            },
+            coverageWindow: codes
+                .where((code) => code.code == row['shift_code'])
+                .map((code) => code.coverageWindow)
+                .whereType<String>()
+                .map(CoverageWindow.fromValue)
+                .firstOrNull,
+          ),
+      ];
   }
 
   @override
