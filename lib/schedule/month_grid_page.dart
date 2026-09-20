@@ -1423,10 +1423,8 @@ class _MonthViewState extends State<_MonthView> {
                           ),
                         for (final section in widget.grid.sections) ...[
                           if (widget.grid.rowsIn(section.id).isEmpty)
-                            SizedBox(
-                              width: days.length * _dayWidth,
-                              height: _cellHeight,
-                            ),
+                            SizedBox(width: days.length * _dayWidth,
+                                height: _cellHeight),
                           for (final row in widget.grid.rowsIn(section.id))
                             _StaffRow(
                               grid: widget.grid,
@@ -1472,13 +1470,10 @@ class _NameColumn extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             alignment: Alignment.centerLeft,
             color: Theme.of(context).colorScheme.primary,
-            child: Text(
-              pool.label,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            child: Text(pool.label,
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontWeight: FontWeight.w600)),
           ),
         for (final section in grid.sections) ...[
           if (grid.rowsIn(section.id).isEmpty)
@@ -1487,11 +1482,8 @@ class _NameColumn extends StatelessWidget {
               height: _cellHeight,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               alignment: Alignment.centerLeft,
-              child: Text(
-                section.name,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall,
-              ),
+              child: Text(section.name, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall),
             ),
           for (final (index, row) in grid.rowsIn(section.id).indexed)
             InkWell(
@@ -1514,11 +1506,8 @@ class _NameColumn extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (index == 0)
-                      Text(
-                        section.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
+                      Text(section.name, overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall),
                     Text(row.displayName, overflow: TextOverflow.ellipsis),
                   ],
                 ),
@@ -1563,14 +1552,8 @@ class _DayHeader extends StatelessWidget {
 }
 
 class _PoolBand extends StatelessWidget {
-  const _PoolBand({
-    required this.grid,
-    required this.pool,
-    required this.days,
-    required this.today,
-    required this.staffing,
-    required this.onOpenDay,
-  });
+  const _PoolBand({required this.grid, required this.pool, required this.days, required this.today,
+    required this.staffing, required this.onOpenDay});
 
   final MonthGrid grid;
   final RolePool pool;
@@ -1580,60 +1563,43 @@ class _PoolBand extends StatelessWidget {
   final ValueChanged<DateTime> onOpenDay;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      for (final day in days)
-        InkWell(
-          key: ValueKey('pool-${pool.value}-${_dateKey(day)}'),
-          onTap: () => onOpenDay(day),
-          child: Container(
-            width: _dayWidth,
-            height: _bandHeight,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              border: _isToday(day, today)
-                  ? Border.all(
-                      color: Theme.of(context).colorScheme.tertiary,
-                      width: 2,
-                    )
-                  : null,
-            ),
-            child: Builder(
-              builder: (context) {
-                final windows = [
-                  for (final window in CoverageWindow.values)
-                    _staffingOn(staffing, pool, window, day),
-                ];
-                final shortfall = windows.fold<int>(
-                  0,
-                  (sum, item) => sum + (item?.shortCount ?? 0),
-                );
-                final posted = CoverageWindow.values.fold<int>(
-                  0,
-                  (sum, window) =>
-                      sum + grid.shortShiftsOn(pool, window, day).length,
-                );
-                if (windows.every((item) => item?.minimum == null) &&
-                    posted == 0) {
-                  return Text(
-                    'not set',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                  );
-                }
-                return _ShortMarker(
-                  key: ValueKey('short-${pool.value}-${_dateKey(day)}'),
-                  count: shortfall > posted ? shortfall : posted,
-                );
-              },
-            ),
+  Widget build(BuildContext context) => Row(children: [
+    for (final day in days)
+      InkWell(
+        key: ValueKey('pool-${pool.value}-${_dateKey(day)}'),
+        onTap: () => onOpenDay(day),
+        child: Container(
+          width: _dayWidth,
+          height: _bandHeight,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary,
+            border: _isToday(day, today)
+                ? Border.all(color: Theme.of(context).colorScheme.tertiary,
+                    width: 2)
+                : null,
           ),
+          child: Builder(builder: (context) {
+            final windows = [
+              for (final window in CoverageWindow.values)
+                _staffingOn(staffing, pool, window, day),
+            ];
+            final shortfall = windows.fold<int>(0,
+                (sum, item) => sum + (item?.shortCount ?? 0));
+            final posted = CoverageWindow.values.fold<int>(0,
+                (sum, window) => sum + grid.shortShiftsOn(pool, window, day).length);
+            if (windows.every((item) => item?.minimum == null) && posted == 0) {
+              return Text('not set', style: TextStyle(fontSize: 10,
+                  color: Theme.of(context).colorScheme.onPrimary));
+            }
+            return _ShortMarker(
+              key: ValueKey('short-${pool.value}-${_dateKey(day)}'),
+              count: shortfall > posted ? shortfall : posted,
+            );
+          }),
         ),
-    ],
-  );
+      ),
+  ]);
 }
 
 class _StaffRow extends StatelessWidget {
@@ -2000,42 +1966,37 @@ class _DayView extends StatelessWidget {
               ] else ...[
                 for (final pool in RolePool.values) ...[
                   ListTile(
-                    title: Text(
-                      pool == RolePool.nurses ? 'Nursing pool' : pool.label,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
+                    title: Text(pool == RolePool.nurses
+                        ? 'Nursing pool' : pool.label,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
                     tileColor: Theme.of(context).colorScheme.primaryContainer,
                   ),
                   for (final window in CoverageWindow.values)
-                    Builder(
-                      builder: (context) {
-                        final item = _staffingOn(staffing, pool, window, day);
-                        final short = item?.shortCount ?? 0;
-                        final rnShort = item?.rnShortCount ?? 0;
-                        final summary = item?.minimum == null
-                            ? 'not set'
-                            : short == 0
-                            ? 'Covered'
-                            : rnShort == short
-                            ? 'Short $short RN'
-                            : rnShort > 0
-                            ? 'Short $short ${pool.label.toLowerCase()}, $rnShort an RN'
-                            : 'Short $short ${pool.label.toLowerCase()}';
-                        return ListTile(
-                          title: Text('${window.label}: $summary'),
-                          subtitle: (item?.openCount ?? 0) == 0
-                              ? null
-                              : Text('${item?.openCount} posted Open'),
-                          leading: short > 0
-                              ? Icon(
-                                  Icons.warning_amber,
-                                  color: Theme.of(context).colorScheme.error,
-                                )
-                              : null,
-                          onTap: () => onManageDay(pool, window, day),
-                        );
-                      },
-                    ),
+                    Builder(builder: (context) {
+                      final item = _staffingOn(staffing, pool, window, day);
+                      final short = item?.shortCount ?? 0;
+                      final rnShort = item?.rnShortCount ?? 0;
+                      final summary = item?.minimum == null
+                          ? 'not set'
+                          : short == 0
+                              ? 'Covered'
+                              : rnShort == short
+                                  ? 'Short $short RN'
+                                  : rnShort > 0
+                                      ? 'Short $short ${pool.label.toLowerCase()}, $rnShort an RN'
+                                      : 'Short $short ${pool.label.toLowerCase()}';
+                      return ListTile(
+                        title: Text('${window.label}: $summary'),
+                        subtitle: (item?.openCount ?? 0) == 0
+                            ? null
+                            : Text('${item?.openCount} posted Open'),
+                        leading: short > 0
+                            ? Icon(Icons.warning_amber,
+                                color: Theme.of(context).colorScheme.error)
+                            : null,
+                        onTap: () => onManageDay(pool, window, day),
+                      );
+                    }),
                 ],
                 for (final section in grid.sections) ...[
                   ListTile(

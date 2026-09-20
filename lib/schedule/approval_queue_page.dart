@@ -122,6 +122,8 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
               widget.staffGateway!.rejectInviteAcceptance(invite.inviteId),
           approveLabel: 'Confirm',
           declineLabel: 'Reject',
+          declineReasonSupported: false,
+          confirmationDetail: invite.personalEmail,
         ),
       for (final request in pending.requests)
         _Decision(
@@ -198,8 +200,12 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
         title: Text(
           '${approve ? item.approveLabel : item.declineLabel} ${item.title}?',
         ),
-        content: approve && !item.approvalReasonSupported
-            ? null
+        content:
+            (approve && !item.approvalReasonSupported) ||
+                (!approve && !item.declineReasonSupported)
+            ? item.confirmationDetail == null
+                  ? null
+                  : Text('Accepted as ${item.confirmationDetail}')
             : TextField(
                 onChanged: (value) => explanation = value,
                 decoration: const InputDecoration(
@@ -309,6 +315,8 @@ class _Decision {
     required this.approve,
     required this.decline,
     this.approvalReasonSupported = false,
+    this.declineReasonSupported = true,
+    this.confirmationDetail,
     this.approveLabel = 'Approve',
     this.declineLabel = 'Decline',
   });
@@ -318,6 +326,8 @@ class _Decision {
   final Future<void> Function() approve;
   final Future<void> Function() decline;
   final bool approvalReasonSupported;
+  final bool declineReasonSupported;
+  final String? confirmationDetail;
   final String approveLabel;
   final String declineLabel;
 }
