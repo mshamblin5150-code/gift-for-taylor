@@ -57,8 +57,28 @@ Any edit to a published Schedule, such as marking someone off or swapping a shif
 _Avoid_: Schedule update, revision
 
 **Change announcement**:
-The step where a scheduler lets the Staff members affected by a Schedule change know it happened: a text to only those people, plus a highlight in the app. Today it is a new printout in the Schedule book, or a Facebook group post when more than one person is affected. It is the problem the gift tool solves.
+The step where a scheduler lets the Staff members affected by a Schedule change
+know it happened. Nothing leaves the app until she marks the changes announced;
+at that moment every affected person the app can reach is notified, and she
+texts the rest herself from the same sheet. Today it is a new printout in the
+Schedule book, or a Facebook group post when more than one person is affected.
+It is the problem the gift tool solves.
 _Avoid_: Notification, schedule update
+
+**Reach**:
+What the app knows about whether a Change announcement got to a Staff member: a
+notification went to their device, the Manager's text draft was opened, or
+nothing happened. It is recorded when the changes are marked announced and never
+revised afterwards, so it stays true about the day it describes. Deliberately
+weaker than delivery, because an opened draft is not a sent text.
+_Avoid_: Delivery, contact, notification status
+
+**Unreached change**:
+A Schedule change that was marked announced and reached nobody, because the
+person has neither notifications nor a cell number. It is a record rather than a
+task: there is nothing to clear, and it stops being shown once the day it
+affects has passed.
+_Avoid_: Missed announcement, failed notification, untold change
 
 **Month release**:
 The moment the Manager makes a newly built month's Schedule visible to staff. Until then the month is unpublished. It is announced to everyone, unlike a Change announcement.
