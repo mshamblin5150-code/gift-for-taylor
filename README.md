@@ -106,16 +106,18 @@ supabase functions deploy calendar-feed --no-verify-jwt
 ```
 
 The function uses Supabase's `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
-environment values. Each signed-in Staff member opens **My Calendar feed**, creates
-a link, and follows the detected platform's setup instructions (or chooses a
-different device). Android Staff members must sign in on a computer and add the
-HTTPS URL through Google Calendar's **From URL** screen; the Android app cannot
-add a subscription. The page offers a `webcal://` subscription link and a
-copyable HTTPS URL for apps that require pasting, such as new Outlook. Opening
-an HTTPS ICS URL in a browser can import a static copy rather than subscribe.
-The hosted Supabase feed host redirects HTTP to HTTPS with a 301. The link is
-shown only when created or reset; resetting invalidates the previous one.
-Keep it private because a calendar app reads it without signing in.
+environment values. Each signed-in Staff member opens **My Calendar feed** and
+creates a named link for each place they subscribe, such as iPhone or Google.
+The page shows when each subscription last checked in and can revoke it without
+affecting the others. The page detects the platform and shows one setup path,
+with a way to choose another device. Android Staff members must sign in on a
+computer and add the HTTPS URL through Google Calendar's **From URL** screen;
+the Android app cannot add a subscription. The page offers a `webcal://`
+subscription action and a copyable HTTPS URL for apps that require pasting,
+such as new Outlook. Opening an HTTPS ICS URL in a browser can import a static
+copy rather than subscribe. The hosted Supabase feed host redirects HTTP to
+HTTPS with a 301. Keep links private because calendar apps read them without
+signing in.
 
 Supabase Flutter persists and refreshes the session in browser storage. The app
 offers one emailed-code flow for accepting an Invite and signing in, and exposes
