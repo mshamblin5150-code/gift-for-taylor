@@ -1543,12 +1543,22 @@ class _NameColumn extends StatelessWidget {
             height: _bandHeight,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             alignment: Alignment.centerLeft,
-            color: Theme.of(context).colorScheme.primary,
-            child: Text(
-              pool.label,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onPrimary,
-                fontWeight: FontWeight.w600,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    pool.label,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    '− = short by',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ],
               ),
             ),
           ),
@@ -1652,54 +1662,64 @@ class _PoolBand extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     children: [
       for (final day in days)
-        InkWell(
-          key: ValueKey('pool-${pool.value}-${_dateKey(day)}'),
-          onTap: () => onOpenDay(day),
-          child: Container(
-            width: _dayWidth,
-            height: _bandHeight,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              border: _isToday(day, today)
-                  ? Border.all(
-                      color: Theme.of(context).colorScheme.tertiary,
-                      width: 2,
-                    )
-                  : null,
-            ),
-            child: Builder(
-              builder: (context) {
-                final windows = [
-                  for (final window in CoverageWindow.values)
-                    _staffingOn(staffing, pool, window, day),
-                ];
-                final shortfall = windows.fold<int>(
-                  0,
-                  (sum, item) => sum + (item?.shortCount ?? 0),
-                );
-                final posted = CoverageWindow.values.fold<int>(
-                  0,
-                  (sum, window) =>
-                      sum + grid.shortShiftsOn(pool, window, day).length,
-                );
-                if (windows.every((item) => item?.minimum == null) &&
-                    posted == 0) {
-                  return Text(
-                    'not set',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                  );
-                }
-                return _ShortMarker(
-                  key: ValueKey('short-${pool.value}-${_dateKey(day)}'),
-                  count: shortfall > posted ? shortfall : posted,
-                );
-              },
-            ),
-          ),
+        Builder(
+          builder: (context) {
+            final windows = [
+              for (final window in CoverageWindow.values)
+                _staffingOn(staffing, pool, window, day),
+            ];
+            final shortfall = windows.fold<int>(
+              0,
+              (sum, item) => sum + (item?.shortCount ?? 0),
+            );
+            final posted = CoverageWindow.values.fold<int>(
+              0,
+              (sum, window) =>
+                  sum + grid.shortShiftsOn(pool, window, day).length,
+            );
+            final count = shortfall > posted ? shortfall : posted;
+            final notSet =
+                windows.every((item) => item?.minimum == null) && posted == 0;
+            final colors = Theme.of(context).colorScheme;
+            final fill = notSet
+                ? colors.surfaceContainerHighest
+                : count == 0
+                ? colors.secondaryContainer
+                : Color.lerp(
+                    colors.errorContainer,
+                    colors.error,
+                    ((count - 1) / 3).clamp(0.0, 1.0),
+                  )!;
+            final foreground =
+                ThemeData.estimateBrightnessForColor(fill) == Brightness.dark
+                ? Colors.white
+                : Colors.black;
+            return InkWell(
+              key: ValueKey('pool-${pool.value}-${_dateKey(day)}'),
+              onTap: () => onOpenDay(day),
+              child: Container(
+                width: _dayWidth,
+                height: _bandHeight,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: fill,
+                  border: _isToday(day, today)
+                      ? Border.all(color: colors.tertiary, width: 2)
+                      : null,
+                ),
+                child: notSet
+                    ? Text(
+                        'not set',
+                        style: TextStyle(fontSize: 10, color: foreground),
+                      )
+                    : _ShortMarker(
+                        key: ValueKey('short-${pool.value}-${_dateKey(day)}'),
+                        count: count,
+                        color: foreground,
+                      ),
+              ),
+            );
+          },
         ),
     ],
   );
@@ -1781,29 +1801,22 @@ class _StaffRow extends StatelessWidget {
 
 /// How many shifts in a Section are uncovered that day, if any.
 class _ShortMarker extends StatelessWidget {
-  const _ShortMarker({super.key, required this.count});
+  const _ShortMarker({super.key, required this.count, required this.color});
 
   final int count;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     if (count == 0) return const SizedBox.shrink();
-    final colors = Theme.of(context).colorScheme;
     return Tooltip(
       message: 'Short: $count',
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: colors.errorContainer,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          '−$count',
-          style: TextStyle(
-            color: colors.onErrorContainer,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
+      child: Text(
+        '−$count',
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -2367,5 +2380,5 @@ String _dateKey(DateTime day) => DateFormat('yyyy-MM-dd').format(day);
 const _nameWidth = 160.0;
 const _dayWidth = 48.0;
 const _cellHeight = 44.0;
-const _bandHeight = 32.0;
+const _bandHeight = 44.0;
 const _sectionBandHeight = 40.0;
