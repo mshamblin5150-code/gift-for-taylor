@@ -246,18 +246,28 @@ is five columns across four tables, each with its own RPC, dialog and
 existing-data question, and the natural caps genuinely differ — a Shift code is
 a handful of characters, a display name perhaps forty.
 
-## The one grounded exposure, recorded and not acted on
+## Where the grounded exposure actually sits: the cell, not the legend
 
-Applying the employment-law findings above to the page: a blank or "off"
-discloses nothing, while a medical-reason code against a named person is the one
-element on the sheet with a colourable issue. The app seeds
-`('S/L', 'Sick leave', …)` into the production legend
-(`20260919190000_shift_codes.sql:27`), printed against named people, on a page
-any Staff member can print.
+Applying the employment-law findings above: a blank or "off" discloses nothing,
+while a medical-reason code against a named person is the one element on the
+sheet with a colourable issue. It is worth being exact about which element that
+is, because the two are not the same and only one of them names anybody.
 
-**Nothing changes, deliberately.** `S/L` is not the app's invention: `CONTEXT.md`
-defines Sick leave as "written in the cell as S/L," it is on her real paper page
-today, and reproducing that page is the job. The legal position is genuinely
+**The legend defines a code; the cell attaches it to a person.**
+`('S/L', 'Sick leave', …)` seeded into the catalog
+(`20260919190000_shift_codes.sql:27`) and rendered in the legend
+(`book_page.dart:148-154`) is a dictionary entry. It says what two letters mean
+and identifies no one. A dictionary discloses nothing about anybody, so **the
+legend entry is not an exposure at all** and stays without qualification — the
+page would be less readable and no more private without it.
+
+What could carry a disclosure is the **cell**: `S/L` sitting in a named row on a
+named day (`:134-138`), on a page any Staff member can print. That is the
+department's record of who was not at work.
+
+**Nothing changes there either, deliberately.** `S/L` is not the app's
+invention: `CONTEXT.md` defines Sick leave as "written in the cell as S/L," it
+is on her real paper page today, and reproducing that page is the job. The legal position is genuinely
 unsettled — no agency document addresses annotating a schedule, and the ADA
 provision governs information obtained from disability-related inquiries and
 examinations, which a routine sick day is not. The real hospital policy located
