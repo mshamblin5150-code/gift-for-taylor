@@ -194,14 +194,17 @@ final class SupabaseStaffGateway implements StaffGateway {
   @override
   Future<StaffList> loadStaffList() async {
     final results = await Future.wait([
-      _client.from('sections').select('id, name').order('display_order'),
+      _client
+          .from('sections')
+          .select('id, name')
+          .order('display_order', ascending: true),
       _client
           .from('staff_list_entries')
           .select(
             'id, display_name, cell_number, section_id, display_order, '
             'personal_email, job_role',
           )
-          .order('display_order'),
+          .order('display_order', ascending: true),
     ]);
     final sectionRows = results[0];
     final memberRows = results[1];
