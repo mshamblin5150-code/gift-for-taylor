@@ -5,7 +5,7 @@
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F8FAF8",
-    "theme_color": "#24535C",
+    "theme_color": "#151A1F",
     "description": "The ER staff Schedule.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
