@@ -125,8 +125,8 @@ const helpTopics = <HelpTopic>[
   HelpTopic(
     title: 'Calendar feed',
     who: 'Everyone',
-    what: 'Your private Calendar feed keeps your working shifts in your phone calendar as the Schedule changes.',
-    how: 'Tap the calendar icon on the Schedule, create a private link and copy it. Add it as a subscribed calendar in your phone’s calendar app. Do not share the link; you can reset it later.',
+    what: 'Your private Calendar feed mirrors your working shifts in a subscribed calendar. Your calendar app checks it on its own schedule.',
+    how: 'Tap the calendar icon on the Schedule and follow the setup instructions for your device. Google Calendar on Android requires setup from a computer. Keep the link private; resetting it stops calendars using the old link.',
     searchTerms: 'my calendar subscribe phone',
   ),
   HelpTopic(
