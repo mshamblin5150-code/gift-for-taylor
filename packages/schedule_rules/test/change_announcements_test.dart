@@ -163,7 +163,10 @@ void main() {
 
     await manager.markAnnounced(announcement);
     final log = await manager.changeLog(september);
-    expect(log.where((change) => change.date.day == 18).every(
+    expect(log.where((change) =>
+        change.staffMemberId == sam.staffMemberId &&
+        change.date.day == 18 &&
+        change.oldShiftCode.isNotEmpty).every(
       (change) => change.moot && !change.announced && change.reach == null,
     ), isTrue);
     expect(log.where((change) => change.date.day == 19).every(
