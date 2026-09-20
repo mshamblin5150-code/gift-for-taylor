@@ -4,7 +4,7 @@ Issue #104. The earlier research in this directory is a set of hypotheses, not m
 
 ## Instrumentation
 
-Migration `20260920230000_calendar_feed_measurements.sql` records successful-token GETs for explicitly enrolled Calendar subscriptions in `calendar_feed_fetches`: Calendar subscription ID, UTC request time, user-agent, presence of `If-None-Match` and `If-Modified-Since`, and the forwarded source address. Enrollment expires automatically. It never records the bearer token, validator values, or Schedule contents. Other, invalid, and revoked links produce no row. Only the service role can read the table; do not copy addresses or token URLs into GitHub issues or this file. The existing `last_fetched_at` remains the UI's latest-check time.
+Migration `20260920240000_calendar_feed_measurements.sql` records successful-token GETs for explicitly enrolled Calendar subscriptions in `calendar_feed_fetches`: Calendar subscription ID, UTC request time, user-agent, presence of `If-None-Match` and `If-Modified-Since`, and the forwarded source address. Enrollment expires automatically. It never records the bearer token, validator values, or Schedule contents. Other, invalid, and revoked links produce no row. Only the service role can read the table; do not copy addresses or token URLs into GitHub issues or this file. The existing `last_fetched_at` remains the UI's latest-check time.
 
 The feed writes the history row before generating the response. A row proves a request arrived, not that the caller received a `200` or `304`. The forwarding header may contain a proxy address or a client-supplied value; corroborate any server-versus-device conclusion with Mac power state, user-agent, and independently known device network addresses. If the header is absent, do not infer where the request originated. The current feed emits `REFRESH-INTERVAL:PT5M` and `X-PUBLISHED-TTL:PT15M`; this setup alone cannot separate the effects of those properties.
 
@@ -54,3 +54,4 @@ Report for each arm: trial dates, number of automatic fetches, median and range 
 ## Results
 
 Pending deployment, throwaway subscriptions, and the 7-day observation window. No platform-specific refresh interval has been measured yet.
+
