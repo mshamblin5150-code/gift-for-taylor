@@ -281,10 +281,10 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
-    title: 'Change Section or role',
+    title: 'Change Section or Job role',
     who: 'Manager',
     what: 'A Staff member may move to another Section or take a different role from a chosen date.',
-    how: 'Open their details from the Staff list and tap Change Section or role.',
+    how: 'Open their details from the Staff list and tap Change Section or Job role.',
     roles: _manager,
   ),
   HelpTopic(

@@ -5,6 +5,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'invite_composer.dart';
 import 'staff_dialogs.dart';
 import 'staff_gateway.dart';
+import 'staff_details_page.dart';
 
 /// Everyone who has left, from which the Manager reactivates a returning
 /// person.
@@ -106,6 +107,19 @@ class _PastStaffPageState extends State<PastStaffPage> {
             for (final member in pastStaff)
               ListTile(
                 title: Text(member.displayName),
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (context) => StaffDetailsPage(
+                        staffMemberId: member.id,
+                        gateway: widget.gateway,
+                        rules: widget.rules,
+                        inviteComposer: widget.inviteComposer,
+                      ),
+                    ),
+                  );
+                  await _load();
+                },
                 subtitle: Text(
                   member.lastDay == null
                       ? 'Deactivated'

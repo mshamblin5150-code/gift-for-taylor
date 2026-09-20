@@ -125,7 +125,7 @@ class _ChangeSectionOrRoleDialogState extends State<ChangeSectionOrRoleDialog> {
             ),
             DropdownButtonFormField<JobRole>(
               initialValue: _jobRole,
-              decoration: const InputDecoration(labelText: 'Role'),
+              decoration: const InputDecoration(labelText: 'Job role'),
               hint: const Text('Not set'),
               items: [
                 for (final role in JobRole.values)
