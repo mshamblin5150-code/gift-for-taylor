@@ -1,5 +1,6 @@
 import { calendar } from "./calendar.ts";
 import { feedResponse } from "./response.ts";
+import { handleRequest } from "./handler.ts";
 
 const updated = "2027-03-03T19:05:00Z";
 
@@ -112,5 +113,106 @@ Deno.test("Empty feed has a Last-Modified validator", async () => {
   if (first.headers.get("Last-Modified") !== "Wed, 03 Mar 2027 19:05:00 GMT" ||
     conditional.status !== 304) {
     throw new Error("Empty feed did not honor its Last-Modified validator");
+  }
+});
+
+const token = "a".repeat(64);
+const revokedAt = "2027-03-03T02:05:00Z"; // Mar 2 in New York
+const subscriptionId = "00000000-0000-0000-0000-000000000099";
+const historyEvent = {
+  staff_member_id: "00000000-0000-0000-0000-000000000001",
+  work_date: "2027-03-02",
+  shift_code: "7A",
+  starts_at: null,
+  ends_at: null,
+  updated_at: updated,
+  sequence: 1,
+};
+
+function feedState(state: "live" | "ended" | "feed" | "invitations", events = [historyEvent]) {
+  return {
+    state,
+    subscription_id: subscriptionId,
+    staff_member_id: historyEvent.staff_member_id,
+    revoked_at: state === "live" ? null : revokedAt,
+    last_modified: state === "live" ? updated : revokedAt,
+    events,
+  };
+}
+
+function request(headers: HeadersInit = {}) {
+  return new Request(`https://example.test/calendar-feed/${token}`, { headers });
+}
+
+function unfolded(body: string) {
+  return body.replaceAll("\r\n ", "");
+}
+
+Deno.test("Unknown Calendar feed token returns 404 after one state query", async () => {
+  let calls = 0;
+  const response = await handleRequest(request(), async (params) => {
+    calls++;
+    if (params.p_token !== token) throw new Error("Token was not passed to state query");
+    return null;
+  });
+  if (response.status !== 404 || calls !== 1) throw new Error("Unknown token was not hidden");
+});
+
+Deno.test("Live Calendar feed keeps the existing bytes", async () => {
+  const response = await handleRequest(request(), async () => feedState("live"));
+  if (response.status !== 200 || await response.text() !== calendar([historyEvent], updated)) {
+    throw new Error("Live feed changed its calendar body");
+  }
+});
+
+Deno.test("Ended Calendar feed retains history silently, including the empty case", async () => {
+  const response = await handleRequest(request(), async () => feedState("ended"));
+  const body = unfolded(await response.text());
+  if (response.status !== 200 || body.match(/BEGIN:VEVENT/g)?.length !== 1 ||
+    !body.includes("DESCRIPTION:Schedule as of Tue 2 Mar\\, 21:05. This calendar is no longer updated.") ||
+    body.includes("-disconnected@er-schedule") || body.includes("open the app")) {
+    throw new Error("Ended feed did not quietly describe its frozen history");
+  }
+  const empty = await handleRequest(request(), async () => feedState("ended", []));
+  const emptyBody = await empty.text();
+  if (empty.status !== 200 || emptyBody.includes("BEGIN:VEVENT") ||
+    !emptyBody.includes("BEGIN:VCALENDAR\r\n")) {
+    throw new Error("Ended feed added a placeholder to empty history");
+  }
+});
+
+for (const state of ["feed", "invitations"] as const) {
+  Deno.test(`${state} Calendar feed shows a year-long disconnected banner`, async () => {
+    const response = await handleRequest(request(), async () => feedState(state));
+    const body = unfolded(await response.text());
+    const banner = body.split("BEGIN:VEVENT\r\n")[1];
+    const message = state === "feed"
+      ? "The shifts below are your schedule as it stood that day. Open the app to set up a new link."
+      : "Your shifts now arrive by email instead — you can delete this calendar.";
+    if (response.status !== 200 || !banner.includes(`UID:${subscriptionId}-disconnected@er-schedule`) ||
+      !banner.includes("DTSTART;VALUE=DATE:20270302") ||
+      !banner.includes("DTEND;VALUE=DATE:20280302") ||
+      !banner.includes("DTSTAMP:20270303T020500Z") ||
+      !banner.includes("LAST-MODIFIED:20270303T020500Z") ||
+      !banner.includes("SEQUENCE:0") ||
+      !banner.includes("SUMMARY:ER Schedule: this calendar is no longer updated") ||
+      !banner.includes(message) ||
+      body.match(/BEGIN:VEVENT/g)?.length !== 2 ||
+      response.headers.get("Last-Modified") !== "Wed, 03 Mar 2027 02:05:00 GMT") {
+      throw new Error(`${state} feed did not show its stable disconnected banner`);
+    }
+  });
+}
+
+Deno.test("Disconnected Calendar feed repeats the same body and answers 304", async () => {
+  const query = async () => feedState("feed");
+  const first = await handleRequest(request(), query);
+  const second = await handleRequest(request(), query);
+  const etag = first.headers.get("ETag")!;
+  const conditional = await handleRequest(request({ "If-None-Match": etag }), query);
+  if (await first.text() !== await second.text() ||
+    etag !== second.headers.get("ETag") || conditional.status !== 304 ||
+    await conditional.text() !== "") {
+    throw new Error("Disconnected feed changed between fetches");
   }
 });
