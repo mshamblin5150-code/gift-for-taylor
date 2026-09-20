@@ -207,12 +207,12 @@ for (const state of ["feed", "invitations"] as const) {
 Deno.test("Disconnected Calendar feed repeats the same body and answers 304", async () => {
   const query = async () => feedState("feed");
   const first = await handleRequest(request(), query);
-  const second = await handleRequest(request(), query);
   const etag = first.headers.get("ETag")!;
-  const conditional = await handleRequest(request({ "If-None-Match": etag }), query);
-  if (await first.text() !== await second.text() ||
-    etag !== second.headers.get("ETag") || conditional.status !== 304 ||
-    await conditional.text() !== "") {
+  const body = await first.text();
+  const second = await handleRequest(request({ "If-None-Match": etag }), query);
+  const repeated = await handleRequest(request(), query);
+  if (second.status !== 304 || await second.text() !== "" ||
+    body !== await repeated.text() || etag !== repeated.headers.get("ETag")) {
     throw new Error("Disconnected feed changed between fetches");
   }
 });
