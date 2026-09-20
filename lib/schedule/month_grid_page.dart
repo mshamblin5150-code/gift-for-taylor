@@ -2068,12 +2068,10 @@ class _DayView extends StatelessWidget {
                 ],
               ] else ...[
                 for (final pool in RolePool.values) ...[
-                  ListTile(
-                    title: Text(
-                      pool == RolePool.nurses ? 'Nursing pool' : pool.label,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    tileColor: Theme.of(context).colorScheme.primaryContainer,
+                  _dayGroupHeader(
+                    context,
+                    pool == RolePool.nurses ? 'Nursing pool' : pool.label,
+                    Theme.of(context).colorScheme.primary,
                   ),
                   for (final window in CoverageWindow.values)
                     Builder(
@@ -2106,13 +2104,27 @@ class _DayView extends StatelessWidget {
                       },
                     ),
                 ],
-                for (final section in grid.sections) ...[
-                  ListTile(
-                    title: Text(
-                      section.name,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 24),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
                     ),
-                    tileColor: Theme.of(context).colorScheme.primaryContainer,
+                  ),
+                  child: Text(
+                    'Schedule by Section',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                for (final section in grid.sections) ...[
+                  _dayGroupHeader(
+                    context,
+                    section.name,
+                    Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   for (final entry in entries.where(
                     (entry) => entry.row.sectionId == section.id,
@@ -2137,6 +2149,15 @@ class _DayView extends StatelessWidget {
       ],
     );
   }
+
+  Widget _dayGroupHeader(BuildContext context, String label, Color color) =>
+      ListTile(
+        shape: Border(top: BorderSide(color: color, width: 2)),
+        title: Text(
+          label,
+          style: TextStyle(color: color, fontWeight: FontWeight.w600),
+        ),
+      );
 }
 
 class _PersonView extends StatelessWidget {

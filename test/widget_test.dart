@@ -684,6 +684,59 @@ void main() {
     );
   });
 
+  testWidgets('Day view separates coverage from the Schedule Sections', (
+    tester,
+  ) async {
+    await pumpGrid(tester);
+
+    await tester.tap(find.text('Day'));
+    await tester.pumpAndSettle();
+
+    final coverageHeader = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Nursing pool'),
+    );
+    final sectionHeader = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'State dayshift RN'),
+    );
+    final breakLabel = find.text('Schedule by Section');
+    expect(breakLabel, findsOneWidget);
+    expect(
+      tester.getTopLeft(breakLabel).dy,
+      greaterThan(
+        tester.getBottomLeft(find.widgetWithText(ListTile, 'Unit clerks')).dy,
+      ),
+    );
+    expect(
+      tester.getBottomLeft(breakLabel).dy,
+      lessThan(
+        tester
+            .getTopLeft(find.widgetWithText(ListTile, 'State dayshift RN'))
+            .dy,
+      ),
+    );
+    expect(coverageHeader.tileColor, isNull);
+    expect(sectionHeader.tileColor, isNull);
+    expect(
+      (coverageHeader.title! as Text).style?.color,
+      isNot((sectionHeader.title! as Text).style?.color),
+    );
+  });
+
+  testWidgets('Day view keeps unset Coverage windows editable', (tester) async {
+    await pumpGrid(tester, withStaffing: true, now: () => september18);
+
+    await tester.tap(find.text('Day'));
+    await tester.pumpAndSettle();
+
+    final unsetWindow = find.widgetWithText(ListTile, 'Days: not set').first;
+    expect(unsetWindow, findsOneWidget);
+    await tester.tap(unsetWindow);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Minimum people'), findsOneWidget);
+    expect(find.textContaining('minimum not set'), findsOneWidget);
+  });
+
   testWidgets('one-person view shows and edits one person\'s month', (
     tester,
   ) async {
