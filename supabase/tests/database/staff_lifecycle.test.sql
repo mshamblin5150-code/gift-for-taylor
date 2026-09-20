@@ -393,8 +393,9 @@ select is(
   'the old sign-in link does not work before the fresh Invite is accepted'
 );
 
-select lives_ok(
-  format('select public.accept_invite(%L)', (select token from fresh_invite)),
+select is(
+  public.accept_invite((select token from fresh_invite), '5552223333'),
+  'accepted',
   'the returning person accepts the fresh Invite'
 );
 

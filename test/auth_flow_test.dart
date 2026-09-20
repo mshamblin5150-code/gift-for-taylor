@@ -102,7 +102,9 @@ void main() {
     expect(find.text('State dayshift RN'), findsNothing);
   });
 
-  testWidgets('invitee signs in before the Invite is accepted', (tester) async {
+  testWidgets('invitee gives their Cell number before email and acceptance', (
+    tester,
+  ) async {
     final staffGateway = _FakeStaffGateway();
     await tester.pumpWidget(
       ScheduleApp(
@@ -114,6 +116,14 @@ void main() {
         inviteToken: 'fresh-token',
       ),
     );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Email me a code'), findsNothing);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Cell number'),
+      '555-0137',
+    );
+    await tester.tap(find.text('Continue to email'));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -130,6 +140,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(staffGateway.acceptedToken, 'fresh-token');
+    expect(staffGateway.acceptedCellNumber, '555-0137');
     expect(find.text('State dayshift RN'), findsOneWidget);
   });
 
@@ -150,8 +161,55 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(authGateway.signOutCount, 1);
-    expect(find.text('Email me a code'), findsOneWidget);
+    expect(find.text('Cell number'), findsOneWidget);
     expect(staffGateway.acceptedToken, isNull);
+  });
+
+  testWidgets('wrong Cell number shows a specific error and can be retried', (
+    tester,
+  ) async {
+    final staffGateway = _FakeStaffGateway()
+      ..acceptanceResult = InviteAcceptanceResult.cellMismatch;
+    await tester.pumpWidget(
+      ScheduleApp(
+        authGateway: _FakeAuthGateway(),
+        scheduleStore: _scheduleStore(const []),
+        staffGateway: staffGateway,
+        inviteToken: 'fresh-token',
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Cell number'),
+      '555-0000',
+    );
+    await tester.tap(find.text('Continue to email'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Email'),
+      'invitee@example.test',
+    );
+    await tester.tap(find.text('Email me a code'));
+    await tester.pump();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'One-time code'),
+      '123456',
+    );
+    await tester.tap(find.text('Verify code'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining("doesn't match the one on file"),
+      findsOneWidget,
+    );
+    staffGateway.acceptanceResult = InviteAcceptanceResult.accepted;
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Cell number'),
+      '555-0137',
+    );
+    await tester.tap(find.text('Try Cell number again'));
+    await tester.pumpAndSettle();
+    expect(staffGateway.acceptedCellNumber, '555-0137');
   });
 }
 
@@ -223,10 +281,17 @@ final class _FakeStaffGateway implements StaffGateway {
   Future<void> updateStaffContact(String id, String name, String? cell) =>
       throw UnimplementedError();
   String? acceptedToken;
+  String? acceptedCellNumber;
+  InviteAcceptanceResult acceptanceResult = InviteAcceptanceResult.accepted;
 
   @override
-  Future<void> acceptInvite(String token) async {
+  Future<InviteAcceptanceResult> acceptInvite(
+    String token,
+    String cellNumber,
+  ) async {
     acceptedToken = token;
+    acceptedCellNumber = cellNumber;
+    return acceptanceResult;
   }
 
   @override

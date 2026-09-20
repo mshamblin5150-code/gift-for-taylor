@@ -38,6 +38,42 @@ void main() {
     rules = ScheduleRules.inMemory(database, actingAs: 'manager');
   });
 
+  testWidgets('Manager sees an Invite Cell mismatch against the Staff member', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: _FakeStaffGateway(
+            StaffList(
+              sections: const [days],
+              members: [
+                StaffListMember(
+                  id: 'staff-1',
+                  displayName: 'Alex Tech',
+                  cellNumber: '+15551112222',
+                  sectionId: 'days',
+                  displayOrder: 0,
+                  inviteCellMismatchAt: DateTime.utc(2026, 9, 20),
+                ),
+              ],
+            ),
+          ),
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        "Someone opened Alex Tech's Invite and the number didn't match.",
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('Help opens from Staff list with Manager topics', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -860,7 +896,10 @@ final class _FakeStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<void> acceptInvite(String token) async {}
+  Future<InviteAcceptanceResult> acceptInvite(
+    String token,
+    String cellNumber,
+  ) async => InviteAcceptanceResult.accepted;
 
   @override
   Future<bool> canManageStaff() async => true;

@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(29);
 
 insert into auth.users (id, email)
 values
@@ -62,7 +62,7 @@ select set_config(
 create temporary table initial_invite as
 select * from public.create_staff_member_with_invite(
   'New Staff member',
-  '5558675309',
+  '5550137',
   '00000000-0000-0000-0000-000000000155'
 );
 
@@ -201,13 +201,13 @@ select set_config(
   true
 );
 select throws_ok(
-  $$select public.accept_invite((select token from initial_invite))$$,
+  $$select public.accept_invite((select token from initial_invite), '555-0137')$$,
   'P0001',
   'This Invite is invalid, expired, or has already been used',
   'a revoked Invite cannot be accepted'
 );
 select throws_ok(
-  $$select public.accept_invite((select token from invite_tokens))$$,
+  $$select public.accept_invite((select token from invite_tokens), '555-0137')$$,
   'P0001',
   'This Invite is invalid, expired, or has already been used',
   'an expired Invite cannot be accepted'
@@ -226,9 +226,55 @@ select set_config(
   '{"sub":"00000000-0000-0000-0000-000000000153","role":"authenticated"}',
   true
 );
-select lives_ok(
-  $$select public.accept_invite((select token from invite_tokens))$$,
-  'an invitee can accept a fresh Invite after signing in'
+select throws_ok(
+  $$select public.accept_invite('not-an-invite', '555-0000')$$,
+  'P0001',
+  'This Invite is invalid, expired, or has already been used',
+  'an invalid token gives no Cell number detail'
+);
+select is(
+  public.accept_invite((select token from invite_tokens), '555-0000'),
+  'cell_mismatch',
+  'a different Cell number cannot accept the Invite'
+);
+reset role;
+select is(
+  (select accepted_at is null and revoked_at is null from public.invites
+   where token_hash = extensions.digest(convert_to((select token from invite_tokens), 'UTF8'), 'sha256')),
+  true,
+  'a mismatch leaves the Invite usable'
+);
+select is(
+  (select count(*)::integer from public.invite_cell_mismatches
+   where staff_member_id = (select staff_member_id from initial_invite)),
+  1,
+  'a mismatch is recorded against the Staff member'
+);
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000153","role":"authenticated"}',
+  true
+);
+select is(
+  public.accept_invite((select token from invite_tokens), '555-0000'),
+  'cell_mismatch',
+  'another mismatch is reported'
+);
+select is(
+  public.accept_invite((select token from invite_tokens), '555-0000'),
+  'cell_mismatch',
+  'a third mismatch is reported'
+);
+select is(
+  public.accept_invite((select token from invite_tokens), '555-0000'),
+  'throttled',
+  'repeated failures are throttled'
+);
+select is(
+  public.accept_invite((select token from invite_tokens), '(555) 013-7'),
+  'accepted',
+  'a correct Cell number in another format accepts the Invite'
 );
 
 select is(
@@ -242,7 +288,7 @@ select is(
 );
 
 select throws_ok(
-  $$select public.accept_invite((select token from invite_tokens))$$,
+  $$select public.accept_invite((select token from invite_tokens), '+15550137')$$,
   'P0001',
   'This Invite is invalid, expired, or has already been used',
   'a used Invite cannot be accepted again'
@@ -252,6 +298,12 @@ select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000151","role":"authenticated"}',
   true
+);
+select is(
+  (select invite_cell_mismatch_at is not null from public.staff_list_entries
+   where id = (select staff_member_id from initial_invite)),
+  true,
+  'the Manager sees the Staff member with a mismatched Invite'
 );
 select throws_ok(
   $$select public.resend_staff_invite(
@@ -307,6 +359,11 @@ select is(
   (select count(*)::integer from public.staff_list_entries),
   0,
   'an account without an accepted Invite reads no Staff list entries'
+);
+select is(
+  (select count(*)::integer from public.invite_cell_mismatches),
+  0,
+  'an outsider cannot read mismatch records'
 );
 
 select * from finish();

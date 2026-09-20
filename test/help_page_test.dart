@@ -58,6 +58,18 @@ void main() {
     expect(find.textContaining('pending Requests off'), findsWidgets);
   });
 
+  testWidgets('Manager finds the Invite Cell mismatch instructions', (
+    tester,
+  ) async {
+    await openHelp(tester, HelpRole.manager);
+    await tester.enterText(find.byType(TextField), 'wrong cell number');
+    await tester.pump();
+    expect(find.text('Invite Cell mismatch'), findsOneWidget);
+    await tester.tap(find.text('Invite Cell mismatch'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('retry the same Invite'), findsOneWidget);
+  });
+
   testWidgets('Night scheduler sees editing but not Manager-only features', (
     tester,
   ) async {
