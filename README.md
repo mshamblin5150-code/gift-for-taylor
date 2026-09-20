@@ -109,9 +109,15 @@ The function uses Supabase's `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
 environment values. Each signed-in Staff member opens **My Calendar feed** and
 creates a named link for each place they subscribe, such as iPhone or Google.
 The page shows when each subscription last checked in and can revoke it without
-affecting the others. Copy each new link into that calendar's subscription
-screen. The link uses `webcal://` so calendar apps subscribe instead of importing
-a static copy. Keep links private because calendar apps read them without signing in.
+affecting the others. The page detects the platform and shows one setup path,
+with a way to choose another device. Android Staff members must sign in on a
+computer and add the HTTPS URL through Google Calendar's **From URL** screen;
+the Android app cannot add a subscription. The page offers a `webcal://`
+subscription action and a copyable HTTPS URL for apps that require pasting,
+such as new Outlook. Opening an HTTPS ICS URL in a browser can import a static
+copy rather than subscribe. The hosted Supabase feed host redirects HTTP to
+HTTPS with a 301. Keep links private because calendar apps read them without
+signing in.
 
 Supabase Flutter persists and refreshes the session in browser storage. The app
 offers one emailed-code flow for accepting an Invite and signing in, and exposes
