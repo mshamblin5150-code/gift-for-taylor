@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(17);
 
 insert into auth.users (id, email)
 values
@@ -98,6 +98,18 @@ select is(
   'adding a Staff member creates one active Invite'
 );
 
+select is(
+  (
+    select invite.expires_at - invite.created_at
+    from public.invites invite
+    join public.staff_members member on member.id = invite.staff_member_id
+    where member.display_name = 'New Staff member'
+      and invite.revoked_at is null
+  ),
+  interval '30 days',
+  'a newly issued Invite expires 30 days after creation'
+);
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -161,6 +173,27 @@ select is(
   'resending revokes the prior Invite'
 );
 
+select is(
+  (
+    select invite.expires_at - invite.created_at
+    from public.invites invite
+    join public.staff_members member on member.id = invite.staff_member_id
+    where member.display_name = 'New Staff member'
+      and invite.revoked_at is null
+  ),
+  interval '30 days',
+  'a resent Invite also gets the 30-day default'
+);
+
+-- Move both timestamps to keep the row's expires_at > created_at constraint.
+update public.invites invite
+set created_at = now() - interval '31 days',
+    expires_at = now() - interval '1 day'
+from public.staff_members member
+where member.id = invite.staff_member_id
+  and member.display_name = 'New Staff member'
+  and invite.revoked_at is null;
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -172,6 +205,26 @@ select throws_ok(
   'P0001',
   'This Invite is invalid, expired, or has already been used',
   'a revoked Invite cannot be accepted'
+);
+select throws_ok(
+  $$select public.accept_invite((select token from invite_tokens))$$,
+  'P0001',
+  'This Invite is invalid, expired, or has already been used',
+  'an expired Invite cannot be accepted'
+);
+
+reset role;
+update public.invites invite
+set expires_at = now() + interval '30 days'
+from public.staff_members member
+where member.id = invite.staff_member_id
+  and member.display_name = 'New Staff member'
+  and invite.revoked_at is null;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000153","role":"authenticated"}',
+  true
 );
 select lives_ok(
   $$select public.accept_invite((select token from invite_tokens))$$,
