@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(52);
+select plan(59);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000501', 'feed-one@example.test'),
@@ -36,6 +36,8 @@ select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000501","role":"authenticated"}', true);
 select is((select count(*)::integer from public.list_calendar_subscriptions()), 0,
   'new Staff member has no subscriptions');
+select is((select count(*)::integer from public.list_disconnected_calendar_subscriptions()), 0,
+  'never-revoked Staff member has no Disconnected subscriptions');
 insert into feed_secrets (old_token, old_id)
 select result->>'token', (result->>'id')::uuid
 from (select public.create_calendar_subscription('iPhone') result) created;
@@ -145,6 +147,27 @@ select set_config('request.jwt.claims',
 select public.revoke_calendar_subscription((select old_id from feed_secrets));
 select is((select count(*)::integer from public.list_calendar_subscriptions()), 1,
   'revoking one subscription leaves the other listed');
+select is((select name from public.list_disconnected_calendar_subscriptions()),
+  'iPhone', 'revoked subscription appears in Disconnected list');
+select ok((select revoked_at is not null from public.list_disconnected_calendar_subscriptions()),
+  'Disconnected list includes revocation time');
+select is((select fetching_user_agent from public.list_disconnected_calendar_subscriptions()),
+  'Test Calendar/1.0', 'Disconnected list includes the last check-in');
+select is((select count(*)::integer from public.list_disconnected_calendar_subscriptions()
+  where last_fetched_at > revoked_at), 0,
+  'a fetch before revocation is not a post-disconnection check-in');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000502","role":"authenticated"}', true);
+select is((select count(*)::integer from public.list_disconnected_calendar_subscriptions()), 0,
+  'another Staff member cannot see the revoked subscription');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000501","role":"authenticated"}', true);
+reset role;
+update public.calendar_feed_tokens set revoked_at = now() - interval '1 year' - interval '1 second'
+where id = (select old_id from feed_secrets);
+set local role authenticated;
+select is((select count(*)::integer from public.list_disconnected_calendar_subscriptions()), 0,
+  'subscription revoked over a year ago leaves the Disconnected list');
 set local role service_role;
 select is((select public.calendar_feed_owner(old_token) from feed_secrets), null::uuid,
   'revoked subscription stops serving its feed');

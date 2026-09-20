@@ -36,9 +36,38 @@ final class CalendarSubscription {
       );
 }
 
+final class DisconnectedCalendarSubscription {
+  const DisconnectedCalendarSubscription({
+    required this.id,
+    required this.name,
+    required this.revokedAt,
+    this.lastFetchedAt,
+    this.fetchingUserAgent,
+  });
+
+  final String id;
+  final String name;
+  final DateTime revokedAt;
+  final DateTime? lastFetchedAt;
+  final String? fetchingUserAgent;
+
+  factory DisconnectedCalendarSubscription.fromJson(
+    Map<String, dynamic> json,
+  ) => DisconnectedCalendarSubscription(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    revokedAt: DateTime.parse(json['revoked_at'] as String),
+    lastFetchedAt: json['last_fetched_at'] == null
+        ? null
+        : DateTime.parse(json['last_fetched_at'] as String),
+    fetchingUserAgent: json['fetching_user_agent'] as String?,
+  );
+}
+
 abstract interface class CalendarFeedGateway {
   Future<String> channel();
   Future<List<CalendarSubscription>> subscriptions();
+  Future<List<DisconnectedCalendarSubscription>> disconnectedSubscriptions();
   Future<Uri> createSubscription(String name);
   Future<void> revokeSubscription(String id);
   Future<void> useInvitations();
@@ -62,6 +91,21 @@ final class SupabaseCalendarFeedGateway implements CalendarFeedGateway {
     return rows
         .map(
           (row) => CalendarSubscription.fromJson(row as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  @override
+  Future<List<DisconnectedCalendarSubscription>>
+  disconnectedSubscriptions() async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'list_disconnected_calendar_subscriptions',
+    );
+    return rows
+        .map(
+          (row) => DisconnectedCalendarSubscription.fromJson(
+            row as Map<String, dynamic>,
+          ),
         )
         .toList();
   }
@@ -105,6 +149,9 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
   late Future<String> _channel = widget.gateway.channel();
   late Future<List<CalendarSubscription>> _subscriptions = widget.gateway
       .subscriptions();
+  late Future<List<DisconnectedCalendarSubscription>> _disconnected = widget
+      .gateway
+      .disconnectedSubscriptions();
   late final CalendarPlatform _detectedPlatform = detectCalendarPlatform();
   late CalendarPlatform _platform = _detectedPlatform;
   Uri? _newLink;
@@ -176,8 +223,69 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
   }
 
   void _reload() {
-    setState(() => _subscriptions = widget.gateway.subscriptions());
+    setState(() {
+      _subscriptions = widget.gateway.subscriptions();
+      _disconnected = widget.gateway.disconnectedSubscriptions();
+    });
   }
+
+  String _relativeTime(DateTime time) {
+    final elapsed = DateTime.now().difference(time);
+    if (elapsed.inMinutes < 1) return 'just now';
+    if (elapsed.inHours < 1) return _ago(elapsed.inMinutes, 'minute');
+    if (elapsed.inDays < 1) return _ago(elapsed.inHours, 'hour');
+    if (elapsed.inDays < 30) return _ago(elapsed.inDays, 'day');
+    if (elapsed.inDays < 365) return '${elapsed.inDays ~/ 30} months ago';
+    return '${elapsed.inDays ~/ 365} years ago';
+  }
+
+  String _ago(int count, String unit) =>
+      '$count $unit${count == 1 ? '' : 's'} ago';
+
+  String _checkInState(DisconnectedCalendarSubscription subscription) {
+    final fetched = subscription.lastFetchedAt;
+    if (fetched != null && fetched.isAfter(subscription.revokedAt)) {
+      return 'Picked up the disconnection ${_relativeTime(fetched)}.';
+    }
+    return "Hasn't checked in since. If you still have this device, remove the subscription there.";
+  }
+
+  Widget
+  _disconnectedSection() => FutureBuilder<List<DisconnectedCalendarSubscription>>(
+    future: _disconnected,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Could not load Disconnected subscriptions.'),
+            TextButton(onPressed: _reload, child: const Text('Retry')),
+          ],
+        );
+      }
+      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 24),
+          Text('Disconnected', style: Theme.of(context).textTheme.titleMedium),
+          for (final subscription in snapshot.data!)
+            Card(
+              child: ListTile(
+                title: Text(subscription.name),
+                subtitle: Text(
+                  'Disconnected ${DateFormat.yMMMd().add_jm().format(subscription.revokedAt.toLocal())}\n'
+                  '${_checkInState(subscription)}',
+                ),
+                isThreeLine: true,
+              ),
+            ),
+        ],
+      );
+    },
+  );
 
   Future<void> _create() async {
     final controller = TextEditingController();
@@ -294,8 +402,9 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
       _reload();
     } catch (_) {
       if (mounted) {
-        setState(() => _error =
-            'Could not switch to Calendar invitations. Try again.');
+        setState(
+          () => _error = 'Could not switch to Calendar invitations. Try again.',
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -313,15 +422,21 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return const Center(child: Text('Could not load calendar settings.'));
+            return const Center(
+              child: Text('Could not load calendar settings.'),
+            );
           }
           if (snapshot.data == 'invitations') {
             return ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                const Text('Calendar invitations for working shifts are emailed to your personal address. Changes replace a shift, and removed shifts are withdrawn. No reply is needed.'),
+                const Text(
+                  'Calendar invitations for working shifts are emailed to your personal address. Changes replace a shift, and removed shifts are withdrawn. No reply is needed.',
+                ),
                 const SizedBox(height: 16),
-                const Text('Save ER Schedule to your contacts so your calendar app recognizes future invitations.'),
+                const Text(
+                  'Save ER Schedule to your contacts so your calendar app recognizes future invitations.',
+                ),
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -332,7 +447,9 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text('If you prefer one separate calendar, switch to a Calendar feed. Existing invitations will be withdrawn.'),
+                const Text(
+                  'If you prefer one separate calendar, switch to a Calendar feed. Existing invitations will be withdrawn.',
+                ),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton(
@@ -340,9 +457,14 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
                     child: const Text('Switch to Calendar feed'),
                   ),
                 ),
+                _disconnectedSection(),
                 if (_error != null)
-                  Text(_error!, style: TextStyle(
-                    color: Theme.of(context).colorScheme.error)),
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
               ],
             );
           }
@@ -353,138 +475,137 @@ class _CalendarFeedPageState extends State<CalendarFeedPage> {
   }
 
   Widget _feedBody() => FutureBuilder<List<CalendarSubscription>>(
-        future: _subscriptions,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData && !snapshot.hasError) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              const Text(
-                'A Calendar feed mirrors your working shifts, but calendar apps '
-                'check it on their own schedule. Open the app for the latest '
-                'Schedule and Change announcements. Give each Calendar subscription '
-                'its own link so you can see when it last checked in and revoke it separately.',
-              ),
-              const SizedBox(height: 16),
-              Text('Setting up $_deviceName'),
-              TextButton(
-                onPressed: () => setState(() => _chooseDevice = !_chooseDevice),
-                child: const Text("I'm setting up a different device"),
-              ),
-              if (_chooseDevice)
-                DropdownButton<CalendarPlatform>(
-                  value: _platform,
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(
-                      value: CalendarPlatform.android,
-                      child: Text('Android'),
-                    ),
-                    DropdownMenuItem(
-                      value: CalendarPlatform.ios,
-                      child: Text('iPhone or iPad'),
-                    ),
-                    DropdownMenuItem(
-                      value: CalendarPlatform.macos,
-                      child: Text('Mac'),
-                    ),
-                    DropdownMenuItem(
-                      value: CalendarPlatform.windows,
-                      child: Text('Windows'),
-                    ),
-                    DropdownMenuItem(
-                      value: CalendarPlatform.other,
-                      child: Text('Another device'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => _platform = value);
-                  },
+    future: _subscriptions,
+    builder: (context, snapshot) {
+      if (!snapshot.hasData && !snapshot.hasError) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      return ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const Text(
+            'A Calendar feed mirrors your working shifts, but calendar apps '
+            'check it on their own schedule. Open the app for the latest '
+            'Schedule and Change announcements. Give each Calendar subscription '
+            'its own link so you can see when it last checked in and revoke it separately.',
+          ),
+          const SizedBox(height: 16),
+          Text('Setting up $_deviceName'),
+          TextButton(
+            onPressed: () => setState(() => _chooseDevice = !_chooseDevice),
+            child: const Text("I'm setting up a different device"),
+          ),
+          if (_chooseDevice)
+            DropdownButton<CalendarPlatform>(
+              value: _platform,
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(
+                  value: CalendarPlatform.android,
+                  child: Text('Android'),
                 ),
-              const SizedBox(height: 12),
-              Text(_setupInstructions),
-              const SizedBox(height: 20),
-              if (_newLink != null &&
-                  (_platform != CalendarPlatform.android ||
-                      _detectedPlatform != CalendarPlatform.android)) ...[
-                Text('Link for $_newName'),
-                const Text(
-                  'Keep this link private. It works without signing in.',
+                DropdownMenuItem(
+                  value: CalendarPlatform.ios,
+                  child: Text('iPhone or iPad'),
                 ),
-                const SizedBox(height: 8),
-                if (_platform != CalendarPlatform.android) ...[
-                  FilledButton.icon(
-                    onPressed: _subscribe,
-                    icon: const Icon(Icons.calendar_month),
-                    label: const Text('Subscribe in Calendar'),
-                  ),
-                  SelectableText(_newLink.toString()),
-                  const SizedBox(height: 16),
-                ],
-                const Text(
-                  'For a subscribe-by-URL screen, paste this HTTPS URL:',
+                DropdownMenuItem(
+                  value: CalendarPlatform.macos,
+                  child: Text('Mac'),
                 ),
-                SelectableText(_newLink!.replace(scheme: 'https').toString()),
-                OutlinedButton.icon(
-                  onPressed: _copyHttpsUrl,
-                  icon: const Icon(Icons.copy),
-                  label: const Text('Copy HTTPS URL'),
+                DropdownMenuItem(
+                  value: CalendarPlatform.windows,
+                  child: Text('Windows'),
                 ),
-                const SizedBox(height: 16),
+                DropdownMenuItem(
+                  value: CalendarPlatform.other,
+                  child: Text('Another device'),
+                ),
               ],
-              if (_error != null)
-                Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              if (snapshot.hasError) ...[
-                const Text('Could not load Calendar subscriptions.'),
-                TextButton(onPressed: _reload, child: const Text('Retry')),
-              ],
-              if (_platform != CalendarPlatform.android ||
-                  _detectedPlatform != CalendarPlatform.android)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: _busy ? null : _create,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add subscription'),
-                  ),
-                ),
-              const SizedBox(height: 16),
-              if (snapshot.hasData && snapshot.data!.isEmpty)
-                const Text('No Calendar subscriptions yet.'),
-              if (snapshot.hasData)
-                for (final subscription in snapshot.data!)
-                  Card(
-                    child: ListTile(
-                      title: Text(subscription.name),
-                      subtitle: Text(
-                        subscription.lastFetchedAt == null
-                            ? 'Never checked in'
-                            : 'Last checked in ${DateFormat.yMMMd().add_jm().format(subscription.lastFetchedAt!.toLocal())}'
-                                  '${subscription.fetchingUserAgent == null ? '' : '\n${subscription.fetchingUserAgent}'}',
-                      ),
-                      isThreeLine: subscription.fetchingUserAgent != null,
-                      trailing: TextButton(
-                        onPressed: _busy ? null : () => _revoke(subscription),
-                        child: const Text('Revoke'),
-                      ),
-                    ),
-                  ),
-              const SizedBox(height: 24),
-              const Text('Switching back withdraws your Calendar subscriptions and emails your current working shifts as invitations.'),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton(
-                  onPressed: _busy ? null : _useInvitations,
-                  child: const Text('Switch to Calendar invitations'),
-                ),
+              onChanged: (value) {
+                if (value != null) setState(() => _platform = value);
+              },
+            ),
+          const SizedBox(height: 12),
+          Text(_setupInstructions),
+          const SizedBox(height: 20),
+          if (_newLink != null &&
+              (_platform != CalendarPlatform.android ||
+                  _detectedPlatform != CalendarPlatform.android)) ...[
+            Text('Link for $_newName'),
+            const Text('Keep this link private. It works without signing in.'),
+            const SizedBox(height: 8),
+            if (_platform != CalendarPlatform.android) ...[
+              FilledButton.icon(
+                onPressed: _subscribe,
+                icon: const Icon(Icons.calendar_month),
+                label: const Text('Subscribe in Calendar'),
               ),
+              SelectableText(_newLink.toString()),
+              const SizedBox(height: 16),
             ],
-          );
-        },
+            const Text('For a subscribe-by-URL screen, paste this HTTPS URL:'),
+            SelectableText(_newLink!.replace(scheme: 'https').toString()),
+            OutlinedButton.icon(
+              onPressed: _copyHttpsUrl,
+              icon: const Icon(Icons.copy),
+              label: const Text('Copy HTTPS URL'),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (_error != null)
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          if (snapshot.hasError) ...[
+            const Text('Could not load Calendar subscriptions.'),
+            TextButton(onPressed: _reload, child: const Text('Retry')),
+          ],
+          if (_platform != CalendarPlatform.android ||
+              _detectedPlatform != CalendarPlatform.android)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _busy ? null : _create,
+                icon: const Icon(Icons.add),
+                label: const Text('Add subscription'),
+              ),
+            ),
+          const SizedBox(height: 16),
+          if (snapshot.hasData && snapshot.data!.isEmpty)
+            const Text('No Calendar subscriptions yet.'),
+          if (snapshot.hasData)
+            for (final subscription in snapshot.data!)
+              Card(
+                child: ListTile(
+                  title: Text(subscription.name),
+                  subtitle: Text(
+                    subscription.lastFetchedAt == null
+                        ? 'Never checked in'
+                        : 'Last checked in ${DateFormat.yMMMd().add_jm().format(subscription.lastFetchedAt!.toLocal())}'
+                              '${subscription.fetchingUserAgent == null ? '' : '\n${subscription.fetchingUserAgent}'}',
+                  ),
+                  isThreeLine: subscription.fetchingUserAgent != null,
+                  trailing: TextButton(
+                    onPressed: _busy ? null : () => _revoke(subscription),
+                    child: const Text('Revoke'),
+                  ),
+                ),
+              ),
+          _disconnectedSection(),
+          const SizedBox(height: 24),
+          const Text(
+            'Switching back withdraws your Calendar subscriptions and emails your current working shifts as invitations.',
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton(
+              onPressed: _busy ? null : _useInvitations,
+              child: const Text('Switch to Calendar invitations'),
+            ),
+          ),
+        ],
       );
+    },
+  );
 }
