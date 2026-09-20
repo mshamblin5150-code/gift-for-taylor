@@ -106,10 +106,12 @@ supabase functions deploy calendar-feed --no-verify-jwt
 ```
 
 The function uses Supabase's `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
-environment values. Each signed-in Staff member opens **My Calendar feed**, creates
-a link, and copies it into their phone calendar's subscription screen. The link
-is shown only when created or reset; resetting invalidates the previous one.
-Keep the link private because a calendar app reads it without signing in.
+environment values. Each signed-in Staff member opens **My Calendar feed** and
+creates a named link for each place they subscribe, such as iPhone or Google.
+The page shows when each subscription last checked in and can revoke it without
+affecting the others. Copy each new link into that calendar's subscription
+screen. The link uses `webcal://` so calendar apps subscribe instead of importing
+a static copy. Keep links private because calendar apps read them without signing in.
 
 Supabase Flutter persists and refreshes the session in browser storage. The app
 offers one emailed-code flow for accepting an Invite and signing in, and exposes
