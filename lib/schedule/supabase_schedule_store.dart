@@ -178,6 +178,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           sectionId: row['section_id'] as String,
           cellNumber: row['cell_number'] as String?,
           lastDay: _parseDate(row['last_day']),
+          hasPushSubscription: row['has_push_subscription'] as bool? ?? false,
         ),
     ];
   }
@@ -212,7 +213,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           .from('schedule_changes')
           .select(
             'id, staff_member_id, work_date, old_shift_code, new_shift_code, '
-            'changed_by_staff_member_id, changed_at, announced_at, moot_at, '
+            'changed_by_staff_member_id, changed_at, announced_at, moot_at, reach, '
             'changed_by:staff_members!changed_by_staff_member_id(display_name)',
           )
           .gte('work_date', _date(_monthStart(month)))
@@ -237,6 +238,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
             changedAt: DateTime.parse(row['changed_at'] as String).toLocal(),
             announced: row['announced_at'] != null,
             moot: row['moot_at'] != null,
+            reach: row['reach'] as String?,
           ),
         )
         .toList(growable: false);

@@ -69,14 +69,19 @@ final class ChangeAnnouncement {
   /// The cell numbers for the group text; people with none are left out.
   List<String> get groupRecipients => groupMessage == null
       ? const []
-      : [for (final person in people) ?person.cellNumber];
+      : [for (final person in textFallbacks) ?person.cellNumber];
+
+  /// People who need a text because a notification will not reach them.
+  Iterable<AffectedPerson> get textFallbacks => people.where(
+    (person) => !person.row.hasPushSubscription && person.cellNumber != null,
+  );
 
   /// One message covering everyone, when more than one person is affected.
-  String? get groupMessage => people.length < 2
+  String? get groupMessage => textFallbacks.length < 2
       ? null
       : [
           'ER Schedule changes:',
-          for (final person in people) ...[
+          for (final person in textFallbacks) ...[
             '${person.row.displayName}:',
             ...person._dayLines,
           ],

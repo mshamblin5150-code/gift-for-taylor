@@ -206,7 +206,7 @@ void main() {
     expect(announcement.groupRecipients, isEmpty);
   });
 
-  test('someone with no cell number is left out of the group text', () async {
+  test('one text fallback has no group text', () async {
     final noCell = InMemoryScheduleDatabase(
       sections: const [days],
       releasedMonths: {september},
@@ -237,8 +237,8 @@ void main() {
       '5550100',
       null,
     ]);
-    expect(announcement.groupRecipients, ['5550100']);
-    expect(announcement.groupMessage, contains('Kim:'));
+    expect(announcement.groupRecipients, isEmpty);
+    expect(announcement.groupMessage, isNull);
   });
 
   test('mark announced clears the tray and the highlights', () async {
@@ -356,5 +356,30 @@ void main() {
     expect(remaining.people.map((person) => person.row.displayName), [
       'Dana Reyes',
     ]);
+  });
+
+  test('the Unreached filter keeps only changes stamped nobody', () async {
+    await publishStartingMonth();
+    await save(dana, 18, 'X');
+    await save(sam, 19, 'N');
+    await manager.markAnnounced(
+      await manager.changeAnnouncement(september),
+      draftOpenedStaffMemberIds: {'rn-2'},
+    );
+
+    final unreached = await manager.changeLogView(
+      september,
+      unreachedOnly: true,
+    );
+    expect(unreached.map((change) => change.staffMemberId), ['rn-1']);
+    expect(unreached.single.reach, 'nobody');
+    expect(
+      await manager.changeLogView(
+        september,
+        changedBy: 'someone-else',
+        unreachedOnly: true,
+      ),
+      isEmpty,
+    );
   });
 }

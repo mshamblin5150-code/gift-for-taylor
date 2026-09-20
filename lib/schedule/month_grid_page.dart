@@ -31,6 +31,7 @@ typedef _MonthRead = ({
   ChangeAnnouncement? announcement,
   List<LegendCode> codes,
   List<SectionStaffing> staffing,
+  ({int count, DateTime month})? unreached,
 });
 
 class MonthGridPage extends StatefulWidget {
@@ -89,6 +90,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   List<LegendCode> _shiftCodes = const [];
   List<SectionStaffing> _staffing = [];
   ChangeAnnouncement? _announcement;
+  ({int count, DateTime month})? _unreached;
   PrintWording? _wording;
   bool _savingDrop = false;
 
@@ -175,6 +177,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     _midnightTimer = Timer(nextDay.difference(now), () {
       if (!mounted) return;
       setState(() => _today = _dateOnly(_now()));
+      _reload();
       _scheduleMidnight();
     });
   }
@@ -197,7 +200,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           widget.rules.editableSections(),
         ).wait;
       }
-      final read = await _read(month, editable);
+      final read = await _read(month, editable, isManager);
       if (!mounted || month != _month) return;
       setState(() {
         if (initial) {
@@ -209,6 +212,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         _shiftCodes = read.codes;
         _staffing = read.staffing;
         _announcement = read.announcement;
+        _unreached = read.unreached;
       });
       if (initial) {
         _refreshSwaps();
@@ -290,7 +294,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
   /// of. An older database missing either must not take the month down with
   /// it. The tray is deliberately not among them: no tray reads as "everyone
   /// has been told", which is a claim, not an absence.
-  Future<_MonthRead> _read(DateTime month, EditableSections editable) async {
+  Future<_MonthRead> _read(
+    DateTime month,
+    EditableSections editable,
+    bool isManager,
+  ) async {
     // Started together so nothing here costs an extra round trip.
     final gridRead = widget.rules.monthGrid(month);
     final announcementRead = editable.isEmpty
@@ -303,6 +311,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
           const <SectionStaffing>[],
       const <SectionStaffing>[],
     );
+    final unreachedRead = isManager
+        ? _readUnreachedThisWeek()
+        : Future<({int count, DateTime month})?>.value();
     // Waits for both required reads whichever fails, so a failure on one side
     // leaves no unobserved error on the other, and reports the error itself
     // rather than a wrapper.
@@ -312,6 +323,29 @@ class _MonthGridPageState extends State<MonthGridPage> {
       announcement: required[1] as ChangeAnnouncement?,
       codes: await codesRead,
       staffing: await staffingRead,
+      unreached: await unreachedRead,
+    );
+  }
+
+  Future<({int count, DateTime month})?> _readUnreachedThisWeek() async {
+    final today = _today;
+    final end = today.add(Duration(days: 7 - today.weekday));
+    final month = DateTime(today.year, today.month);
+    final lastMonth = DateTime(end.year, end.month);
+    final logs = await Future.wait([
+      widget.rules.changeLogView(month, unreachedOnly: true),
+      if (lastMonth != month)
+        widget.rules.changeLogView(lastMonth, unreachedOnly: true),
+    ]);
+    final changes = logs.expand((log) => log);
+    final upcoming = changes.where((change) {
+      final date = _dateOnly(change.date);
+      return !date.isBefore(today) && !date.isAfter(end);
+    }).toList();
+    if (upcoming.isEmpty) return null;
+    return (
+      count: upcoming.map((change) => change.staffMemberId).toSet().length,
+      month: month,
     );
   }
 
@@ -711,6 +745,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Widget build(BuildContext context) {
     final grid = _grid;
     final announcement = _announcement;
+    final unreached = _unreached;
     final banner = grid == null ? null : _banner(grid);
     return Scaffold(
       appBar: AppBar(
@@ -974,6 +1009,23 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 changeCount: announcement.changeCount,
                 onlyReverted: announcement.people.isEmpty,
                 onAnnounce: () => _announce(announcement),
+              ),
+            if (_isManager && unreached != null)
+              ListTile(
+                title: Text(
+                  unreached.count == 1
+                      ? "1 person wasn't reached about changes this week"
+                      : "${unreached.count} people weren't reached about changes this week",
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _open(
+                  (context) => ChangeLogPage(
+                    rules: widget.rules,
+                    month: unreached.month,
+                    unreachedOnly: true,
+                    weekStart: _today,
+                  ),
+                ),
               ),
             Expanded(child: _body(grid)),
           ],

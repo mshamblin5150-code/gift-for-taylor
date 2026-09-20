@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(22);
 
 insert into auth.users (id, email)
 values
@@ -246,6 +246,24 @@ values ('https://push.example.test/reach',
   '00000000-0000-0000-0000-000000000186',
   '{"endpoint":"https://push.example.test/reach","keys":{}}');
 set local role authenticated;
+
+select results_eq(
+  $$select display_name, has_push_subscription
+    from public.schedule_rows('2027-04-01')
+    where staff_member_id in (
+      '00000000-0000-0000-0000-000000000186',
+      '00000000-0000-0000-0000-000000000188'
+    ) order by display_name$$,
+  $$values ('No number RN'::text, false), ('Test day RN'::text, true)$$,
+  'the announce sheet sees a live subscription separately from cell number'
+);
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000182","role":"authenticated"}', true);
+select is((select has_push_subscription from public.schedule_rows('2027-04-01')
+  where staff_member_id = '00000000-0000-0000-0000-000000000186'), false,
+  'a Staff member cannot read another person''s notification reachability');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000181","role":"authenticated"}', true);
 
 select public.save_schedule_cell(
   '00000000-0000-0000-0000-000000000186',

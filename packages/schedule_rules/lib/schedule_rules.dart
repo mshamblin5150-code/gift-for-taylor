@@ -70,6 +70,7 @@ abstract interface class ScheduleRules {
     DateTime month, {
     String? changedBy,
     DateTime? changedOn,
+    bool unreachedOnly = false,
   });
 
   /// Emits whenever any scheduler saves a change in [month].
@@ -510,6 +511,7 @@ final class ScheduleRow {
     required this.sectionId,
     this.cellNumber,
     this.lastDay,
+    this.hasPushSubscription = false,
   });
 
   final String staffMemberId;
@@ -518,6 +520,9 @@ final class ScheduleRow {
 
   /// Where their Change announcements are texted; null if not on file.
   final String? cellNumber;
+
+  /// Whether this Staff member currently has a live notification subscription.
+  final bool hasPushSubscription;
 
   /// The Last day of someone who left in or before this month, even if they
   /// have since come back.
@@ -551,6 +556,7 @@ final class ScheduleChange {
     required this.changedAt,
     required this.announced,
     this.moot = false,
+    this.reach,
   });
 
   final String id;
@@ -567,6 +573,7 @@ final class ScheduleChange {
   final DateTime changedAt;
   final bool announced;
   final bool moot;
+  final String? reach;
 }
 
 /// A common Shift code from the printed legend.
@@ -942,12 +949,14 @@ final class _ScheduleRules implements ScheduleRules {
     DateTime month, {
     String? changedBy,
     DateTime? changedOn,
+    bool unreachedOnly = false,
   }) async {
     final log = await changeLog(month);
     return [
       for (final change in log.reversed)
         if ((changedBy == null || change.changedBy == changedBy) &&
-            (changedOn == null || _day(change.changedAt) == _day(changedOn)))
+            (changedOn == null || _day(change.changedAt) == _day(changedOn)) &&
+            (!unreachedOnly || change.reach == 'nobody'))
           change,
     ];
   }
@@ -1159,6 +1168,9 @@ final class InMemoryScheduleDatabase {
        },
        _clock = clock ?? DateTime.now {
     for (final row in rows) {
+      if (row.hasPushSubscription) {
+        _pushSubscriptions.add(row.staffMemberId);
+      }
       if (row.cellNumber case final cellNumber?) {
         _cellNumbers[row.staffMemberId] = cellNumber;
       }
@@ -1180,6 +1192,7 @@ final class InMemoryScheduleDatabase {
   final Map<String, String> _names;
   final Map<String, Set<String>> _nightSchedulers = {};
   final Map<String, String> _cellNumbers = {};
+  final Set<String> _pushSubscriptions = {};
   final DateTime Function() _clock;
 
   /// Dated Section placements. A new placement goes to the bottom of its
@@ -1582,6 +1595,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           cellNumber: _database._isActive(assignment.staffMemberId)
               ? _database._cellNumbers[assignment.staffMemberId]
               : null,
+          hasPushSubscription: _database._pushSubscriptions.contains(
+            assignment.staffMemberId,
+          ),
           lastDay: assignment.through,
         ),
     ];
@@ -2057,6 +2073,13 @@ final class _InMemoryScheduleStore implements ScheduleStore {
         changedAt: change.changedAt,
         announced: moved,
         moot: !moved,
+        reach: !moved
+            ? null
+            : _database._pushSubscriptions.contains(change.staffMemberId)
+            ? 'notified'
+            : draftOpenedStaffMemberIds.contains(change.staffMemberId)
+            ? 'draft_opened'
+            : 'nobody',
       );
     }
   }
