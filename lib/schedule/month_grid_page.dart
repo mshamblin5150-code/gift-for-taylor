@@ -561,8 +561,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
           await widget.printWordingGateway?.read() ?? const PrintWording();
       if (mounted) setState(() => _wording = wording);
       final grid = await widget.rules.monthGrid(_month);
+      final codes = await widget.rules.shiftCodes();
       if (!mounted) return;
-      if (bookPageIsHardToRead(grid, wording: wording)) {
+      if (bookPageIsHardToRead(grid, wording: wording, codes: codes)) {
         final proceed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -585,13 +586,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         );
         if (proceed != true || !mounted) return;
       }
-      printBookPage(
-        bookPageHtml(
-          grid,
-          wording: wording,
-          codes: await widget.rules.shiftCodes(),
-        ),
-      );
+      printBookPage(bookPageHtml(grid, wording: wording, codes: codes));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

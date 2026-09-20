@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 /// The Shift code catalog. The Manager may edit it; Staff members may read it.
@@ -26,6 +27,7 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
     final end = TextEditingController(text: original?.endTime);
     var working = original?.isWorking ?? true;
     var coverageSelection = original?.coverageWindow ?? 'auto';
+    String? lengthError;
     final result = await showDialog<LegendCode>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -37,15 +39,28 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
               children: [
                 TextField(
                   controller: code,
+                  maxLength: shiftCodeLimit,
+                  maxLengthEnforcement: MaxLengthEnforcement.none,
                   textCapitalization: TextCapitalization.characters,
                   decoration: const InputDecoration(labelText: 'Code'),
+                  onChanged: (_) => update(() => lengthError = null),
                 ),
                 TextField(
                   controller: meaning,
+                  maxLength: shiftMeaningLimit,
+                  maxLengthEnforcement: MaxLengthEnforcement.none,
                   decoration: const InputDecoration(
                     labelText: 'Meaning (optional)',
                   ),
+                  onChanged: (_) => update(() => lengthError = null),
                 ),
+                if (lengthError != null)
+                  Text(
+                    lengthError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 TextField(
                   controller: start,
                   decoration: const InputDecoration(
@@ -87,6 +102,15 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
             FilledButton(
               onPressed: () {
                 final name = code.text.trim().toUpperCase();
+                if (name.runes.length > shiftCodeLimit ||
+                    meaning.text.trim().runes.length > shiftMeaningLimit) {
+                  update(
+                    () => lengthError =
+                        'Use at most $shiftCodeLimit characters for the code and '
+                        '$shiftMeaningLimit for its meaning.',
+                  );
+                  return;
+                }
                 final first = start.text.trim();
                 final last = end.text.trim();
                 final validTime = RegExp(r'^([01][0-9]|2[0-3]):[0-5][0-9]$');
@@ -135,9 +159,8 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
       _reload();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     }
   }
@@ -166,9 +189,8 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
       _reload();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     }
   }
@@ -196,12 +218,13 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
         }
         return ListView(
           children: [
-            if (!widget.readOnly && snapshot.data!.any(
-              (code) =>
-                  code.isWorking &&
-                  code.startTime == null &&
-                  code.endTime == null,
-            ))
+            if (!widget.readOnly &&
+                snapshot.data!.any(
+                  (code) =>
+                      code.isWorking &&
+                      code.startTime == null &&
+                      code.endTime == null,
+                ))
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(

@@ -6,12 +6,38 @@ import '../schedule_rules.dart';
 const bookPageBodyHeightPt = 470.0;
 
 const _rowHeightPt = 12.0;
-const _headingAndLegendHeightPt = 60.0;
+const _headingHeightPt = 30.0;
+const _legendWidthPt = 576.0; // Portrait fallback at Letter width.
+const _legendCharacterWidthPt = 4.5;
+const _legendLineHeightPt = 11.0; // 8pt type plus the 2pt flex gap.
 // Warn early: the final size also depends on the browser's page and legend wrap.
 const _minimumReadableFontPt = 6.0;
 const _fontSizePt = 9.0;
 
-double _initialScale(MonthGrid grid, PrintWording wording) {
+double _legendHeightPt(Iterable<LegendCode> codes) {
+  var lines = 0;
+  var used = 0.0;
+  for (final entry in codes) {
+    final detail = entry.hours ?? entry.meaning ?? '';
+    final width =
+        ((entry.code.runes.length + detail.runes.length + 1) *
+                _legendCharacterWidthPt)
+            .clamp(0.0, _legendWidthPt);
+    if (lines == 0 || used + 12 + width > _legendWidthPt) {
+      lines++;
+      used = width;
+    } else {
+      used += 12 + width;
+    }
+  }
+  return lines == 0 ? 0 : 4 + lines * _legendLineHeightPt;
+}
+
+double _initialScale(
+  MonthGrid grid,
+  PrintWording wording,
+  Iterable<LegendCode> codes,
+) {
   final lines = grid.sections.length + grid.rows.length + 2;
   // Allow for a second heading line on a portrait fallback. At 14pt Arial,
   // roughly seven points per character is a conservative width estimate.
@@ -20,7 +46,8 @@ double _initialScale(MonthGrid grid, PrintWording wording) {
       (wording.titleFor(grid.month).length * 7 / portraitHeadingWidthPt).ceil();
   final height =
       lines * _rowHeightPt +
-      _headingAndLegendHeightPt +
+      _headingHeightPt +
+      _legendHeightPt(codes) +
       (headingLines - 1).clamp(0, 1) * 18;
   final scale = (bookPageBodyHeightPt / height).clamp(0.0, 1.0);
   // Rounding down preserves the fallback height bound in the emitted CSS.
@@ -31,7 +58,9 @@ double _initialScale(MonthGrid grid, PrintWording wording) {
 bool bookPageIsHardToRead(
   MonthGrid grid, {
   PrintWording wording = const PrintWording(),
-}) => _fontSizePt * _initialScale(grid, wording) < _minimumReadableFontPt;
+  Iterable<LegendCode> codes = shiftLegend,
+}) =>
+    _fontSizePt * _initialScale(grid, wording, codes) < _minimumReadableFontPt;
 
 /// Defaults for the unit-wide print wording.
 enum PrintTooltipStyle {
@@ -87,7 +116,7 @@ String bookPageHtml(
 }) {
   final days = grid.days;
   final title = wording.titleFor(grid.month);
-  final initialScale = _initialScale(grid, wording);
+  final initialScale = _initialScale(grid, wording, codes);
   final dayCount = days.length;
 
   final html = StringBuffer()

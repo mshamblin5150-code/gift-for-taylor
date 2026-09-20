@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
@@ -61,6 +62,7 @@ class _CellEditSheet extends StatefulWidget {
 
 class _CellEditSheetState extends State<_CellEditSheet> {
   final _otherCode = TextEditingController();
+  String? _codeError;
 
   @override
   void dispose() {
@@ -68,7 +70,13 @@ class _CellEditSheetState extends State<_CellEditSheet> {
     super.dispose();
   }
 
-  void _choose(String code) => Navigator.of(context).pop(SaveCode(code));
+  void _choose(String code) {
+    if (code.trim().runes.length > shiftCodeLimit) {
+      setState(() => _codeError = 'Use $shiftCodeLimit characters or fewer.');
+      return;
+    }
+    Navigator.of(context).pop(SaveCode(code));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,9 +135,13 @@ class _CellEditSheetState extends State<_CellEditSheet> {
                 Expanded(
                   child: TextField(
                     controller: _otherCode,
-                    decoration: const InputDecoration(
+                    maxLength: shiftCodeLimit,
+                    maxLengthEnforcement: MaxLengthEnforcement.none,
+                    decoration: InputDecoration(
                       labelText: 'Other Shift code',
+                      errorText: _codeError,
                     ),
+                    onChanged: (_) => setState(() => _codeError = null),
                     textCapitalization: TextCapitalization.characters,
                     onSubmitted: (value) {
                       if (value.trim().isNotEmpty) _choose(value);

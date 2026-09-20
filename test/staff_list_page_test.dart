@@ -38,6 +38,65 @@ void main() {
     rules = ScheduleRules.inMemory(database, actingAs: 'manager');
   });
 
+  testWidgets('pasted overlong Staff name stays visible and cannot save', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: []),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add Staff member'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Name'), 'N' * 41);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Cell number'),
+      '5558675309',
+    );
+    expect(find.text('N' * 41), findsOneWidget);
+    await tester.tap(find.text('Add and text Invite'));
+    await tester.pump();
+    expect(find.text('Use 40 characters or fewer.'), findsOneWidget);
+    expect(gateway.added, isNull);
+  });
+
+  testWidgets('pasted overlong Section name stays visible and cannot save', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: []),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add Section'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Section name'),
+      'S' * 33,
+    );
+    expect(find.text('S' * 33), findsOneWidget);
+    await tester.tap(find.text('Save Section'));
+    await tester.pump();
+    expect(find.text('Use 32 characters or fewer.'), findsOneWidget);
+    expect(find.text('Add Section'), findsOneWidget);
+  });
+
   testWidgets('Manager sees an Invite Cell mismatch against the Staff member', (
     tester,
   ) async {
