@@ -41,6 +41,10 @@ from (
 where length(trim(shift_code)) > 0
 on conflict (code) do nothing;
 
+-- An authorized Schedule cell writer, including a Night scheduler in an assigned
+-- Section, may introduce a code immediately. It is active so Staff and printed
+-- legends can show it without Manager approval. The Manager-only save_shift_code
+-- RPC governs explicit catalog edits, not registration through a cell edit.
 create function public.register_shift_code()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin

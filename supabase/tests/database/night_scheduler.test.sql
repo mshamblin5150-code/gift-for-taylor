@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(21);
 
 insert into auth.users (id, email)
 values
@@ -181,7 +181,7 @@ select lives_ok(
       '00000000-0000-0000-0000-000000000209',
       '00000000-0000-0000-0000-000000000205',
       '2027-04-10',
-      '7P'
+      'NSNEW'
     )
   $$,
   'the Night scheduler saves in the assigned Section'
@@ -194,9 +194,24 @@ select results_eq(
     where staff_member_id = '00000000-0000-0000-0000-000000000209'
   $$,
   $$
-    values ('7P', '00000000-0000-0000-0000-000000000207'::uuid, true)
+    values ('NSNEW', '00000000-0000-0000-0000-000000000207'::uuid, true)
   $$,
   'the edit is logged under the Night scheduler, unannounced'
+);
+
+select results_eq(
+  $$
+    select code, active, meaning, start_time, end_time, is_working
+    from public.shift_codes where code = 'NSNEW'
+  $$,
+  $$ values ('NSNEW', true, null::text, null::time, null::time, true) $$,
+  'an authorized Night scheduler cell edit registers an active Shift code for the legends'
+);
+
+select throws_ok(
+  $$ select public.save_shift_code('NSNEW', 'Edited', null, null, true, null, 'NSNEW') $$,
+  'Only the Manager can edit Shift codes',
+  'the Night scheduler cannot edit catalog details directly'
 );
 
 select throws_ok(
@@ -205,11 +220,16 @@ select throws_ok(
       '00000000-0000-0000-0000-000000000208',
       '00000000-0000-0000-0000-000000000204',
       '2027-04-10',
-      'X'
+      'NSDENIED'
     )
   $$,
   'Only the Manager can edit that Section',
   'the database refuses a save outside the assigned Section'
+);
+
+select is_empty(
+  $$ select code from public.shift_codes where code = 'NSDENIED' $$,
+  'a refused cell edit does not register a Shift code'
 );
 
 select throws_ok(
@@ -272,8 +292,8 @@ select results_eq(
   $$,
   $$
     values
-      ('', '7P', '00000000-0000-0000-0000-000000000207'::uuid),
-      ('7P', 'N', '00000000-0000-0000-0000-000000000206'::uuid)
+      ('', 'NSNEW', '00000000-0000-0000-0000-000000000207'::uuid),
+      ('NSNEW', 'N', '00000000-0000-0000-0000-000000000206'::uuid)
   $$,
   'the Manager overrides the Night scheduler edit'
 );

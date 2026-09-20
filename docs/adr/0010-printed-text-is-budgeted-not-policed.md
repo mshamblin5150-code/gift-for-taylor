@@ -35,7 +35,7 @@ than the one that was locked:
 | Section band | `sections.name` | none | Manager |
 | Staff row name | `staff_members.display_name` | none | Manager, Administrator |
 | Shift code cell | `schedule_cells.shift_code` | none | Manager, **Night scheduler** |
-| Legend entry | `shift_codes.code` + `.meaning` | none | Manager (and see below) |
+| Legend entry | `shift_codes.code` + `.meaning` | none | Manager; Night scheduler can introduce a code through a cell edit |
 
 `shift_codes.meaning` is the one that matters. It is prose-shaped and entirely
 unvalidated at every layer — no `maxLength` in the dialog
@@ -230,13 +230,17 @@ flex container (`book_page.dart:184`) holding one entry per active Shift code,
 each entry a `code` plus an unbounded `meaning`, and `_headingAndLegendHeightPt`
 prices the heading and the entire legend together as a single flat 60.
 
-There is a compounding path with no gate on it. A Night scheduler types a novel
-code into a cell; the `register_shift_code` trigger auto-inserts it as an
-`active = true` legend row (`20260919190000_shift_codes.sql:44-56`); the legend
-grows; the whole sheet shrinks. **That trigger has no role check**, while the
-`save_shift_code` RPC beside it is Manager-only
-(`20260920250000_coverage_window_shift_codes.sql:60-62`). The legend can be
-grown by someone the legend's own RPC will not let near it.
+There is a compounding path through an authorized cell edit. A Night scheduler
+types a novel code in an assigned Section; the `register_shift_code` trigger
+auto-inserts it as an `active = true` legend row
+(`20260919190000_shift_codes.sql`); the legend grows; the whole sheet shrinks.
+This immediate inclusion in the Staff and printed legends is intentional: the
+Shift code set is open, and the Night scheduler's assigned-Section edits take
+effect at once. The trigger has no separate role check because the cell write
+already passed `can_edit_section`. The Manager-only `save_shift_code` RPC governs
+explicit catalog edits, including a code's meaning and hours; it does not
+require Manager approval for auto-registration. This policy preserves the
+legibility cost of a growing legend, which #203 addresses separately.
 
 Capping the title at 80 and leaving that standing would repeat #54's error in a
 new register: guarding the narrowest window on the sheet. The principle at the
