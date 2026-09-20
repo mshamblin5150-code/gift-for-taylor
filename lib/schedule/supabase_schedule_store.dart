@@ -13,7 +13,9 @@ final class SupabaseScheduleStore implements ScheduleStore {
   Future<List<LegendCode>> shiftCodes() async {
     final rows = await _client
         .from('shift_codes')
-        .select('code, meaning, start_time, end_time, is_working')
+        .select(
+          'code, meaning, start_time, end_time, is_working, coverage_window',
+        )
         .eq('active', true)
         .order('display_order', ascending: true)
         .order('code', ascending: true);
@@ -29,6 +31,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
             row['end_time'] as String?,
           ),
           isWorking: row['is_working'] as bool,
+          coverageWindow: row['coverage_window'] as String?,
         ),
     ];
   }
@@ -44,6 +47,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           'p_start_time': code.startTime,
           'p_end_time': code.endTime,
           'p_is_working': code.isWorking,
+          'p_coverage_window': code.coverageWindow,
         },
       );
 

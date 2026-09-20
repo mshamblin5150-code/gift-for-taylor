@@ -23,6 +23,7 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
     final start = TextEditingController(text: original?.startTime);
     final end = TextEditingController(text: original?.endTime);
     var working = original?.isWorking ?? true;
+    var coverageSelection = original?.coverageWindow ?? 'auto';
     final result = await showDialog<LegendCode>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -54,6 +55,19 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
                   decoration: const InputDecoration(
                     labelText: 'Ends (HH:mm, optional)',
                   ),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: coverageSelection,
+                  decoration: const InputDecoration(
+                    labelText: 'Coverage window',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'auto', child: Text('From hours')),
+                    DropdownMenuItem(value: 'day', child: Text('Day')),
+                    DropdownMenuItem(value: 'night', child: Text('Night')),
+                  ],
+                  onChanged: (value) =>
+                      update(() => coverageSelection = value ?? 'auto'),
                 ),
                 SwitchListTile(
                   title: const Text('Worked shift'),
@@ -96,6 +110,9 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
                     startTime: first.isEmpty ? null : first,
                     endTime: last.isEmpty ? null : last,
                     isWorking: working,
+                    coverageWindow: first.isEmpty || coverageSelection == 'auto'
+                        ? null
+                        : coverageSelection,
                   ),
                 );
               },
@@ -116,8 +133,9 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
       _reload();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
       }
     }
   }
@@ -146,8 +164,9 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
       _reload();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
       }
     }
   }
@@ -173,8 +192,12 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
         }
         return ListView(
           children: [
-            if (snapshot.data!.any((code) =>
-                code.isWorking && code.startTime == null && code.endTime == null))
+            if (snapshot.data!.any(
+              (code) =>
+                  code.isWorking &&
+                  code.startTime == null &&
+                  code.endTime == null,
+            ))
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
@@ -188,9 +211,15 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
                 subtitle: Text(
                   [
                     if (code.hours != null) code.hours!,
-                    if (code.isWorking && code.startTime == null && code.endTime == null)
+                    if (code.isWorking &&
+                        code.startTime == null &&
+                        code.endTime == null)
                       'Time not set',
                     if (code.meaning?.isNotEmpty == true) code.meaning!,
+                    if (code.coverageWindow != null)
+                      code.coverageWindow == 'day' ? 'Day' : 'Night',
+                    if (code.isWorking && code.coverageWindow == null)
+                      'No Coverage window',
                     code.isWorking ? 'Worked shift' : 'Not worked',
                   ].join(' · '),
                 ),

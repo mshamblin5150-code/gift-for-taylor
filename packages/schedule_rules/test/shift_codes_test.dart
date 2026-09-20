@@ -100,4 +100,48 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'Manager overrides a Coverage window and keeps it through a meaning edit',
+    () async {
+      final database = InMemoryScheduleDatabase(
+        sections: const [section],
+        editors: const {'manager'},
+      );
+      final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+      await manager.saveShiftCode(
+        const LegendCode(
+          'NEW',
+          startTime: '19:00',
+          endTime: '07:00',
+          isWorking: true,
+        ),
+      );
+      expect((await manager.shiftCodes()).last.coverageWindow, 'night');
+      await manager.saveShiftCode(
+        const LegendCode(
+          'NEW',
+          meaning: 'Changed',
+          startTime: '19:00',
+          endTime: '07:00',
+          isWorking: true,
+          coverageWindow: 'day',
+        ),
+        originalCode: 'NEW',
+      );
+      expect((await manager.shiftCodes()).last.coverageWindow, 'day');
+      await manager.saveShiftCode(
+        const LegendCode(
+          'NEW',
+          meaning: 'Changed again',
+          startTime: '19:00',
+          endTime: '07:00',
+          isWorking: true,
+          coverageWindow: 'day',
+        ),
+        originalCode: 'NEW',
+      );
+      expect((await manager.shiftCodes()).last.coverageWindow, 'day');
+    },
+  );
 }
