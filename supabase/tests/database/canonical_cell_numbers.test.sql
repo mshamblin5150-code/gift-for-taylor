@@ -51,8 +51,8 @@ reset role;
 update public.staff_members set active = false where display_name = 'First Cell';
 set local role authenticated;
 select lives_ok($$select public.create_staff_member_with_invite(
-  'Recycled Cell', '+1 555 013 7', '00000000-0000-0000-0000-000000000332')$$,
-  'a past Staff member does not reserve the Cell number');
+  'Recycled Cell', '+1 555 013 7', '00000000-0000-0000-0000-000000000332', true)$$,
+  'the Manager can explicitly give a recycled Cell number to a new person');
 select is(pg_temp.cell_of('Recycled Cell'),
   '+15550137', 'the recycled number remains canonical');
 

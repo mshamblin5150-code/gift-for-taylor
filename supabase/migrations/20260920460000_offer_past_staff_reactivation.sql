@@ -16,8 +16,11 @@ begin
   if not public.can_manage_staff() then
     raise exception 'Only the Manager or administrator can manage the Staff list';
   end if;
-  if length(trim(p_display_name)) = 0 or length(trim(p_cell_number)) = 0 then
+  if nullif(trim(p_display_name), '') is null then
     raise exception 'Name and cell number are required';
+  end if;
+  if nullif(trim(p_cell_number), '') is null then
+    raise exception 'Add a cell number before sending an Invite';
   end if;
   if not exists (select 1 from public.sections where id = p_section_id) then
     raise exception 'Section not found';
