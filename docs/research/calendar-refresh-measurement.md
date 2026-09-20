@@ -54,4 +54,3 @@ Report for each arm: trial dates, number of automatic fetches, median and range 
 ## Results
 
 Pending deployment, throwaway subscriptions, and the 7-day observation window. No platform-specific refresh interval has been measured yet.
-
