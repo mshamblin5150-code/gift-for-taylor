@@ -185,6 +185,12 @@ abstract interface class StaffGateway {
   Future<StaffList> loadStaffList();
   Future<StaffMemberDetails> loadStaffMemberDetails(String staffMemberId);
   Future<List<StaffAccessChange>> loadStaffAccessChanges(String staffMemberId);
+  Future<Set<String>> loadNightSchedulerSections(String staffMemberId);
+  Future<void> setAccessRole(
+    String staffMemberId,
+    String role,
+    Set<String> sectionIds,
+  );
   Future<void> updateStaffContact(
     String staffMemberId,
     String displayName,
@@ -255,6 +261,29 @@ final class SupabaseStaffGateway implements StaffGateway {
   Future<void> transferManager(String newManagerId) => _client.rpc<void>(
     'transfer_manager',
     params: {'p_new_manager_id': newManagerId},
+  );
+
+  @override
+  Future<Set<String>> loadNightSchedulerSections(String staffMemberId) async {
+    final rows = await _client
+        .from('night_scheduler_sections')
+        .select('section_id')
+        .eq('staff_member_id', staffMemberId);
+    return {for (final row in rows) row['section_id'] as String};
+  }
+
+  @override
+  Future<void> setAccessRole(
+    String staffMemberId,
+    String role,
+    Set<String> sectionIds,
+  ) => _client.rpc<void>(
+    'set_staff_access_role',
+    params: {
+      'p_staff_member_id': staffMemberId,
+      'p_new_role': role,
+      'p_section_ids': sectionIds.toList(),
+    },
   );
 
   @override

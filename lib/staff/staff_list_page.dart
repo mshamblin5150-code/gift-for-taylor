@@ -593,7 +593,7 @@ class _SectionStaffList extends StatelessWidget {
                           itemBuilder: (context) => const [
                             PopupMenuItem(
                               value: _MemberAction.sectionOrRole,
-                              child: Text('Change Section or role'),
+                              child: Text('Change Section or Job role'),
                             ),
                             PopupMenuItem(
                               value: _MemberAction.lastDay,

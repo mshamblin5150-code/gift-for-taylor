@@ -16,7 +16,6 @@ import 'approval_queue_page.dart';
 import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
 import 'messages_composer.dart';
-import 'night_scheduler_page.dart';
 import 'print_wording_dialog.dart';
 import 'print_wording_gateway.dart';
 import 'swaps_page.dart';
@@ -936,14 +935,6 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 (context) => ChangeLogPage(rules: widget.rules, month: _month),
               ),
               icon: const Icon(Icons.history),
-            ),
-            IconButton(
-              tooltip: 'Night scheduler',
-              onPressed: () => _open(
-                (context) =>
-                    NightSchedulerPage(rules: widget.rules, month: _month),
-              ),
-              icon: const Icon(Icons.nightlight_outlined),
             ),
           ],
           if (widget.printBookPage case final printBookPage?)

@@ -300,6 +300,10 @@ final class _FakeStaffGateway implements StaffGateway {
   @override
   Future<List<StaffAccessChange>> loadStaffAccessChanges(String id) async => [];
   @override
+  Future<Set<String>> loadNightSchedulerSections(String id) async => {};
+  @override
+  Future<void> setAccessRole(String id, String role, Set<String> sections) async {}
+  @override
   Future<String?> currentStaffRole() async => 'staff_member';
 
   @override
