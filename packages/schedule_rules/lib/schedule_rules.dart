@@ -70,6 +70,7 @@ abstract interface class ScheduleRules {
     DateTime month, {
     String? changedBy,
     DateTime? changedOn,
+    bool unreachedOnly = false,
   });
 
   /// Emits whenever any scheduler saves a change in [month].
@@ -504,6 +505,7 @@ final class ScheduleRow {
     required this.sectionId,
     this.cellNumber,
     this.lastDay,
+    this.hasPushSubscription = false,
   });
 
   final String staffMemberId;
@@ -512,6 +514,9 @@ final class ScheduleRow {
 
   /// Where their Change announcements are texted; null if not on file.
   final String? cellNumber;
+
+  /// Whether this Staff member currently has a live notification subscription.
+  final bool hasPushSubscription;
 
   /// The Last day of someone who left in or before this month, even if they
   /// have since come back.
@@ -544,6 +549,8 @@ final class ScheduleChange {
     required this.changedByName,
     required this.changedAt,
     required this.announced,
+    this.moot = false,
+    this.reach,
   });
 
   final String id;
@@ -559,6 +566,8 @@ final class ScheduleChange {
   final String changedByName;
   final DateTime changedAt;
   final bool announced;
+  final bool moot;
+  final String? reach;
 }
 
 /// A common Shift code from the printed legend.
@@ -584,6 +593,7 @@ final class LegendCode {
   /// Local 24-hour HH:mm values; null means an untimed Calendar event.
   final String? startTime;
   final String? endTime;
+
   /// Day or Night coverage; null means the code counts toward neither window.
   final String? coverageWindow;
   final bool active;
@@ -932,12 +942,14 @@ final class _ScheduleRules implements ScheduleRules {
     DateTime month, {
     String? changedBy,
     DateTime? changedOn,
+    bool unreachedOnly = false,
   }) async {
     final log = await changeLog(month);
     return [
       for (final change in log.reversed)
         if ((changedBy == null || change.changedBy == changedBy) &&
-            (changedOn == null || _day(change.changedAt) == _day(changedOn)))
+            (changedOn == null || _day(change.changedAt) == _day(changedOn)) &&
+            (!unreachedOnly || change.reach == 'nobody'))
           change,
     ];
   }
@@ -1463,18 +1475,17 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     }
     if (decision == RequestOffDecision.approved) {
       for (final date in request.dates) {
-        final row = (await rows(
-          DateTime(date.year, date.month),
-        )).where((r) => r.staffMemberId == request.staffMemberId).firstOrNull;
+        final row = (await rows(DateTime(date.year, date.month)))
+            .where((r) => r.staffMemberId == request.staffMemberId)
+            .firstOrNull;
         if (row == null ||
             (row.lastDay != null && date.isAfter(row.lastDay!))) {
           throw StateError('Staff member is not on the Schedule for that day');
         }
       }
       for (final date in request.dates) {
-        final row = (await rows(
-          DateTime(date.year, date.month),
-        )).firstWhere((r) => r.staffMemberId == request.staffMemberId);
+        final row = (await rows(DateTime(date.year, date.month)))
+            .firstWhere((r) => r.staffMemberId == request.staffMemberId);
         final old =
             _database
                 ._cells[_cellKey(request.staffMemberId, date)]
@@ -1601,9 +1612,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           ? const ScheduleEditRefused()
           : const ScheduleEditRefused('Only the Manager can edit that Section');
     }
-    final row = (await rows(
-      DateTime(cell.date.year, cell.date.month),
-    )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
+    final row = (await rows(DateTime(cell.date.year, cell.date.month)))
+        .where((row) => row.staffMemberId == cell.staffMemberId)
+        .firstOrNull;
     if (row == null || row.sectionId != cell.sectionId) {
       throw StateError(
         'That Staff member is not on the Staff list in this Section',
@@ -1630,9 +1641,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     final editable = await editableSections();
     for (final cell in [first, second]) {
       if (!editable.contains(cell.sectionId)) throw const ScheduleEditRefused();
-      final row = (await rows(
-        DateTime(cell.date.year, cell.date.month),
-      )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
+      final row = (await rows(DateTime(cell.date.year, cell.date.month)))
+          .where((row) => row.staffMemberId == cell.staffMemberId)
+          .firstOrNull;
       if (row == null ||
           row.sectionId != cell.sectionId ||
           (row.lastDay != null && cell.date.isAfter(row.lastDay!))) {

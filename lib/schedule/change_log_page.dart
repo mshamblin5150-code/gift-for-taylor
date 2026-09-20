@@ -4,10 +4,16 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 /// The Manager's view of who changed which cell in a month, and when.
 class ChangeLogPage extends StatefulWidget {
-  const ChangeLogPage({super.key, required this.rules, required this.month});
+  const ChangeLogPage({
+    super.key,
+    required this.rules,
+    required this.month,
+    this.unreachedOnly = false,
+  });
 
   final ScheduleRules rules;
   final DateTime month;
+  final bool unreachedOnly;
 
   @override
   State<ChangeLogPage> createState() => _ChangeLogPageState();
@@ -22,6 +28,7 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
   Object? _loadError;
   String? _changedBy;
   DateTime? _changedOn;
+  late bool _unreachedOnly = widget.unreachedOnly;
 
   @override
   void initState() {
@@ -38,6 +45,7 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
           widget.month,
           changedBy: _changedBy,
           changedOn: _changedOn,
+          unreachedOnly: _unreachedOnly,
         ),
       ).wait;
       if (!mounted) return;
@@ -55,10 +63,15 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
     }
   }
 
-  void _filter({required String? changedBy, required DateTime? changedOn}) {
+  void _filter({
+    required String? changedBy,
+    required DateTime? changedOn,
+    bool? unreachedOnly,
+  }) {
     setState(() {
       _changedBy = changedBy;
       _changedOn = changedOn;
+      _unreachedOnly = unreachedOnly ?? _unreachedOnly;
     });
     _load();
   }
@@ -128,6 +141,15 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
                 DropdownMenuItem(value: key, child: Text(value)),
             ],
           ),
+          FilterChip(
+            label: const Text('Unreached'),
+            selected: _unreachedOnly,
+            onSelected: (selected) => _filter(
+              changedBy: _changedBy,
+              changedOn: _changedOn,
+              unreachedOnly: selected,
+            ),
+          ),
           if (changedOn == null)
             ActionChip(
               avatar: const Icon(Icons.calendar_month, size: 18),
@@ -166,8 +188,16 @@ class _ChangeTile extends StatelessWidget {
       ),
       subtitle: Text(
         '${change.changedByName} · '
-        '${DateFormat.MMMd().add_jm().format(change.changedAt)}',
+        '${DateFormat.MMMd().add_jm().format(change.changedAt)}\n'
+        'Reach: ${switch ((change.moot, change.reach)) {
+          (true, _) => 'Nothing to tell',
+          (_, 'notified') => 'Notified',
+          (_, 'draft_opened') => 'Text draft opened',
+          (_, 'nobody') => 'Nobody',
+          _ => 'Not yet announced',
+        }}',
       ),
+      isThreeLine: true,
     );
   }
 }

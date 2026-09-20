@@ -66,22 +66,26 @@ class _AnnounceSheet extends StatelessWidget {
           const SizedBox(height: 4),
           const Text(
             'Only the people whose own shifts changed are listed. '
-            'Each button opens Messages; you tap send.',
+            'Mark announced sends notifications; text anyone without them.',
           ),
           for (final person in announcement.people)
             _MessageCard(
               title: person.row.displayName,
               message: person.message,
-              button: switch (person.cellNumber) {
-                null => const Text('No cell number on the Staff list'),
-                final cellNumber => FilledButton.icon(
-                  onPressed: canText
-                      ? () => _open(context, [cellNumber], person.message)
-                      : null,
-                  icon: const Icon(Icons.sms_outlined),
-                  label: Text('Text ${person.row.displayName}'),
-                ),
-              },
+              button: person.row.hasPushSubscription
+                  ? const Text('Will be notified · no text needed')
+                  : switch (person.cellNumber) {
+                      null => const Text(
+                        'Nobody will be told · no notification or cell number',
+                      ),
+                      final cellNumber => FilledButton.icon(
+                        onPressed: canText
+                            ? () => _open(context, [cellNumber], person.message)
+                            : null,
+                        icon: const Icon(Icons.sms_outlined),
+                        label: Text('Text ${person.row.displayName}'),
+                      ),
+                    },
             ),
           if (groupMessage != null)
             _MessageCard(
@@ -102,7 +106,7 @@ class _AnnounceSheet extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Once the texts are sent, this clears the tray and the highlights.',
+            'This sends app notifications and clears the tray and highlights.',
             textAlign: TextAlign.center,
           ),
         ],
