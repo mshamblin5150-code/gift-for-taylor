@@ -49,8 +49,12 @@ begin
       perform public.log_staff_change(v_manager_id, 'access_role',
         'manager', 'administrator', current_date);
     end if;
-    perform public.log_staff_change(p_staff_member_id, 'access_role',
-      v_old_role::text, p_new_role::text, current_date);
+    -- The Last day trigger logs this unusual already-departed transition.
+    if not (v_old_role = 'night_scheduler' and p_new_role = 'staff_member'
+        and not v_active) then
+      perform public.log_staff_change(p_staff_member_id, 'access_role',
+        v_old_role::text, p_new_role::text, current_date);
+    end if;
   end if;
   delete from public.night_scheduler_sections where staff_member_id = p_staff_member_id;
   if p_new_role = 'night_scheduler' then

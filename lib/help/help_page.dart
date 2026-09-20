@@ -202,7 +202,7 @@ const helpTopics = <HelpTopic>[
     title: 'Night scheduler role',
     who: 'Manager',
     what: 'A Night scheduler is a Staff member permitted to edit selected Sections. The Manager can override their edits.',
-    how: 'Tap the moon icon on the Schedule to give or remove the Night scheduler role and choose the editable Sections.',
+    how: 'Open a person from the Staff list, tap Change access role, and choose Night scheduler and the editable Sections.',
     roles: _manager,
   ),
   HelpTopic(
@@ -268,7 +268,7 @@ const helpTopics = <HelpTopic>[
   HelpTopic(
     title: 'Staff member details',
     who: 'Manager',
-    what: 'Details include a Staff member’s cell number, Section, role, personal email and Last day.',
+    what: 'Details include a Staff member’s cell number, Section, Job role, access role, personal email and Last day.',
     how: 'Tap a person on the Staff list or Schedule to see their details and edit their name or cell number.',
     searchTerms: 'contact phone number',
     roles: _manager,
@@ -283,7 +283,7 @@ const helpTopics = <HelpTopic>[
   HelpTopic(
     title: 'Change Section or Job role',
     who: 'Manager',
-    what: 'A Staff member may move to another Section or take a different role from a chosen date.',
+    what: 'A Staff member may move to another Section or take a different Job role from a chosen date.',
     how: 'Open their details from the Staff list and tap Change Section or Job role.',
     roles: _manager,
   ),

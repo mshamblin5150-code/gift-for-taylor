@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(18);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000601', 'access-manager@example.test'),
@@ -11,7 +11,8 @@ insert into public.sections (id, name, display_order) values
 insert into public.staff_members (id, display_name, role) values
   ('00000000-0000-0000-0000-000000000604', 'Access Manager', 'manager'),
   ('00000000-0000-0000-0000-000000000605', 'Access Staff', 'staff_member'),
-  ('00000000-0000-0000-0000-000000000607', 'Access Successor', 'staff_member');
+  ('00000000-0000-0000-0000-000000000607', 'Access Successor', 'staff_member'),
+  ('00000000-0000-0000-0000-000000000608', 'Departing Scheduler', 'staff_member');
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at) values
   ('00000000-0000-0000-0000-000000000604',
@@ -69,6 +70,20 @@ select results_eq($$select old_value, new_value from public.staff_changes
     ('staff_member', 'administrator'),
     ('administrator', 'staff_member')$$,
   'every access transition is recorded');
+
+select lives_ok($$select public.set_staff_access_role(
+  '00000000-0000-0000-0000-000000000608', 'night_scheduler',
+  array['00000000-0000-0000-0000-000000000603']::uuid[])$$,
+  'Manager assigns a departing Night scheduler');
+select lives_ok($$select public.set_staff_last_day(
+  '00000000-0000-0000-0000-000000000608', current_date)$$,
+  'setting Last day removes Night scheduler access');
+select results_eq($$select old_value, new_value from public.staff_changes
+  where staff_member_id = '00000000-0000-0000-0000-000000000608'
+    and kind = 'access_role' order by changed_at$$,
+  $$values ('staff_member', 'night_scheduler'),
+    ('night_scheduler', 'staff_member')$$,
+  'automatic Night scheduler revocation is recorded once');
 
 select lives_ok($$select public.set_staff_access_role(
   '00000000-0000-0000-0000-000000000607', 'night_scheduler',
