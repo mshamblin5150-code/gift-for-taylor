@@ -108,12 +108,14 @@ Set `RESEND_SMTP_PASSWORD` to a Resend API key allowed to send from the verified
 `supabase secrets set`. The sender is `no-reply@axion.healthcare`; Staff can save
 its contact card from **My calendar**.
 
-In Supabase Dashboard, create a Database Webhook for **INSERT** on
-`public.calendar_invitation_outbox`, targeting `send-calendar-invitation`.
-Add the HTTP header `x-calendar-secret` with the exact value of
-`CALENDAR_WEBHOOK_SECRET`. The function rejects other requests and drains up to
-50 pending rows per call. Invoke it again after configuring the webhook to
-drain invitations queued by the migration, and when retrying a failed send.
+Store the same `CALENDAR_WEBHOOK_SECRET` value in database Vault under the name
+`calendar_webhook_secret`. The `send_calendar_invitation_on_queue` trigger calls
+the function after each outbox insert. It is installed by migration; do not
+create a second Dashboard webhook. The function rejects requests without this
+header and drains up to 50 pending rows per call. Invoke it after configuring
+the secrets to drain invitations queued before setup, and when retrying a failed
+send. The trigger URL points at the production Supabase project; change it for
+another project.
 Monitor pending rows and function logs; delivery failures leave rows pending.
 The webhook and SMTP secret must be configured before Staff can receive mail.
 
