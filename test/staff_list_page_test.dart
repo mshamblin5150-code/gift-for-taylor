@@ -133,6 +133,140 @@ void main() {
     expect(find.text('Taylor Nurse'), findsOneWidget);
   });
 
+  testWidgets('matching a past Cell number offers the original Staff member', (
+    tester,
+  ) async {
+    final lastDay = DateTime.now().subtract(const Duration(days: 30));
+    await rules.setLastDay(
+      SetLastDay(staffMemberId: 'staff-1', lastDay: lastDay),
+    );
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: []),
+      pastStaff: [
+        PastStaffMember(
+          id: 'staff-1',
+          displayName: 'Jane Kemp',
+          cellNumber: '+15558675309',
+          lastDay: lastDay,
+          sectionId: 'days',
+        ),
+      ],
+    );
+    final composer = _FakeInviteComposer();
+    await tester.pumpWidget(MaterialApp(
+      home: StaffListPage(gateway: gateway, rules: rules, inviteComposer: composer),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add Staff member'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Jane Smith');
+    await tester.enterText(find.widgetWithText(TextField, 'Cell number'), '(555) 867-5309');
+    await tester.tap(find.text('Add and text Invite'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Jane Kemp was on the Staff list'), findsOneWidget);
+    expect(gateway.added, isNull);
+    await tester.tap(find.text('Bring them back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reactivate and text Invite'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.added, isNull);
+    expect((await rules.staffChanges()).last.kind, StaffChangeKind.reactivated);
+    expect(gateway.resentStaffMemberId, 'staff-1');
+    expect(composer.openedToken, 'fresh-token');
+  });
+
+  testWidgets('declining a past match permits a recycled Cell number', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: []),
+      pastStaff: [
+        PastStaffMember(
+          id: 'former',
+          displayName: 'Jane Kemp',
+          cellNumber: '+15558675309',
+          lastDay: DateTime(2026, 3, 1),
+          sectionId: 'days',
+        ),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: StaffListPage(
+        gateway: gateway,
+        rules: rules,
+        inviteComposer: _FakeInviteComposer(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add Staff member'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Different Person');
+    await tester.enterText(find.widgetWithText(TextField, 'Cell number'), '5558675309');
+    await tester.tap(find.text('Add and text Invite'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add different person'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.added?.displayName, 'Different Person');
+    expect(gateway.allowedRecycledCell, isTrue);
+  });
+
+  testWidgets('a recycled Cell number offers every matching past person', (
+    tester,
+  ) async {
+    final lastDay = DateTime.now().subtract(const Duration(days: 30));
+    await rules.setLastDay(
+      SetLastDay(staffMemberId: 'staff-1', lastDay: lastDay),
+    );
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: []),
+      pastStaff: [
+        PastStaffMember(
+          id: 'former',
+          displayName: 'First Person',
+          cellNumber: '+15558675309',
+          lastDay: DateTime(2026, 3, 1),
+          sectionId: 'days',
+        ),
+        PastStaffMember(
+          id: 'staff-1',
+          displayName: 'Second Person',
+          cellNumber: '+15558675309',
+          lastDay: lastDay,
+          sectionId: 'days',
+        ),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: StaffListPage(
+        gateway: gateway,
+        rules: rules,
+        inviteComposer: _FakeInviteComposer(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add Staff member'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Second Person');
+    await tester.enterText(find.widgetWithText(TextField, 'Cell number'), '5558675309');
+    await tester.tap(find.text('Add and text Invite'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('First Person was on the Staff list'), findsOneWidget);
+    await tester.tap(find.text('Not this person'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Second Person was on the Staff list'), findsOneWidget);
+    await tester.tap(find.text('Bring them back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reactivate and text Invite'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.added, isNull);
+    expect(gateway.resentStaffMemberId, 'staff-1');
+  });
+
   testWidgets('administrator can resend a fresh Invite', (tester) async {
     final gateway = _FakeStaffGateway(
       const StaffList(
@@ -858,6 +992,7 @@ final class _FakeStaffGateway implements StaffGateway {
   StaffList _list;
   final List<PastStaffMember> pastStaff;
   StaffMemberDraft? added;
+  bool allowedRecycledCell = false;
   String? resentStaffMemberId;
   int loads = 0;
   bool manager = true;
@@ -875,8 +1010,12 @@ final class _FakeStaffGateway implements StaffGateway {
   Future<List<PastStaffMember>> loadPastStaff() async => pastStaff;
 
   @override
-  Future<StaffInvite> addStaffMember(StaffMemberDraft draft) async {
+  Future<StaffInvite> addStaffMember(
+    StaffMemberDraft draft, {
+    bool allowRecycledCell = false,
+  }) async {
     added = draft;
+    allowedRecycledCell = allowRecycledCell;
     final member = StaffListMember(
       id: 'new-staff',
       displayName: draft.displayName,
@@ -900,6 +1039,18 @@ final class _FakeStaffGateway implements StaffGateway {
     String token,
     String cellNumber,
   ) async => InviteAcceptanceResult.accepted;
+
+  @override
+  Future<bool> isInviteAcceptancePending() async => false;
+
+  @override
+  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async => [];
+
+  @override
+  Future<void> confirmInviteAcceptance(String inviteId) async {}
+
+  @override
+  Future<void> rejectInviteAcceptance(String inviteId) async {}
 
   @override
   Future<bool> canManageStaff() async => true;

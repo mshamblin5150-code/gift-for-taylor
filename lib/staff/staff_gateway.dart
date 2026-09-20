@@ -87,11 +87,13 @@ final class PastStaffMember {
     required this.displayName,
     required this.lastDay,
     required this.sectionId,
+    this.cellNumber,
   });
 
   final String id;
   final String displayName;
   final DateTime? lastDay;
+  final String? cellNumber;
 
   /// The Section they were last in, if any.
   final String? sectionId;
@@ -122,6 +124,24 @@ final class StaffInvite {
 }
 
 enum InviteAcceptanceResult { accepted, cellMismatch, throttled }
+
+final class StaffInviteAlreadyLinkedException implements Exception {
+  const StaffInviteAlreadyLinkedException();
+}
+
+final class PendingInviteAcceptance {
+  const PendingInviteAcceptance({
+    required this.inviteId,
+    required this.staffMemberName,
+    required this.personalEmail,
+    required this.acceptedAt,
+  });
+
+  final String inviteId;
+  final String staffMemberName;
+  final String personalEmail;
+  final DateTime acceptedAt;
+}
 
 final class StaffMemberDetails {
   const StaffMemberDetails({
@@ -176,7 +196,10 @@ abstract interface class StaffGateway {
 
   /// Everyone who has left, most recent Last day first.
   Future<List<PastStaffMember>> loadPastStaff();
-  Future<StaffInvite> addStaffMember(StaffMemberDraft draft);
+  Future<StaffInvite> addStaffMember(
+    StaffMemberDraft draft, {
+    bool allowRecycledCell = false,
+  });
   Future<void> reorderSection(String sectionId, List<String> memberIds);
   Future<void> reorderSections(List<String> sectionIds);
   Future<void> addSection(String name);
@@ -184,6 +207,10 @@ abstract interface class StaffGateway {
   Future<void> deleteEmptySection(String sectionId);
   Future<StaffInvite> resendInvite(String staffMemberId);
   Future<InviteAcceptanceResult> acceptInvite(String token, String cellNumber);
+  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances();
+  Future<void> confirmInviteAcceptance(String inviteId);
+  Future<void> rejectInviteAcceptance(String inviteId);
+  Future<bool> isInviteAcceptancePending();
 }
 
 final class SupabaseStaffGateway implements StaffGateway {
@@ -237,14 +264,7 @@ final class SupabaseStaffGateway implements StaffGateway {
 
   @override
   Future<String?> currentStaffMemberId() async {
-    final authUserId = _client.auth.currentUser?.id;
-    if (authUserId == null) return null;
-    final row = await _client
-        .from('staff_accounts')
-        .select('staff_member_id')
-        .eq('auth_user_id', authUserId)
-        .maybeSingle();
-    return row?['staff_member_id'] as String?;
+    return _client.rpc<String?>('current_staff_member_id');
   }
 
   @override
@@ -363,13 +383,14 @@ final class SupabaseStaffGateway implements StaffGateway {
   Future<List<PastStaffMember>> loadPastStaff() async {
     final rows = await _client
         .from('past_staff_entries')
-        .select('id, display_name, last_day, section_id')
+        .select('id, display_name, cell_number, last_day, section_id')
         .order('last_day', ascending: false);
     return [
       for (final row in rows)
         PastStaffMember(
           id: row['id'] as String,
           displayName: row['display_name'] as String,
+          cellNumber: row['cell_number'] as String?,
           lastDay: switch (row['last_day']) {
             final String value => DateTime.parse(value),
             _ => null,
@@ -380,13 +401,17 @@ final class SupabaseStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<StaffInvite> addStaffMember(StaffMemberDraft draft) async {
+  Future<StaffInvite> addStaffMember(
+    StaffMemberDraft draft, {
+    bool allowRecycledCell = false,
+  }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'create_staff_member_with_invite',
       params: {
         'p_display_name': draft.displayName,
         'p_cell_number': normalizeCellNumber(draft.cellNumber),
         'p_section_id': draft.sectionId,
+        'p_allow_recycled_cell': allowRecycledCell,
       },
     );
     return _inviteFromRow(rows.single as Map<String, dynamic>);
@@ -438,10 +463,20 @@ final class SupabaseStaffGateway implements StaffGateway {
     String token,
     String cellNumber,
   ) async {
-    final result = await _client.rpc<String>(
-      'accept_invite',
-      params: {'p_token': token, 'p_cell_number': cellNumber},
-    );
+    String result;
+    try {
+      result = await _client.rpc<String>(
+        'accept_invite',
+        params: {'p_token': token, 'p_cell_number': cellNumber},
+      );
+    } on PostgrestException catch (error) {
+      if (error.message ==
+              'This email is already signed in as another Staff member.' ||
+          error.code == '23505') {
+        throw const StaffInviteAlreadyLinkedException();
+      }
+      rethrow;
+    }
     return switch (result) {
       'accepted' => InviteAcceptanceResult.accepted,
       'cell_mismatch' => InviteAcceptanceResult.cellMismatch,
@@ -449,6 +484,43 @@ final class SupabaseStaffGateway implements StaffGateway {
       _ => throw StateError('Unknown Invite acceptance result'),
     };
   }
+
+  @override
+  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async {
+    final rows = await _client
+        .from('pending_invite_acceptances')
+        .select(
+          'invite_id, personal_email, accepted_at, '
+          'staff_members!inner(display_name)',
+        );
+    return [
+      for (final row in rows)
+        PendingInviteAcceptance(
+          inviteId: row['invite_id'] as String,
+          staffMemberName:
+              (row['staff_members'] as Map<String, dynamic>)['display_name']
+                  as String,
+          personalEmail: row['personal_email'] as String,
+          acceptedAt: DateTime.parse(row['accepted_at'] as String).toLocal(),
+        ),
+    ];
+  }
+
+  @override
+  Future<void> confirmInviteAcceptance(String inviteId) => _client.rpc<void>(
+    'confirm_invite_acceptance',
+    params: {'p_invite_id': inviteId},
+  );
+
+  @override
+  Future<void> rejectInviteAcceptance(String inviteId) => _client.rpc<void>(
+    'reject_invite_acceptance',
+    params: {'p_invite_id': inviteId},
+  );
+
+  @override
+  Future<bool> isInviteAcceptancePending() async =>
+      await _client.rpc<bool>('my_invite_acceptance_pending');
 
   StaffInvite _inviteFromRow(Map<String, dynamic> row) {
     return StaffInvite(

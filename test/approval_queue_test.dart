@@ -1,5 +1,6 @@
 import 'package:er_schedule/schedule/approval_queue_page.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
+import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
@@ -35,11 +36,71 @@ class _Pickups extends Fake implements OpenShiftStore {
   Stream<void> updates() => const Stream.empty();
 }
 
+class _Invites extends Fake implements StaffGateway {
+  final items = <PendingInviteAcceptance>[
+    PendingInviteAcceptance(
+      inviteId: 'invite',
+      staffMemberName: 'Jane Kemp',
+      personalEmail: 'bsmith88@gmail.com',
+      acceptedAt: DateTime(2026, 9, 18),
+    ),
+  ];
+  String? confirmed;
+  String? rejected;
+
+  @override
+  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async =>
+      items;
+
+  @override
+  Future<void> confirmInviteAcceptance(String inviteId) async {
+    confirmed = inviteId;
+    items.clear();
+  }
+
+  @override
+  Future<void> rejectInviteAcceptance(String inviteId) async {
+    rejected = inviteId;
+    items.clear();
+  }
+}
+
 void main() {
   final month = DateTime(2026, 9);
   final requestDay = DateTime(2026, 9, 20);
   final pickupDay = DateTime(2026, 9, 23);
   final swapDay = DateTime(2026, 10, 10);
+
+  testWidgets('Manager confirms a pending Invite in the approval queue', (
+    tester,
+  ) async {
+    final invites = _Invites();
+    final db = InMemoryScheduleDatabase(
+      sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],
+      editors: const {'manager'},
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ApprovalQueuePage(
+          rules: ScheduleRules.inMemory(db, actingAs: 'manager'),
+          swapRules: SwapRules(_Swaps()),
+          openShiftRules: OpenShiftRules(_Pickups()),
+          staffGateway: invites,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Jane Kemp accepted as bsmith88@gmail.com'),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm').last);
+    await tester.pumpAndSettle();
+    expect(invites.confirmed, 'invite');
+    expect(find.text('Nothing awaiting approval.'), findsOneWidget);
+  });
 
   testWidgets('Manager queue combines and orders all three pending decisions', (
     tester,
