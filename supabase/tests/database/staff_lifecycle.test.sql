@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(40);
+select plan(59);
 
 insert into auth.users (id, email)
 values
@@ -469,6 +469,104 @@ select is(
   0,
   'a Staff member cannot read the Staff list change log'
 );
+
+-- Access roles and Manager handover.
+select throws_ok(
+  $$select public.assign_administrator('00000000-0000-0000-0000-000000000198')$$,
+  'Only the Manager can assign an administrator',
+  'a Staff member cannot grant administrator access'
+);
+
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000191","role":"authenticated"}', true);
+select lives_ok(
+  $$select public.assign_administrator('00000000-0000-0000-0000-000000000198')$$,
+  'Manager grants administrator access'
+);
+select is((select role::text from public.staff_members
+  where id = '00000000-0000-0000-0000-000000000198'), 'administrator',
+  'grant changes the access role');
+select results_eq(
+  $$select old_value, new_value from public.staff_changes
+    where staff_member_id = '00000000-0000-0000-0000-000000000198'
+      and kind = 'access_role' order by changed_at$$,
+  $$values ('staff_member', 'administrator')$$,
+  'the grant is logged and visible'
+);
+
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000193","role":"authenticated"}', true);
+select ok(public.can_manage_staff(), 'administrator can manage the Staff list');
+select lives_ok(
+  $$select public.update_staff_contact('00000000-0000-0000-0000-000000000198',
+    'Moving Staff member', '5551234567')$$,
+  'administrator can use a Staff list management function'
+);
+select throws_ok(
+  $$select public.assign_administrator('00000000-0000-0000-0000-000000000197')$$,
+  'Only the Manager can assign an administrator',
+  'administrator cannot grant administrator access'
+);
+select throws_ok(
+  $$select public.remove_administrator('00000000-0000-0000-0000-000000000198')$$,
+  'Only the Manager can remove an administrator',
+  'administrator cannot revoke administrator access'
+);
+select throws_ok(
+  $$select public.set_staff_last_day('00000000-0000-0000-0000-000000000196', current_date)$$,
+  'The unit needs an active Manager',
+  'administrator cannot deactivate the final Manager'
+);
+
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000191","role":"authenticated"}', true);
+select lives_ok(
+  $$select public.remove_administrator('00000000-0000-0000-0000-000000000198')$$,
+  'Manager revokes administrator access'
+);
+select is((select role::text from public.staff_members
+  where id = '00000000-0000-0000-0000-000000000198'), 'staff_member',
+  'revocation restores Staff member access');
+select results_eq(
+  $$select old_value, new_value from public.staff_changes
+    where staff_member_id = '00000000-0000-0000-0000-000000000198'
+      and kind = 'access_role' order by changed_at$$,
+  $$values ('staff_member', 'administrator'), ('administrator', 'staff_member')$$,
+  'the revocation is logged'
+);
+select lives_ok(
+  $$select public.transfer_manager('00000000-0000-0000-0000-000000000198')$$,
+  'Manager transfers the role in one call'
+);
+select is((select role::text from public.staff_members
+  where id = '00000000-0000-0000-0000-000000000198'), 'manager',
+  'the recipient is Manager');
+select is((select role::text from public.staff_members
+  where id = '00000000-0000-0000-0000-000000000196'), 'administrator',
+  'the former Manager is administrator');
+select results_eq(
+  $$select staff_member_id, old_value, new_value from public.staff_changes
+    where kind = 'access_role' and new_value in ('manager', 'administrator')
+    order by changed_at desc limit 2$$,
+  $$values
+    ('00000000-0000-0000-0000-000000000196'::uuid, 'manager', 'administrator'),
+    ('00000000-0000-0000-0000-000000000198'::uuid, 'staff_member', 'manager')$$,
+  'both sides of the handover are logged'
+);
+select throws_ok(
+  $$select public.assign_administrator('00000000-0000-0000-0000-000000000197')$$,
+  'Only the Manager can assign an administrator',
+  'former Manager cannot grant administrator access'
+);
+
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000193","role":"authenticated"}', true);
+select lives_ok(
+  $$select public.remove_administrator('00000000-0000-0000-0000-000000000196')$$,
+  'new Manager can revoke former Manager administrator access'
+);
+select is((select count(*)::integer from public.staff_members
+  where active and role = 'manager'), 1, 'one active Manager remains');
 
 select * from finish();
 rollback;

@@ -262,6 +262,122 @@ void main() {
   });
 
   testWidgets(
+    'Manager grants and revokes administrator access in Staff details',
+    (tester) async {
+      final gateway = _FakeStaffGateway(
+        const StaffList(sections: [days], members: [alex]),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StaffListPage(
+            gateway: gateway,
+            rules: rules,
+            inviteComposer: _FakeInviteComposer(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Alex Tech'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Make administrator'));
+      await tester.tap(find.text('Make administrator'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+      expect(gateway.accessRole, 'administrator');
+      await tester.ensureVisible(find.text('Remove administrator access'));
+      await tester.tap(find.text('Remove administrator access'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+      expect(gateway.accessRole, 'staff_member');
+    },
+  );
+
+  testWidgets('Manager transfers role to a signed-in Staff member', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(
+        sections: [days],
+        members: [
+          StaffListMember(
+            id: 'staff-1',
+            displayName: 'Alex Tech',
+            cellNumber: '5551112222',
+            sectionId: 'days',
+            displayOrder: 0,
+            personalEmail: 'alex@example.test',
+          ),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alex Tech'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Transfer Manager role'));
+    await tester.tap(find.text('Transfer Manager role'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('you will become an administrator'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+    expect(gateway.accessRole, 'manager');
+    expect(gateway.actorRole, 'administrator');
+    expect(find.text('Make administrator'), findsNothing);
+  });
+
+  testWidgets('handover waits for the Staff member to accept the Invite', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(
+        sections: [days],
+        members: [
+          StaffListMember(
+            id: 'staff-1',
+            displayName: 'Alex Tech',
+            cellNumber: '5551112222',
+            sectionId: 'days',
+            displayOrder: 0,
+            personalEmail: 'alex@example.test',
+          ),
+        ],
+      ),
+    )..transferEligible = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alex Tech'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
+    expect(find.text('Transfer Manager role'), findsNothing);
+  });
+
+  testWidgets(
     'a phone contact fills add fields and saves a normalized number',
     (tester) async {
       final gateway = _FakeStaffGateway(
@@ -559,6 +675,41 @@ void main() {
 }
 
 final class _FakeStaffGateway implements StaffGateway {
+  bool transferEligible = true;
+
+  @override
+  Future<bool> canTransferManagerTo(String id) async => transferEligible;
+  @override
+  Future<List<StaffAccessChange>> loadStaffAccessChanges(String id) async =>
+      accessRole == null
+      ? []
+      : [
+          StaffAccessChange(
+            oldRole: 'staff_member',
+            newRole: accessRole!,
+            changedAt: DateTime(2026, 9, 19),
+          ),
+        ];
+  @override
+  Future<String?> currentStaffRole() async => actorRole;
+
+  String actorRole = 'manager';
+
+  @override
+  Future<void> assignAdministrator(String id) async =>
+      accessRole = 'administrator';
+
+  @override
+  Future<void> removeAdministrator(String id) async =>
+      accessRole = 'staff_member';
+
+  @override
+  Future<void> transferManager(String id) async {
+    accessRole = 'manager';
+    actorRole = 'administrator';
+  }
+
+  String? accessRole;
   @override
   Future<StaffMemberDetails> loadStaffMemberDetails(String id) async {
     final member = _list.members.singleWhere((member) => member.id == id);
@@ -569,7 +720,7 @@ final class _FakeStaffGateway implements StaffGateway {
       sectionId: member.sectionId,
       personalEmail: member.personalEmail,
       jobRole: member.jobRole,
-      role: 'staff_member',
+      role: accessRole ?? 'staff_member',
     );
   }
 

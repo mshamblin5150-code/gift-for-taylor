@@ -140,17 +140,34 @@ final class StaffMemberDetails {
   final DateTime? lastDay;
 }
 
+final class StaffAccessChange {
+  const StaffAccessChange({
+    required this.oldRole,
+    required this.newRole,
+    required this.changedAt,
+  });
+  final String oldRole;
+  final String newRole;
+  final DateTime changedAt;
+}
+
 abstract interface class StaffGateway {
   Future<bool> canManageStaff();
+  Future<String?> currentStaffRole();
+  Future<bool> canTransferManagerTo(String staffMemberId);
   Future<bool> canManageSections();
   Future<String?> currentStaffMemberId();
   Future<StaffList> loadStaffList();
   Future<StaffMemberDetails> loadStaffMemberDetails(String staffMemberId);
+  Future<List<StaffAccessChange>> loadStaffAccessChanges(String staffMemberId);
   Future<void> updateStaffContact(
     String staffMemberId,
     String displayName,
     String? cellNumber,
   );
+  Future<void> assignAdministrator(String staffMemberId);
+  Future<void> removeAdministrator(String staffMemberId);
+  Future<void> transferManager(String newManagerId);
 
   /// Everyone who has left, most recent Last day first.
   Future<List<PastStaffMember>> loadPastStaff();
@@ -173,6 +190,40 @@ final class SupabaseStaffGateway implements StaffGateway {
   Future<bool> canManageStaff() async {
     return await _client.rpc('can_manage_staff') as bool? ?? false;
   }
+
+  @override
+  Future<String?> currentStaffRole() =>
+      _client.rpc<String?>('current_staff_role');
+
+  @override
+  Future<bool> canTransferManagerTo(String staffMemberId) async {
+    final account = await _client
+        .from('staff_accounts')
+        .select('accepted_invite_at, revoked_at')
+        .eq('staff_member_id', staffMemberId)
+        .maybeSingle();
+    return account != null &&
+        account['accepted_invite_at'] != null &&
+        account['revoked_at'] == null;
+  }
+
+  @override
+  Future<void> assignAdministrator(String staffMemberId) => _client.rpc<void>(
+    'assign_administrator',
+    params: {'p_staff_member_id': staffMemberId},
+  );
+
+  @override
+  Future<void> removeAdministrator(String staffMemberId) => _client.rpc<void>(
+    'remove_administrator',
+    params: {'p_staff_member_id': staffMemberId},
+  );
+
+  @override
+  Future<void> transferManager(String newManagerId) => _client.rpc<void>(
+    'transfer_manager',
+    params: {'p_new_manager_id': newManagerId},
+  );
 
   @override
   Future<bool> canManageSections() async {
@@ -261,6 +312,26 @@ final class SupabaseStaffGateway implements StaffGateway {
         _ => null,
       },
     );
+  }
+
+  @override
+  Future<List<StaffAccessChange>> loadStaffAccessChanges(
+    String staffMemberId,
+  ) async {
+    final rows = await _client
+        .from('staff_changes')
+        .select('old_value, new_value, changed_at')
+        .eq('staff_member_id', staffMemberId)
+        .eq('kind', 'access_role')
+        .order('changed_at', ascending: false);
+    return [
+      for (final row in rows)
+        StaffAccessChange(
+          oldRole: row['old_value'] as String,
+          newRole: row['new_value'] as String,
+          changedAt: DateTime.parse(row['changed_at'] as String).toLocal(),
+        ),
+    ];
   }
 
   @override
