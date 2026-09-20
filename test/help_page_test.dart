@@ -3,6 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('every manager action visible to Night schedulers is labeled', () {
+    final managerOnly = helpTopics.where(
+      (topic) =>
+          topic.roles.contains(HelpRole.nightScheduler) &&
+          !topic.roles.contains(HelpRole.staffMember) &&
+          topic.roles.contains(HelpRole.manager) &&
+          topic.title != 'Edit the Schedule' &&
+          topic.title != 'Unannounced changes',
+    );
+    expect(managerOnly, isNotEmpty);
+    for (final topic in managerOnly) {
+      expect(topic.who, contains('Manager only'), reason: topic.title);
+      expect(topic.how, contains('Manager only:'), reason: topic.title);
+    }
+  });
+
   Future<void> openHelp(WidgetTester tester, HelpRole role) async {
     await tester.pumpWidget(MaterialApp(home: HelpPage(role: role)));
   }
@@ -15,6 +31,8 @@ void main() {
       ('day off', 'Request off'),
       ('swap', 'Swap'),
       ('who is working', 'Day view'),
+      ('calendar email', 'Calendar invitations'),
+      ('subscribe calendar', 'Calendar feed'),
     ]) {
       await tester.enterText(find.byType(TextField), query);
       await tester.pump();
@@ -55,7 +73,7 @@ void main() {
     expect(find.text('Approval queue'), findsOneWidget);
     await tester.tap(find.text('Approval queue'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('pending Requests off'), findsWidgets);
+    expect(find.textContaining('accepted Invites'), findsOneWidget);
   });
 
   testWidgets('Manager finds the Invite Cell mismatch instructions', (
@@ -70,13 +88,42 @@ void main() {
     expect(find.textContaining('retry the same Invite'), findsOneWidget);
   });
 
-  testWidgets('Night scheduler sees editing but not Manager-only features', (
+  testWidgets('Night scheduler can read clearly labeled Manager guidance', (
     tester,
   ) async {
     await openHelp(tester, HelpRole.nightScheduler);
     await tester.enterText(find.byType(TextField), 'shift code');
     await tester.pump();
     expect(find.text('Edit the Schedule'), findsOneWidget);
-    expect(find.text('Manage Shift codes'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'manage shift codes');
+    await tester.pump();
+    expect(find.text('Manage Shift codes'), findsOneWidget);
+    await tester.tap(find.text('Manage Shift codes'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Manager only:'), findsWidgets);
+  });
+
+  testWidgets('Staff cannot find Manager guidance through search', (
+    tester,
+  ) async {
+    await openHelp(tester, HelpRole.staffMember);
+    await tester.enterText(find.byType(TextField), 'minimum RN floor');
+    await tester.pump();
+    expect(find.text('Staffing minimums'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'invite confirmation');
+    await tester.pump();
+    expect(find.text('Invite'), findsNothing);
+  });
+
+  testWidgets('Manager can find pool guidance by everyday search', (
+    tester,
+  ) async {
+    await openHelp(tester, HelpRole.manager);
+    await tester.enterText(find.byType(TextField), 'short staffing');
+    await tester.pump();
+    expect(find.text('Staffing minimums'), findsOneWidget);
+    await tester.tap(find.text('Staffing minimums'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('never for a Section'), findsOneWidget);
   });
 }
