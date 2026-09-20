@@ -155,7 +155,7 @@ select results_eq(
     from public.staff_members
     where display_name in ('Page Nurse', 'Night Nurse')
     order by display_name$$,
-  $$values ('Night Nurse', null::text), ('Page Nurse', '5551234567')$$,
+  $$values ('Night Nurse', null::text), ('Page Nurse', '+15551234567')$$,
   'each new Staff member keeps the cell number their Invite goes to'
 );
 

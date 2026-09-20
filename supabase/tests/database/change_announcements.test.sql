@@ -118,8 +118,8 @@ select results_eq(
   $$,
   $$
     values
-      ('Test day RN'::text, '5550100'::text),
-      ('Test Night scheduler'::text, '5550101'::text)
+      ('Test day RN'::text, '+15550100'::text),
+      ('Test Night scheduler'::text, '+15550101'::text)
   $$,
   'schedule rows carry the cell number announcements are texted to'
 );

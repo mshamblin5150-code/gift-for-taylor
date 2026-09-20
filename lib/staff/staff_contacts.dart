@@ -5,9 +5,14 @@ export 'phone_contacts.dart'
 String normalizeCellNumber(String input) {
   final value = input.trim();
   final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-  if (digits.length == 10) return '+1$digits';
-  if (digits.length == 11 && digits.startsWith('1')) return '+$digits';
-  if (value.startsWith('+') && digits.length >= 7 && digits.length <= 15) {
+  if (digits.length == 7 || digits.length == 10) return '+1$digits';
+  if ((digits.length == 8 || digits.length == 11) && digits.startsWith('1')) {
+    return '+$digits';
+  }
+  if (value.startsWith('+') &&
+      digits.length >= 7 &&
+      digits.length <= 15 &&
+      !digits.startsWith('0')) {
     return '+$digits';
   }
   throw const FormatException('Enter a cell number with its area code.');

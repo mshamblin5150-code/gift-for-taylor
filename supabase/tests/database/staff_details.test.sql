@@ -24,7 +24,7 @@ set local role authenticated;
 select set_config('request.jwt.claims',
  '{"sub":"00000000-0000-0000-0000-000000000901","role":"authenticated"}', true);
 select is((select cell_number from public.staff_member_details('00000000-0000-0000-0000-000000000905')),
- '5551111111', 'Manager reads cell number');
+ '+15551111111', 'Manager reads cell number');
 select is((select personal_email from public.staff_member_details('00000000-0000-0000-0000-000000000905')),
  'details-staff@example.test', 'Manager reads sign-up email');
 select lives_ok($$select public.update_staff_contact(
@@ -32,7 +32,7 @@ select lives_ok($$select public.update_staff_contact(
  'Manager edits name and cell number');
 select results_eq($$select kind, old_value, new_value from public.staff_changes
  where staff_member_id = '00000000-0000-0000-0000-000000000905' order by kind$$,
- $$values ('cell_number', '5551111111', '5552222222'),
+ $$values ('cell_number', '+15551111111', '+15552222222'),
           ('name', 'Details Staff', 'Updated Staff')$$,
  'each edit enters the Staff change log');
 select is((select display_name from public.staff_list_entries where id =
