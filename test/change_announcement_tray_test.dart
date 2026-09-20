@@ -48,6 +48,7 @@ void main() {
   Future<void> pumpGrid(
     WidgetTester tester, {
     String actingAs = 'manager',
+    DateTime Function()? now,
   }) async {
     tester.view.physicalSize = const Size(1200, 2400);
     tester.view.devicePixelRatio = 1;
@@ -58,6 +59,7 @@ void main() {
           rules: ScheduleRules.inMemory(database, actingAs: actingAs),
           month: september,
           messagesComposer: messages,
+          now: now,
         ),
       ),
     );
@@ -152,6 +154,77 @@ void main() {
     await pumpGrid(tester, actingAs: 'rn-1');
 
     expect(find.text('1 unannounced change'), findsNothing);
+  });
+
+  testWidgets('a subscribed Staff member needs no text', (tester) async {
+    const subscribed = ScheduleRow(
+      staffMemberId: 'rn-3',
+      displayName: 'Robin Hall',
+      sectionId: 'days',
+      hasPushSubscription: true,
+    );
+    database = InMemoryScheduleDatabase(
+      sections: const [days],
+      rows: const [subscribed],
+      editors: const {'manager'},
+      releasedMonths: {september},
+    );
+    await save(subscribed, '7A');
+    await pumpGrid(tester);
+
+    await tester.tap(find.text('Announce'));
+    await tester.pumpAndSettle();
+    expect(find.text('Will be notified · no text needed'), findsOneWidget);
+    expect(find.textContaining('Nobody will be told'), findsNothing);
+    expect(find.textContaining('Text Robin Hall'), findsNothing);
+    await tester.tap(find.text('Mark announced'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Change log'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Reach: Notified'), findsOneWidget);
+  });
+
+  testWidgets('an Unreached change points to the filtered Change log', (
+    tester,
+  ) async {
+    const unreachable = ScheduleRow(
+      staffMemberId: 'rn-3',
+      displayName: 'Robin Hall',
+      sectionId: 'days',
+    );
+    database = InMemoryScheduleDatabase(
+      sections: const [days],
+      rows: const [unreachable],
+      editors: const {'manager'},
+      releasedMonths: {september},
+    );
+    await save(unreachable, '7A');
+    await pumpGrid(tester, now: () => DateTime(2026, 9, 17));
+
+    await tester.tap(find.text('Announce'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Nobody will be told · no notification or cell number'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Mark announced'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text("1 person wasn't reached about changes this week"),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.text("1 person wasn't reached about changes this week"),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Reach: Nobody'), findsOneWidget);
+    expect(
+      tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Unreached'))
+          .selected,
+      isTrue,
+    );
   });
 }
 
