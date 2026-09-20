@@ -175,6 +175,8 @@ void main() {
     await tester.tap(find.text('Page Nurse'));
     await tester.pumpAndSettle();
     expect(find.text('Add a cell number to finish setup'), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
     expect(find.text('Add a cell number before sending an Invite'), findsOneWidget);
     expect(find.text('Edit name and cell number'), findsOneWidget);
   });
