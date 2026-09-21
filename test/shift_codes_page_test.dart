@@ -16,7 +16,7 @@ void main() {
       final rules = scheduleRulesInMemory(
         InMemoryScheduleDatabase(
           sections: const [],
-          editors: const {'manager'},
+          grants: {'manager': Grants(manager: true)},
         ),
         actingAs: 'manager',
       );
@@ -164,7 +164,10 @@ void main() {
     tester,
   ) async {
     final rules = scheduleRulesInMemory(
-      InMemoryScheduleDatabase(sections: const [], editors: const {'manager'}),
+      InMemoryScheduleDatabase(
+        sections: const [],
+        grants: {'manager': Grants(manager: true)},
+      ),
       actingAs: 'manager',
     );
     await tester.pumpWidget(MaterialApp(home: ShiftCodesPage(rules: rules)));
@@ -196,7 +199,10 @@ void main() {
     tester,
   ) async {
     final rules = scheduleRulesInMemory(
-      InMemoryScheduleDatabase(sections: const [], editors: const {'manager'}),
+      InMemoryScheduleDatabase(
+        sections: const [],
+        grants: {'manager': Grants(manager: true)},
+      ),
       actingAs: 'manager',
     );
     await tester.pumpWidget(MaterialApp(home: ShiftCodesPage(rules: rules)));
@@ -222,7 +228,7 @@ void main() {
   ) async {
     final database = InMemoryScheduleDatabase(
       sections: const [],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       shiftCodes: const [...shiftLegend, LegendCode('CUSTOM', isWorking: true)],
     );
     final rules = scheduleRulesInMemory(database, actingAs: 'manager');

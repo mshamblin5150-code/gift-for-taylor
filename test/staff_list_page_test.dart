@@ -26,6 +26,7 @@ void main() {
 
   setUp(() {
     database = InMemoryScheduleDatabase(
+      grants: {'manager': Grants(manager: true)},
       sections: const [
         ScheduleSection(id: 'days', name: 'State dayshift RN'),
         ScheduleSection(id: 'nights', name: 'PRN nightshift RN'),

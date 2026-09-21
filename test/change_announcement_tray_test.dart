@@ -29,7 +29,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days],
       rows: const [dana, lee],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september},
     );
     messages = _FakeMessagesComposer();
@@ -187,7 +187,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days],
       rows: const [subscribed],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september},
     );
     await save(subscribed, '7A');
@@ -219,7 +219,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days],
       rows: const [unreachable],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september},
     );
     await save(unreachable, '7A');
@@ -257,7 +257,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days],
       rows: const [unreachable],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september, october},
     );
     final manager = scheduleRulesInMemory(database, actingAs: 'manager');

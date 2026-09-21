@@ -30,7 +30,7 @@ void main() {
           sectionId: 'nights',
         ),
       ],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september, october},
     );
   });
@@ -163,7 +163,7 @@ void main() {
           sectionId: 'nights',
         ),
       ],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {october},
     );
     await pumpSchedule(tester, month: october);
@@ -182,7 +182,7 @@ void main() {
           sectionId: 'days',
         ),
       ],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september},
     );
     await pumpSchedule(tester);

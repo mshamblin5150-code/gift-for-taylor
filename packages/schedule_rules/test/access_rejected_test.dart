@@ -13,7 +13,7 @@ void main() {
           sectionId: 'days',
         ),
       ],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
     );
     final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     final action = SaveCell(

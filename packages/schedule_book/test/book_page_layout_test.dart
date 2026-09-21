@@ -22,7 +22,11 @@ Future<MonthGrid> grid({
       ),
   ];
   final rules = scheduleRulesInMemory(
-    InMemoryScheduleDatabase(sections: groups, rows: rows),
+    InMemoryScheduleDatabase(
+      grants: {'manager': Grants(manager: true)},
+      sections: groups,
+      rows: rows,
+    ),
     actingAs: 'manager',
   );
   if (firstCode != null) {

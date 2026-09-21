@@ -23,7 +23,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],
       rows: const [dayNurse, nightNurse],
-      editors: {'manager'},
+      grants: {'manager': Grants(manager: true)},
     );
     manager = scheduleRulesInMemory(database, actingAs: 'manager');
   });

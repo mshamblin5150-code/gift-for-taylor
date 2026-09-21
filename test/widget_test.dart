@@ -84,7 +84,10 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],
       rows: const [dayNurse, nightNurse],
-      editors: const {'manager', 'other-manager'},
+      grants: {
+        'manager': Grants(manager: true),
+        'other-manager': Grants(nightSchedulerSectionIds: {'nights'}),
+      },
       releasedMonths: {september},
     );
     for (final id in ['rn-1', 'rn-2']) {
@@ -540,7 +543,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],
       rows: const [dayNurse],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september},
     );
     await pumpGrid(tester);
@@ -644,7 +647,7 @@ void main() {
             sectionId: days.id,
           ),
       ],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september},
     );
     seedStaffing(
@@ -1300,7 +1303,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],
       rows: const [dayNurse, nightNurse],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september},
     );
     await pumpGrid(tester, actingAs: 'rn-1');
@@ -1449,6 +1452,7 @@ void main() {
         database,
         actingAs: 'manager',
       ).startNextMonth(september);
+      database.hideMonthFor('rn-1', DateTime(2026, 10));
       await pumpGrid(tester, actingAs: 'rn-1', month: DateTime(2026, 10));
 
       expect(find.textContaining("hasn't been released"), findsOneWidget);
@@ -1463,7 +1467,7 @@ void main() {
       database = InMemoryScheduleDatabase(
         sections: const [days, nights],
         rows: const [dayNurse, nightNurse],
-        editors: const {'manager'},
+        grants: {'manager': Grants(manager: true)},
       );
       final month = DateTime(2026, 10);
       final date = DateTime(2026, 10, 16);
@@ -1674,7 +1678,7 @@ void main() {
             sectionId: 'days',
           ),
       ],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september},
     );
     final printed = _RecordingBookPagePresenter();

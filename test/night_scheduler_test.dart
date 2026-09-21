@@ -34,7 +34,10 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],
       rows: const [dayNurse, nightNurse, chargeNurse],
-      editors: const {'manager'},
+      grants: {
+        'manager': Grants(manager: true),
+        'rn-3': Grants(nightSchedulerSectionIds: {'nights'}),
+      },
       names: const {'manager': 'The Manager'},
       releasedMonths: {september},
       clock: () => now,
@@ -80,7 +83,6 @@ void main() {
   testWidgets('the Night scheduler edits only assigned Sections', (
     tester,
   ) async {
-    await manager.store.assignNightScheduler('rn-3', {'nights'});
     await pumpGrid(tester, actingAs: 'rn-3');
 
     expect(find.byTooltip('Night scheduler'), findsNothing);
@@ -110,7 +112,6 @@ void main() {
   testWidgets(
     'the Night scheduler drafts assigned Sections before Month release',
     (tester) async {
-      await manager.store.assignNightScheduler('rn-3', {'nights'});
       final october = DateTime(2026, 10);
       await manager.startEmptyMonth(october);
       final october16 = DateTime(2026, 10, 16);
@@ -148,7 +149,6 @@ void main() {
   );
 
   testWidgets('the Manager filters the change log by person', (tester) async {
-    await manager.store.assignNightScheduler('rn-3', {'nights'});
     await save(manager, dayNurse, '7A');
     await save(
       scheduleRulesInMemory(database, actingAs: 'rn-3'),

@@ -8,7 +8,7 @@ void main() {
   testWidgets('Unit settings opens the Coverage pool editor', (tester) async {
     final database = InMemoryScheduleDatabase(
       sections: const [],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
     );
     await tester.pumpWidget(
       MaterialApp(

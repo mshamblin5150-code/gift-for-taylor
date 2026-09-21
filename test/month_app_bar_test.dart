@@ -17,7 +17,7 @@ void main() {
           sectionId: 'days',
         ),
       ],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {
         DateTime(2026, 8),
         DateTime(2026, 9),
