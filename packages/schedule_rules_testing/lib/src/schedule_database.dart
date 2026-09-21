@@ -78,6 +78,34 @@ final class InMemoryScheduleDatabase {
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
   final List<ShortShift> _shortShifts = [];
+  ({int posted, int floorCritical})? _nextPostOpenShiftsAnswer;
+
+  /// Supplies SQL's result for the next Open shift posting call.
+  void seedNextPostOpenShifts({required int posted, int floorCritical = 0}) {
+    _nextPostOpenShiftsAnswer = (
+      posted: posted,
+      floorCritical: floorCritical,
+    );
+  }
+  final Map<DateTime, List<SectionStaffing>> _staffingAnswers = {};
+  final Map<DateTime, List<SectionStaffing>> _staffingAfterNextCellWrite = {};
+
+  /// Supplies SQL's answer for a month. A later seed replaces the earlier one.
+  void seedStaffingForMonth(DateTime month, List<SectionStaffing> answer) {
+    _staffingAnswers[DateTime(month.year, month.month)] = List.of(answer);
+  }
+
+  /// Installs a second SQL answer once the next cell write has been recorded.
+  void seedStaffingAfterNextCellWrite(
+    DateTime month,
+    List<SectionStaffing> answer,
+  ) {
+    _staffingAfterNextCellWrite[DateTime(month.year, month.month)] =
+        List.of(answer);
+  }
+
+  bool hasStaffingForMonth(DateTime month) =>
+      _staffingAnswers.containsKey(DateTime(month.year, month.month));
   final List<LegendCode> _shiftCodes = [...shiftLegend];
   final Map<String, int> _weekdayMinimums = {
     for (var weekday = 0; weekday < 7; weekday++)
@@ -651,6 +679,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
       () => MonthStatus.unpublished,
     );
     _database._cells[key] = cell;
+    final month = DateTime(cell.date.year, cell.date.month);
+    final nextStaffing = _database._staffingAfterNextCellWrite.remove(month);
+    if (nextStaffing != null) _database._staffingAnswers[month] = nextStaffing;
     _database._changes.add(
       ScheduleChange(
         id: 'change-${_database._changes.length + 1}',

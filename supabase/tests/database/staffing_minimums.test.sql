@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(42);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000531', 'minimum-manager@example.test'),
@@ -47,6 +47,13 @@ select is((select rn_floor from public.section_staffing_for_month('2027-03-01')
 select ok((select minimum is null from public.section_staffing_for_month('2027-03-01')
   where pool = 'cna' and coverage_window = 'day' and work_date = '2027-03-01'),
   'unset CNA minimum is not zero');
+select lives_ok($$select public.set_pool_date_minimum('cna', 'day', '2027-03-01', 0)$$,
+  'Manager sets a zero Staffing minimum');
+select is((select shortfall from public.section_staffing_for_month('2027-03-01')
+  where pool = 'cna' and coverage_window = 'day' and work_date = '2027-03-01'), 0,
+  'zero Staffing minimum has zero Shortfall');
+select lives_ok($$select public.set_pool_date_minimum('cna', 'day', '2027-03-01', null)$$,
+  'Manager removes zero date override');
 select lives_ok($$select public.set_pool_weekday_minimum('cna', 'day', 1, 1)$$,
   'Manager sets CNA minimum');
 select lives_ok($$select public.set_pool_date_minimum('nurses', 'day', '2027-03-01', 2, 1)$$,

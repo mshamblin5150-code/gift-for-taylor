@@ -210,7 +210,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   };
 
   @override
-  Future<List<Map<String, dynamic>>> previewCoveragePools(
+  Future<List<CoverageRulePlan>> previewCoveragePools(
     DateTime effectiveFrom,
     List<CoveragePoolConfig> pools,
   ) async {
@@ -218,22 +218,22 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
       'preview_coverage_pools',
       params: _poolParams(effectiveFrom, pools),
     );
-    return result.cast<Map<String, dynamic>>();
+    return result.cast<Map<String, dynamic>>().map(CoverageRulePlan.fromJson).toList();
   }
 
   @override
   Future<void> commitCoveragePools(
     DateTime effectiveFrom,
     List<CoveragePoolConfig> pools,
-    List<Map<String, dynamic>> plan,
-    List<Map<String, dynamic>> choices,
+    List<CoverageRulePlan> plan,
+    List<CoverageRuleChoice> choices,
   ) async {
     await client.rpc<dynamic>(
       'commit_coverage_pools',
       params: {
         ..._poolParams(effectiveFrom, pools),
-        'p_expected_plan': plan,
-        'p_choices': choices,
+        'p_expected_plan': [for (final row in plan) row.toJson()],
+        'p_choices': [for (final choice in choices) choice.toJson()],
       },
     );
   }
@@ -257,7 +257,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   };
 
   @override
-  Future<List<Map<String, dynamic>>> previewStandingMinimum(
+  Future<List<CoverageRulePlan>> previewStandingMinimum(
     CoveragePool pool,
     CoverageWindow window,
     int weekday,
@@ -278,7 +278,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
         floor,
       ),
     );
-    return result.cast<Map<String, dynamic>>();
+    return result.cast<Map<String, dynamic>>().map(CoverageRulePlan.fromJson).toList();
   }
 
   @override
@@ -290,8 +290,8 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     int minimum,
     JobRole? floorRole,
     int floor,
-    List<Map<String, dynamic>> plan,
-    List<Map<String, dynamic>> choices,
+    List<CoverageRulePlan> plan,
+    List<CoverageRuleChoice> choices,
   ) async {
     await client.rpc<dynamic>(
       'commit_coverage_weekday_rule',
@@ -305,8 +305,8 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
           floorRole,
           floor,
         ),
-        'p_expected_plan': plan,
-        'p_choices': choices,
+        'p_expected_plan': [for (final row in plan) row.toJson()],
+        'p_choices': [for (final choice in choices) choice.toJson()],
       },
     );
   }
@@ -328,7 +328,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   };
 
   @override
-  Future<List<Map<String, dynamic>>> previewDateMinimum(
+  Future<List<CoverageRulePlan>> previewDateMinimum(
     CoveragePool pool,
     CoverageWindow window,
     DateTime date,
@@ -340,7 +340,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
       'preview_coverage_date_rule',
       params: _dateParams(pool, window, date, minimum, floorRole, floor),
     );
-    return result.cast<Map<String, dynamic>>();
+    return result.cast<Map<String, dynamic>>().map(CoverageRulePlan.fromJson).toList();
   }
 
   @override
@@ -351,15 +351,15 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     int? minimum,
     JobRole? floorRole,
     int floor,
-    List<Map<String, dynamic>> plan,
-    List<Map<String, dynamic>> choices,
+    List<CoverageRulePlan> plan,
+    List<CoverageRuleChoice> choices,
   ) async {
     await client.rpc<dynamic>(
       'commit_coverage_date_rule',
       params: {
         ..._dateParams(pool, window, date, minimum, floorRole, floor),
-        'p_expected_plan': plan,
-        'p_choices': choices,
+        'p_expected_plan': [for (final row in plan) row.toJson()],
+        'p_choices': [for (final choice in choices) choice.toJson()],
       },
     );
   }
