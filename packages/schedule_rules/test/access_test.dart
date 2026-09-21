@@ -76,12 +76,17 @@ void main() {
     expect(access.canReadUnreleased, isTrue);
     expect(access.canTransferManager, isFalse);
     expect(access.ownStaffMemberId, 'staff');
+    expect(access.canUseOwnSettings, isTrue);
+    expect(access.canChangeAccess(Grants()), isTrue);
+    expect(access.canChangeAccess(Grants(manager: true)), isFalse);
     expect(access.isRepairAccess, isFalse);
     final maintainer = Access(grants: Grants(), maintainer: true);
     expect(maintainer.canTransferManager, isTrue);
     expect(maintainer.canReadUnreleased, isTrue);
     expect(maintainer.ownStaffMemberId, isNull);
     expect(maintainer.isRepairAccess, isTrue);
+    expect(maintainer.canUseOwnSettings, isFalse);
+    expect(maintainer.canChangeAccess(Grants()), isTrue);
   });
 
   test(

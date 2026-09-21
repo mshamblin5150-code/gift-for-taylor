@@ -58,14 +58,14 @@ class SettingsPage extends StatelessWidget {
             subtitle: const Text('Install on a phone or computer'),
             onTap: () => open(AppSetupPage(helpRoles: helpRolesFor(access))),
           ),
-          if (access.ownStaffMemberId != null && onCalendarFeed != null)
+          if (access.canUseOwnSettings && onCalendarFeed != null)
             ListTile(
               leading: const Icon(Icons.calendar_month_outlined),
               title: const Text('My calendar'),
               subtitle: const Text('Choose calendar invitations or a feed'),
               onTap: onCalendarFeed,
             ),
-          if (access.ownStaffMemberId != null && noticeGateway != null)
+          if (access.canUseOwnSettings && noticeGateway != null)
             ListTile(
               leading: const Icon(Icons.notifications_outlined),
               title: const Text('Notifications'),

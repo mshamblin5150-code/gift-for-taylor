@@ -2,6 +2,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'staff_contacts.dart';
+import 'access_row.dart';
 
 final class StaffSection {
   const StaffSection({required this.id, required this.name});
@@ -226,20 +227,7 @@ final class SupabaseStaffGateway implements StaffGateway {
   @override
   Future<Access> currentAccess() async {
     final row = await _client.rpc('current_access') as List<dynamic>;
-    final values = row.single as Map<String, dynamic>;
-    final access = Access(
-      grants: Grants(
-        manager: values['manager'] as bool,
-        administrator: values['administrator'] as bool,
-        nightSchedulerSectionIds: {
-          for (final id
-              in values['night_scheduler_section_ids'] as List<dynamic>)
-            id as String,
-        },
-      ),
-      maintainer: values['maintainer'] as bool,
-      ownStaffMemberId: values['staff_member_id'] as String?,
-    );
+    final access = accessFromRow(row.single as Map<String, dynamic>);
     onAccessLoaded?.call(access);
     return access;
   }

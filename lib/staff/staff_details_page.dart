@@ -274,7 +274,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
               onPressed: _editContact,
               child: const Text('Edit name and cell number'),
             ),
-            if (_access.canManageStaff && !_targetGrants.manager)
+            if (_access.canChangeAccess(_targetGrants))
               OutlinedButton(
                 onPressed: _changeAccessRole,
                 child: const Text('Change access'),

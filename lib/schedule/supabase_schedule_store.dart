@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../staff/access_row.dart';
+
 final class SupabaseScheduleStore implements ScheduleStore {
   SupabaseScheduleStore(this._client);
 
@@ -411,20 +413,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
   @override
   Future<Access> currentAccess() async {
     final rows = await _client.rpc<List<dynamic>>('current_access');
-    final values = rows.single as Map<String, dynamic>;
-    return Access(
-      grants: Grants(
-        manager: values['manager'] as bool,
-        administrator: values['administrator'] as bool,
-        nightSchedulerSectionIds: {
-          for (final id
-              in values['night_scheduler_section_ids'] as List<dynamic>)
-            id as String,
-        },
-      ),
-      maintainer: values['maintainer'] as bool,
-      ownStaffMemberId: values['staff_member_id'] as String?,
-    );
+    return accessFromRow(rows.single as Map<String, dynamic>);
   }
 
   @override
