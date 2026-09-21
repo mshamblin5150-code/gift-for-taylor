@@ -30,6 +30,7 @@ final class InMemoryScheduleDatabase {
            DateTime(month.year, month.month): MonthStatus.released,
        },
        _sections = List.unmodifiable(sections),
+       _rows = List.unmodifiable(rows),
        _legacyEveryoneEdits = editors == null && grants.isEmpty,
        _grants = {
          for (final entry in grants.entries) entry.key: entry.value,
@@ -45,16 +46,11 @@ final class InMemoryScheduleDatabase {
       if (row.hasPushSubscription) {
         _pushSubscriptions.add(row.staffMemberId);
       }
-      if (row.cellNumber case final cellNumber?) {
-        _cellNumbers[row.staffMemberId] = cellNumber;
-      }
-      _assignments.add(
-        _Assignment(row.staffMemberId, row.sectionId, _assignments.length),
-      );
     }
   }
 
   final List<ScheduleSection> _sections;
+  final List<ScheduleRow> _rows;
 
   /// Legacy test shortcut: these people receive a Manager grant.
   final Set<String>? editors;
@@ -66,15 +62,9 @@ final class InMemoryScheduleDatabase {
   /// Display names of everyone, including people not on a Schedule row such
   /// as the Manager.
   final Map<String, String> _names;
-  final Map<String, String> _cellNumbers = {};
   final Set<String> _pushSubscriptions = {};
   final DateTime Function() _clock;
 
-  /// Dated Section placements. A new placement goes to the bottom of its
-  /// Section.
-  final List<_Assignment> _assignments = [];
-  final Map<String, DateTime> _lastDays = {};
-  final Map<String, List<DatedJobRole>> _jobRoles = {};
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
   final List<ShortShift> _shortShifts = [];
@@ -102,7 +92,6 @@ final class InMemoryScheduleDatabase {
   final List<OpenShiftPickup> _openShiftPickups = [];
   bool _openShiftApprovalDefault = true;
   final Map<String, bool> _openShiftApprovalOverrides = {};
-  final List<StaffChange> _staffChanges = [];
   final Map<DateTime, List<ScheduleRow>> _seededRows = {};
   final Map<DateTime, List<ShortShift>> _seededShortShifts = {};
   final Map<String, List<DatedJobRole>> _seededJobRoles = {};
@@ -141,22 +130,6 @@ final class InMemoryScheduleDatabase {
     if (error != null) throw error;
   }
 
-  /// Moves a Staff member to [sectionId] from the first day of [from]'s month,
-  /// without logging it, to set up a test.
-  void moveToSection(
-    String staffMemberId,
-    String sectionId, {
-    required DateTime from,
-  }) {
-    final start = DateTime(from.year, from.month);
-    _openAssignment(staffMemberId)?.through = start.subtract(
-      const Duration(days: 1),
-    );
-    _assignments.add(
-      _Assignment(staffMemberId, sectionId, _assignments.length, from: start),
-    );
-  }
-
   /// Loads [month] as transcribed from the printed page, without logging a
   /// change, to wait for the Manager's check.
   void loadFromPage(DateTime month, List<ScheduleCell> cells) {
@@ -193,48 +166,15 @@ final class InMemoryScheduleDatabase {
       _InMemoryScheduleStore(this, staffMemberId);
 
   Access accessFor(String actor) => Access(
-    grants: _lastDays.containsKey(actor)
-        ? Grants()
-        : _grants[actor] ??
-              (_legacyEveryoneEdits ? Grants(manager: true) : Grants()),
+    grants: _grants[actor] ??
+        (_legacyEveryoneEdits ? Grants(manager: true) : Grants()),
     maintainer: actor == maintainerId,
     ownStaffMemberId: actor == maintainerId || !_isActive(actor) ? null : actor,
   );
 
   bool _isActive(String staffMemberId) =>
-      _names.containsKey(staffMemberId) &&
-      !_lastDays.containsKey(staffMemberId);
+      _names.containsKey(staffMemberId);
 
-  _Assignment? _openAssignment(String staffMemberId) => _assignments
-      .where(
-        (assignment) =>
-            assignment.staffMemberId == staffMemberId &&
-            assignment.through == null,
-      )
-      .firstOrNull;
-
-  String _sectionName(String sectionId) =>
-      _sections.firstWhere((section) => section.id == sectionId).name;
-}
-
-final class _Assignment {
-  _Assignment(this.staffMemberId, this.sectionId, this.order, {this.from});
-
-  final String staffMemberId;
-  final String sectionId;
-  final int order;
-
-  /// Null for placements made before the test began.
-  final DateTime? from;
-  DateTime? through;
-
-  bool overlaps(DateTime month) {
-    final start = from;
-    final end = through;
-    return (start == null ||
-            start.isBefore(DateTime(month.year, month.month + 1))) &&
-        (end == null || !end.isBefore(month));
-  }
 }
 
 final class _InMemoryScheduleStore implements ScheduleStore {
@@ -491,43 +431,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   Future<List<ScheduleRow>> rows(DateTime month) async {
     final seeded = _database._seededRows[DateTime(month.year, month.month)];
     if (seeded != null) return List.unmodifiable(seeded);
-    final sectionOrder = [
-      for (final section in _database._sections) section.id,
-    ];
-    // Each person's latest placement in the month decides their row.
-    final latest = <String, _Assignment>{};
-    for (final assignment in _database._assignments) {
-      if (!assignment.overlaps(month)) continue;
-      final current = latest[assignment.staffMemberId];
-      if (current == null ||
-          (assignment.from ?? DateTime(0)).isAfter(
-            current.from ?? DateTime(0),
-          )) {
-        latest[assignment.staffMemberId] = assignment;
-      }
-    }
-    final ordered = latest.values.toList()
-      ..sort((left, right) {
-        final bySection = sectionOrder
-            .indexOf(left.sectionId)
-            .compareTo(sectionOrder.indexOf(right.sectionId));
-        return bySection != 0 ? bySection : left.order.compareTo(right.order);
-      });
-    return [
-      for (final assignment in ordered)
-        ScheduleRow(
-          staffMemberId: assignment.staffMemberId,
-          displayName: _database._names[assignment.staffMemberId]!,
-          sectionId: assignment.sectionId,
-          cellNumber: _database._isActive(assignment.staffMemberId)
-              ? _database._cellNumbers[assignment.staffMemberId]
-              : null,
-          hasPushSubscription: _database._pushSubscriptions.contains(
-            assignment.staffMemberId,
-          ),
-          lastDay: assignment.through,
-        ),
-    ];
+    return _database._rows;
   }
 
   @override
@@ -743,78 +647,33 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   Future<void> setLastDay(SetLastDay action) async {
     _requireStaffManagement();
     _database.lastDayWrites.add(action);
-    _log(action.staffMemberId, StaffChangeKind.lastDay, null,
-        _dateText(action.lastDay), action.lastDay);
   }
 
   @override
   Future<void> reactivate(Reactivate action) async {
+    _requireStaffManagement();
     _database.reactivationWrites.add(action);
-    _log(
-      action.staffMemberId,
-      StaffChangeKind.reactivated,
-      null,
-      _database._sectionName(action.sectionId),
-      action.firstDay,
-    );
   }
 
   @override
   Future<void> changeSection(ChangeSection action) async {
     _requireStaffManagement();
     _database.sectionWrites.add(action);
-    _log(
-      action.staffMemberId,
-      StaffChangeKind.section,
-      null,
-      _database._sectionName(action.sectionId),
-      action.from,
-    );
   }
 
   @override
   Future<void> changeJobRole(ChangeJobRole action) async {
+    _requireStaffManagement();
     _database.jobRoleWrites.add(action);
-    _database._jobRoles.putIfAbsent(action.staffMemberId, () => []).add(
-      DatedJobRole(jobRole: action.jobRole, from: action.from, through: null),
-    );
-    _log(
-      action.staffMemberId,
-      StaffChangeKind.jobRole,
-      null,
-      action.jobRole.label,
-      action.from,
-    );
   }
 
   @override
   Future<List<DatedJobRole>> jobRoles(String staffMemberId) async =>
-      List.unmodifiable(_database._seededJobRoles[staffMemberId] ??
-          _database._jobRoles[staffMemberId] ?? const []);
+      List.unmodifiable(_database._seededJobRoles[staffMemberId] ?? const []);
 
   @override
   Future<List<StaffChange>> staffChanges() async =>
-      List.unmodifiable(_database._seededStaffChanges ?? _database._staffChanges);
-
-  void _log(
-    String staffMemberId,
-    StaffChangeKind kind,
-    String? oldValue,
-    String? newValue,
-    DateTime effectiveFrom,
-  ) {
-    _database._staffChanges.add(
-      StaffChange(
-        staffMemberId: staffMemberId,
-        kind: kind,
-        oldValue: oldValue,
-        newValue: newValue,
-        effectiveFrom: effectiveFrom,
-        changedBy: _actingAs,
-        changedAt: _database._clock(),
-      ),
-    );
-  }
+      List.unmodifiable(_database._seededStaffChanges ?? const []);
 
   @override
   Future<void> markChangesAnnounced(

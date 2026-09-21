@@ -28,13 +28,9 @@ void main() {
     );
     manager = scheduleRulesInMemory(database, actingAs: 'manager');
     staff = scheduleRulesInMemory(database, actingAs: 'staff');
-    await manager.store.changeJobRole(
-      ChangeJobRole(
-        staffMemberId: 'staff',
-        jobRole: JobRole.rn,
-        from: DateTime(2026, 1),
-      ),
-    );
+    database.seedJobRoles('staff', [
+      DatedJobRole(jobRole: JobRole.rn, from: DateTime(2026, 1), through: null),
+    ]);
     await manager.saveCell(
       SaveCell(
         staffMemberId: 'staff',

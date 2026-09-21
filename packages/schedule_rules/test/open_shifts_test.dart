@@ -51,13 +51,9 @@ void main() {
       ('cna', JobRole.cna),
       ('clerk', JobRole.unitClerk),
     ]) {
-      await manager.store.changeJobRole(
-        ChangeJobRole(
-          staffMemberId: id,
-          jobRole: role,
-          from: DateTime(2026, 1),
-        ),
-      );
+      database.seedJobRoles(id, [
+        DatedJobRole(jobRole: role, from: DateTime(2026, 1), through: null),
+      ]);
     }
     await manager.saveCell(
       SaveCell(

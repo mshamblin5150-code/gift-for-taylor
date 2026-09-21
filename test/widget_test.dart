@@ -34,15 +34,10 @@ void main() {
       editors: const {'manager', 'other-manager'},
       releasedMonths: {september},
     );
-    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     for (final id in ['rn-1', 'rn-2']) {
-      await manager.store.changeJobRole(
-        ChangeJobRole(
-          staffMemberId: id,
-          jobRole: JobRole.rn,
-          from: DateTime(2026, 1),
-        ),
-      );
+      database.seedJobRoles(id, [
+        DatedJobRole(jobRole: JobRole.rn, from: DateTime(2026, 1), through: null),
+      ]);
     }
   });
 

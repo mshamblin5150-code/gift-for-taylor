@@ -13,10 +13,6 @@ ScheduleRules scheduleRulesInMemory(
   required String actingAs,
 }) => ScheduleRules(database.storeFor(actingAs));
 
-String _dateText(DateTime date) =>
-    '${date.year}-${date.month.toString().padLeft(2, '0')}-'
-    '${date.day.toString().padLeft(2, '0')}';
-
 DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
 
 CoverageWindow? _coverageWindowOf(String code, List<LegendCode> codes) {

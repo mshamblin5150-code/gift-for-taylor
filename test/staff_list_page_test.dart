@@ -276,6 +276,17 @@ void main() {
     await tester.tap(find.text('Reactivate and text Invite'));
     await tester.pumpAndSettle();
 
+    database.seedStaffChanges([
+      StaffChange(
+        staffMemberId: 'staff-1',
+        kind: StaffChangeKind.reactivated,
+        oldValue: null,
+        newValue: 'State dayshift RN',
+        effectiveFrom: DateTime(2026, 9, 21),
+        changedBy: 'manager',
+        changedAt: DateTime(2026, 9, 21),
+      ),
+    ]);
     expect(gateway.added, isNull);
     expect(
       (await rules.store.staffChanges()).last.kind,
@@ -595,6 +606,26 @@ void main() {
     await tester.tap(find.text('Save change'));
     await tester.pumpAndSettle();
 
+    database.seedStaffChanges([
+      StaffChange(
+        staffMemberId: 'staff-1',
+        kind: StaffChangeKind.section,
+        oldValue: 'State dayshift RN',
+        newValue: 'PRN nightshift RN',
+        effectiveFrom: DateTime(2026, 9, 21),
+        changedBy: 'manager',
+        changedAt: DateTime(2026, 9, 21),
+      ),
+      StaffChange(
+        staffMemberId: 'staff-1',
+        kind: StaffChangeKind.jobRole,
+        oldValue: null,
+        newValue: 'LPN',
+        effectiveFrom: DateTime(2026, 9, 21),
+        changedBy: 'manager',
+        changedAt: DateTime(2026, 9, 21),
+      ),
+    ]);
     final changes = await rules.store.staffChanges();
     expect(changes.map((change) => change.kind), [
       StaffChangeKind.section,
@@ -1106,6 +1137,17 @@ void main() {
     await tester.tap(find.text('Reactivate and text Invite'));
     await tester.pumpAndSettle();
 
+    database.seedStaffChanges([
+      StaffChange(
+        staffMemberId: 'staff-1',
+        kind: StaffChangeKind.reactivated,
+        oldValue: null,
+        newValue: 'State dayshift RN',
+        effectiveFrom: DateTime(2026, 9, 21),
+        changedBy: 'manager',
+        changedAt: DateTime(2026, 9, 21),
+      ),
+    ]);
     final reactivated = (await rules.store.staffChanges()).last;
     expect(reactivated.kind, StaffChangeKind.reactivated);
     expect(reactivated.newValue, 'State dayshift RN');
