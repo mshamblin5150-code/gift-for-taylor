@@ -38,6 +38,7 @@ class _StaffListPageState extends State<StaffListPage> {
   StaffList? _staffList;
   Object? _loadError;
   bool _canManageSections = false;
+  String? _currentRole;
   bool _savingSectionOrder = false;
 
   @override
@@ -48,14 +49,16 @@ class _StaffListPageState extends State<StaffListPage> {
 
   Future<void> _load() async {
     try {
-      final (staffList, canManageSections) = await (
+      final (staffList, canManageSections, currentRole) = await (
         widget.gateway.loadStaffList(),
         widget.gateway.canManageSections(),
+        widget.gateway.currentStaffRole(),
       ).wait;
       if (mounted) {
         setState(() {
           _staffList = staffList;
           _canManageSections = canManageSections;
+          _currentRole = currentRole;
           _loadError = null;
         });
       }
@@ -389,7 +392,14 @@ class _StaffListPageState extends State<StaffListPage> {
             tooltip: 'Help',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (context) => const HelpPage(role: HelpRole.manager),
+                builder: (context) => HelpPage(
+                  role: helpRoleForAccess(
+                    _currentRole,
+                    canEditSchedule:
+                        _currentRole == null || _currentRole == 'manager',
+                    hasEditableSections: false,
+                  ),
+                ),
               ),
             ),
             icon: const Icon(Icons.help_outline),

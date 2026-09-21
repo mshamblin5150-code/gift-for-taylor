@@ -9,6 +9,7 @@ void main() {
           topic.roles.contains(HelpRole.nightScheduler) &&
           !topic.roles.contains(HelpRole.staffMember) &&
           topic.roles.contains(HelpRole.manager) &&
+          topic.who.startsWith('Manager only') &&
           topic.title != 'Edit the Schedule' &&
           topic.title != 'Unannounced changes',
     );
@@ -17,6 +18,33 @@ void main() {
       expect(topic.who, contains('Manager only'), reason: topic.title);
       expect(topic.how, contains('Manager only:'), reason: topic.title);
     }
+  });
+
+  test('access roles select their own Help catalog', () {
+    expect(
+      helpRoleForAccess(
+        'administrator',
+        canEditSchedule: false,
+        hasEditableSections: false,
+      ),
+      HelpRole.administrator,
+    );
+    expect(
+      helpRoleForAccess(
+        'night_scheduler',
+        canEditSchedule: false,
+        hasEditableSections: true,
+      ),
+      HelpRole.nightScheduler,
+    );
+    expect(
+      helpRoleForAccess(
+        'manager',
+        canEditSchedule: true,
+        hasEditableSections: true,
+      ),
+      HelpRole.manager,
+    );
   });
 
   Future<void> openHelp(WidgetTester tester, HelpRole role) async {
@@ -102,6 +130,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Manager only:'), findsWidgets);
   });
+
+  testWidgets(
+    'Administrator finds their Staff guidance and Manager boundaries',
+    (tester) async {
+      await openHelp(tester, HelpRole.administrator);
+      await tester.enterText(find.byType(TextField), 'admin permissions');
+      await tester.pump();
+      expect(find.text('Administrator access'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'staff list');
+      await tester.pump();
+      expect(find.text('Staff list'), findsOneWidget);
+      await tester.tap(find.text('Staff list'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Manager or Administrator:'), findsWidgets);
+    },
+  );
 
   testWidgets('Staff cannot find Manager guidance through search', (
     tester,

@@ -22,5 +22,7 @@ outcomes. Run `test/help_page_test.dart` for search and role behavior and the
 widget tests for Help entry points. Help must remain bundled for offline use
 and searchable.
 
-ADR-0011 records the target contract. The #167 rewrite and Administrator Help
-routing are still pending; do not assume the current catalog already meets it.
+ADR-0011 records the Help contract. ADR-0013 defines Administrator and
+Maintainer access. Administrator Help routing is present; update the catalog
+as the remaining access changes are implemented. Maintainer Help routing waits
+for the separate Maintainer account to exist.
