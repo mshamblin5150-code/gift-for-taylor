@@ -7,11 +7,153 @@ import 'package:er_schedule/auth/auth_gateway.dart';
 import 'package:er_schedule/auth/sign_in_page.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:er_schedule/schedule_theme.dart';
+import 'package:er_schedule/settings/appearance.dart';
+import 'package:er_schedule/settings/settings_page.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    appearanceMode.value = ThemeMode.system;
+  });
+
+  testWidgets('saved appearance themes the first signed-out frame', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'appearance_mode': 'dark'});
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    await loadAppearance();
+
+    await tester.pumpWidget(
+      ScheduleApp(
+        authGateway: _FakeAuthGateway(),
+        scheduleStore: _scheduleStore(const []),
+      ),
+    );
+    expect(
+      Theme.of(tester.element(find.byType(CircularProgressIndicator)))
+          .brightness,
+      Brightness.dark,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      Theme.of(tester.element(find.text('ER Schedule'))).brightness,
+      Brightness.dark,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      ScheduleApp(
+        authGateway: _FakeAuthGateway(),
+        scheduleStore: _scheduleStore(const []),
+        staffGateway: _FakeStaffGateway(),
+        inviteToken: 'fresh-token',
+      ),
+    );
+    expect(
+      Theme.of(tester.element(find.byType(CircularProgressIndicator)))
+          .brightness,
+      Brightness.dark,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      Theme.of(tester.element(find.text('Cell number'))).brightness,
+      Brightness.dark,
+    );
+  });
+
+  testWidgets('Appearance is a Personal setting', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          scheduleRules: ScheduleRules(_scheduleStore(const [])),
+        ),
+      ),
+    );
+    expect(find.text('Personal'), findsOneWidget);
+    expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('System'), findsOneWidget);
+
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Light'));
+    await tester.pumpAndSettle();
+    expect(find.text('Light'), findsOneWidget);
+  });
+
+  testWidgets('System, Light, and Dark restore from device storage', (
+    tester,
+  ) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    final gateway = _FakeAuthGateway();
+    final store = _scheduleStore(const []);
+
+    for (final (label, expected) in [
+      ('Light', Brightness.light),
+      ('Dark', Brightness.dark),
+      ('System', Brightness.dark),
+    ]) {
+      await tester.pumpWidget(
+        ScheduleApp(authGateway: gateway, scheduleStore: store),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Appearance'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+      expect(
+        Theme.of(tester.element(find.text('ER Schedule'))).brightness,
+        expected,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      appearanceMode.value = ThemeMode.system;
+      await loadAppearance();
+      await tester.pumpWidget(
+        ScheduleApp(authGateway: gateway, scheduleStore: store),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        Theme.of(tester.element(find.text('ER Schedule'))).brightness,
+        expected,
+      );
+    }
+  });
+
+  testWidgets('appearance choice stays in one browser storage', (tester) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    final gateway = _FakeAuthGateway();
+    final store = _scheduleStore(const []);
+    await tester.pumpWidget(
+      ScheduleApp(authGateway: gateway, scheduleStore: store),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Appearance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    expect(
+      Theme.of(tester.element(find.text('ER Schedule'))).brightness,
+      Brightness.dark,
+    );
+
+    // A separate browser has its own empty local preference store.
+    await tester.pumpWidget(const SizedBox.shrink());
+    SharedPreferences.setMockInitialValues({});
+    await loadAppearance();
+    await tester.pumpWidget(
+      ScheduleApp(authGateway: gateway, scheduleStore: store),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      Theme.of(tester.element(find.text('ER Schedule'))).brightness,
+      Brightness.light,
+    );
+  });
   testWidgets('system appearance updates sign-in and Invite before auth', (
     tester,
   ) async {
