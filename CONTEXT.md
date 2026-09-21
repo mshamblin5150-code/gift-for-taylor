@@ -165,7 +165,7 @@ really them before the account works. It lapses after a month if unused.
 _Avoid_: Registration, sign-up
 
 **Last day**:
-The final day a departing Staff member is on the Schedule. Their shifts after it become Open shifts.
+The final day a departing Staff member is on the Schedule. Their shifts after it become Open shifts for the Job role they held on that day, so colleagues in that role's pool can pick them up.
 _Avoid_: Termination date, end date
 
 **Request off**:
