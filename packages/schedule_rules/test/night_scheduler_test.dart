@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
 
@@ -42,8 +43,8 @@ void main() {
       names: const {'manager': 'The Manager'},
       clock: () => now,
     );
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
-    nightScheduler = ScheduleRules.inMemory(database, actingAs: 'rn-3');
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
+    nightScheduler = scheduleRulesInMemory(database, actingAs: 'rn-3');
   });
 
   Future<void> save(
@@ -78,9 +79,9 @@ void main() {
   });
 
   test('the Manager gives the role with chosen Sections', () async {
-    await manager.assignNightScheduler('rn-3', {'nights', 'night-cna'});
+    await manager.store.assignNightScheduler('rn-3', {'nights', 'night-cna'});
 
-    expect(await manager.nightSchedulers(), [
+    expect(await manager.store.nightSchedulers(), [
       isA<NightScheduler>()
           .having((it) => it.staffMemberId, 'staffMemberId', 'rn-3')
           .having((it) => it.sectionIds, 'sectionIds', {'nights', 'night-cna'}),
@@ -92,7 +93,7 @@ void main() {
   });
 
   test('the Night scheduler edits only assigned Sections', () async {
-    await manager.assignNightScheduler('rn-3', {'nights'});
+    await manager.store.assignNightScheduler('rn-3', {'nights'});
 
     await save(nightScheduler, nightNurse, 'N');
     await expectLater(
@@ -111,7 +112,7 @@ void main() {
 
   test('a Night scheduler edit is live, unannounced and logged under their '
       'name', () async {
-    await manager.assignNightScheduler('rn-3', {'nights'});
+    await manager.store.assignNightScheduler('rn-3', {'nights'});
 
     await save(nightScheduler, nightNurse, '7P');
 
@@ -125,17 +126,17 @@ void main() {
   });
 
   test('the Night scheduler cannot confirm or hand out the role', () async {
-    await manager.assignNightScheduler('rn-3', {'nights'});
+    await manager.store.assignNightScheduler('rn-3', {'nights'});
 
     expect(database.accessFor('rn-3').canRunSchedule, isFalse);
     await expectLater(
-      nightScheduler.assignNightScheduler('rn-2', {'nights'}),
+      nightScheduler.store.assignNightScheduler('rn-2', {'nights'}),
       throwsA(isA<ScheduleEditRefused>()),
     );
   });
 
   test('the Manager overrides a Night scheduler edit', () async {
-    await manager.assignNightScheduler('rn-3', {'nights'});
+    await manager.store.assignNightScheduler('rn-3', {'nights'});
     await save(nightScheduler, nightNurse, '7P');
 
     await save(manager, nightNurse, 'N');
@@ -151,9 +152,9 @@ void main() {
   });
 
   test('changing the Sections replaces them', () async {
-    await manager.assignNightScheduler('rn-3', {'nights', 'night-cna'});
+    await manager.store.assignNightScheduler('rn-3', {'nights', 'night-cna'});
 
-    await manager.assignNightScheduler('rn-3', {'night-cna'});
+    await manager.store.assignNightScheduler('rn-3', {'night-cna'});
 
     final editable = database.accessFor('rn-3').editableSections;
     expect(editable.contains('nights'), isFalse);
@@ -162,17 +163,17 @@ void main() {
 
   test('the role needs at least one Section', () async {
     await expectLater(
-      manager.assignNightScheduler('rn-3', {}),
+      manager.store.assignNightScheduler('rn-3', {}),
       throwsArgumentError,
     );
   });
 
   test('removing the role stops their edits', () async {
-    await manager.assignNightScheduler('rn-3', {'nights'});
+    await manager.store.assignNightScheduler('rn-3', {'nights'});
 
-    await manager.removeNightScheduler('rn-3');
+    await manager.store.removeNightScheduler('rn-3');
 
-    expect(await manager.nightSchedulers(), isEmpty);
+    expect(await manager.store.nightSchedulers(), isEmpty);
     await expectLater(
       save(nightScheduler, nightNurse, 'N'),
       throwsA(isA<ScheduleEditRefused>()),
@@ -181,7 +182,7 @@ void main() {
 
   group('the change log view', () {
     setUp(() async {
-      await manager.assignNightScheduler('rn-3', {'nights'});
+      await manager.store.assignNightScheduler('rn-3', {'nights'});
       now = DateTime(2026, 9, 17, 8);
       await save(manager, dayNurse, '7A');
       now = DateTime(2026, 9, 17, 22);

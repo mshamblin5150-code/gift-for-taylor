@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:er_schedule/schedule/book_page_printing.dart';
 import 'package:er_schedule/schedule/print_wording_gateway.dart';
@@ -33,9 +34,9 @@ void main() {
       editors: const {'manager', 'other-manager'},
       releasedMonths: {september},
     );
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     for (final id in ['rn-1', 'rn-2']) {
-      await manager.changeJobRole(
+      await manager.store.changeJobRole(
         ChangeJobRole(
           staffMemberId: id,
           jobRole: JobRole.rn,
@@ -59,7 +60,7 @@ void main() {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final rules = ScheduleRules.inMemory(database, actingAs: actingAs);
+    final rules = scheduleRulesInMemory(database, actingAs: actingAs);
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
@@ -68,8 +69,8 @@ void main() {
           rules: rules,
           month: month ?? september,
           staffMemberId: staffMemberId,
-          openShiftRules: withStaffing
-              ? OpenShiftRules(database.openShiftStoreFor(actingAs))
+          openShiftStore: withStaffing
+              ? database.openShiftStoreFor(actingAs)
               : null,
           bookPagePresenter: bookPagePresenter,
           printWordingGateway: printWordingGateway,
@@ -134,7 +135,7 @@ void main() {
         theme: ThemeData.dark(),
         home: MonthGridPage(
           access: database.accessFor('manager'),
-          rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
+          rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: september,
           now: () => today,
         ),
@@ -217,7 +218,7 @@ void main() {
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     await manager.saveCell(
       SaveCell(
         staffMemberId: 'rn-1',
@@ -268,7 +269,7 @@ void main() {
 
   testWidgets('Ctrl-drop copies a Shift code to another day', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     final nextDay = DateTime(2026, 9, 19);
     await manager.saveCell(
       SaveCell(
@@ -311,7 +312,7 @@ void main() {
 
   testWidgets('phone long press picks up a shift', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     final nextDay = DateTime(2026, 9, 19);
     await manager.saveCell(
       SaveCell(
@@ -353,7 +354,7 @@ void main() {
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     final nextDay = DateTime(2026, 9, 19);
     await manager.saveCell(
       SaveCell(
@@ -484,7 +485,7 @@ void main() {
   testWidgets('pool band fill distinguishes covered, short 1, and short 4', (
     tester,
   ) async {
-    final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    final shifts = database.openShiftStoreFor('manager');
     await shifts.setDateMinimum(
       CoveragePool.cna,
       CoverageWindow.day,
@@ -578,7 +579,7 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {september},
     );
-    final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    final shifts = database.openShiftStoreFor('manager');
     for (final pool in CoveragePool.values) {
       await shifts.setDateMinimum(
         pool,
@@ -677,7 +678,7 @@ void main() {
   testWidgets(
     'Staff member lands on their changed shifts and opens full grid',
     (tester) async {
-      final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+      final manager = scheduleRulesInMemory(database, actingAs: 'manager');
       await manager.saveCell(
         SaveCell(
           staffMemberId: 'rn-1',
@@ -712,7 +713,7 @@ void main() {
   testWidgets('Staff member sees no highlight after a shift is restored', (
     tester,
   ) async {
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     await manager.saveCell(
       SaveCell(
         staffMemberId: 'rn-1',
@@ -782,7 +783,7 @@ void main() {
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     await manager.saveCell(
       SaveCell(
         staffMemberId: 'rn-1',
@@ -820,7 +821,7 @@ void main() {
 
   testWidgets('failed drop Undo shows retry wording', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     await manager.saveCell(
       SaveCell(
         staffMemberId: 'rn-1',
@@ -894,7 +895,7 @@ void main() {
 
   testWidgets('missing previous Schedule is explained', (tester) async {
     final december = DateTime(2026, 12);
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     await manager.startEmptyMonth(DateTime(2026, 11));
     await pumpGrid(tester, month: december);
     expect(find.text('Start from November'), findsOneWidget);
@@ -911,7 +912,7 @@ void main() {
     tester,
   ) async {
     final october = DateTime(2026, 10);
-    await ScheduleRules.inMemory(
+    await scheduleRulesInMemory(
       database,
       actingAs: 'manager',
     ).startEmptyMonth(october);
@@ -932,7 +933,7 @@ void main() {
     tester,
   ) async {
     final october = DateTime(2026, 10);
-    await ScheduleRules.inMemory(
+    await scheduleRulesInMemory(
       database,
       actingAs: 'manager',
     ).startEmptyMonth(october);
@@ -971,7 +972,7 @@ void main() {
   });
 
   testWidgets('undo restores the published value', (tester) async {
-    final setup = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final setup = scheduleRulesInMemory(database, actingAs: 'manager');
     await setup.saveCell(
       SaveCell(
         staffMemberId: 'rn-1',
@@ -1010,15 +1011,14 @@ void main() {
     await pumpGrid(tester);
 
     await tester.runAsync(
-      () =>
-          ScheduleRules.inMemory(database, actingAs: 'other-manager').saveCell(
-            SaveCell(
-              staffMemberId: 'rn-2',
-              sectionId: 'nights',
-              date: september18,
-              shiftCode: 'N',
-            ),
-          ),
+      () => scheduleRulesInMemory(database, actingAs: 'other-manager').saveCell(
+        SaveCell(
+          staffMemberId: 'rn-2',
+          sectionId: 'nights',
+          date: september18,
+          shiftCode: 'N',
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -1111,13 +1111,15 @@ void main() {
   testWidgets('Day view and Staffing sheet show the mixed RN Shortfall', (
     tester,
   ) async {
-    await OpenShiftRules(database.openShiftStoreFor('manager')).setDateMinimum(
-      CoveragePool.nurses,
-      CoverageWindow.day,
-      september18,
-      2,
-      1,
-    );
+    await database
+        .openShiftStoreFor('manager')
+        .setDateMinimum(
+          CoveragePool.nurses,
+          CoverageWindow.day,
+          september18,
+          2,
+          1,
+        );
     await pumpGrid(tester, withStaffing: true, now: () => september18);
     await tester.tap(find.text('Day'));
     await tester.pumpAndSettle();
@@ -1151,7 +1153,7 @@ void main() {
   testWidgets('after a Last day the row ends and the hole shows short', (
     tester,
   ) async {
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     await manager.saveCell(
       SaveCell(
         staffMemberId: 'rn-1',
@@ -1160,23 +1162,27 @@ void main() {
         shiftCode: '7A',
       ),
     );
-    await manager.setLastDay(
+    await manager.store.setLastDay(
       SetLastDay(staffMemberId: 'rn-1', lastDay: september18),
     );
-    await OpenShiftRules(database.openShiftStoreFor('manager')).setDateMinimum(
-      CoveragePool.nurses,
-      CoverageWindow.day,
-      DateTime(2026, 9, 20),
-      1,
-      0,
-    );
-    await OpenShiftRules(database.openShiftStoreFor('manager')).setDateMinimum(
-      CoveragePool.nurses,
-      CoverageWindow.night,
-      DateTime(2026, 9, 20),
-      0,
-      0,
-    );
+    await database
+        .openShiftStoreFor('manager')
+        .setDateMinimum(
+          CoveragePool.nurses,
+          CoverageWindow.day,
+          DateTime(2026, 9, 20),
+          1,
+          0,
+        );
+    await database
+        .openShiftStoreFor('manager')
+        .setDateMinimum(
+          CoveragePool.nurses,
+          CoverageWindow.night,
+          DateTime(2026, 9, 20),
+          0,
+          0,
+        );
 
     await pumpGrid(tester, withStaffing: true);
 
@@ -1214,7 +1220,7 @@ void main() {
 
   group('building next month', () {
     setUp(() async {
-      await ScheduleRules.inMemory(database, actingAs: 'manager').saveCell(
+      await scheduleRulesInMemory(database, actingAs: 'manager').saveCell(
         SaveCell(
           staffMemberId: 'rn-1',
           sectionId: 'days',
@@ -1287,7 +1293,7 @@ void main() {
     testWidgets('an unpublished cell edit refreshes the nursing marker', (
       tester,
     ) async {
-      final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+      final manager = scheduleRulesInMemory(database, actingAs: 'manager');
       await manager.startNextMonth(september);
       final day = DateTime(2026, 10, 16);
       await pumpGrid(tester, month: DateTime(2026, 10), withStaffing: true);
@@ -1311,7 +1317,7 @@ void main() {
     testWidgets('staff do not see a month before it is released', (
       tester,
     ) async {
-      await ScheduleRules.inMemory(
+      await scheduleRulesInMemory(
         database,
         actingAs: 'manager',
       ).startNextMonth(september);
@@ -1365,8 +1371,8 @@ void main() {
     tester,
   ) async {
     final month = DateTime(2026, 10);
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
-    final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
+    final shifts = database.openShiftStoreFor('manager');
     await manager.startEmptyMonth(month);
     for (var weekday = 0; weekday < 7; weekday++) {
       for (final window in CoverageWindow.values) {
@@ -1417,11 +1423,11 @@ void main() {
     tester,
   ) async {
     final month = DateTime(2026, 10);
-    await ScheduleRules.inMemory(
+    await scheduleRulesInMemory(
       database,
       actingAs: 'manager',
     ).startEmptyMonth(month);
-    final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    final shifts = database.openShiftStoreFor('manager');
     for (var weekday = 0; weekday < 7; weekday++) {
       for (final window in CoverageWindow.values) {
         await shifts.setWeekdayMinimum(
@@ -1453,7 +1459,7 @@ void main() {
     tester,
   ) async {
     database.loadFromPage(september, const []);
-    final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    final shifts = database.openShiftStoreFor('manager');
     for (var weekday = 0; weekday < 7; weekday++) {
       for (final window in CoverageWindow.values) {
         await shifts.setWeekdayMinimum(

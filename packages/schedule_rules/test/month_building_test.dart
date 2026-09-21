@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
 
@@ -24,7 +25,7 @@ void main() {
       rows: const [dayNurse, nightNurse],
       editors: {'manager'},
     );
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
   });
 
   Future<void> save(ScheduleRow row, DateTime date, String code) {
@@ -146,13 +147,10 @@ void main() {
       final grid = await manager.monthGrid(DateTime(2026, 11));
       String code(ScheduleRow row, int day) =>
           grid.shiftCodeFor(row.staffMemberId, DateTime(2026, 11, day)) ?? '';
-      expect([for (var day = 2; day <= 6; day++) code(dayNurse, day)], [
-        '',
-        '',
-        '',
-        '',
-        '4P-8A',
-      ]);
+      expect(
+        [for (var day = 2; day <= 6; day++) code(dayNurse, day)],
+        ['', '', '', '', '4P-8A'],
+      );
       expect(code(nightNurse, 2), 'N');
       expect(code(nightNurse, 3), 'X');
     });
@@ -192,7 +190,7 @@ void main() {
 
     test('only the Manager may start a month', () async {
       await save(dayNurse, DateTime(2026, 10, 5), '7A');
-      final staffMember = ScheduleRules.inMemory(database, actingAs: 'rn-1');
+      final staffMember = scheduleRulesInMemory(database, actingAs: 'rn-1');
 
       await expectLater(
         staffMember.startNextMonth(DateTime(2026, 10)),
@@ -206,24 +204,28 @@ void main() {
   });
 
   group('Start empty month', () {
-    test('creates a dated unpublished grid with current rows and no codes', () async {
-      final month = DateTime(2026, 10);
-      await manager.startEmptyMonth(month);
+    test(
+      'creates a dated unpublished grid with current rows and no codes',
+      () async {
+        final month = DateTime(2026, 10);
+        await manager.startEmptyMonth(month);
 
-      final grid = await manager.monthGrid(month);
-      expect(grid.status, MonthStatus.unpublished);
-      expect(grid.days, hasLength(31));
-      expect(grid.rows.map((row) => row.staffMemberId), ['rn-1', 'rn-2']);
-      expect(grid.shiftCodeFor('rn-1', DateTime(2026, 10, 16)), isNull);
+        final grid = await manager.monthGrid(month);
+        expect(grid.status, MonthStatus.unpublished);
+        expect(grid.days, hasLength(31));
+        expect(grid.rows.map((row) => row.staffMemberId), ['rn-1', 'rn-2']);
+        expect(grid.shiftCodeFor('rn-1', DateTime(2026, 10, 16)), isNull);
 
-      await save(dayNurse, DateTime(2026, 10, 16), '7A');
-      await manager.releaseMonth(month);
-      expect((await manager.monthGrid(month)).status, MonthStatus.released);
-      expect(
-        (await manager.monthGrid(month)).shiftCodeFor('rn-1', DateTime(2026, 10, 16)),
-        '7A',
-      );
-    });
+        await save(dayNurse, DateTime(2026, 10, 16), '7A');
+        await manager.store.releaseMonth(month);
+        expect((await manager.monthGrid(month)).status, MonthStatus.released);
+        expect(
+          (await manager.monthGrid(month))
+              .shiftCodeFor('rn-1', DateTime(2026, 10, 16)),
+          '7A',
+        );
+      },
+    );
 
     test('does not copy codes when the previous month exists', () async {
       await save(dayNurse, DateTime(2026, 9, 18), '4P-8A');
@@ -235,21 +237,24 @@ void main() {
       );
     });
 
-    test('refuses an already started month without changing its cells', () async {
-      await save(dayNurse, DateTime(2026, 10, 16), 'D');
-      await expectLater(
-        manager.startEmptyMonth(DateTime(2026, 10)),
-        throwsA(isA<MonthAlreadyStarted>()),
-      );
-      expect(
-        (await manager.monthGrid(DateTime(2026, 10)))
-            .shiftCodeFor('rn-1', DateTime(2026, 10, 16)),
-        'D',
-      );
-    });
+    test(
+      'refuses an already started month without changing its cells',
+      () async {
+        await save(dayNurse, DateTime(2026, 10, 16), 'D');
+        await expectLater(
+          manager.startEmptyMonth(DateTime(2026, 10)),
+          throwsA(isA<MonthAlreadyStarted>()),
+        );
+        expect(
+          (await manager.monthGrid(DateTime(2026, 10)))
+              .shiftCodeFor('rn-1', DateTime(2026, 10, 16)),
+          'D',
+        );
+      },
+    );
 
     test('only the Manager may start an empty month', () async {
-      final staffMember = ScheduleRules.inMemory(database, actingAs: 'rn-1');
+      final staffMember = scheduleRulesInMemory(database, actingAs: 'rn-1');
       await expectLater(
         staffMember.startEmptyMonth(DateTime(2026, 10)),
         throwsA(isA<ScheduleEditRefused>()),
@@ -268,7 +273,7 @@ void main() {
     });
 
     test('makes the month live in one step', () async {
-      await manager.releaseMonth(DateTime(2026, 11));
+      await manager.store.releaseMonth(DateTime(2026, 11));
 
       final grid = await manager.monthGrid(DateTime(2026, 11));
       expect(grid.status, MonthStatus.released);
@@ -277,7 +282,7 @@ void main() {
     test('edits made while building it need no announcement', () async {
       await save(dayNurse, DateTime(2026, 11, 2), 'D');
 
-      await manager.releaseMonth(DateTime(2026, 11));
+      await manager.store.releaseMonth(DateTime(2026, 11));
 
       final grid = await manager.monthGrid(DateTime(2026, 11));
       expect(grid.shiftCodeFor('rn-1', DateTime(2026, 11, 2)), 'D');
@@ -285,26 +290,26 @@ void main() {
     });
 
     test('a released month is not released again', () async {
-      await manager.releaseMonth(DateTime(2026, 11));
+      await manager.store.releaseMonth(DateTime(2026, 11));
 
       await expectLater(
-        manager.releaseMonth(DateTime(2026, 11)),
+        manager.store.releaseMonth(DateTime(2026, 11)),
         throwsA(isA<StateError>()),
       );
     });
 
     test('a month that was never started cannot be released', () async {
       await expectLater(
-        manager.releaseMonth(DateTime(2026, 12)),
+        manager.store.releaseMonth(DateTime(2026, 12)),
         throwsA(isA<StateError>()),
       );
     });
 
     test('only the Manager may release a month', () async {
-      final staffMember = ScheduleRules.inMemory(database, actingAs: 'rn-1');
+      final staffMember = scheduleRulesInMemory(database, actingAs: 'rn-1');
 
       await expectLater(
-        staffMember.releaseMonth(DateTime(2026, 11)),
+        staffMember.store.releaseMonth(DateTime(2026, 11)),
         throwsA(isA<ScheduleEditRefused>()),
       );
       expect(
@@ -318,10 +323,10 @@ void main() {
     database.loadFromPage(DateTime(2026, 12), const []);
 
     await expectLater(
-      manager.releaseMonth(DateTime(2026, 12)),
+      manager.store.releaseMonth(DateTime(2026, 12)),
       throwsA(isA<StateError>()),
     );
-    await manager.confirmLoadedMonth(DateTime(2026, 12));
+    await manager.store.confirmLoadedMonth(DateTime(2026, 12));
 
     expect(
       (await manager.monthGrid(DateTime(2026, 12))).status,

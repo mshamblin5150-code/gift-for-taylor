@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
 
@@ -7,7 +8,7 @@ void main() {
   final ninth = DateTime(2026, 10, 9);
   final fourteenth = DateTime(2026, 10, 14);
 
-  Future<MonthGrid> grid() => ScheduleRules.inMemory(
+  Future<MonthGrid> grid() => scheduleRulesInMemory(
     InMemoryScheduleDatabase(sections: const []),
     actingAs: 'manager',
   ).monthGrid(month);
@@ -155,9 +156,10 @@ void main() {
         sections: const [],
         releasedMonths: {month},
       );
-      await OpenShiftRules(database.openShiftStoreFor('manager'))
+      await database
+          .openShiftStoreFor('manager')
           .postOpenShifts(fourteenth, '7A', CoveragePool.nurses, 1);
-      final olderGrid = await ScheduleRules.inMemory(
+      final olderGrid = await scheduleRulesInMemory(
         database,
         actingAs: 'manager',
       ).monthGrid(month);

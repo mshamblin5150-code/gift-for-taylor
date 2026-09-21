@@ -44,7 +44,7 @@ class _RequestsOffPageState extends State<RequestsOffPage> {
 
   Future<void> _openPage() async {
     try {
-      await widget.rules.acknowledgeRequestOffNotices();
+      await widget.rules.store.acknowledgeRequestOffNotices();
     } catch (_) {
       // The queue and history are still useful if acknowledging fails.
     }
@@ -55,9 +55,9 @@ class _RequestsOffPageState extends State<RequestsOffPage> {
     try {
       final requests = widget.isManager
           ? _showHistory
-                ? await widget.rules.requestOffHistory()
-                : await widget.rules.approvalQueue()
-          : await widget.rules.myRequestsOff();
+                ? await widget.rules.store.requestsOff(pendingOnly: false)
+                : await widget.rules.store.requestsOff(pendingOnly: true)
+          : await widget.rules.store.requestsOff(pendingOnly: false);
       if (mounted) {
         setState(() {
           _requests = requests;
@@ -183,10 +183,10 @@ class _RequestsOffPageState extends State<RequestsOffPage> {
     reason.dispose();
     if (confirmed != true) return;
     try {
-      await widget.rules.decideRequestOff(
+      await widget.rules.store.decideRequestOff(
         request.id,
         decision,
-        reason: explanation,
+        explanation.trim(),
       );
       await _reload();
     } catch (_) {
@@ -203,7 +203,7 @@ class _RequestsOffPageState extends State<RequestsOffPage> {
 
   Future<void> _confirmEmail(RequestOff request) async {
     try {
-      await widget.rules.confirmRequestOffEmail(request.id);
+      await widget.rules.store.confirmRequestOffEmail(request.id);
       await _reload();
     } catch (_) {
       if (!mounted) return;

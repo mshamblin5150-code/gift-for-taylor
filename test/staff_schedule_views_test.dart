@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,13 +36,13 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {month},
     );
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     for (final (code, start, end) in [
       ('7P', '19:00', '07:00'),
       ('N', '23:00', '07:00'),
       ('D', '07:00', '15:00'),
     ]) {
-      await manager.saveShiftCode(
+      await manager.store.saveShiftCode(
         LegendCode(code, startTime: start, endTime: end, isWorking: true),
       );
     }
@@ -77,7 +78,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           access: database.accessFor(actingAs),
-          rules: ScheduleRules.inMemory(database, actingAs: actingAs),
+          rules: scheduleRulesInMemory(database, actingAs: actingAs),
           month: month,
           staffMemberId: staffMemberId,
           swapStaffMemberId: swapStaffMemberId,

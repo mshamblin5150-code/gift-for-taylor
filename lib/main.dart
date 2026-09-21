@@ -13,8 +13,6 @@ import 'schedule/supabase_schedule_store.dart';
 import 'schedule/supabase_swap_store.dart';
 import 'schedule/supabase_open_shift_store.dart';
 
-import 'package:schedule_rules/schedule_rules.dart';
-
 import 'staff/invite_composer.dart';
 import 'staff/staff_gateway.dart';
 import 'settings/appearance.dart';
@@ -49,8 +47,8 @@ Future<void> main() async {
         onSignedOut: () => repairClient.isMaintainer = false,
       ),
       scheduleStore: SupabaseScheduleStore(client),
-      swapRules: SwapRules(SupabaseSwapStore(client)),
-      openShiftRules: OpenShiftRules(SupabaseOpenShiftStore(client)),
+      swapStore: SupabaseSwapStore(client),
+      openShiftStore: SupabaseOpenShiftStore(client),
       staffGateway: SupabaseStaffGateway(
         client,
         onAccessLoaded: (access) =>

@@ -1,3 +1,5 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
+
 import 'dart:io';
 
 import 'package:schedule_book/schedule_book.dart';
@@ -13,7 +15,7 @@ Future<void> main(List<String> args) async {
         sectionId: 'days',
       ),
   ];
-  final rules = ScheduleRules.inMemory(
+  final rules = scheduleRulesInMemory(
     InMemoryScheduleDatabase(sections: const [section], rows: rows),
     actingAs: 'manager',
   );
@@ -31,7 +33,13 @@ Future<void> main(List<String> args) async {
   }
   final layout = await prepareBookPage(
     await rules.monthGrid(DateTime(2026, 9)),
-    codes: [...shiftLegend, const LegendCode('LONG', meaning: 'A long Shift code meaning that stays searchable in the printed Schedule book')],
+    codes: [
+      ...shiftLegend,
+      const LegendCode(
+        'LONG',
+        meaning: 'A long Shift code meaning that stays searchable in the printed Schedule book',
+      ),
+    ],
   );
   await File(args[1]).writeAsBytes(await layout.renderPdf());
 }

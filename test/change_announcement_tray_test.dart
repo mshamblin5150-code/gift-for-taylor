@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/messages_composer.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +36,7 @@ void main() {
   });
 
   Future<void> save(ScheduleRow row, String code) {
-    return ScheduleRules.inMemory(database, actingAs: 'manager').saveCell(
+    return scheduleRulesInMemory(database, actingAs: 'manager').saveCell(
       SaveCell(
         staffMemberId: row.staffMemberId,
         sectionId: row.sectionId,
@@ -57,7 +58,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           access: database.accessFor(actingAs),
-          rules: ScheduleRules.inMemory(database, actingAs: actingAs),
+          rules: scheduleRulesInMemory(database, actingAs: actingAs),
           month: september,
           messagesComposer: messages,
           now: now,
@@ -259,7 +260,7 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {september, october},
     );
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     await manager.saveCell(
       SaveCell(
         staffMemberId: unreachable.staffMemberId,

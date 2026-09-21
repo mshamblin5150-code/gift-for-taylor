@@ -1,3 +1,5 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
+
 import 'dart:async';
 
 import 'package:er_schedule/schedule/month_session.dart';
@@ -49,13 +51,12 @@ final class _ObservedRules extends Fake implements ScheduleRules {
   bool? acknowledged;
   String? releaseCall;
   Completer<void>? pairGate;
+  @override
+  late final ScheduleStore store = _ObservedStore(this, delegate.store);
 
   @override
   Future<MonthGrid> monthGrid(DateTime month) =>
       gridRead?.future ?? delegate.monthGrid(month);
-
-  @override
-  Future<List<LegendCode>> shiftCodes() => delegate.shiftCodes();
 
   @override
   Future<ChangeAnnouncement> changeAnnouncement(DateTime month) {
@@ -78,14 +79,24 @@ final class _ObservedRules extends Fake implements ScheduleRules {
     changedOn: changedOn,
     unreachedOnly: unreachedOnly,
   );
+}
+
+final class _ObservedStore extends Fake implements ScheduleStore {
+  _ObservedStore(this.rules, this.delegate);
+
+  final _ObservedRules rules;
+  final ScheduleStore delegate;
+
+  @override
+  Future<List<LegendCode>> shiftCodes() => delegate.shiftCodes();
 
   @override
   Stream<void> monthUpdates(DateTime month) => delegate.monthUpdates(month);
 
   @override
-  Future<void> saveCellPair(SaveCellPair action) async {
-    await pairGate?.future;
-    await delegate.saveCellPair(action);
+  Future<void> writeCellPair(SaveCellPair action) async {
+    await rules.pairGate?.future;
+    await delegate.writeCellPair(action);
   }
 
   @override
@@ -93,8 +104,8 @@ final class _ObservedRules extends Fake implements ScheduleRules {
     DateTime month, {
     bool acknowledgeShortfalls = false,
   }) {
-    acknowledged = acknowledgeShortfalls;
-    releaseCall = 'built';
+    rules.acknowledged = acknowledgeShortfalls;
+    rules.releaseCall = 'built';
     return delegate.releaseMonth(
       month,
       acknowledgeShortfalls: acknowledgeShortfalls,
@@ -106,8 +117,8 @@ final class _ObservedRules extends Fake implements ScheduleRules {
     DateTime month, {
     bool acknowledgeShortfalls = false,
   }) {
-    acknowledged = acknowledgeShortfalls;
-    releaseCall = 'loaded';
+    rules.acknowledged = acknowledgeShortfalls;
+    rules.releaseCall = 'loaded';
     return delegate.confirmLoadedMonth(
       month,
       acknowledgeShortfalls: acknowledgeShortfalls,
@@ -135,7 +146,7 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {month},
     );
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
     openShifts = _OpenShifts();
   });
 
@@ -149,9 +160,9 @@ void main() {
     MonthSessionTimerFactory? timerFactory,
     void Function()? onAccessRejected,
   }) => MonthSession(
-    rules: rules ?? ScheduleRules.inMemory(database, actingAs: viewer),
+    rules: rules ?? scheduleRulesInMemory(database, actingAs: viewer),
     access: database.accessFor(viewer),
-    openShiftRules: OpenShiftRules(openShifts),
+    openShiftStore: openShifts,
     month: viewingMonth ?? month,
     now: now ?? () => DateTime(2026, 9, 18),
     timerFactory: timerFactory,
@@ -159,12 +170,12 @@ void main() {
   );
 
   test('first load reads the Schedule and its adjuncts', () async {
-    await manager.saveShiftCode(const LegendCode('7A', hours: '7A-7P'));
+    await manager.store.saveShiftCode(const LegendCode('7A', hours: '7A-7P'));
     final session = MonthSession(
       rules: manager,
       access: database.accessFor('manager'),
       month: month,
-      openShiftRules: OpenShiftRules(openShifts),
+      openShiftStore: openShifts,
       now: () => DateTime(2026, 9, 18),
     );
     await session.load();
@@ -336,7 +347,7 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {month, october},
     );
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
     await manager.saveCell(
       SaveCell(
         staffMemberId: alice.staffMemberId,
@@ -379,7 +390,7 @@ void main() {
         ),
       );
       final rules = _ObservedRules(
-        ScheduleRules.inMemory(database, actingAs: 'alice'),
+        scheduleRulesInMemory(database, actingAs: 'alice'),
         failAnnouncement: true,
       );
       final session = create(viewer: 'alice', rules: rules);

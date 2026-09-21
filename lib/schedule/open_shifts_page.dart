@@ -14,7 +14,7 @@ class OpenShiftsPage extends StatefulWidget {
     required this.isManager,
     this.onApprovalSettings,
   });
-  final OpenShiftRules rules;
+  final OpenShiftStore rules;
   final ScheduleRules scheduleRules;
   final DateTime month;
   final String? staffMemberId;

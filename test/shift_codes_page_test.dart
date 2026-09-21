@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/shift_codes_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +13,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final rules = ScheduleRules.inMemory(
+      final rules = scheduleRulesInMemory(
         InMemoryScheduleDatabase(
           sections: const [],
           editors: const {'manager'},
@@ -94,7 +95,7 @@ void main() {
       );
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
-      final saved = (await rules.shiftCodes()).singleWhere(
+      final saved = (await rules.store.shiftCodes()).singleWhere(
         (code) => code.code == 'NIGHT',
       );
       expect(saved.startTime, '19:00');
@@ -151,7 +152,7 @@ void main() {
       await pick('Starts', '20', '15');
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
-      final edited = (await rules.shiftCodes()).singleWhere(
+      final edited = (await rules.store.shiftCodes()).singleWhere(
         (code) => code.code == 'NIGHT',
       );
       expect(edited.startTime, '20:15');
@@ -162,7 +163,7 @@ void main() {
   testWidgets('Manager can type Shift code times and must enter both', (
     tester,
   ) async {
-    final rules = ScheduleRules.inMemory(
+    final rules = scheduleRulesInMemory(
       InMemoryScheduleDatabase(sections: const [], editors: const {'manager'}),
       actingAs: 'manager',
     );
@@ -184,7 +185,7 @@ void main() {
     );
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    final saved = (await rules.shiftCodes()).singleWhere(
+    final saved = (await rules.store.shiftCodes()).singleWhere(
       (code) => code.code == 'LATE',
     );
     expect(saved.startTime, '19:30');
@@ -194,7 +195,7 @@ void main() {
   testWidgets('pasted overlong code and meaning are refused on save', (
     tester,
   ) async {
-    final rules = ScheduleRules.inMemory(
+    final rules = scheduleRulesInMemory(
       InMemoryScheduleDatabase(sections: const [], editors: const {'manager'}),
       actingAs: 'manager',
     );
@@ -223,8 +224,10 @@ void main() {
       sections: const [],
       editors: const {'manager'},
     );
-    final rules = ScheduleRules.inMemory(database, actingAs: 'manager');
-    await rules.saveShiftCode(const LegendCode('CUSTOM', isWorking: true));
+    final rules = scheduleRulesInMemory(database, actingAs: 'manager');
+    await rules.store.saveShiftCode(
+      const LegendCode('CUSTOM', isWorking: true),
+    );
 
     await tester.pumpWidget(MaterialApp(home: ShiftCodesPage(rules: rules)));
     await tester.pumpAndSettle();

@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/settings/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,8 +13,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
-          scheduleRules: ScheduleRules.inMemory(database, actingAs: 'manager'),
-          openShiftRules: OpenShiftRules(database.openShiftStoreFor('manager')),
+          scheduleRules: scheduleRulesInMemory(database, actingAs: 'manager'),
+          openShiftStore: database.openShiftStoreFor('manager'),
           access: Access(grants: Grants(administrator: true)),
         ),
       ),

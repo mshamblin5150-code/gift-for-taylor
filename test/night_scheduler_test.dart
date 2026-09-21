@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,7 +39,7 @@ void main() {
       releasedMonths: {september},
       clock: () => now,
     );
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
   });
 
   Future<void> pumpGrid(
@@ -53,7 +54,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           access: database.accessFor(actingAs),
-          rules: ScheduleRules.inMemory(database, actingAs: actingAs),
+          rules: scheduleRulesInMemory(database, actingAs: actingAs),
           month: month ?? september,
         ),
       ),
@@ -79,7 +80,7 @@ void main() {
   testWidgets('the Night scheduler edits only assigned Sections', (
     tester,
   ) async {
-    await manager.assignNightScheduler('rn-3', {'nights'});
+    await manager.store.assignNightScheduler('rn-3', {'nights'});
     await pumpGrid(tester, actingAs: 'rn-3');
 
     expect(find.byTooltip('Night scheduler'), findsNothing);
@@ -109,7 +110,7 @@ void main() {
   testWidgets(
     'the Night scheduler drafts assigned Sections before Month release',
     (tester) async {
-      await manager.assignNightScheduler('rn-3', {'nights'});
+      await manager.store.assignNightScheduler('rn-3', {'nights'});
       final october = DateTime(2026, 10);
       await manager.startEmptyMonth(october);
       final october16 = DateTime(2026, 10, 16);
@@ -147,10 +148,10 @@ void main() {
   );
 
   testWidgets('the Manager filters the change log by person', (tester) async {
-    await manager.assignNightScheduler('rn-3', {'nights'});
+    await manager.store.assignNightScheduler('rn-3', {'nights'});
     await save(manager, dayNurse, '7A');
     await save(
-      ScheduleRules.inMemory(database, actingAs: 'rn-3'),
+      scheduleRulesInMemory(database, actingAs: 'rn-3'),
       nightNurse,
       'N',
     );

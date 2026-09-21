@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -47,7 +48,7 @@ void main() {
         home: MonthGridPage(
           access: database.accessFor(person),
           key: ValueKey('$person-${month ?? september}'),
-          rules: ScheduleRules.inMemory(database, actingAs: person),
+          rules: scheduleRulesInMemory(database, actingAs: person),
           viewerId: person,
           month: month ?? september,
         ),

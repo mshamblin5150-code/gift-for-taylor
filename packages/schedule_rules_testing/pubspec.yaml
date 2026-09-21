@@ -1,5 +1,5 @@
-name: schedule_book
-description: Measured Schedule book PDF layout.
+name: schedule_rules_testing
+description: In-memory Schedule stores for tests.
 version: 1.0.0
 publish_to: none
 environment:
@@ -7,9 +7,6 @@ environment:
 dependencies:
   schedule_rules:
     path: ../schedule_rules
-  pdf: ^3.13.1
 dev_dependencies:
-  schedule_rules_testing:
-    path: ../schedule_rules_testing
   lints: ^6.0.0
   test: ^1.25.6

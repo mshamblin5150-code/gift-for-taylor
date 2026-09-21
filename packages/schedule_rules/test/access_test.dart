@@ -1,3 +1,5 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -108,9 +110,9 @@ void main() {
         grants: {'staff': Grants(administrator: true)},
         maintainerId: 'maintainer',
       );
-      final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
-      final staff = ScheduleRules.inMemory(database, actingAs: 'staff');
-      await manager.assignNightScheduler('staff', {'nights'});
+      final manager = scheduleRulesInMemory(database, actingAs: 'manager');
+      final staff = scheduleRulesInMemory(database, actingAs: 'staff');
+      await manager.store.assignNightScheduler('staff', {'nights'});
       expect(database.accessFor('staff').grants.administrator, isTrue);
       expect(database.accessFor('staff').canRunSchedule, isFalse);
       expect(database.accessFor('staff').canEditSection('nights'), isTrue);
@@ -134,7 +136,7 @@ void main() {
         ),
         throwsA(isA<ScheduleEditRefused>()),
       );
-      await manager.removeNightScheduler('staff');
+      await manager.store.removeNightScheduler('staff');
       expect(database.accessFor('staff').grants.administrator, isTrue);
       expect(
         database.accessFor('staff').grants.nightSchedulerSectionIds,
@@ -150,8 +152,8 @@ void main() {
       sections: const [],
       editors: const {'manager'},
     );
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
-    await manager.assignNightScheduler('manager', {'nights'});
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
+    await manager.store.assignNightScheduler('manager', {'nights'});
     expect(database.accessFor('manager').canRunSchedule, isTrue);
     expect(database.accessFor('manager').canEditSection('days'), isTrue);
   });

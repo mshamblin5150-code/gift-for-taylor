@@ -446,6 +446,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  schedule_rules_testing:
+    dependency: "direct dev"
+    description:
+      path: "packages/schedule_rules_testing"
+      relative: true
+    source: path
+    version: "1.0.0"
   shared_preferences:
     dependency: "direct main"
     description:

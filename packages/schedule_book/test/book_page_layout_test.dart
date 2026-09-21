@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_book/schedule_book.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
@@ -20,7 +21,7 @@ Future<MonthGrid> grid({
         sectionId: groups[i % sections].id,
       ),
   ];
-  final rules = ScheduleRules.inMemory(
+  final rules = scheduleRulesInMemory(
     InMemoryScheduleDatabase(sections: groups, rows: rows),
     actingAs: 'manager',
   );

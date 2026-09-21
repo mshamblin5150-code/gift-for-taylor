@@ -10,7 +10,7 @@ class SwapsPage extends StatefulWidget {
   const SwapsPage({
     super.key,
     required this.rules,
-    required this.swapRules,
+    required this.swapStore,
     required this.month,
     required this.staffMemberId,
     required this.isManager,
@@ -18,7 +18,7 @@ class SwapsPage extends StatefulWidget {
   });
 
   final ScheduleRules rules;
-  final SwapRules swapRules;
+  final SwapStore swapStore;
   final DateTime month;
   final String? staffMemberId;
   final bool isManager;
@@ -36,7 +36,7 @@ class _SwapsPageState extends State<SwapsPage> {
   @override
   void initState() {
     super.initState();
-    _updates = widget.swapRules.updates().listen((_) => _refresh());
+    _updates = widget.swapStore.updates().listen((_) => _refresh());
   }
 
   @override
@@ -47,7 +47,7 @@ class _SwapsPageState extends State<SwapsPage> {
 
   Future<(MonthGrid, List<Swap>)> _load() async => (
     await widget.rules.monthGrid(widget.month),
-    await widget.swapRules.swaps(),
+    await widget.swapStore.swaps(),
   );
 
   void _refresh() => setState(() => _data = _load());
@@ -72,7 +72,7 @@ class _SwapsPageState extends State<SwapsPage> {
   Future<void> _propose(MonthGrid grid) async {
     final me = widget.staffMemberId;
     if (me == null) return;
-    final codes = await widget.rules.shiftCodes();
+    final codes = await widget.rules.store.shiftCodes();
     if (!mounted) return;
     final colleagues = grid.rows
         .where((row) => row.staffMemberId != me && row.cellNumber != null)
@@ -201,7 +201,10 @@ class _SwapsPageState extends State<SwapsPage> {
     Swap? proposed;
     await _run(() async {
       final (row, myDate, theirDate) = choice;
-      proposed = await widget.swapRules.propose(
+      if (row.staffMemberId.isEmpty) {
+        throw ArgumentError('Choose a colleague');
+      }
+      proposed = await widget.swapStore.proposeSwap(
         row.staffMemberId,
         myDate,
         theirDate,
@@ -274,7 +277,11 @@ class _SwapsPageState extends State<SwapsPage> {
     controller.dispose();
     if (reason == null) return;
     await _run(
-      () => widget.swapRules.answer(swap.id, accept: accept, reason: reason),
+      () => widget.swapStore.answerSwap(
+        swap.id,
+        accept: accept,
+        reason: reason.trim(),
+      ),
     );
   }
 
@@ -344,7 +351,7 @@ class _SwapsPageState extends State<SwapsPage> {
                       : swap.status == SwapStatus.accepted && widget.isManager
                       ? FilledButton(
                           onPressed: () =>
-                              _run(() => widget.swapRules.approve(swap.id)),
+                              _run(() => widget.swapStore.approveSwap(swap.id)),
                           child: const Text('Approve'),
                         )
                       : swap.status == SwapStatus.proposed &&

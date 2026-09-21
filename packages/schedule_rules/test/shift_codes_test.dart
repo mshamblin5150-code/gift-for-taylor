@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
 
@@ -20,7 +21,7 @@ void main() {
         editors: const {'manager'},
         releasedMonths: {month},
       );
-      final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+      final manager = scheduleRulesInMemory(database, actingAs: 'manager');
       await manager.saveCell(
         SaveCell(
           staffMemberId: 'nurse',
@@ -30,7 +31,7 @@ void main() {
         ),
       );
 
-      await manager.saveShiftCode(
+      await manager.store.saveShiftCode(
         const LegendCode(
           '7A',
           startTime: '08:00',
@@ -43,20 +44,20 @@ void main() {
       final grid = await manager.monthGrid(month);
       expect(grid.shiftCodeFor('nurse', day), '7A');
       expect(
-        (await manager.shiftCodes())
+        (await manager.store.shiftCodes())
             .firstWhere((code) => code.code == '7A')
             .hours,
         '8A–8P',
       );
       expect(
-        (await manager.shiftCodes())
+        (await manager.store.shiftCodes())
             .firstWhere((code) => code.code == '7A')
             .isWorking,
         isTrue,
       );
-      await expectLater(manager.deleteShiftCode('7A'), throwsStateError);
+      await expectLater(manager.store.deleteShiftCode('7A'), throwsStateError);
 
-      await manager.saveShiftCode(
+      await manager.store.saveShiftCode(
         const LegendCode(
           'DAY',
           startTime: '09:00',
@@ -67,11 +68,11 @@ void main() {
       );
       expect((await manager.monthGrid(month)).shiftCodeFor('nurse', day), '7A');
       expect(
-        (await manager.shiftCodes()).any((code) => code.code == 'DAY'),
+        (await manager.store.shiftCodes()).any((code) => code.code == 'DAY'),
         isTrue,
       );
       expect(
-        (await manager.shiftCodes()).any((code) => code.code == '7A'),
+        (await manager.store.shiftCodes()).any((code) => code.code == '7A'),
         isFalse,
       );
     },
@@ -83,22 +84,25 @@ void main() {
       rows: const [row],
       editors: const {'manager'},
     );
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
-    await manager.saveShiftCode(
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
+    await manager.store.saveShiftCode(
       const LegendCode('CUSTOM', meaning: 'Training', isWorking: false),
     );
     expect(
-      isWorkingShift('CUSTOM', codes: await manager.shiftCodes()),
+      isWorkingShift('CUSTOM', codes: await manager.store.shiftCodes()),
       isFalse,
     );
-    await manager.saveShiftCode(
+    await manager.store.saveShiftCode(
       const LegendCode('CUSTOM', meaning: 'Coverage', isWorking: true),
       originalCode: 'CUSTOM',
     );
-    expect(isWorkingShift('CUSTOM', codes: await manager.shiftCodes()), isTrue);
-    await manager.deleteShiftCode('CUSTOM');
     expect(
-      (await manager.shiftCodes()).any((code) => code.code == 'CUSTOM'),
+      isWorkingShift('CUSTOM', codes: await manager.store.shiftCodes()),
+      isTrue,
+    );
+    await manager.store.deleteShiftCode('CUSTOM');
+    expect(
+      (await manager.store.shiftCodes()).any((code) => code.code == 'CUSTOM'),
       isFalse,
     );
   });
@@ -110,8 +114,8 @@ void main() {
         sections: const [section],
         editors: const {'manager'},
       );
-      final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
-      await manager.saveShiftCode(
+      final manager = scheduleRulesInMemory(database, actingAs: 'manager');
+      await manager.store.saveShiftCode(
         const LegendCode(
           'NEW',
           startTime: '19:00',
@@ -119,8 +123,8 @@ void main() {
           isWorking: true,
         ),
       );
-      expect((await manager.shiftCodes()).last.coverageWindow, 'night');
-      await manager.saveShiftCode(
+      expect((await manager.store.shiftCodes()).last.coverageWindow, 'night');
+      await manager.store.saveShiftCode(
         const LegendCode(
           'NEW',
           meaning: 'Changed',
@@ -131,8 +135,8 @@ void main() {
         ),
         originalCode: 'NEW',
       );
-      expect((await manager.shiftCodes()).last.coverageWindow, 'day');
-      await manager.saveShiftCode(
+      expect((await manager.store.shiftCodes()).last.coverageWindow, 'day');
+      await manager.store.saveShiftCode(
         const LegendCode(
           'NEW',
           meaning: 'Changed again',
@@ -143,7 +147,7 @@ void main() {
         ),
         originalCode: 'NEW',
       );
-      expect((await manager.shiftCodes()).last.coverageWindow, 'day');
+      expect((await manager.store.shiftCodes()).last.coverageWindow, 'day');
     },
   );
 }

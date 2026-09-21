@@ -213,10 +213,10 @@ deno test supabase/functions/calendar-feed/index_test.ts
 flutter build web --release
 ```
 
-The schedule rules live behind the `ScheduleRules` interface in
-`packages/schedule_rules`. Its in-memory database stand-in keeps domain behavior
-tests independent of Flutter and the network. Database policy tests exercise a
-real local Supabase/Postgres stack.
+Client Schedule logic lives in `packages/schedule_rules`; plain reads and writes
+use the store interfaces directly. The `packages/schedule_rules_testing` package
+provides in-memory stores for Dart and widget tests. Database policy tests
+exercise a real local Supabase/Postgres stack.
 
 See [the version-one data model](docs/data-model-v1.md) for the full planned
 schema and its staged rollout.

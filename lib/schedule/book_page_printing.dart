@@ -36,7 +36,7 @@ final class BookPagePrinting {
   Future<PreparedBookPage> prepare(DateTime month) async {
     final results = await Future.wait<Object>([
       rules.monthGrid(month),
-      rules.shiftCodes(),
+      rules.store.shiftCodes(),
       wordingGateway?.readForMonth(month) ?? Future.value(const PrintWording()),
     ]);
     final layout = await prepareBookPage(

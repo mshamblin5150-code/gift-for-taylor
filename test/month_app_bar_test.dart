@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,7 +38,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           access: database.accessFor('manager'),
-          rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
+          rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: DateTime(2026, 9),
           onCalendarFeed: () {},
           onManageStaff: () async {},
@@ -75,7 +76,7 @@ void main() {
         MaterialApp(
           home: MonthGridPage(
             access: database.accessFor('manager'),
-            rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
+            rules: scheduleRulesInMemory(database, actingAs: 'manager'),
             month: DateTime(2026, 9),
             onCalendarFeed: () {},
             onManageStaff: () async {},
@@ -127,7 +128,7 @@ void main() {
         MaterialApp(
           home: MonthGridPage(
             access: database.accessFor('rn-1'),
-            rules: ScheduleRules.inMemory(database, actingAs: 'rn-1'),
+            rules: scheduleRulesInMemory(database, actingAs: 'rn-1'),
             month: DateTime(2026, 9),
             staffMemberId: 'rn-1',
             onCalendarFeed: () => calendarOpens++,
@@ -170,7 +171,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           access: database.accessFor('manager'),
-          rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
+          rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: DateTime(2026, 9),
           onCalendarFeed: () {},
           onManageStaff: () async {},

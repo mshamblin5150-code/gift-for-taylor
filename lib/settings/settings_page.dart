@@ -18,7 +18,7 @@ class SettingsPage extends StatelessWidget {
   const SettingsPage({
     super.key,
     required this.scheduleRules,
-    this.openShiftRules,
+    this.openShiftStore,
     this.noticeGateway,
     this.printWordingGateway,
     this.onCalendarFeed,
@@ -30,7 +30,7 @@ class SettingsPage extends StatelessWidget {
   });
 
   final ScheduleRules scheduleRules;
-  final OpenShiftRules? openShiftRules;
+  final OpenShiftStore? openShiftStore;
   final NoticeGateway? noticeGateway;
   final PrintWordingGateway? printWordingGateway;
   final VoidCallback? onCalendarFeed;
@@ -99,7 +99,7 @@ class SettingsPage extends StatelessWidget {
             ),
           if (access.canManageUnit) ...[
             const _SectionHeading('Unit'),
-            if (openShiftRules != null) ...[
+            if (openShiftStore != null) ...[
               ListTile(
                 leading: const Icon(Icons.people_outline),
                 title: const Text('Staffing minimums'),
@@ -108,7 +108,7 @@ class SettingsPage extends StatelessWidget {
                 ),
                 onTap: () => open(
                   CoverageSettingsPage(
-                    rules: openShiftRules!,
+                    rules: openShiftStore!,
                     scheduleRules: scheduleRules,
                   ),
                 ),
@@ -117,7 +117,7 @@ class SettingsPage extends StatelessWidget {
                 leading: const Icon(Icons.fact_check_outlined),
                 title: const Text('Open shift pickup approval'),
                 subtitle: const Text('Default for newly posted shifts'),
-                onTap: () => open(ApprovalDefaultPage(rules: openShiftRules!)),
+                onTap: () => open(ApprovalDefaultPage(rules: openShiftStore!)),
               ),
             ],
             if (printWordingGateway != null)
@@ -172,7 +172,7 @@ class _SectionHeading extends StatelessWidget {
 
 class ApprovalDefaultPage extends StatefulWidget {
   const ApprovalDefaultPage({super.key, required this.rules});
-  final OpenShiftRules rules;
+  final OpenShiftStore rules;
   @override
   State<ApprovalDefaultPage> createState() => _ApprovalDefaultPageState();
 }

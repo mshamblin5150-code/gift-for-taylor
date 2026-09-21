@@ -17,10 +17,10 @@ class ShiftCodesPage extends StatefulWidget {
 
 class _ShiftCodesPageState extends State<ShiftCodesPage> {
   static final _validTime = RegExp(r'^([01][0-9]|2[0-3]):[0-5][0-9]$');
-  late Future<List<LegendCode>> _codes = widget.rules.shiftCodes();
+  late Future<List<LegendCode>> _codes = widget.rules.store.shiftCodes();
 
   void _reload() => setState(() {
-    _codes = widget.rules.shiftCodes();
+    _codes = widget.rules.store.shiftCodes();
   });
 
   Future<void> _pickTime(
@@ -193,7 +193,10 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
     end.dispose();
     if (result == null) return;
     try {
-      await widget.rules.saveShiftCode(result, originalCode: original?.code);
+      await widget.rules.store.saveShiftCode(
+        result,
+        originalCode: original?.code,
+      );
       _reload();
     } catch (error) {
       if (mounted) {
@@ -223,7 +226,7 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
     );
     if (confirmed != true) return;
     try {
-      await widget.rules.deleteShiftCode(code.code);
+      await widget.rules.store.deleteShiftCode(code.code);
       _reload();
     } catch (error) {
       if (mounted) {

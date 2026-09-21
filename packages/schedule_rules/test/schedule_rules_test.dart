@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
 
@@ -28,7 +29,7 @@ void main() {
       rows: const [dayNurse, nightNurse],
       clock: () => now,
     );
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
   });
 
   Future<void> save(ScheduleRules rules, ScheduleRow row, String code) {
@@ -70,11 +71,11 @@ void main() {
   });
 
   test('a save is visible to another scheduler reading the month', () async {
-    final otherScheduler = ScheduleRules.inMemory(
+    final otherScheduler = scheduleRulesInMemory(
       database,
       actingAs: 'night-scheduler',
     );
-    final updates = otherScheduler.monthUpdates(september).first;
+    final updates = otherScheduler.store.monthUpdates(september).first;
 
     await save(manager, dayNurse, 'N');
 
@@ -198,7 +199,7 @@ void main() {
       rows: const [dayNurse],
       editors: const {'manager'},
     );
-    final staffMember = ScheduleRules.inMemory(restricted, actingAs: 'rn-1');
+    final staffMember = scheduleRulesInMemory(restricted, actingAs: 'rn-1');
 
     await expectLater(
       save(staffMember, dayNurse, 'R/O'),

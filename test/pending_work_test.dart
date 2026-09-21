@@ -1,3 +1,5 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
+
 import 'dart:async';
 
 import 'package:er_schedule/schedule/pending_work.dart';
@@ -87,8 +89,8 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {DateTime(2026, 9)},
     );
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
-    alice = ScheduleRules.inMemory(database, actingAs: 'alice');
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
+    alice = scheduleRulesInMemory(database, actingAs: 'alice');
     swaps = _Swaps();
     openShifts = _OpenShifts();
   });
@@ -102,8 +104,8 @@ void main() {
     rules: rules,
     access: database.accessFor(viewer),
     swapStaffMemberId: viewer,
-    swapRules: SwapRules(swaps),
-    openShiftRules: OpenShiftRules(openShifts),
+    swapStore: swaps,
+    openShiftStore: openShifts,
     timerFactory: (duration, callback) {
       expect(duration, const Duration(seconds: 15));
       return timer = _PollTimer(callback);
@@ -119,10 +121,10 @@ void main() {
         _swap('other', SwapStatus.proposed, colleague: 'charlie'),
       ]);
       final request = await alice.requestOff(RequestOffDraft(dates: [day]));
-      await manager.decideRequestOff(
+      await manager.store.decideRequestOff(
         request.requestId,
         RequestOffDecision.declined,
-        reason: 'No coverage',
+        'No coverage',
       );
       final work = create(alice, 'alice');
       await work.refresh();

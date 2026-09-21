@@ -6,7 +6,7 @@ import 'coverage_rule_batch_dialog.dart';
 
 Future<bool?> showStaffingSheet(
   BuildContext context, {
-  required OpenShiftRules rules,
+  required OpenShiftStore rules,
   required List<LegendCode> shiftCodes,
   required DateTime date,
   required SectionStaffing staffing,

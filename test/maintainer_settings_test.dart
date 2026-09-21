@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/settings/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,7 +8,7 @@ void main() {
   testWidgets('Maintainer sees Unit controls without Staff calendar settings', (
     tester,
   ) async {
-    final rules = ScheduleRules.inMemory(
+    final rules = scheduleRulesInMemory(
       InMemoryScheduleDatabase(sections: const []),
       actingAs: 'manager',
     );
