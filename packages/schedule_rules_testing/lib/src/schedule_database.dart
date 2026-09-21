@@ -70,15 +70,6 @@ final class InMemoryScheduleDatabase {
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
   final List<ShortShift> _shortShifts = [];
-  ({int posted, int floorCritical})? _nextPostOpenShiftsAnswer;
-
-  /// Supplies SQL's result for the next Open shift posting call.
-  void seedNextPostOpenShifts({required int posted, int floorCritical = 0}) {
-    _nextPostOpenShiftsAnswer = (
-      posted: posted,
-      floorCritical: floorCritical,
-    );
-  }
   final Map<DateTime, List<SectionStaffing>> _staffingAnswers = {};
   final Map<DateTime, List<SectionStaffing>> _staffingAfterNextCellWrite = {};
 
@@ -92,8 +83,9 @@ final class InMemoryScheduleDatabase {
     DateTime month,
     List<SectionStaffing> answer,
   ) {
-    _staffingAfterNextCellWrite[DateTime(month.year, month.month)] =
-        List.of(answer);
+    _staffingAfterNextCellWrite[DateTime(month.year, month.month)] = List.of(
+      answer,
+    );
   }
 
   bool hasStaffingForMonth(DateTime month) =>
@@ -128,8 +120,20 @@ final class InMemoryScheduleDatabase {
   >
   _standingRuleVersions = {};
   final List<OpenShiftPickup> _openShiftPickups = [];
+  final Map<String, List<OpenShiftPickup>> _pickupAnswers = {};
+  final Map<String, List<OpenShift>> _openShiftAnswers = {};
+  final List<
+    ({
+      DateTime date,
+      String shiftCode,
+      CoveragePool pool,
+      int count,
+      bool fillGap,
+    })
+  >
+  recordedOpenShiftPosts = [];
+  final List<int> _postOpenShiftResults = [];
   bool _openShiftApprovalDefault = true;
-  final Map<String, bool> _openShiftApprovalOverrides = {};
   final Map<DateTime, List<ScheduleRow>> _seededRows = {};
   final Map<DateTime, List<ShortShift>> _seededShortShifts = {};
   final Map<String, List<DatedJobRole>> _seededJobRoles = {};
@@ -138,6 +142,7 @@ final class InMemoryScheduleDatabase {
   final List<Reactivate> reactivationWrites = [];
   final List<ChangeSection> sectionWrites = [];
   final List<ChangeJobRole> jobRoleWrites = [];
+
   final List<RequestOff> _requestsOff = [];
   final List<RequestOff> _pendingRequestsOff = [];
   final Map<String, int> _unreadRequestOffNotices = {};
@@ -178,6 +183,25 @@ final class InMemoryScheduleDatabase {
 
   /// Supplies Open shifts created by SQL in a test scenario.
   void seedShortShift(ShortShift shift) => _shortShifts.add(shift);
+
+  /// Supplies SQL's Open shift visibility answer for a test actor.
+  void seedOpenShifts(String actor, List<OpenShift> shifts) {
+    _openShiftAnswers[actor] = List.of(shifts);
+  }
+
+  /// Supplies SQL's posted count for the next Open shift post command.
+  void seedPostOpenShiftResult(int count) {
+    _postOpenShiftResults.add(count);
+  }
+
+  /// Supplies SQL's pickup answer when a test starts after a request.
+  void seedOpenShiftPickups(String actor, List<OpenShiftPickup> pickups) {
+    _pickupAnswers[actor] = List.of(pickups);
+  }
+
+  /// Pickup commands recorded so tests can seed a later SQL read.
+  List<OpenShiftPickup> get recordedOpenShiftPickups =>
+      List.unmodifiable(_openShiftPickups);
 
   void _throwNextFailure(InMemoryStoreCall call) {
     final error = _nextFailures.remove(call);
@@ -220,15 +244,14 @@ final class InMemoryScheduleDatabase {
       _InMemoryScheduleStore(this, staffMemberId);
 
   Access accessFor(String actor) => Access(
-    grants: _grants[actor] ??
+    grants:
+        _grants[actor] ??
         (_legacyEveryoneEdits ? Grants(manager: true) : Grants()),
     maintainer: actor == maintainerId,
     ownStaffMemberId: actor == maintainerId || !_isActive(actor) ? null : actor,
   );
 
-  bool _isActive(String staffMemberId) =>
-      _names.containsKey(staffMemberId);
-
+  bool _isActive(String staffMemberId) => _names.containsKey(staffMemberId);
 }
 
 final class _InMemoryScheduleStore implements ScheduleStore {
@@ -371,7 +394,8 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ShortShift>> shortShiftsForMonth(DateTime month) async {
-    final seeded = _database._seededShortShifts[DateTime(month.year, month.month)];
+    final seeded =
+        _database._seededShortShifts[DateTime(month.year, month.month)];
     if (seeded != null) return List.unmodifiable(seeded);
     return _database._shortShifts
         .where((item) => _inMonth(item.date, month))
@@ -387,9 +411,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           ? const ScheduleEditRefused()
           : const ScheduleEditRefused('Only the Manager can edit that Section');
     }
-    final row = (await rows(
-      DateTime(cell.date.year, cell.date.month),
-    )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
+    final row = (await rows(DateTime(cell.date.year, cell.date.month)))
+        .where((row) => row.staffMemberId == cell.staffMemberId)
+        .firstOrNull;
     if (row == null || row.sectionId != cell.sectionId) {
       throw StateError(
         'That Staff member is not on the Staff list in this Section',
@@ -417,9 +441,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     final editable = _access.editableSections;
     for (final cell in [first, second]) {
       if (!editable.contains(cell.sectionId)) throw const ScheduleEditRefused();
-      final row = (await rows(
-        DateTime(cell.date.year, cell.date.month),
-      )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
+      final row = (await rows(DateTime(cell.date.year, cell.date.month)))
+          .where((row) => row.staffMemberId == cell.staffMemberId)
+          .firstOrNull;
       if (row == null ||
           row.sectionId != cell.sectionId ||
           (row.lastDay != null && cell.date.isAfter(row.lastDay!))) {

@@ -156,9 +156,16 @@ void main() {
         sections: const [],
         releasedMonths: {month},
       );
-      await database
-          .openShiftStoreFor('manager')
-          .postOpenShifts(fourteenth, '7A', CoveragePool.nurses, 1);
+      database.seedShortShifts(month, [
+        ShortShift(
+          date: fourteenth,
+          shiftCode: '7A',
+          staffMemberId: null,
+          jobRole: JobRole.rn,
+          coverageWindow: CoverageWindow.day,
+          coveragePool: CoveragePool.nurses,
+        ),
+      ]);
       final olderGrid = await scheduleRulesInMemory(
         database,
         actingAs: 'manager',
