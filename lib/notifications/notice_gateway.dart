@@ -11,6 +11,7 @@ final class StaffNotice {
     required this.body,
     required this.createdAt,
     required this.isRead,
+    this.ruleBatchId,
   });
 
   final String id;
@@ -18,6 +19,13 @@ final class StaffNotice {
   final String body;
   final DateTime createdAt;
   final bool isRead;
+  final String? ruleBatchId;
+}
+
+final class RuleBatchDetails {
+  const RuleBatchDetails({required this.plan, required this.shifts});
+  final List<Map<String, dynamic>> plan;
+  final List<Map<String, dynamic>> shifts;
 }
 
 enum PushState { unsupported, denied, available, enabled }
@@ -28,6 +36,7 @@ abstract interface class NoticeGateway {
   Future<void> disablePush();
   Future<List<StaffNotice>> notices();
   Future<void> markRead(String id);
+  Future<RuleBatchDetails> ruleBatchDetails(String id);
 }
 
 final class SupabaseNoticeGateway implements NoticeGateway {
@@ -76,7 +85,7 @@ final class SupabaseNoticeGateway implements NoticeGateway {
   Future<List<StaffNotice>> notices() async {
     final rows = await _client
         .from('staff_notices')
-        .select('id, title, body, created_at, read_at')
+        .select('id, title, body, created_at, read_at, rule_batch_id')
         .order('created_at', ascending: false)
         .limit(50);
     return rows
@@ -87,6 +96,7 @@ final class SupabaseNoticeGateway implements NoticeGateway {
             body: row['body'] as String,
             createdAt: DateTime.parse(row['created_at'] as String),
             isRead: row['read_at'] != null,
+            ruleBatchId: row['rule_batch_id'] as String?,
           ),
         )
         .toList();
@@ -95,5 +105,23 @@ final class SupabaseNoticeGateway implements NoticeGateway {
   @override
   Future<void> markRead(String id) async {
     await _client.rpc('mark_staff_notice_read', params: {'p_notice_id': id});
+  }
+
+  @override
+  Future<RuleBatchDetails> ruleBatchDetails(String id) async {
+    final batch = await _client
+        .from('coverage_rule_batches')
+        .select('plan')
+        .eq('id', id)
+        .single();
+    final shifts = await _client
+        .from('short_shifts')
+        .select('work_date, shift_code, job_role, filled_at, requires_approval')
+        .eq('rule_batch_id', id)
+        .order('work_date');
+    return RuleBatchDetails(
+      plan: (batch['plan'] as List<dynamic>).cast<Map<String, dynamic>>(),
+      shifts: shifts.cast<Map<String, dynamic>>(),
+    );
   }
 }

@@ -16,8 +16,17 @@ void main() {
     );
     expect(managerOnly, isNotEmpty);
     for (final topic in managerOnly) {
-      expect(topic.who, contains('Manager only'), reason: topic.title);
-      expect(topic.how, contains('Manager only:'), reason: topic.title);
+      if (topic.title == 'Staffing minimums' ||
+          topic.title == 'Coverage pools') {
+        expect(
+          topic.who,
+          contains('Manager and Administrator'),
+          reason: topic.title,
+        );
+      } else {
+        expect(topic.who, contains('Manager only'), reason: topic.title);
+        expect(topic.how, contains('Manager only:'), reason: topic.title);
+      }
     }
   });
 

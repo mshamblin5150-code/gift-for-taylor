@@ -209,7 +209,7 @@ select is(
 );
 
 select throws_ok(
-  $$select public.release_month('2027-03-01')$$,
+  $$select public.release_month_checked('2027-03-01', true)$$,
   'Only the Manager can release a month',
   'a Staff member cannot release a month'
 );
@@ -236,13 +236,13 @@ select set_config(
 );
 
 select throws_ok(
-  $$select public.release_month('2027-05-01')$$,
+  $$select public.release_month_checked('2027-05-01', true)$$,
   'There is no unpublished month to release',
   'a month loaded from the printed page is released by confirming it'
 );
 
 select lives_ok(
-  $$select public.release_month('2027-03-01')$$,
+  $$select public.release_month_checked('2027-03-01', true)$$,
   'the Manager releases the month'
 );
 
@@ -266,7 +266,7 @@ select is(
 );
 
 select throws_ok(
-  $$select public.release_month('2027-03-01')$$,
+  $$select public.release_month_checked('2027-03-01', true)$$,
   'There is no unpublished month to release',
   'a month is released only once'
 );

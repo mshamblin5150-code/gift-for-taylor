@@ -264,7 +264,7 @@ select set_config(
 );
 
 select throws_ok(
-  $$select public.confirm_loaded_month('2027-02-01')$$,
+  $$select public.confirm_loaded_month_checked('2027-02-01', true)$$,
   'Only the Manager can confirm the month',
   'the administrator cannot confirm the month'
 );
@@ -276,7 +276,7 @@ select set_config(
 );
 
 select lives_ok(
-  $$select public.confirm_loaded_month('2027-02-01')$$,
+  $$select public.confirm_loaded_month_checked('2027-02-01', true)$$,
   'the Manager confirms the checked month'
 );
 
@@ -299,7 +299,7 @@ select is(
 );
 
 select throws_ok(
-  $$select public.confirm_loaded_month('2027-02-01')$$,
+  $$select public.confirm_loaded_month_checked('2027-02-01', true)$$,
   'There is no loaded month waiting to be confirmed',
   'a month is confirmed only once'
 );

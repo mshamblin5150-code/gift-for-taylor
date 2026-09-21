@@ -253,19 +253,25 @@ final class SupabaseScheduleStore implements ScheduleStore {
     final staffId = short['staff_member_id'] as String?;
     if (staffId == null) return null;
     final date = DateTime.parse(short['work_date'] as String);
-    final earlierRoles = roles.where((role) =>
-        role['staff_member_id'] == staffId &&
-        !DateTime.parse(role['effective_from'] as String).isAfter(date)).toList()
-      ..sort((a, b) => (a['effective_from'] as String)
-          .compareTo(b['effective_from'] as String));
+    final earlierRoles =
+        roles
+            .where(
+              (role) =>
+                  role['staff_member_id'] == staffId &&
+                  !DateTime.parse(role['effective_from'] as String)
+                      .isAfter(date),
+            )
+            .toList()
+          ..sort(
+            (a, b) => (a['effective_from'] as String).compareTo(
+              b['effective_from'] as String,
+            ),
+          );
     final value = earlierRoles.lastOrNull?['job_role'] as String?;
     return value == null ? null : JobRole.fromValue(value);
   }
 
-  CoverageWindow? _windowForShort(
-    String shiftCode,
-    List<LegendCode> codes,
-  ) {
+  CoverageWindow? _windowForShort(String shiftCode, List<LegendCode> codes) {
     final value = codes
         .where((code) => code.code == shiftCode.trim().toUpperCase())
         .firstOrNull
@@ -291,9 +297,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
     final roles = staffIds.isEmpty
         ? <Map<String, dynamic>>[]
         : (await _client
-                .from('staff_job_roles')
-                .select('staff_member_id, job_role, effective_from')
-                .inFilter('staff_member_id', staffIds))
+                  .from('staff_job_roles')
+                  .select('staff_member_id, job_role, effective_from')
+                  .inFilter('staff_member_id', staffIds))
+              .cast<Map<String, dynamic>>();
+    final memberships =
+        (await _client
+                .from('coverage_pool_memberships')
+                .select('job_role, effective_from, pool'))
             .cast<Map<String, dynamic>>();
     return [
       for (final row in rows)
@@ -304,6 +315,28 @@ final class SupabaseScheduleStore implements ScheduleStore {
           staffMemberId: row['staff_member_id'] as String?,
           jobRole: _roleForShort(row, roles),
           coverageWindow: _windowForShort(row['shift_code'] as String, codes),
+          coveragePool: (() {
+            final role = _roleForShort(row, roles);
+            if (role == null) return null;
+            final date = DateTime.parse(row['work_date'] as String);
+            final history =
+                memberships
+                    .where(
+                      (item) =>
+                          item['job_role'] == role.value &&
+                          ((item['effective_from'] as String) == '-infinity' ||
+                              !DateTime.parse(item['effective_from'] as String)
+                                  .isAfter(date)),
+                    )
+                    .toList()
+                  ..sort(
+                    (a, b) => (a['effective_from'] as String).compareTo(
+                      b['effective_from'] as String,
+                    ),
+                  );
+            final pool = history.lastOrNull?['pool'] as String?;
+            return pool == null ? null : RolePool.fromValue(pool);
+          })(),
         ),
     ];
   }
@@ -436,10 +469,16 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<void> confirmLoadedMonth(DateTime month) async {
+  Future<void> confirmLoadedMonth(
+    DateTime month, {
+    bool acknowledgeShortfalls = false,
+  }) async {
     await _client.rpc<void>(
-      'confirm_loaded_month',
-      params: {'p_month_start': _date(_monthStart(month))},
+      'confirm_loaded_month_checked',
+      params: {
+        'p_month_start': _date(_monthStart(month)),
+        'p_acknowledge_shortfalls': acknowledgeShortfalls,
+      },
     );
   }
 
@@ -502,10 +541,16 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<void> releaseMonth(DateTime month) async {
+  Future<void> releaseMonth(
+    DateTime month, {
+    bool acknowledgeShortfalls = false,
+  }) async {
     await _client.rpc<void>(
-      'release_month',
-      params: {'p_month_start': _date(_monthStart(month))},
+      'release_month_checked',
+      params: {
+        'p_month_start': _date(_monthStart(month)),
+        'p_acknowledge_shortfalls': acknowledgeShortfalls,
+      },
     );
   }
 

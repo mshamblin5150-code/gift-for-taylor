@@ -28,6 +28,10 @@ final class _NoticeGateway implements NoticeGateway {
 
   @override
   Future<void> markRead(String id) async {}
+
+  @override
+  Future<RuleBatchDetails> ruleBatchDetails(String id) async =>
+      const RuleBatchDetails(plan: [], shifts: []);
 }
 
 void main() {

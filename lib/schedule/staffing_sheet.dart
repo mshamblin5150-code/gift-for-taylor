@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'coverage_rule_batch_dialog.dart';
+
 Future<bool?> showStaffingSheet(
   BuildContext context, {
   required OpenShiftRules rules,
+  required List<LegendCode> shiftCodes,
   required DateTime date,
   required SectionStaffing staffing,
   VoidCallback? onStandingMinimums,
@@ -22,14 +25,16 @@ Future<bool?> showStaffingSheet(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) {
-        Future<void> run(Future<void> Function() action) async {
+        Future<void> run(Future<bool> Function() action) async {
           setState(() {
             saving = true;
             error = null;
           });
           try {
-            await action();
-            if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+            final saved = await action();
+            if (saved && dialogContext.mounted) {
+              Navigator.of(dialogContext).pop(true);
+            }
           } catch (failure) {
             setState(() => error = failure.toString());
           } finally {
@@ -39,7 +44,7 @@ Future<bool?> showStaffingSheet(
 
         (int, int) parseMinimum() {
           final value = int.tryParse(minimum.text.trim());
-          final floor = staffing.pool == RolePool.nurses
+          final floor = staffing.floorRole != null
               ? int.tryParse(rnFloor.text.trim())
               : 0;
           if (value == null ||
@@ -49,10 +54,42 @@ Future<bool?> showStaffingSheet(
               floor < 0 ||
               floor > value) {
             throw const FormatException(
-              'Enter a minimum from 0 to 100 and an RN floor no higher than the minimum.',
+              'Enter a minimum from 0 to 100 and a floor no higher than the minimum.',
             );
           }
           return (value, floor);
+        }
+
+        Future<bool> saveDate(int? count, int floor) async {
+          final plan = await rules.previewDateMinimum(
+            staffing.pool,
+            staffing.coverageWindow,
+            date,
+            count,
+            staffing.floorRole,
+            floor,
+          );
+          if (!dialogContext.mounted) return false;
+          final pools = await rules.coveragePoolsOn(date);
+          if (!dialogContext.mounted) return false;
+          final choices = await confirmCoverageRuleBatch(
+            dialogContext,
+            plan: plan,
+            pools: pools,
+            codes: shiftCodes,
+          );
+          if (choices == null) return false;
+          await rules.commitDateMinimum(
+            staffing.pool,
+            staffing.coverageWindow,
+            date,
+            count,
+            staffing.floorRole,
+            floor,
+            plan,
+            choices,
+          );
+          return true;
         }
 
         return AlertDialog(
@@ -71,8 +108,9 @@ Future<bool?> showStaffingSheet(
                   ),
                   if (staffing.shortCount case final short? when short > 0)
                     Text(
-                      staffing.rnShortCount == short
-                          ? 'Short $short RN'
+                      staffing.rnShortCount == short &&
+                              staffing.floorRole != null
+                          ? 'Short $short ${staffing.floorRole!.label}'
                           : 'Short $short',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
@@ -86,12 +124,14 @@ Future<bool?> showStaffingSheet(
                       labelText: 'Minimum people',
                     ),
                   ),
-                  if (staffing.pool == RolePool.nurses) ...[
+                  if (staffing.floorRole != null) ...[
                     const SizedBox(height: 8),
                     TextField(
                       controller: rnFloor,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'RN floor'),
+                      decoration: InputDecoration(
+                        labelText: '${staffing.floorRole!.label} floor',
+                      ),
                     ),
                   ],
                   const SizedBox(height: 8),
@@ -113,13 +153,7 @@ Future<bool?> showStaffingSheet(
                             ? null
                             : () => run(() {
                                 final (count, floor) = parseMinimum();
-                                return rules.setDateMinimum(
-                                  staffing.pool,
-                                  staffing.coverageWindow,
-                                  date,
-                                  count,
-                                  floor,
-                                );
+                                return saveDate(count, floor);
                               }),
                         child: const Text('Save this date'),
                       ),
@@ -127,18 +161,13 @@ Future<bool?> showStaffingSheet(
                         TextButton(
                           onPressed: saving
                               ? null
-                              : () => run(
-                                  () => rules.setDateMinimum(
-                                    staffing.pool,
-                                    staffing.coverageWindow,
-                                    date,
-                                    null,
-                                    null,
-                                  ),
-                                ),
+                              : () => run(() => saveDate(null, 0)),
                           child: const Text('Remove date override'),
                         ),
                     ],
+                  ),
+                  const Text(
+                    'Standing weekday defaults are in Unit coverage settings.',
                   ),
                   const Divider(height: 32),
                   TextField(
@@ -162,6 +191,7 @@ Future<bool?> showStaffingSheet(
                                   staffing.pool,
                                   1,
                                 );
+                                return true;
                               }),
                         child: const Text('Post one'),
                       ),
@@ -177,6 +207,7 @@ Future<bool?> showStaffingSheet(
                                     staffing.unpostedCount!,
                                     fillGap: true,
                                   );
+                                  return true;
                                 }),
                           child: Text(
                             'Post ${staffing.unpostedCount} Open shifts',
