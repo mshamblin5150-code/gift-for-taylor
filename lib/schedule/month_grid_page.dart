@@ -17,8 +17,7 @@ import '../settings/settings_page.dart';
 
 import 'announce_sheet.dart';
 import 'approval_queue_page.dart';
-import 'book_page_pdf.dart';
-import 'book_page_printer.dart' show needsPrintPageGesture, openBookPagePdf;
+import 'book_page_printing.dart';
 import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
 import 'coverage_settings_page.dart';
@@ -82,7 +81,7 @@ class MonthGridPage extends StatefulWidget {
     this.openShiftRules,
     this.noticeGateway,
     this.staffGateway,
-    this.printBookPage,
+    this.bookPagePresenter,
     this.printWordingGateway,
     this.now,
   });
@@ -107,8 +106,7 @@ class MonthGridPage extends StatefulWidget {
   final NoticeGateway? noticeGateway;
   final StaffGateway? staffGateway;
 
-  /// Prints a Schedule book page, given as an HTML document.
-  final ValueChanged<String>? printBookPage;
+  final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;
   final DateTime Function()? now;
 
@@ -588,73 +586,65 @@ class _MonthGridPageState extends State<MonthGridPage> {
     if (changed == true) await _reload();
   }
 
-  Future<void> _print(ValueChanged<String> printBookPage) async {
+  Future<void> _print(BookPagePresenter presenter) async {
     try {
-      final wording = await _wordingForMonth();
-      if (mounted) setState(() => _wording = wording);
-      final grid = await widget.rules.monthGrid(_month);
-      final codes = await widget.rules.shiftCodes();
+      final page = await BookPagePrinting(
+        widget.rules,
+        widget.printWordingGateway,
+      ).prepare(_month);
       if (!mounted) return;
-      if (bookPageIsHardToRead(grid, wording: wording, codes: codes)) {
-        final proceed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Small print warning'),
-            content: Text(
-              'Fitting this Schedule, its title and legend on one sheet '
-              'will make the text very small.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Print anyway'),
-              ),
-            ],
-          ),
-        );
-        if (proceed != true || !mounted) return;
-      }
-      if (needsPrintPageGesture) {
-        final pdf = await bookPagePdf(grid, wording: wording, codes: codes);
-        if (!mounted) return;
-        await showDialog<void>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Print the book page'),
-            content: const Text(
-              'Open the landscape PDF, then print it from your browser’s controls.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  try {
-                    openBookPagePdf(pdf);
-                  } catch (_) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      const SnackBar(
-                        content: Text("The PDF couldn't be opened. Try again."),
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Print the book page'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (page.isHardToRead) ...[
+                    const Text('Some text will be hard to read:'),
+                    for (final cause in page.causes)
+                      Text(
+                        '• ${cause.description}; prints at '
+                        '${cause.effectiveSize.toStringAsFixed(1)}pt',
                       ),
-                    );
-                  }
-                },
-                child: const Text('Open landscape PDF'),
+                    const SizedBox(height: 12),
+                  ],
+                  const Text(
+                    'Open the landscape PDF, then print it from your browser’s controls.',
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        );
-      } else {
-        printBookPage(bookPageHtml(grid, wording: wording, codes: codes));
-      }
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                try {
+                  presenter.present(page);
+                  Navigator.pop(context);
+                } catch (_) {
+                  Navigator.pop(context);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(
+                      content: Text("The PDF couldn't be opened. Try again."),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Open PDF'),
+            ),
+          ],
+        ),
+      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -676,10 +666,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<PrintWording> _wordingForMonth() async {
     final gateway = widget.printWordingGateway;
-    if (gateway is MonthPrintWordingGateway) {
-      return gateway.readForMonth(_month);
-    }
-    return await gateway?.read() ?? const PrintWording();
+    return await gateway?.readForMonth(_month) ?? const PrintWording();
   }
 
   Future<void> _changePrintWording() async {
@@ -705,7 +692,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _correctMonthPrintWording() async {
     final gateway = widget.printWordingGateway;
-    if (gateway is! MonthPrintWordingGateway) return;
+    if (gateway == null) return;
     final current = await gateway.readForMonth(_month);
     if (!mounted) return;
     final next = await showPrintWordingDialog(
@@ -1095,11 +1082,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
           (context) => ChangeLogPage(rules: widget.rules, month: _month),
         ),
       ),
-    if (widget.printBookPage case final printBookPage?)
+    if (widget.bookPagePresenter case final presenter?)
       _ScheduleAction(
         label: _wording?.tooltip ?? 'Loading print wording',
         icon: Icons.print_outlined,
-        onPressed: _wording == null ? null : () => _print(printBookPage),
+        onPressed: _wording == null ? null : () => _print(presenter),
       ),
     if (_access.canManageUnit && widget.printWordingGateway != null)
       _ScheduleAction(
@@ -1109,7 +1096,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       ),
     if (_access.canManageUnit &&
         _grid?.status == MonthStatus.released &&
-        widget.printWordingGateway is MonthPrintWordingGateway)
+        widget.printWordingGateway != null)
       _ScheduleAction(
         label: 'Correct this month’s print wording',
         icon: Icons.edit_note_outlined,

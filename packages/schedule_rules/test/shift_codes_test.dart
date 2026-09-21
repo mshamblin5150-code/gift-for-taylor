@@ -43,8 +43,10 @@ void main() {
       final grid = await manager.monthGrid(month);
       expect(grid.shiftCodeFor('nurse', day), '7A');
       expect(
-        bookPageHtml(grid, codes: await manager.shiftCodes()),
-        contains('<strong>7A</strong> 8A–8P'),
+        (await manager.shiftCodes())
+            .firstWhere((code) => code.code == '7A')
+            .hours,
+        '8A–8P',
       );
       expect(
         (await manager.shiftCodes())

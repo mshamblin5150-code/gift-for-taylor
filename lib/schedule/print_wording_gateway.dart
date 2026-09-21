@@ -4,15 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 abstract interface class PrintWordingGateway {
   Future<PrintWording> read();
   Future<void> save(PrintWording wording);
-}
-
-abstract interface class MonthPrintWordingGateway
-    implements PrintWordingGateway {
   Future<PrintWording> readForMonth(DateTime month);
   Future<void> correctMonth(DateTime month, PrintWording wording);
 }
 
-final class SupabasePrintWordingGateway implements MonthPrintWordingGateway {
+final class SupabasePrintWordingGateway implements PrintWordingGateway {
   SupabasePrintWordingGateway(this._client);
 
   final SupabaseClient _client;

@@ -41,11 +41,10 @@ dependencies:
   http: ^1.6.0
   schedule_rules:
     path: packages/schedule_rules
-  pdf: ^3.13.1
-
-dev_dependencies:
   schedule_book:
     path: packages/schedule_book
+
+dev_dependencies:
   flutter_test:
     sdk: flutter
 
@@ -66,6 +65,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - packages/schedule_book/lib/src/fonts/Arimo-Regular.ttf
+    - packages/schedule_book/lib/src/fonts/Arimo-Bold.ttf
+    - packages/schedule_book/lib/src/fonts/Arimo-Italic.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:
