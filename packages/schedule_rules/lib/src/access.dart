@@ -60,8 +60,10 @@ final class Access {
       : EditableSections.only(grants.nightSchedulerSectionIds);
   bool get canRunSchedule => _managerLevel;
   bool get canManageStaff => _managerLevel || grants.administrator;
+  bool canChangeAccess(Grants target) => canManageStaff && !target.manager;
   bool get canManageUnit => _managerLevel || grants.administrator;
   bool get canTransferManager => _managerLevel;
+  bool get canUseOwnSettings => ownStaffMemberId != null;
   bool get canReadUnreleased =>
       _managerLevel ||
       grants.administrator ||

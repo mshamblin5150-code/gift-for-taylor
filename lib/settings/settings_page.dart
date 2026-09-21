@@ -23,10 +23,8 @@ class SettingsPage extends StatelessWidget {
     this.printWordingGateway,
     this.onCalendarFeed,
     this.onManageStaff,
-    this.role = 'staff_member',
+    required this.access,
     this.auditClient,
-    this.helpRole = HelpRole.staffMember,
-    this.hasNightSchedulerGrant = false,
     this.staffGateway,
     this.onManagerTransferred,
   });
@@ -37,15 +35,10 @@ class SettingsPage extends StatelessWidget {
   final PrintWordingGateway? printWordingGateway;
   final VoidCallback? onCalendarFeed;
   final Future<void> Function()? onManageStaff;
-  final String role;
+  final Access access;
   final SupabaseClient? auditClient;
-  final HelpRole helpRole;
-  final bool hasNightSchedulerGrant;
   final StaffGateway? staffGateway;
   final VoidCallback? onManagerTransferred;
-
-  bool get _canManageUnit =>
-      role == 'manager' || role == 'administrator' || role == 'maintainer';
 
   @override
   Widget build(BuildContext context) {
@@ -63,34 +56,28 @@ class SettingsPage extends StatelessWidget {
             leading: const Icon(Icons.install_mobile_outlined),
             title: const Text('Add ER Schedule'),
             subtitle: const Text('Install on a phone or computer'),
-            onTap: () => open(
-              AppSetupPage(
-                helpRole: helpRole,
-                hasNightSchedulerGrant: hasNightSchedulerGrant,
-              ),
-            ),
+            onTap: () => open(AppSetupPage(helpRoles: helpRolesFor(access))),
           ),
-          if (role != 'maintainer' && onCalendarFeed != null)
+          if (access.canUseOwnSettings && onCalendarFeed != null)
             ListTile(
               leading: const Icon(Icons.calendar_month_outlined),
               title: const Text('My calendar'),
               subtitle: const Text('Choose calendar invitations or a feed'),
               onTap: onCalendarFeed,
             ),
-          if (role != 'maintainer' && noticeGateway != null)
+          if (access.canUseOwnSettings && noticeGateway != null)
             ListTile(
               leading: const Icon(Icons.notifications_outlined),
               title: const Text('Notifications'),
               subtitle: const Text('Allow notices on this device'),
               onTap: () => open(NoticesPage(gateway: noticeGateway!)),
             ),
-          if ((role == 'manager' || role == 'maintainer') &&
-              staffGateway != null)
+          if (access.canTransferManager && staffGateway != null)
             ListTile(
               leading: const Icon(Icons.manage_accounts_outlined),
               title: const Text('Transfer Manager'),
               subtitle: Text(
-                role == 'maintainer'
+                access.isRepairAccess
                     ? 'Choose a new Manager for repair'
                     : 'Choose the next Manager and your access after handover',
               ),
@@ -100,7 +87,7 @@ class SettingsPage extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => ManagerHandoverPage(
                       gateway: staffGateway!,
-                      isMaintainer: role == 'maintainer',
+                      isMaintainer: access.isRepairAccess,
                     ),
                   ),
                 );
@@ -110,7 +97,7 @@ class SettingsPage extends StatelessWidget {
                 }
               },
             ),
-          if (_canManageUnit) ...[
+          if (access.canManageUnit) ...[
             const _SectionHeading('Unit'),
             if (openShiftRules != null) ...[
               ListTile(

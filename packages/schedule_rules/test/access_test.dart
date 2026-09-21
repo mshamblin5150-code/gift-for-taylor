@@ -76,12 +76,17 @@ void main() {
     expect(access.canReadUnreleased, isTrue);
     expect(access.canTransferManager, isFalse);
     expect(access.ownStaffMemberId, 'staff');
+    expect(access.canUseOwnSettings, isTrue);
+    expect(access.canChangeAccess(Grants()), isTrue);
+    expect(access.canChangeAccess(Grants(manager: true)), isFalse);
     expect(access.isRepairAccess, isFalse);
     final maintainer = Access(grants: Grants(), maintainer: true);
     expect(maintainer.canTransferManager, isTrue);
     expect(maintainer.canReadUnreleased, isTrue);
     expect(maintainer.ownStaffMemberId, isNull);
     expect(maintainer.isRepairAccess, isTrue);
+    expect(maintainer.canUseOwnSettings, isFalse);
+    expect(maintainer.canChangeAccess(Grants()), isTrue);
   });
 
   test(
@@ -105,15 +110,11 @@ void main() {
       );
       final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
       final staff = ScheduleRules.inMemory(database, actingAs: 'staff');
-      final maintainer = ScheduleRules.inMemory(
-        database,
-        actingAs: 'maintainer',
-      );
       await manager.assignNightScheduler('staff', {'nights'});
       expect(database.accessFor('staff').grants.administrator, isTrue);
-      expect(await staff.canEditSchedule(), isFalse);
-      expect((await staff.editableSections()).contains('nights'), isTrue);
-      expect((await staff.editableSections()).contains('days'), isFalse);
+      expect(database.accessFor('staff').canRunSchedule, isFalse);
+      expect(database.accessFor('staff').canEditSection('nights'), isTrue);
+      expect(database.accessFor('staff').canEditSection('days'), isFalse);
       await staff.saveCell(
         SaveCell(
           staffMemberId: 'staff',
@@ -139,7 +140,7 @@ void main() {
         database.accessFor('staff').grants.nightSchedulerSectionIds,
         isEmpty,
       );
-      expect(await maintainer.canEditSchedule(), isTrue);
+      expect(database.accessFor('maintainer').canRunSchedule, isTrue);
       expect(database.accessFor('maintainer').ownStaffMemberId, isNull);
     },
   );
@@ -151,8 +152,8 @@ void main() {
     );
     final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
     await manager.assignNightScheduler('manager', {'nights'});
-    expect(await manager.canEditSchedule(), isTrue);
-    expect((await manager.editableSections()).contains('days'), isTrue);
+    expect(database.accessFor('manager').canRunSchedule, isTrue);
+    expect(database.accessFor('manager').canEditSection('days'), isTrue);
   });
 
   test('explicit grants do not give an unknown actor Manager access', () async {
@@ -167,7 +168,8 @@ void main() {
   test('committed pgTAP matches the shared scenarios', () {
     expect(
       File('../../supabase/tests/database/access_scenarios.test.sql')
-          .readAsStringSync(),
+          .readAsStringSync()
+          .replaceAll('\r\n', '\n'),
       generator.generateAccessScenarios(fixture),
     );
   });

@@ -137,15 +137,6 @@ class _MonthGridPageState extends State<MonthGridPage> {
   bool _savingDrop = false;
 
   Access get _access => widget.access;
-  String get _settingsRole => _access.maintainer
-      ? 'maintainer'
-      : _access.grants.manager
-      ? 'manager'
-      : _access.grants.administrator
-      ? 'administrator'
-      : _access.grants.nightSchedulerSectionIds.isNotEmpty
-      ? 'night_scheduler'
-      : 'staff_member';
 
   void _refreshIfUnauthorized(Object error) {
     if (error is PostgrestException &&
@@ -922,15 +913,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             onManageStaff: widget.onManageStaff,
             staffGateway: widget.staffGateway,
             onManagerTransferred: widget.onManagerTransferred,
-            role: _settingsRole,
-            helpRole: helpRoleForAccess(
-              _settingsRole,
-              canEditSchedule: _access.canRunSchedule,
-              hasEditableSections:
-                  _access.grants.nightSchedulerSectionIds.isNotEmpty,
-            ),
-            hasNightSchedulerGrant:
-                _access.grants.nightSchedulerSectionIds.isNotEmpty,
+            access: _access,
             auditClient: widget.staffGateway is SupabaseStaffGateway
                 ? Supabase.instance.client
                 : null,
@@ -944,16 +927,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       secondary: true,
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (context) => HelpPage(
-            hasNightSchedulerGrant:
-                _access.grants.nightSchedulerSectionIds.isNotEmpty,
-            role: helpRoleForAccess(
-              _settingsRole,
-              canEditSchedule: _access.canRunSchedule,
-              hasEditableSections:
-                  _access.grants.nightSchedulerSectionIds.isNotEmpty,
-            ),
-          ),
+          builder: (context) => HelpPage(roles: helpRolesFor(_access)),
         ),
       ),
     ),

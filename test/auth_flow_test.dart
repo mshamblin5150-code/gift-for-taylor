@@ -69,6 +69,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           scheduleRules: ScheduleRules(_scheduleStore(const [])),
+          access: Access(grants: Grants()),
         ),
       ),
     );
@@ -539,15 +540,9 @@ final class _FakeStaffGateway implements StaffGateway {
   @override
   Future<List<StaffAccessChange>> loadStaffAccessChanges(String id) async => [];
   @override
-  Future<Set<String>> loadNightSchedulerSections(String id) async => {};
+  Future<Grants> loadAccessGrants(String id) async => Grants();
   @override
-  Future<void> setAccessRole(
-    String id,
-    String role,
-    Set<String> sections,
-  ) async {}
-  @override
-  Future<String?> currentStaffRole() async => 'staff_member';
+  Future<void> setAccessGrants(String id, Grants grants) async {}
 
   @override
   Future<void> assignAdministrator(String id) async {}
@@ -611,11 +606,6 @@ final class _FakeStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<bool> canManageStaff() async => false;
-
-  @override
-  Future<bool> canManageSections() async => false;
-
   @override
   Future<void> addSection(String name) => throw UnimplementedError();
 
@@ -632,8 +622,6 @@ final class _FakeStaffGateway implements StaffGateway {
       throw UnimplementedError();
 
   @override
-  Future<String?> currentStaffMemberId() async => staffMemberId;
-
   @override
   Future<StaffList> loadStaffList() {
     throw UnimplementedError();

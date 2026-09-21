@@ -63,7 +63,7 @@ void main() {
   }
 
   test('a Staff member edits nothing until given the role', () async {
-    expect((await nightScheduler.editableSections()).isEmpty, isTrue);
+    expect(database.accessFor('rn-3').editableSections.isEmpty, isTrue);
     await expectLater(
       save(nightScheduler, nightNurse, 'N'),
       throwsA(isA<ScheduleEditRefused>()),
@@ -71,7 +71,7 @@ void main() {
   });
 
   test('the Manager edits every Section', () async {
-    final editable = await manager.editableSections();
+    final editable = database.accessFor('manager').editableSections;
 
     expect(editable.contains('days'), isTrue);
     expect(editable.contains('night-cna'), isTrue);
@@ -85,7 +85,7 @@ void main() {
           .having((it) => it.staffMemberId, 'staffMemberId', 'rn-3')
           .having((it) => it.sectionIds, 'sectionIds', {'nights', 'night-cna'}),
     ]);
-    final editable = await nightScheduler.editableSections();
+    final editable = database.accessFor('rn-3').editableSections;
     expect(editable.contains('nights'), isTrue);
     expect(editable.contains('night-cna'), isTrue);
     expect(editable.contains('days'), isFalse);
@@ -127,7 +127,7 @@ void main() {
   test('the Night scheduler cannot confirm or hand out the role', () async {
     await manager.assignNightScheduler('rn-3', {'nights'});
 
-    expect(await nightScheduler.canEditSchedule(), isFalse);
+    expect(database.accessFor('rn-3').canRunSchedule, isFalse);
     await expectLater(
       nightScheduler.assignNightScheduler('rn-2', {'nights'}),
       throwsA(isA<ScheduleEditRefused>()),
@@ -155,7 +155,7 @@ void main() {
 
     await manager.assignNightScheduler('rn-3', {'night-cna'});
 
-    final editable = await nightScheduler.editableSections();
+    final editable = database.accessFor('rn-3').editableSections;
     expect(editable.contains('nights'), isFalse);
     expect(editable.contains('night-cna'), isTrue);
   });

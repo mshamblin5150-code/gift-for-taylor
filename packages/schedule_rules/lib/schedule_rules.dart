@@ -33,21 +33,13 @@ abstract interface class ScheduleRules {
     return _ScheduleRules(database.storeFor(actingAs));
   }
 
-  /// Whether the signed-in person is the Manager, who may change every
-  /// Section, confirm a month and hand out the Night scheduler role.
-  Future<bool> canEditSchedule();
-
-  /// The Sections whose cells the signed-in person may change: every Section
-  /// for the Manager, the assigned ones for a Night scheduler, none otherwise.
-  Future<EditableSections> editableSections();
-
   /// The current catalog, including changes to historical Shift-code display.
   Future<List<LegendCode>> shiftCodes();
   Future<void> saveShiftCode(LegendCode code, {String? originalCode});
   Future<void> deleteShiftCode(String code);
 
   /// Saves a Shift code; it is live at once and written to the change log.
-  /// Refused outside the signed-in person's [editableSections].
+  /// Refused outside the signed-in person's editable Sections.
   Future<void> saveCell(SaveCell action);
 
   /// Saves two cells together, refusing stale values or either forbidden cell.
@@ -123,7 +115,7 @@ abstract interface class ScheduleRules {
   });
 
   /// The unannounced changes in [month] within the signed-in person's
-  /// [editableSections]: who to tell, and what to say. Empty until the month
+  /// editable Sections: who to tell, and what to say. Empty until the month
   /// is released, since releasing it announces the whole month.
   Future<ChangeAnnouncement> changeAnnouncement(DateTime month);
 
@@ -193,9 +185,7 @@ abstract interface class ScheduleStore {
 
   Stream<void> monthUpdates(DateTime month);
 
-  Future<bool> canEditSchedule();
-
-  Future<EditableSections> editableSections();
+  Future<Access> currentAccess();
 
   Future<void> assignNightScheduler(
     String staffMemberId,
@@ -1007,12 +997,6 @@ final class _ScheduleRules implements ScheduleRules {
   }
 
   @override
-  Future<bool> canEditSchedule() => _store.canEditSchedule();
-
-  @override
-  Future<EditableSections> editableSections() => _store.editableSections();
-
-  @override
   Future<void> assignNightScheduler(
     String staffMemberId,
     Set<String> sectionIds,
@@ -1102,7 +1086,7 @@ final class _ScheduleRules implements ScheduleRules {
   Future<ChangeAnnouncement> changeAnnouncement(DateTime month) async {
     final ((grid, changes), editable) = await (
       _monthWithChanges(month),
-      _store.editableSections(),
+      _store.currentAccess(),
     ).wait;
     if (grid.status != MonthStatus.released) {
       return ChangeAnnouncement._(
@@ -1114,7 +1098,7 @@ final class _ScheduleRules implements ScheduleRules {
     return ChangeAnnouncement._from(
       grid,
       changes.where((change) => !change.announced && !change.moot),
-      editable,
+      editable.editableSections,
     );
   }
 
@@ -1134,7 +1118,9 @@ final class _ScheduleRules implements ScheduleRules {
   Future<void> startNextMonth(DateTime month) async {
     final current = DateTime(month.year, month.month);
     final next = DateTime(month.year, month.month + 1);
-    if (!await _store.canEditSchedule()) throw const ScheduleEditRefused();
+    if (!(await _store.currentAccess()).canRunSchedule) {
+      throw const ScheduleEditRefused();
+    }
     if (await _store.monthStatus(next) != MonthStatus.notStarted) {
       throw const MonthAlreadyStarted();
     }
@@ -1179,7 +1165,9 @@ final class _ScheduleRules implements ScheduleRules {
   @override
   Future<void> startEmptyMonth(DateTime month) async {
     final start = DateTime(month.year, month.month);
-    if (!await _store.canEditSchedule()) throw const ScheduleEditRefused();
+    if (!(await _store.currentAccess()).canRunSchedule) {
+      throw const ScheduleEditRefused();
+    }
     if (await _store.monthStatus(start) != MonthStatus.notStarted) {
       throw const MonthAlreadyStarted();
     }
@@ -1422,6 +1410,10 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   final InMemoryScheduleDatabase _database;
   final String _actingAs;
+  Access get _access => _database.accessFor(_actingAs);
+
+  @override
+  Future<Access> currentAccess() async => _access;
 
   void _requireStaffManagement() {
     if (!_database.accessFor(_actingAs).canManageStaff) {
@@ -1439,7 +1431,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> saveShiftCode(LegendCode code, {String? originalCode}) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
     final value = code.code.trim().toUpperCase();
     if (value.isEmpty || (code.startTime == null) != (code.endTime == null)) {
       throw ArgumentError('Invalid Shift code or hours');
@@ -1491,7 +1483,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> deleteShiftCode(String code) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
     final key = code.trim().toUpperCase();
     if (_codeInUse(key)) {
       throw StateError('A Shift code in use cannot be deleted');
@@ -1565,7 +1557,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<List<RequestOff>> requestsOff({required bool pendingOnly}) async {
-    final manager = await canEditSchedule();
+    final manager = _access.canRunSchedule;
     if (pendingOnly && !manager) throw const ScheduleEditRefused();
     return [
       for (final request in _database._requestsOff)
@@ -1582,7 +1574,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     RequestOffDecision decision,
     String? reason,
   ) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
     if (decision == RequestOffDecision.pending) {
       throw ArgumentError('Choose approve or decline');
     }
@@ -1753,7 +1745,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> writeCell(ScheduleCell cell) async {
-    final editable = await editableSections();
+    final editable = _access.editableSections;
     if (!editable.contains(cell.sectionId)) {
       throw editable.isEmpty
           ? const ScheduleEditRefused()
@@ -1785,7 +1777,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     if (!_inMonth(first.date, second.date)) {
       throw StateError('Both cells must be in the same month');
     }
-    final editable = await editableSections();
+    final editable = _access.editableSections;
     for (final cell in [first, second]) {
       if (!editable.contains(cell.sectionId)) throw const ScheduleEditRefused();
       final row = (await rows(DateTime(cell.date.year, cell.date.month)))
@@ -1863,11 +1855,6 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<EditableSections> editableSections() async {
-    return _database.accessFor(_actingAs).editableSections;
-  }
-
-  @override
   Future<void> assignNightScheduler(
     String staffMemberId,
     Set<String> sectionIds,
@@ -1914,10 +1901,6 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<bool> canEditSchedule() async =>
-      _database.accessFor(_actingAs).canRunSchedule;
-
-  @override
   Future<List<DateTime>> monthsAwaitingConfirmation() async {
     return [..._database._awaitingConfirmation]..sort();
   }
@@ -1927,7 +1910,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     DateTime month, {
     bool acknowledgeShortfalls = false,
   }) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
     if (!_database._awaitingConfirmation.remove(month)) {
       throw StateError('There is no loaded month waiting to be confirmed');
     }
@@ -2166,7 +2149,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     Set<String> changeIds,
     Set<String> draftOpenedStaffMemberIds,
   ) async {
-    final editable = await editableSections();
+    final editable = _access.editableSections;
     if (editable.isEmpty) throw const ScheduleEditRefused();
     final months = {
       for (final change in _database._changes)
@@ -2244,7 +2227,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> startMonth(DateTime month, List<ScheduleCell> cells) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
     if (_database._monthStatus.containsKey(month)) {
       throw const MonthAlreadyStarted();
     }
@@ -2260,7 +2243,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     DateTime month, {
     bool acknowledgeShortfalls = false,
   }) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
     if (_database._monthStatus[month] != MonthStatus.unpublished ||
         _database._awaitingConfirmation.contains(month)) {
       throw StateError('There is no unpublished month to release');

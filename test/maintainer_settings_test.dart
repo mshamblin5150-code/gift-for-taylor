@@ -15,7 +15,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           scheduleRules: rules,
-          role: 'maintainer',
+          access: Access(grants: Grants(), maintainer: true),
           onCalendarFeed: () {},
           onManageStaff: () async {},
         ),

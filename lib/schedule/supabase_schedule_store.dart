@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../staff/access_row.dart';
+
 final class SupabaseScheduleStore implements ScheduleStore {
   SupabaseScheduleStore(this._client);
 
@@ -409,14 +411,9 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<bool> canEditSchedule() async {
-    return await _client.rpc('can_edit_schedule') as bool? ?? false;
-  }
-
-  @override
-  Future<EditableSections> editableSections() async {
-    final ids = await _client.rpc<List<dynamic>>('editable_section_ids');
-    return EditableSections.only({for (final id in ids) id as String});
+  Future<Access> currentAccess() async {
+    final rows = await _client.rpc<List<dynamic>>('current_access');
+    return accessFromRow(rows.single as Map<String, dynamic>);
   }
 
   @override

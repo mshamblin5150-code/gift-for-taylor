@@ -18,13 +18,11 @@ class AppSetupPage extends StatefulWidget {
   const AppSetupPage({
     super.key,
     this.awaitingConfirmation = false,
-    this.helpRole = HelpRole.staffMember,
-    this.hasNightSchedulerGrant = false,
+    this.helpRoles = const {HelpRole.staffMember},
   });
 
   final bool awaitingConfirmation;
-  final HelpRole helpRole;
-  final bool hasNightSchedulerGrant;
+  final Set<HelpRole> helpRoles;
 
   @override
   State<AppSetupPage> createState() => _AppSetupPageState();
@@ -126,7 +124,7 @@ class _AppSetupPageState extends State<AppSetupPage> {
         const Text(
           'If your browser does not offer installation, bookmark the ordinary app link instead.',
         ),
-        if (widget.helpRole != HelpRole.maintainer) ...[
+        if (!widget.helpRoles.contains(HelpRole.maintainer)) ...[
           const SizedBox(height: 20),
           Text(
             'Notifications on each device',
@@ -143,10 +141,7 @@ class _AppSetupPageState extends State<AppSetupPage> {
         TextButton.icon(
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => HelpPage(
-                role: widget.helpRole,
-                hasNightSchedulerGrant: widget.hasNightSchedulerGrant,
-              ),
+              builder: (_) => HelpPage(roles: widget.helpRoles),
             ),
           ),
           icon: const Icon(Icons.help_outline),

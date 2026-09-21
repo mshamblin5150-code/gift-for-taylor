@@ -32,10 +32,10 @@ class StaffDetailsPage extends StatefulWidget {
 class _StaffDetailsPageState extends State<StaffDetailsPage> {
   StaffMemberDetails? _details;
   StaffList? _list;
-  String? _currentRole;
+  Access _access = Access(grants: Grants());
   bool _canTransferManager = false;
   List<StaffAccessChange> _accessChanges = const [];
-  Set<String> _nightSectionIds = const {};
+  Grants _targetGrants = Grants();
   Object? _error;
 
   @override
@@ -49,26 +49,26 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
       final (
         details,
         list,
-        currentRole,
+        access,
         accessChanges,
         canTransferManager,
-        nightSectionIds,
+        targetGrants,
       ) = await (
         widget.gateway.loadStaffMemberDetails(widget.staffMemberId),
         widget.gateway.loadStaffList(),
-        widget.gateway.currentStaffRole(),
+        widget.gateway.currentAccess(),
         widget.gateway.loadStaffAccessChanges(widget.staffMemberId),
         widget.gateway.canTransferManagerTo(widget.staffMemberId),
-        widget.gateway.loadNightSchedulerSections(widget.staffMemberId),
+        widget.gateway.loadAccessGrants(widget.staffMemberId),
       ).wait;
       if (mounted) {
         setState(() {
           _details = details;
           _list = list;
-          _currentRole = currentRole;
+          _access = access;
           _accessChanges = accessChanges;
           _canTransferManager = canTransferManager;
-          _nightSectionIds = nightSectionIds;
+          _targetGrants = targetGrants;
           _error = null;
         });
       }
@@ -180,8 +180,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
     final selection =
         await showDialog<
           ({
-            bool administrator,
-            Set<String> sections,
+            Grants grants,
             bool transfer,
             bool formerAdministrator,
             Set<String> formerSections,
@@ -191,9 +190,9 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
           builder: (context) => _AccessRoleDialog(
             details: details,
             sections: _list!.sections,
-            nightSectionIds: _nightSectionIds,
+            grants: _targetGrants,
             canTransferManager:
-                _currentRole == 'manager' && _canTransferManager,
+                _access.canTransferManager && _canTransferManager,
           ),
         );
     if (selection == null) return;
@@ -205,15 +204,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
           selection.formerSections,
         );
       } else {
-        await widget.gateway.setAccessRole(
-          details.id,
-          selection.administrator
-              ? 'administrator'
-              : selection.sections.isNotEmpty
-              ? 'night_scheduler'
-              : 'staff_member',
-          selection.sections,
-        );
+        await widget.gateway.setAccessGrants(details.id, selection.grants);
       }
       await _load();
     } catch (_) {
@@ -253,10 +244,13 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
             _Detail(
               label: 'Access',
               value: [
-                if (person.role == 'manager') 'Manager',
-                if (person.role == 'administrator') 'Administrator',
-                if (_nightSectionIds.isNotEmpty) 'Night scheduler',
-                if (person.role == 'staff_member' && _nightSectionIds.isEmpty)
+                if (_targetGrants.manager) 'Manager',
+                if (_targetGrants.administrator) 'Administrator',
+                if (_targetGrants.nightSchedulerSectionIds.isNotEmpty)
+                  'Night scheduler',
+                if (!_targetGrants.manager &&
+                    !_targetGrants.administrator &&
+                    _targetGrants.nightSchedulerSectionIds.isEmpty)
                   'Staff member',
               ].join(' and '),
             ),
@@ -280,10 +274,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
               onPressed: _editContact,
               child: const Text('Edit name and cell number'),
             ),
-            if ((_currentRole == 'manager' ||
-                    _currentRole == 'maintainer' ||
-                    _currentRole == 'administrator') &&
-                person.role != 'manager')
+            if (_access.canChangeAccess(_targetGrants))
               OutlinedButton(
                 onPressed: _changeAccessRole,
                 child: const Text('Change access'),
@@ -340,13 +331,13 @@ class _AccessRoleDialog extends StatefulWidget {
   const _AccessRoleDialog({
     required this.details,
     required this.sections,
-    required this.nightSectionIds,
+    required this.grants,
     required this.canTransferManager,
   });
 
   final StaffMemberDetails details;
   final List<StaffSection> sections;
-  final Set<String> nightSectionIds;
+  final Grants grants;
   final bool canTransferManager;
 
   @override
@@ -354,8 +345,10 @@ class _AccessRoleDialog extends StatefulWidget {
 }
 
 class _AccessRoleDialogState extends State<_AccessRoleDialog> {
-  late bool _administrator = widget.details.role == 'administrator';
-  late final Set<String> _sectionIds = {...widget.nightSectionIds};
+  late bool _administrator = widget.grants.administrator;
+  late final Set<String> _sectionIds = {
+    ...widget.grants.nightSchedulerSectionIds,
+  };
   bool _transfer = false;
   bool _formerAdministrator = false;
   final Set<String> _formerSections = {};
@@ -406,7 +399,9 @@ class _AccessRoleDialogState extends State<_AccessRoleDialog> {
                     setState(() => _transfer = value ?? false),
               ),
               if (_transfer) ...[
-                const Text('The selected Staff member becomes Manager immediately.'),
+                const Text(
+                  'The selected Staff member becomes Manager immediately.',
+                ),
                 const Text(
                   'Your access after handover (Staff member by default)',
                 ),
@@ -442,13 +437,18 @@ class _AccessRoleDialogState extends State<_AccessRoleDialog> {
         FilledButton(
           onPressed:
               !_transfer &&
-                  _administrator == (widget.details.role == 'administrator') &&
-                  _sectionIds.length == widget.nightSectionIds.length &&
-                  _sectionIds.containsAll(widget.nightSectionIds)
+                  _administrator == widget.grants.administrator &&
+                  _sectionIds.length ==
+                      widget.grants.nightSchedulerSectionIds.length &&
+                  _sectionIds.containsAll(
+                    widget.grants.nightSchedulerSectionIds,
+                  )
               ? null
               : () => Navigator.pop(context, (
-                  administrator: _administrator,
-                  sections: _sectionIds,
+                  grants: widget.grants.copyWith(
+                    administrator: _administrator,
+                    nightSchedulerSectionIds: _sectionIds,
+                  ),
                   transfer: _transfer,
                   formerAdministrator: _formerAdministrator,
                   formerSections: _formerSections,

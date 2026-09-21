@@ -2,6 +2,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'staff_contacts.dart';
+import 'access_row.dart';
 
 final class StaffSection {
   const StaffSection({required this.id, required this.name});
@@ -148,7 +149,7 @@ final class StaffMemberDetails {
     required this.id,
     required this.displayName,
     required this.sectionId,
-    required this.role,
+    required this.grants,
     this.cellNumber,
     this.personalEmail,
     this.jobRole,
@@ -159,7 +160,7 @@ final class StaffMemberDetails {
   final String displayName;
   final String? cellNumber;
   final String? sectionId;
-  final String role;
+  final Grants grants;
   final String? personalEmail;
   final JobRole? jobRole;
   final DateTime? lastDay;
@@ -178,20 +179,12 @@ final class StaffAccessChange {
 
 abstract interface class StaffGateway {
   Future<Access> currentAccess();
-  Future<bool> canManageStaff();
-  Future<String?> currentStaffRole();
   Future<bool> canTransferManagerTo(String staffMemberId);
-  Future<bool> canManageSections();
-  Future<String?> currentStaffMemberId();
   Future<StaffList> loadStaffList();
   Future<StaffMemberDetails> loadStaffMemberDetails(String staffMemberId);
   Future<List<StaffAccessChange>> loadStaffAccessChanges(String staffMemberId);
-  Future<Set<String>> loadNightSchedulerSections(String staffMemberId);
-  Future<void> setAccessRole(
-    String staffMemberId,
-    String role,
-    Set<String> sectionIds,
-  );
+  Future<Grants> loadAccessGrants(String staffMemberId);
+  Future<void> setAccessGrants(String staffMemberId, Grants grants);
   Future<void> transferManagerWithAccess(
     String newManagerId,
     bool formerAdministrator,
@@ -226,40 +219,17 @@ abstract interface class StaffGateway {
 }
 
 final class SupabaseStaffGateway implements StaffGateway {
-  SupabaseStaffGateway(this._client, {this.onAccessRoleLoaded});
+  SupabaseStaffGateway(this._client, {this.onAccessLoaded});
 
   final SupabaseClient _client;
-  final void Function(String? role)? onAccessRoleLoaded;
+  final void Function(Access access)? onAccessLoaded;
 
   @override
   Future<Access> currentAccess() async {
     final row = await _client.rpc('current_access') as List<dynamic>;
-    final values = row.single as Map<String, dynamic>;
-    return Access(
-      grants: Grants(
-        manager: values['manager'] as bool,
-        administrator: values['administrator'] as bool,
-        nightSchedulerSectionIds: {
-          for (final id
-              in values['night_scheduler_section_ids'] as List<dynamic>)
-            id as String,
-        },
-      ),
-      maintainer: values['maintainer'] as bool,
-      ownStaffMemberId: values['staff_member_id'] as String?,
-    );
-  }
-
-  @override
-  Future<bool> canManageStaff() async {
-    return await _client.rpc('can_manage_staff') as bool? ?? false;
-  }
-
-  @override
-  Future<String?> currentStaffRole() async {
-    final role = await _client.rpc<String?>('current_access_role');
-    onAccessRoleLoaded?.call(role);
-    return role;
+    final access = accessFromRow(row.single as Map<String, dynamic>);
+    onAccessLoaded?.call(access);
+    return access;
   }
 
   @override
@@ -307,37 +277,29 @@ final class SupabaseStaffGateway implements StaffGateway {
   );
 
   @override
-  Future<Set<String>> loadNightSchedulerSections(String staffMemberId) async {
+  Future<Grants> loadAccessGrants(String staffMemberId) async {
+    final details = await loadStaffMemberDetails(staffMemberId);
     final rows = await _client
         .from('night_scheduler_sections')
         .select('section_id')
         .eq('staff_member_id', staffMemberId);
-    return {for (final row in rows) row['section_id'] as String};
+    return details.grants.copyWith(
+      nightSchedulerSectionIds: {
+        for (final row in rows) row['section_id'] as String,
+      },
+    );
   }
 
   @override
-  Future<void> setAccessRole(
-    String staffMemberId,
-    String role,
-    Set<String> sectionIds,
-  ) => _client.rpc<void>(
-    'set_staff_access_grants',
-    params: {
-      'p_staff_member_id': staffMemberId,
-      'p_administrator': role == 'administrator',
-      'p_section_ids': sectionIds.toList(),
-    },
-  );
-
-  @override
-  Future<bool> canManageSections() async {
-    return await _client.rpc('can_manage_sections') as bool? ?? false;
-  }
-
-  @override
-  Future<String?> currentStaffMemberId() async {
-    return _client.rpc<String?>('current_staff_member_id');
-  }
+  Future<void> setAccessGrants(String staffMemberId, Grants grants) =>
+      _client.rpc<void>(
+        'set_staff_access_grants',
+        params: {
+          'p_staff_member_id': staffMemberId,
+          'p_administrator': grants.administrator,
+          'p_section_ids': grants.nightSchedulerSectionIds.toList(),
+        },
+      );
 
   @override
   Future<StaffList> loadStaffList() async {
@@ -402,7 +364,10 @@ final class SupabaseStaffGateway implements StaffGateway {
       displayName: row['display_name'] as String,
       cellNumber: row['cell_number'] as String?,
       sectionId: row['section_id'] as String?,
-      role: row['role'] as String,
+      grants: Grants(
+        manager: row['role'] == 'manager',
+        administrator: row['role'] == 'administrator',
+      ),
       personalEmail: row['personal_email'] as String?,
       jobRole: switch (row['job_role']) {
         final String value => JobRole.fromValue(value),
