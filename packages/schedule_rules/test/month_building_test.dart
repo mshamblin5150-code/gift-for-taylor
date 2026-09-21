@@ -182,7 +182,7 @@ void main() {
     test('needs a Schedule in the month to start from', () async {
       await expectLater(
         manager.startNextMonth(DateTime(2026, 10)),
-        throwsA(isA<StateError>()),
+        throwsA(isA<PreviousMonthNotStarted>()),
       );
       expect(
         (await manager.monthGrid(DateTime(2026, 11))).status,

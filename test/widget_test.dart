@@ -246,22 +246,22 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(
-      (await manager.monthGrid(september)).shiftCodeFor('rn-1', september18),
-      'X',
+      find.descendant(of: cell('rn-1', september18), matching: find.text('X')),
+      findsOneWidget,
     );
     expect(
-      (await manager.monthGrid(september)).shiftCodeFor('rn-2', september18),
-      '7A',
+      find.descendant(of: cell('rn-2', september18), matching: find.text('7A')),
+      findsOneWidget,
     );
     await tester.tap(find.text('Undo'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(
-      (await manager.monthGrid(september)).shiftCodeFor('rn-1', september18),
-      '7A',
+      find.descendant(of: cell('rn-1', september18), matching: find.text('7A')),
+      findsOneWidget,
     );
     expect(
-      (await manager.monthGrid(september)).shiftCodeFor('rn-2', september18),
-      'X',
+      find.descendant(of: cell('rn-2', september18), matching: find.text('X')),
+      findsOneWidget,
     );
     debugDefaultTargetPlatformOverride = null;
   });
@@ -299,12 +299,12 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pump();
     expect(
-      (await manager.monthGrid(september)).shiftCodeFor('rn-1', september18),
-      '7A',
+      find.descendant(of: cell('rn-1', september18), matching: find.text('7A')),
+      findsOneWidget,
     );
     expect(
-      (await manager.monthGrid(september)).shiftCodeFor('rn-1', nextDay),
-      '7A',
+      find.descendant(of: cell('rn-1', nextDay), matching: find.text('7A')),
+      findsOneWidget,
     );
     debugDefaultTargetPlatformOverride = null;
   });
@@ -339,12 +339,12 @@ void main() {
     await gesture.up();
     await tester.pump();
     expect(
-      (await manager.monthGrid(september)).shiftCodeFor('rn-1', september18),
-      'X',
+      find.descendant(of: cell('rn-1', september18), matching: find.text('X')),
+      findsOneWidget,
     );
     expect(
-      (await manager.monthGrid(september)).shiftCodeFor('rn-1', nextDay),
-      '7A',
+      find.descendant(of: cell('rn-1', nextDay), matching: find.text('7A')),
+      findsOneWidget,
     );
     debugDefaultTargetPlatformOverride = null;
   });
@@ -374,12 +374,18 @@ void main() {
     await gesture.up();
     await tester.pump();
     expect(
-      (await manager.monthGrid(september)).shiftCodeFor('rn-1', september18),
-      '7A',
+      find.text(
+        'Choose a cell with a Shift code to swap, or hold Ctrl or Option to copy here.',
+      ),
+      findsOneWidget,
     );
     expect(
-      (await manager.monthGrid(september)).shiftCodeFor('rn-1', nextDay),
-      null,
+      find.descendant(of: cell('rn-1', september18), matching: find.text('7A')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: cell('rn-1', nextDay), matching: find.text('7A')),
+      findsNothing,
     );
     debugDefaultTargetPlatformOverride = null;
   });
@@ -770,6 +776,181 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('failed drop uses retry wording without the store error', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: september18,
+        shiftCode: '7A',
+      ),
+    );
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-2',
+        sectionId: 'nights',
+        date: september18,
+        shiftCode: 'X',
+      ),
+    );
+    await pumpGrid(tester);
+    database.failNext(
+      InMemoryStoreCall.writeCellPair,
+      StateError('secret detail'),
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(cell('rn-1', september18)),
+    );
+    await gesture.moveBy(const Offset(20, 0));
+    await tester.pump();
+    await gesture.moveTo(tester.getCenter(cell('rn-2', september18)));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+    expect(find.text("The drop wasn't saved. Try again."), findsOneWidget);
+    expect(find.textContaining('secret detail'), findsNothing);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('failed drop Undo shows retry wording', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: september18,
+        shiftCode: '7A',
+      ),
+    );
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-2',
+        sectionId: 'nights',
+        date: september18,
+        shiftCode: 'X',
+      ),
+    );
+    await pumpGrid(tester);
+    final gesture = await tester.startGesture(
+      tester.getCenter(cell('rn-1', september18)),
+    );
+    await gesture.moveBy(const Offset(20, 0));
+    await tester.pump();
+    await gesture.moveTo(tester.getCenter(cell('rn-2', september18)));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    database.failNext(
+      InMemoryStoreCall.writeCellPair,
+      StateError('undo failed'),
+    );
+    await tester.tap(find.text('Undo'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text("The drop wasn't saved. Try again."), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('failed cell save explains the change was not saved', (
+    tester,
+  ) async {
+    await pumpGrid(tester);
+    database.failNext(InMemoryStoreCall.writeCell, StateError('write failed'));
+    await tester.tap(cell('rn-1', september18));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
+    await tester.pump();
+    expect(find.text("That change wasn't saved. Try again."), findsOneWidget);
+  });
+
+  testWidgets('failed month start shows retry wording', (tester) async {
+    final october = DateTime(2026, 10);
+    await pumpGrid(tester, month: october);
+    database.failNext(InMemoryStoreCall.startMonth, StateError('write failed'));
+    await tester.tap(find.text('Start empty month'));
+    await tester.pump();
+    expect(find.text("The month wasn't started. Try again."), findsOneWidget);
+  });
+
+  testWidgets('already started month is explained', (tester) async {
+    final october = DateTime(2026, 10);
+    await pumpGrid(tester, month: october);
+    database.failNext(
+      InMemoryStoreCall.startMonth,
+      const MonthAlreadyStarted(),
+    );
+    await tester.tap(find.text('Start empty month'));
+    await tester.pump();
+    expect(find.text('This month has already been started.'), findsOneWidget);
+  });
+
+  testWidgets('missing previous Schedule is explained', (tester) async {
+    final december = DateTime(2026, 12);
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    await manager.startEmptyMonth(DateTime(2026, 11));
+    await pumpGrid(tester, month: december);
+    expect(find.text('Start from November'), findsOneWidget);
+    database.failNext(InMemoryStoreCall.startMonth, PreviousMonthNotStarted());
+    await tester.tap(find.text('Start from November'));
+    await tester.pump();
+    expect(
+      find.text('November has no Schedule to start from.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('release review failure shows staffing retry wording', (
+    tester,
+  ) async {
+    final october = DateTime(2026, 10);
+    await ScheduleRules.inMemory(
+      database,
+      actingAs: 'manager',
+    ).startEmptyMonth(october);
+    await pumpGrid(tester, month: october, withStaffing: true);
+    database.failNext(
+      InMemoryStoreCall.staffingForMonth,
+      StateError('read failed'),
+    );
+    await tester.tap(find.text('Release month'));
+    await tester.pump();
+    expect(
+      find.text('Staffing could not be checked. Try again.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('release write failure shows release retry wording', (
+    tester,
+  ) async {
+    final october = DateTime(2026, 10);
+    await ScheduleRules.inMemory(
+      database,
+      actingAs: 'manager',
+    ).startEmptyMonth(october);
+    await pumpGrid(tester, month: october, withStaffing: true);
+    await tester.tap(find.text('Release month'));
+    await tester.pumpAndSettle();
+    database.failNext(
+      InMemoryStoreCall.releaseMonth,
+      StateError('write failed'),
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    await tester.pump();
+    expect(find.text("The month wasn't released. Try again."), findsOneWidget);
   });
 
   testWidgets('pasted overlong cell code stays visible and cannot save', (
@@ -1309,6 +1490,27 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Acknowledge and confirm'), findsOneWidget);
+  });
+
+  testWidgets('failed Loaded month confirmation uses confirm wording', (
+    tester,
+  ) async {
+    database.loadFromPage(september, const []);
+    await pumpGrid(tester);
+    await tester.tap(find.text('Confirm month'));
+    await tester.pumpAndSettle();
+    database.failNext(
+      InMemoryStoreCall.confirmLoadedMonth,
+      StateError('write failed'),
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    await tester.pump();
+    expect(find.text("The month wasn't confirmed. Try again."), findsOneWidget);
   });
 
   testWidgets('Print sends the live month as the book page', (tester) async {
