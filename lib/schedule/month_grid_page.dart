@@ -864,6 +864,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Widget? _banner(MonthGrid grid) {
     if (!_isManager) return null;
+    final startInstructions = _previousMonthStarted
+        ? 'Start empty or copy last month, lined up by weekday.'
+        : 'Start an empty month to enter Shift codes.';
     if (grid.awaitingConfirmation) {
       return _Banner(
         message:
@@ -878,9 +881,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       MonthStatus.notStarted => _Banner(
         message:
             "${DateFormat.MMMM().format(_month)} hasn't been started. "
-            (_previousMonthStarted
-                ? 'Start empty or copy last month, lined up by weekday.'
-                : 'Start an empty month to enter Shift codes.'),
+            '$startInstructions',
         actionLabel: 'Start empty month',
         onPressed: () => _startMonth(empty: true),
         secondaryActionLabel: _previousMonthStarted
