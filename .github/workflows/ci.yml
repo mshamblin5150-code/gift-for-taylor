@@ -29,10 +29,16 @@ jobs:
       - run: flutter pub get
       - run: dart pub get
         working-directory: packages/schedule_rules
+      - run: dart pub get
+        working-directory: packages/schedule_book
       - run: flutter analyze
       - run: flutter test
       - run: dart test
         working-directory: packages/schedule_rules
+      - run: dart test
+        working-directory: packages/schedule_book
+      - run: python -m pip install pdfplumber
+      - run: python tool/check_book_page_pdf.py
       - run: flutter build web --release
 
   database-security:
