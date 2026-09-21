@@ -20,6 +20,13 @@ const staffNameLimit = 30;
 const shiftCodeLimit = 5;
 const shiftMeaningLimit = 40;
 
+/// A Schedule write was rejected because the viewer's Access is no longer valid.
+final class AccessRejected implements Exception {
+  const AccessRejected([this.cause]);
+
+  final Object? cause;
+}
+
 /// Every schedule rule is reached through this public interface.
 abstract interface class ScheduleRules {
   /// Rules backed by [store], the database seen by one signed-in person.
@@ -1201,7 +1208,17 @@ DateTime _sameWeekdayLastMonth(DateTime date) {
 
 /// An in-memory stand-in for the database, shared by every scheduler in a
 /// test.
-enum InMemoryStoreCall { sections, shiftCodes, staffingForMonth }
+enum InMemoryStoreCall {
+  sections,
+  shiftCodes,
+  staffingForMonth,
+  writeCell,
+  writeCellPair,
+  markChangesAnnounced,
+  startMonth,
+  releaseMonth,
+  confirmLoadedMonth,
+}
 
 final class InMemoryScheduleDatabase {
   InMemoryScheduleDatabase({
@@ -1299,7 +1316,7 @@ final class InMemoryScheduleDatabase {
   final Map<DateTime, MonthStatus> _monthStatus;
   final Map<InMemoryStoreCall, Object> _nextFailures = {};
 
-  /// Makes the next matching read fail, then resumes normal in-memory reads.
+  /// Makes the next matching store call fail, then resumes normal behavior.
   void failNext(InMemoryStoreCall call, Object error) {
     _nextFailures[call] = error;
   }
@@ -1745,6 +1762,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> writeCell(ScheduleCell cell) async {
+    _database._throwNextFailure(InMemoryStoreCall.writeCell);
     final editable = _access.editableSections;
     if (!editable.contains(cell.sectionId)) {
       throw editable.isEmpty
@@ -1768,6 +1786,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> writeCellPair(SaveCellPair action) async {
+    _database._throwNextFailure(InMemoryStoreCall.writeCellPair);
     final first = action.first;
     final second = action.second;
     if (first.staffMemberId == second.staffMemberId &&
@@ -1910,6 +1929,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     DateTime month, {
     bool acknowledgeShortfalls = false,
   }) async {
+    _database._throwNextFailure(InMemoryStoreCall.confirmLoadedMonth);
     if (!_access.canRunSchedule) throw const ScheduleEditRefused();
     if (!_database._awaitingConfirmation.remove(month)) {
       throw StateError('There is no loaded month waiting to be confirmed');
@@ -2149,6 +2169,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     Set<String> changeIds,
     Set<String> draftOpenedStaffMemberIds,
   ) async {
+    _database._throwNextFailure(InMemoryStoreCall.markChangesAnnounced);
     final editable = _access.editableSections;
     if (editable.isEmpty) throw const ScheduleEditRefused();
     final months = {
@@ -2227,6 +2248,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> startMonth(DateTime month, List<ScheduleCell> cells) async {
+    _database._throwNextFailure(InMemoryStoreCall.startMonth);
     if (!_access.canRunSchedule) throw const ScheduleEditRefused();
     if (_database._monthStatus.containsKey(month)) {
       throw const MonthAlreadyStarted();
@@ -2243,6 +2265,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     DateTime month, {
     bool acknowledgeShortfalls = false,
   }) async {
+    _database._throwNextFailure(InMemoryStoreCall.releaseMonth);
     if (!_access.canRunSchedule) throw const ScheduleEditRefused();
     if (_database._monthStatus[month] != MonthStatus.unpublished ||
         _database._awaitingConfirmation.contains(month)) {

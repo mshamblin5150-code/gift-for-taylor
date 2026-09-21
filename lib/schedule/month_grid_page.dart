@@ -137,8 +137,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Access get _access => widget.access;
 
   void _refreshIfUnauthorized(Object error) {
-    if (error is PostgrestException &&
-        (error.code == '42501' || error.code == '401' || error.code == '403')) {
+    if (error is AccessRejected) {
       widget.onAccessRejected?.call();
     }
   }

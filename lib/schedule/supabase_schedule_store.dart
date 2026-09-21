@@ -5,6 +5,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../staff/access_row.dart';
+import 'access_rejected_write.dart';
 
 final class SupabaseScheduleStore implements ScheduleStore {
   SupabaseScheduleStore(this._client);
@@ -349,33 +350,37 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<void> writeCell(ScheduleCell cell) async {
-    await _client.rpc<void>(
-      'save_schedule_cell',
-      params: {
-        'p_staff_member_id': cell.staffMemberId,
-        'p_section_id': cell.sectionId,
-        'p_work_date': _date(cell.date),
-        'p_shift_code': cell.shiftCode,
-      },
+    await mapAccessRejected(
+      () => _client.rpc<void>(
+        'save_schedule_cell',
+        params: {
+          'p_staff_member_id': cell.staffMemberId,
+          'p_section_id': cell.sectionId,
+          'p_work_date': _date(cell.date),
+          'p_shift_code': cell.shiftCode,
+        },
+      ),
     );
   }
 
   @override
   Future<void> writeCellPair(SaveCellPair action) async {
-    await _client.rpc<void>(
-      'save_schedule_cell_pair',
-      params: {
-        'p_first_staff_member_id': action.first.staffMemberId,
-        'p_first_section_id': action.first.sectionId,
-        'p_first_work_date': _date(action.first.date),
-        'p_first_expected_code': action.expectedFirstCode,
-        'p_first_new_code': action.first.shiftCode,
-        'p_second_staff_member_id': action.second.staffMemberId,
-        'p_second_section_id': action.second.sectionId,
-        'p_second_work_date': _date(action.second.date),
-        'p_second_expected_code': action.expectedSecondCode,
-        'p_second_new_code': action.second.shiftCode,
-      },
+    await mapAccessRejected(
+      () => _client.rpc<void>(
+        'save_schedule_cell_pair',
+        params: {
+          'p_first_staff_member_id': action.first.staffMemberId,
+          'p_first_section_id': action.first.sectionId,
+          'p_first_work_date': _date(action.first.date),
+          'p_first_expected_code': action.expectedFirstCode,
+          'p_first_new_code': action.first.shiftCode,
+          'p_second_staff_member_id': action.second.staffMemberId,
+          'p_second_section_id': action.second.sectionId,
+          'p_second_work_date': _date(action.second.date),
+          'p_second_expected_code': action.expectedSecondCode,
+          'p_second_new_code': action.second.shiftCode,
+        },
+      ),
     );
   }
 
@@ -474,12 +479,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
     DateTime month, {
     bool acknowledgeShortfalls = false,
   }) async {
-    await _client.rpc<void>(
-      'confirm_loaded_month_checked',
-      params: {
-        'p_month_start': _date(_monthStart(month)),
-        'p_acknowledge_shortfalls': acknowledgeShortfalls,
-      },
+    await mapAccessRejected(
+      () => _client.rpc<void>(
+        'confirm_loaded_month_checked',
+        params: {
+          'p_month_start': _date(_monthStart(month)),
+          'p_acknowledge_shortfalls': acknowledgeShortfalls,
+        },
+      ),
     );
   }
 
@@ -488,12 +495,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
     Set<String> changeIds,
     Set<String> draftOpenedStaffMemberIds,
   ) async {
-    await _client.rpc<void>(
-      'mark_changes_announced',
-      params: {
-        'p_change_ids': changeIds.toList(),
-        'p_draft_opened_staff_member_ids': draftOpenedStaffMemberIds.toList(),
-      },
+    await mapAccessRejected(
+      () => _client.rpc<void>(
+        'mark_changes_announced',
+        params: {
+          'p_change_ids': changeIds.toList(),
+          'p_draft_opened_staff_member_ids': draftOpenedStaffMemberIds.toList(),
+        },
+      ),
     );
   }
 
@@ -513,20 +522,22 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<void> startMonth(DateTime month, List<ScheduleCell> cells) async {
-    await _client.rpc<void>(
-      'start_month',
-      params: {
-        'p_month_start': _date(_monthStart(month)),
-        'p_cells': [
-          for (final cell in cells)
-            {
-              'staff_member_id': cell.staffMemberId,
-              'section_id': cell.sectionId,
-              'work_date': _date(cell.date),
-              'shift_code': cell.shiftCode,
-            },
-        ],
-      },
+    await mapAccessRejected(
+      () => _client.rpc<void>(
+        'start_month',
+        params: {
+          'p_month_start': _date(_monthStart(month)),
+          'p_cells': [
+            for (final cell in cells)
+              {
+                'staff_member_id': cell.staffMemberId,
+                'section_id': cell.sectionId,
+                'work_date': _date(cell.date),
+                'shift_code': cell.shiftCode,
+              },
+          ],
+        },
+      ),
     );
   }
 
@@ -546,12 +557,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
     DateTime month, {
     bool acknowledgeShortfalls = false,
   }) async {
-    await _client.rpc<void>(
-      'release_month_checked',
-      params: {
-        'p_month_start': _date(_monthStart(month)),
-        'p_acknowledge_shortfalls': acknowledgeShortfalls,
-      },
+    await mapAccessRejected(
+      () => _client.rpc<void>(
+        'release_month_checked',
+        params: {
+          'p_month_start': _date(_monthStart(month)),
+          'p_acknowledge_shortfalls': acknowledgeShortfalls,
+        },
+      ),
     );
   }
 
