@@ -33,6 +33,14 @@ void main() {
   test('access roles select their own Help catalog', () {
     expect(
       helpRoleForAccess(
+        'maintainer',
+        canEditSchedule: true,
+        hasEditableSections: false,
+      ),
+      HelpRole.maintainer,
+    );
+    expect(
+      helpRoleForAccess(
         'administrator',
         canEditSchedule: false,
         hasEditableSections: false,
@@ -55,6 +63,20 @@ void main() {
       ),
       HelpRole.manager,
     );
+  });
+
+  testWidgets('Maintainer finds Manager guidance and repair instructions', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: HelpPage(role: HelpRole.maintainer)),
+    );
+    await tester.enterText(find.byType(TextField), 'release month');
+    await tester.pump();
+    expect(find.text('Month release'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'repair reason');
+    await tester.pump();
+    expect(find.text('Maintainer repairs'), findsOneWidget);
   });
 
   Future<void> openHelp(WidgetTester tester, HelpRole role) async {

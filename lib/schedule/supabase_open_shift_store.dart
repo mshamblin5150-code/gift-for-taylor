@@ -155,12 +155,16 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
         (await client
                 .from('coverage_rule_audit')
                 .select(
-                  'actor, changed_at, effective_from, action, before_value, after_value',
+                  'actor, actor_auth_user_id, changed_at, effective_from, action, before_value, after_value',
                 )
                 .order('changed_at', ascending: false)
                 .limit(50))
             .cast<Map<String, dynamic>>();
-    final ids = rows.map((row) => row['actor'] as String).toSet().toList();
+    final ids = rows
+        .map((row) => row['actor'] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList();
     final names = ids.isEmpty
         ? <Map<String, dynamic>>[]
         : (await client
@@ -174,7 +178,12 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     };
     return [
       for (final row in rows)
-        {...row, 'actor_name': byId[row['actor']] ?? 'Former Staff member'},
+        {
+          ...row,
+          'actor_name': row['actor_auth_user_id'] != null
+              ? 'Maintainer'
+              : byId[row['actor']] ?? 'Former Staff member',
+        },
     ];
   }
 
@@ -200,19 +209,17 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     ],
   };
 
-  Future<List<Map<String, dynamic>>> _preview(
-    String rpc,
-    Map<String, dynamic> params,
-  ) async {
-    final result = await client.rpc<List<dynamic>>(rpc, params: params);
-    return result.cast<Map<String, dynamic>>();
-  }
-
   @override
   Future<List<Map<String, dynamic>>> previewCoveragePools(
     DateTime effectiveFrom,
     List<CoveragePoolConfig> pools,
-  ) => _preview('preview_coverage_pools', _poolParams(effectiveFrom, pools));
+  ) async {
+    final result = await client.rpc<List<dynamic>>(
+      'preview_coverage_pools',
+      params: _poolParams(effectiveFrom, pools),
+    );
+    return result.cast<Map<String, dynamic>>();
+  }
 
   @override
   Future<void> commitCoveragePools(
@@ -258,18 +265,21 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     int minimum,
     JobRole? floorRole,
     int floor,
-  ) => _preview(
-    'preview_coverage_weekday_rule',
-    _standingParams(
-      pool,
-      window,
-      weekday,
-      effectiveFrom,
-      minimum,
-      floorRole,
-      floor,
-    ),
-  );
+  ) async {
+    final result = await client.rpc<List<dynamic>>(
+      'preview_coverage_weekday_rule',
+      params: _standingParams(
+        pool,
+        window,
+        weekday,
+        effectiveFrom,
+        minimum,
+        floorRole,
+        floor,
+      ),
+    );
+    return result.cast<Map<String, dynamic>>();
+  }
 
   @override
   Future<void> commitStandingMinimum(
@@ -325,10 +335,13 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     int? minimum,
     JobRole? floorRole,
     int floor,
-  ) => _preview(
-    'preview_coverage_date_rule',
-    _dateParams(pool, window, date, minimum, floorRole, floor),
-  );
+  ) async {
+    final result = await client.rpc<List<dynamic>>(
+      'preview_coverage_date_rule',
+      params: _dateParams(pool, window, date, minimum, floorRole, floor),
+    );
+    return result.cast<Map<String, dynamic>>();
+  }
 
   @override
   Future<void> commitDateMinimum(

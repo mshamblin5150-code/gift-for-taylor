@@ -1228,7 +1228,7 @@ final class _FakeStaffGateway implements StaffGateway {
   ) async {
     accessRole = role;
     nightSections = {...sections};
-    if (role == 'manager') actorRole = 'administrator';
+    if (role == 'manager') actorRole = 'staff_member';
   }
 
   Set<String> nightSections = {};

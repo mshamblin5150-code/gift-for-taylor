@@ -32,7 +32,8 @@ class SettingsPage extends StatelessWidget {
   final String role;
   final SupabaseClient? auditClient;
 
-  bool get _canManageUnit => role == 'manager' || role == 'administrator';
+  bool get _canManageUnit =>
+      role == 'manager' || role == 'administrator' || role == 'maintainer';
 
   @override
   Widget build(BuildContext context) {
@@ -46,14 +47,14 @@ class SettingsPage extends StatelessWidget {
         children: [
           const _SectionHeading('Personal'),
           const AppearanceTile(),
-          if (onCalendarFeed != null)
+          if (role != 'maintainer' && onCalendarFeed != null)
             ListTile(
               leading: const Icon(Icons.calendar_month_outlined),
               title: const Text('My calendar'),
               subtitle: const Text('Choose calendar invitations or a feed'),
               onTap: onCalendarFeed,
             ),
-          if (noticeGateway != null)
+          if (role != 'maintainer' && noticeGateway != null)
             ListTile(
               leading: const Icon(Icons.notifications_outlined),
               title: const Text('Notifications'),
@@ -237,7 +238,9 @@ class _UnitAuditPage extends StatelessWidget {
     body: FutureBuilder<List<Map<String, dynamic>>>(
       future: client
           .from('unit_setting_audit')
-          .select('kind, actor_name, changed_at, before_value, after_value')
+          .select(
+            'kind, actor_name, changed_at, repair_reason, before_value, after_value',
+          )
           .order('changed_at', ascending: false)
           .limit(200),
       builder: (context, snapshot) {
@@ -253,7 +256,9 @@ class _UnitAuditPage extends StatelessWidget {
               ListTile(
                 title: Text(entry['kind'] as String),
                 subtitle: Text(
-                  '${entry['actor_name']} · ${entry['changed_at']}\nBefore: ${entry['before_value']}\nAfter: ${entry['after_value']}',
+                  '${entry['actor_name']} · ${entry['changed_at']}'
+                  '${entry['repair_reason'] == null ? '' : '\nRepair reason: ${entry['repair_reason']}'}'
+                  '\nBefore: ${entry['before_value']}\nAfter: ${entry['after_value']}',
                 ),
                 isThreeLine: true,
               ),

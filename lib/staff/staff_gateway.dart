@@ -225,9 +225,10 @@ abstract interface class StaffGateway {
 }
 
 final class SupabaseStaffGateway implements StaffGateway {
-  SupabaseStaffGateway(this._client);
+  SupabaseStaffGateway(this._client, {this.onAccessRoleLoaded});
 
   final SupabaseClient _client;
+  final void Function(String? role)? onAccessRoleLoaded;
 
   @override
   Future<bool> canManageStaff() async {
@@ -235,8 +236,11 @@ final class SupabaseStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<String?> currentStaffRole() =>
-      _client.rpc<String?>('current_staff_role');
+  Future<String?> currentStaffRole() async {
+    final role = await _client.rpc<String?>('current_access_role');
+    onAccessRoleLoaded?.call(role);
+    return role;
+  }
 
   @override
   Future<bool> canTransferManagerTo(String staffMemberId) async {

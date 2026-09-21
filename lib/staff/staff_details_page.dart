@@ -281,6 +281,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
               child: const Text('Edit name and cell number'),
             ),
             if ((_currentRole == 'manager' ||
+                    _currentRole == 'maintainer' ||
                     _currentRole == 'administrator') &&
                 person.role != 'manager')
               OutlinedButton(
@@ -405,6 +406,7 @@ class _AccessRoleDialogState extends State<_AccessRoleDialog> {
                     setState(() => _transfer = value ?? false),
               ),
               if (_transfer) ...[
+                const Text('The selected Staff member becomes Manager immediately.'),
                 const Text(
                   'Your access after handover (Staff member by default)',
                 ),

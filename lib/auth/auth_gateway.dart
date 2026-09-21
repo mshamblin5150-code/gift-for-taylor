@@ -10,9 +10,10 @@ abstract interface class AuthGateway {
 }
 
 final class SupabaseAuthGateway implements AuthGateway {
-  SupabaseAuthGateway(this._client);
+  SupabaseAuthGateway(this._client, {this.onSignedOut});
 
   final SupabaseClient _client;
+  final void Function()? onSignedOut;
 
   @override
   bool get isSignedIn => _client.auth.currentSession != null;
@@ -40,5 +41,8 @@ final class SupabaseAuthGateway implements AuthGateway {
   }
 
   @override
-  Future<void> signOut() => _client.auth.signOut();
+  Future<void> signOut() async {
+    await _client.auth.signOut();
+    onSignedOut?.call();
+  }
 }
