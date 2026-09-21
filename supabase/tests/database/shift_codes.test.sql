@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(31);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000571', 'codes-manager@example.test'),
@@ -74,6 +74,10 @@ select throws_ok($$select public.delete_shift_code('7A')$$,
   'A Shift code in use cannot be deleted', 'used code cannot be deleted');
 select lives_ok($$select public.save_shift_code('TRAIN', 'Training', null, null, false, null)$$,
   'Manager adds a code with a meaning and no hours');
+select lives_ok($$select public.save_shift_code('NEW', null, '19:00', '07:00', true, null)$$,
+  'Manager adds a timed code without choosing a Coverage window');
+select is((select coverage_window from public.shift_codes where code = 'NEW'), 'night',
+  'a new overnight code gets Night coverage');
 select is((select coverage_window from public.shift_codes where code = 'TRAIN'), null,
   'new hourless codes have no window');
 select is(public.is_working_shift('TRAIN'), false,
@@ -99,6 +103,8 @@ values ('00000000-0000-0000-0000-000000000576', '00000000-0000-0000-0000-0000000
   '00000000-0000-0000-0000-000000000575', '2027-03-05', 'ADHOC');
 select is((select coverage_window from public.shift_codes where code = 'ADHOC'), null,
   'free-hand codes are registered without hours or a window');
+select is((select is_working from public.shift_codes where code = 'ADHOC'), true,
+  'free-hand codes are registered as worked');
 set local role service_role;
 select is((select starts_at from code_feed,
   lateral public.calendar_feed_events(token) where work_date = '2027-03-04'),

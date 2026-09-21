@@ -22,6 +22,7 @@ final class InMemoryScheduleDatabase {
     Map<String, Grants> grants = const {},
     this.maintainerId,
     Map<String, String> names = const {},
+    List<LegendCode> shiftCodes = shiftLegend,
     this.managerEmail = 'manager@example.test',
     Set<DateTime> releasedMonths = const {},
     DateTime Function()? clock,
@@ -31,6 +32,7 @@ final class InMemoryScheduleDatabase {
        },
        _sections = List.unmodifiable(sections),
        _rows = List.unmodifiable(rows),
+       _shiftCodes = List.of(shiftCodes),
        _legacyEveryoneEdits = editors == null && grants.isEmpty,
        _grants = {
          for (final entry in grants.entries) entry.key: entry.value,
@@ -96,7 +98,15 @@ final class InMemoryScheduleDatabase {
 
   bool hasStaffingForMonth(DateTime month) =>
       _staffingAnswers.containsKey(DateTime(month.year, month.month));
-  final List<LegendCode> _shiftCodes = [...shiftLegend];
+  final List<LegendCode> _shiftCodes;
+
+  /// Supplies the catalog returned by the next read, including SQL-derived fields.
+  void seedShiftCodes(List<LegendCode> codes) {
+    _shiftCodes
+      ..clear()
+      ..addAll(codes);
+  }
+
   final Map<String, int> _weekdayMinimums = {
     for (var weekday = 0; weekday < 7; weekday++)
       for (final window in CoverageWindow.values)
@@ -240,85 +250,28 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   @override
   Future<List<LegendCode>> shiftCodes() async {
     _database._throwNextFailure(InMemoryStoreCall.shiftCodes);
-    return List.unmodifiable(
-      _database._shiftCodes.where((code) => code.active),
-    );
+    return List.unmodifiable(_database._shiftCodes);
   }
 
   @override
   Future<void> saveShiftCode(LegendCode code, {String? originalCode}) async {
-    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
-    final value = code.code.trim().toUpperCase();
-    if (value.isEmpty || (code.startTime == null) != (code.endTime == null)) {
-      throw ArgumentError('Invalid Shift code or hours');
-    }
-    if (originalCode != null && originalCode != value) {
-      if (_database._shiftCodes.any((item) => item.code == value)) {
-        throw StateError('That Shift code already exists');
-      }
-      final originalIndex = _database._shiftCodes.indexWhere(
-        (item) => item.code == originalCode,
-      );
-      if (originalIndex < 0) throw StateError('Shift code not found');
-      if (_codeInUse(originalCode)) {
-        final old = _database._shiftCodes[originalIndex];
-        _database._shiftCodes[originalIndex] = LegendCode(
-          old.code,
-          hours: old.hours,
-          meaning: old.meaning,
-          isWorking: old.isWorking,
-          startTime: old.startTime,
-          endTime: old.endTime,
-          coverageWindow: old.coverageWindow,
-          active: false,
-        );
-      } else {
-        _database._shiftCodes.removeAt(originalIndex);
-      }
+    if (originalCode != null && originalCode != code.code) {
+      _database._shiftCodes.removeWhere((item) => item.code == originalCode);
     }
     final index = _database._shiftCodes.indexWhere(
-      (item) => item.code == value,
+      (item) => item.code == code.code,
     );
-    final updated = LegendCode(
-      value,
-      hours: shiftCodeHours(code.startTime, code.endTime) ?? code.hours,
-      meaning: code.meaning,
-      isWorking: code.isWorking,
-      startTime: code.startTime,
-      endTime: code.endTime,
-      coverageWindow:
-          code.coverageWindow ??
-          coverageWindowForHours(code.startTime, code.endTime),
-    );
-    if (index < 0) {
-      _database._shiftCodes.add(updated);
+    if (index == -1) {
+      _database._shiftCodes.add(code);
     } else {
-      _database._shiftCodes[index] = updated;
+      _database._shiftCodes[index] = code;
     }
   }
 
   @override
   Future<void> deleteShiftCode(String code) async {
-    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
-    final key = code.trim().toUpperCase();
-    if (_codeInUse(key)) {
-      throw StateError('A Shift code in use cannot be deleted');
-    }
-    _database._shiftCodes.removeWhere((item) => item.code == key);
+    _database._shiftCodes.removeWhere((item) => item.code == code);
   }
-
-  bool _codeInUse(String key) =>
-      _database._cells.values.any(
-        (cell) => cell.shiftCode.trim().toUpperCase() == key,
-      ) ||
-      _database._changes.any(
-        (change) =>
-            change.oldShiftCode.trim().toUpperCase() == key ||
-            change.newShiftCode.trim().toUpperCase() == key,
-      ) ||
-      _database._shortShifts.any(
-        (shift) => shift.shiftCode.trim().toUpperCase() == key,
-      );
 
   @override
   Future<RequestOffEmail> createRequestOff(RequestOffDraft draft) async {
@@ -510,11 +463,6 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   }
 
   void _write(ScheduleCell cell) {
-    final code = cell.shiftCode.trim().toUpperCase();
-    if (code.isNotEmpty &&
-        !_database._shiftCodes.any((entry) => entry.code == code)) {
-      _database._shiftCodes.add(LegendCode(code, isWorking: true));
-    }
     final key = _cellKey(cell.staffMemberId, cell.date);
     final old = _database._cells[key]?.shiftCode ?? '';
     _database._monthStatus.putIfAbsent(
