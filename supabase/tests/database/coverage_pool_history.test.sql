@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(16);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000002166', 'pool-manager@example.test'),
@@ -68,6 +68,14 @@ select is(public.coverage_pool_on('lpn', current_date), 'nurses',
   'past membership remains Nurses');
 select is(public.coverage_pool_on('lpn', current_date + 1), 'lpn_team',
   'new membership applies on its date');
+select is((select before_value->'memberships'->>'lpn'
+  from public.coverage_rule_audit where action = 'coverage_pools'
+  order by changed_at desc limit 1), 'nurses',
+  'pool audit records previous membership');
+select is((select after_value->'memberships'->>'lpn'
+  from public.coverage_rule_audit where action = 'coverage_pools'
+  order by changed_at desc limit 1), 'lpn_team',
+  'pool audit records new membership');
 select is((public.coverage_pool_version_on('nurses', current_date)).name,
   'Nurses', 'past pool name is retained');
 select is((public.coverage_pool_version_on('nurses', current_date + 1)).name,
@@ -94,6 +102,38 @@ select throws_ok($$
     '[]'::jsonb, '[]'::jsonb)
 $$, 'Every Job role needs one active pool; floors must belong to their pool',
   'cannot retire a pool while its Job role remains');
+
+select throws_ok($$
+  select public.commit_coverage_pools(current_date + 2,
+    '[{"id":"nurses","name":"Registered nurses","sort_order":1,"retired":false,"floor_role":"rn"},
+      {"id":"cna","name":"CNAs","sort_order":2,"retired":false},
+      {"id":"unit_clerk","name":"Unit clerks","sort_order":3,"retired":false},
+      {"id":"lpn_team","name":"LPN team","sort_order":0,"retired":false},
+      {"id":"empty","name":"Empty","sort_order":4,"retired":false}]'::jsonb,
+    '[{"job_role":"rn","pool":"nurses"},{"job_role":"lpn","pool":"lpn_team"},
+      {"job_role":"cna","pool":"cna"},{"job_role":"unit_clerk","pool":"unit_clerk"}]'::jsonb,
+    '[]'::jsonb, '[]'::jsonb)
+$$, 'Every Job role needs one active pool; floors must belong to their pool',
+  'active Coverage pools must contain a Job role');
+
+reset role;
+update public.coverage_pool_versions set floor_role = 'lpn'
+where pool = 'lpn_team' and effective_from = current_date + 1;
+insert into public.pool_weekday_minimums(pool, coverage_window, weekday,
+  effective_from, minimum, rn_floor, floor_role)
+values ('lpn_team', 'day', 1, current_date + 4, 1, 1, 'lpn');
+set local role authenticated;
+select throws_ok($$
+  select public.commit_coverage_pools(current_date + 2,
+    '[{"id":"nurses","name":"Registered nurses","sort_order":1,"retired":false,"floor_role":"rn"},
+      {"id":"cna","name":"CNAs","sort_order":2,"retired":false},
+      {"id":"unit_clerk","name":"Unit clerks","sort_order":3,"retired":false},
+      {"id":"lpn_team","name":"LPN team","sort_order":0,"retired":false}]'::jsonb,
+    '[{"job_role":"rn","pool":"nurses"},{"job_role":"lpn","pool":"lpn_team"},
+      {"job_role":"cna","pool":"cna"},{"job_role":"unit_clerk","pool":"unit_clerk"}]'::jsonb,
+    '[]'::jsonb, '[]'::jsonb)
+$$, 'Move or clear affected Staffing minimum floors before changing pools',
+  'a future weekday floor blocks an incompatible earlier pool edit');
 
 select * from finish();
 rollback;

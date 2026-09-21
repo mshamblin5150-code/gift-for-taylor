@@ -335,7 +335,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
                     ),
                   );
             final pool = history.lastOrNull?['pool'] as String?;
-            return pool == null ? null : RolePool.fromValue(pool);
+            return pool == null ? null : CoveragePool.fromValue(pool);
           })(),
         ),
     ];

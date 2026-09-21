@@ -175,7 +175,10 @@ void main() {
       );
       final grid = await manager.monthGrid(DateTime(2026, 10));
       expect(grid.shiftCodeFor('lpn', day), '7A');
-      expect(grid.shortShiftsOn(RolePool.nurses, CoverageWindow.day, day), isEmpty);
+      expect(
+        grid.shortShiftsOn(CoveragePool.nurses, CoverageWindow.day, day),
+        isEmpty,
+      );
       expect(await managerShifts.openShifts(), isEmpty);
       expect((await lpn.pickups()).single.status, PickupStatus.approved);
     },
@@ -207,21 +210,24 @@ void main() {
     expect((await other.pickups()).single.status, PickupStatus.declined);
   });
 
-  test('Manager default and per-shift choice control immediate pickup', () async {
-    final lpn = OpenShiftRules(database.openShiftStoreFor('lpn'));
-    final existing = (await lpn.openShifts()).single;
-    await managerShifts.setApprovalDefault(false);
-    expect((await lpn.openShifts()).single.requiresApproval, isTrue);
-    await managerShifts.setShiftApproval(existing.id, false);
-    expect((await lpn.openShifts()).single.requiresApproval, isFalse);
-    await lpn.requestPickup(existing.id);
-    expect((await lpn.pickups()).single.status, PickupStatus.approved);
-    expect(
-      (await manager.monthGrid(DateTime(2026, 10))).shiftCodeFor('lpn', day),
-      '7A',
-    );
-    expect(await managerShifts.openShifts(), isEmpty);
-  });
+  test(
+    'Manager default and per-shift choice control immediate pickup',
+    () async {
+      final lpn = OpenShiftRules(database.openShiftStoreFor('lpn'));
+      final existing = (await lpn.openShifts()).single;
+      await managerShifts.setApprovalDefault(false);
+      expect((await lpn.openShifts()).single.requiresApproval, isTrue);
+      await managerShifts.setShiftApproval(existing.id, false);
+      expect((await lpn.openShifts()).single.requiresApproval, isFalse);
+      await lpn.requestPickup(existing.id);
+      expect((await lpn.pickups()).single.status, PickupStatus.approved);
+      expect(
+        (await manager.monthGrid(DateTime(2026, 10))).shiftCodeFor('lpn', day),
+        '7A',
+      );
+      expect(await managerShifts.openShifts(), isEmpty);
+    },
+  );
 
   test(
     'a night nurse picking up a night code counts in the night nursing pool',
@@ -233,8 +239,14 @@ void main() {
           from: day,
         ),
       );
-      await managerShifts.setWeekdayMinimum(RolePool.nurses, CoverageWindow.night, day.weekday % 7, 1, 0);
-      await managerShifts.postOpenShifts(day, '7P', RolePool.nurses, 1);
+      await managerShifts.setWeekdayMinimum(
+        CoveragePool.nurses,
+        CoverageWindow.night,
+        day.weekday % 7,
+        1,
+        0,
+      );
+      await managerShifts.postOpenShifts(day, '7P', CoveragePool.nurses, 1);
       final lpn = OpenShiftRules(database.openShiftStoreFor('lpn'));
       final posted = (await lpn.openShifts())
           .where((shift) => shift.shiftCode == '7P')
@@ -245,8 +257,10 @@ void main() {
       expect(
         staffing
             .singleWhere(
-              (item) => item.pool == RolePool.nurses &&
-                  item.coverageWindow == CoverageWindow.night && item.date == day,
+              (item) =>
+                  item.pool == CoveragePool.nurses &&
+                  item.coverageWindow == CoverageWindow.night &&
+                  item.date == day,
             )
             .workingCount,
         1,
@@ -254,8 +268,10 @@ void main() {
       expect(
         staffing
             .singleWhere(
-              (item) => item.pool == RolePool.nurses &&
-                  item.coverageWindow == CoverageWindow.day && item.date == day,
+              (item) =>
+                  item.pool == CoveragePool.nurses &&
+                  item.coverageWindow == CoverageWindow.day &&
+                  item.date == day,
             )
             .workingCount,
         0,
@@ -287,36 +303,76 @@ void main() {
     },
   );
 
-  test('a CNA shortfall appears in its pool while nursing is covered', () async {
-    await managerShifts.setWeekdayMinimum(
-        RolePool.nurses, CoverageWindow.day, day.weekday % 7, 1, 0);
-    await managerShifts.setWeekdayMinimum(
-        RolePool.cna, CoverageWindow.day, day.weekday % 7, 1, 0);
-    await manager.saveCell(SaveCell(
-        staffMemberId: 'other', sectionId: 'nursing', date: day,
-        shiftCode: '7A'));
-    final staffing = await managerShifts.staffingForMonth(day);
-    final nurses = staffing.singleWhere((item) => item.date == day &&
-        item.pool == RolePool.nurses && item.coverageWindow == CoverageWindow.day);
-    final cna = staffing.singleWhere((item) => item.date == day &&
-        item.pool == RolePool.cna && item.coverageWindow == CoverageWindow.day);
-    expect(nurses.shortCount, 0);
-    expect(cna.shortCount, 1);
-  });
+  test(
+    'a CNA shortfall appears in its pool while nursing is covered',
+    () async {
+      await managerShifts.setWeekdayMinimum(
+        CoveragePool.nurses,
+        CoverageWindow.day,
+        day.weekday % 7,
+        1,
+        0,
+      );
+      await managerShifts.setWeekdayMinimum(
+        CoveragePool.cna,
+        CoverageWindow.day,
+        day.weekday % 7,
+        1,
+        0,
+      );
+      await manager.saveCell(
+        SaveCell(
+          staffMemberId: 'other',
+          sectionId: 'nursing',
+          date: day,
+          shiftCode: '7A',
+        ),
+      );
+      final staffing = await managerShifts.staffingForMonth(day);
+      final nurses = staffing.singleWhere(
+        (item) =>
+            item.date == day &&
+            item.pool == CoveragePool.nurses &&
+            item.coverageWindow == CoverageWindow.day,
+      );
+      final cna = staffing.singleWhere(
+        (item) =>
+            item.date == day &&
+            item.pool == CoveragePool.cna &&
+            item.coverageWindow == CoverageWindow.day,
+      );
+      expect(nurses.shortCount, 0);
+      expect(cna.shortCount, 1);
+    },
+  );
 
   test('the RN floor is short with enough LPNs on days', () async {
     await managerShifts.setWeekdayMinimum(
-        RolePool.nurses, CoverageWindow.day, day.weekday % 7, 2, 1);
-    await manager.changeJobRole(ChangeJobRole(
-        staffMemberId: 'other', jobRole: JobRole.lpn, from: day));
+      CoveragePool.nurses,
+      CoverageWindow.day,
+      day.weekday % 7,
+      2,
+      1,
+    );
+    await manager.changeJobRole(
+      ChangeJobRole(staffMemberId: 'other', jobRole: JobRole.lpn, from: day),
+    );
     for (final id in ['lpn', 'other']) {
-      await manager.saveCell(SaveCell(
-          staffMemberId: id, sectionId: 'nursing', date: day,
-          shiftCode: '7A'));
+      await manager.saveCell(
+        SaveCell(
+          staffMemberId: id,
+          sectionId: 'nursing',
+          date: day,
+          shiftCode: '7A',
+        ),
+      );
     }
     final nurses = (await managerShifts.staffingForMonth(day)).singleWhere(
-        (item) => item.date == day && item.pool == RolePool.nurses &&
-            item.coverageWindow == CoverageWindow.day);
+      (item) =>
+          item.date == day &&
+          item.pool == CoveragePool.nurses &&
+          item.coverageWindow == CoverageWindow.day,
+    );
     expect(nurses.workingCount, 2);
     expect(nurses.rnCount, 0);
     expect(nurses.shortCount, 1);
@@ -325,15 +381,26 @@ void main() {
 
   test('an unset pool is distinguishable from a zero minimum', () async {
     final cna = (await managerShifts.staffingForMonth(day)).singleWhere(
-        (item) => item.date == day && item.pool == RolePool.cna &&
-            item.coverageWindow == CoverageWindow.day);
+      (item) =>
+          item.date == day &&
+          item.pool == CoveragePool.cna &&
+          item.coverageWindow == CoverageWindow.day,
+    );
     expect(cna.minimum, isNull);
     expect(cna.shortCount, isNull);
     await managerShifts.setDateMinimum(
-        RolePool.cna, CoverageWindow.day, day, 0, 0);
+      CoveragePool.cna,
+      CoverageWindow.day,
+      day,
+      0,
+      0,
+    );
     final zero = (await managerShifts.staffingForMonth(day)).singleWhere(
-        (item) => item.date == day && item.pool == RolePool.cna &&
-            item.coverageWindow == CoverageWindow.day);
+      (item) =>
+          item.date == day &&
+          item.pool == CoveragePool.cna &&
+          item.coverageWindow == CoverageWindow.day,
+    );
     expect(zero.minimum, 0);
     expect(zero.shortCount, 0);
   });

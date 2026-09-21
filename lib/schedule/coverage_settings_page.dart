@@ -221,7 +221,7 @@ class _CoverageSettingsPageState extends State<CoverageSettingsPage> {
       _error = null;
     });
     try {
-      final rolePool = RolePool(pool.id, pool.name);
+      final rolePool = CoveragePool(pool.id, pool.name);
       final plan = await widget.rules.previewStandingMinimum(
         rolePool,
         window,

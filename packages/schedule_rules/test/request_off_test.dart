@@ -27,8 +27,13 @@ void main() {
     );
     manager = ScheduleRules.inMemory(database, actingAs: 'manager');
     staff = ScheduleRules.inMemory(database, actingAs: 'staff');
-    await manager.changeJobRole(ChangeJobRole(
-      staffMemberId: 'staff', jobRole: JobRole.rn, from: DateTime(2026, 1)));
+    await manager.changeJobRole(
+      ChangeJobRole(
+        staffMemberId: 'staff',
+        jobRole: JobRole.rn,
+        from: DateTime(2026, 1),
+      ),
+    );
     await manager.saveCell(
       SaveCell(
         staffMemberId: 'staff',
@@ -77,8 +82,17 @@ void main() {
       final grid = await manager.monthGrid(DateTime(2026, 10));
       expect(grid.shiftCodeFor('staff', day), 'R/O');
       expect(grid.shiftCodeFor('staff', next), 'R/O');
-      expect(grid.shortShiftsOn(RolePool.nurses, CoverageWindow.day, day).single.shiftCode, '7A');
-      expect(grid.shortShiftsOn(RolePool.nurses, CoverageWindow.day, next), isEmpty);
+      expect(
+        grid
+            .shortShiftsOn(CoveragePool.nurses, CoverageWindow.day, day)
+            .single
+            .shiftCode,
+        '7A',
+      );
+      expect(
+        grid.shortShiftsOn(CoveragePool.nurses, CoverageWindow.day, next),
+        isEmpty,
+      );
       expect(
         (await manager.changeLog(DateTime(2026, 10))).last.newShiftCode,
         'R/O',

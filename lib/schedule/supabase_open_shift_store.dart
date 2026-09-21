@@ -8,6 +8,12 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   final SupabaseClient client;
 
   @override
+  Future<bool> canManageCoverageRules() async {
+    final role = await client.rpc<String?>('current_staff_role');
+    return role == 'manager' || role == 'administrator';
+  }
+
+  @override
   Future<List<OpenShift>> openShifts() async {
     final rows = await client.rpc<List<dynamic>>('visible_open_shifts');
     final seen = <String>{};
@@ -232,7 +238,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   }
 
   Map<String, dynamic> _standingParams(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     DateTime effectiveFrom,
@@ -251,7 +257,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<List<Map<String, dynamic>>> previewStandingMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     DateTime effectiveFrom,
@@ -273,7 +279,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<void> commitStandingMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     DateTime effectiveFrom,
@@ -302,7 +308,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   }
 
   Map<String, dynamic> _dateParams(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -319,7 +325,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<List<Map<String, dynamic>>> previewDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -332,7 +338,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<void> commitDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -382,7 +388,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     return [
       for (final row in rows.cast<Map<String, dynamic>>())
         SectionStaffing(
-          pool: RolePool(
+          pool: CoveragePool(
             row['pool'] as String,
             latest(
                       versions
@@ -431,7 +437,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<void> setWeekdayMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     int minimum,
@@ -449,7 +455,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<void> setDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -469,7 +475,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   Future<int> postOpenShifts(
     DateTime date,
     String shiftCode,
-    RolePool pool,
+    CoveragePool pool,
     int count, {
     bool fillGap = false,
   }) async => await client.rpc<int>(

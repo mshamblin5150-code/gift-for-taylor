@@ -54,7 +54,7 @@ final class SectionStaffing {
     this.dateMinimum,
     this.floorRole,
   });
-  final RolePool pool;
+  final CoveragePool pool;
   final CoverageWindow coverageWindow;
   final DateTime date;
   final int? minimum;
@@ -93,6 +93,7 @@ final class OpenShiftPickup {
 }
 
 abstract interface class OpenShiftStore {
+  Future<bool> canManageCoverageRules();
   Future<List<CoveragePoolConfig>> coveragePoolsOn(DateTime date);
   Future<List<Map<String, dynamic>>> coverageRuleHistory();
   Future<List<Map<String, dynamic>>> previewCoveragePools(
@@ -106,7 +107,7 @@ abstract interface class OpenShiftStore {
     List<Map<String, dynamic>> choices,
   );
   Future<List<Map<String, dynamic>>> previewStandingMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     DateTime effectiveFrom,
@@ -115,7 +116,7 @@ abstract interface class OpenShiftStore {
     int floor,
   );
   Future<void> commitStandingMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     DateTime effectiveFrom,
@@ -126,7 +127,7 @@ abstract interface class OpenShiftStore {
     List<Map<String, dynamic>> choices,
   );
   Future<List<Map<String, dynamic>>> previewDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -134,7 +135,7 @@ abstract interface class OpenShiftStore {
     int floor,
   );
   Future<void> commitDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -153,14 +154,14 @@ abstract interface class OpenShiftStore {
   Future<void> setShiftApproval(String openShiftId, bool requiresApproval);
   Future<List<SectionStaffing>> staffingForMonth(DateTime month);
   Future<void> setWeekdayMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     int minimum,
     int rnFloor,
   );
   Future<void> setDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -169,7 +170,7 @@ abstract interface class OpenShiftStore {
   Future<int> postOpenShifts(
     DateTime date,
     String shiftCode,
-    RolePool pool,
+    CoveragePool pool,
     int count, {
     bool fillGap = false,
   });
@@ -179,6 +180,7 @@ abstract interface class OpenShiftStore {
 final class OpenShiftRules {
   const OpenShiftRules(this.store);
   final OpenShiftStore store;
+  Future<bool> canManageCoverageRules() => store.canManageCoverageRules();
   Future<List<CoveragePoolConfig>> coveragePoolsOn(DateTime date) =>
       store.coveragePoolsOn(date);
   Future<List<Map<String, dynamic>>> coverageRuleHistory() =>
@@ -194,7 +196,7 @@ final class OpenShiftRules {
     List<Map<String, dynamic>> choices,
   ) => store.commitCoveragePools(effectiveFrom, pools, plan, choices);
   Future<List<Map<String, dynamic>>> previewStandingMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     DateTime effectiveFrom,
@@ -211,7 +213,7 @@ final class OpenShiftRules {
     floor,
   );
   Future<void> commitStandingMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     DateTime effectiveFrom,
@@ -232,7 +234,7 @@ final class OpenShiftRules {
     choices,
   );
   Future<List<Map<String, dynamic>>> previewDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -240,7 +242,7 @@ final class OpenShiftRules {
     int floor,
   ) => store.previewDateMinimum(pool, window, date, minimum, floorRole, floor);
   Future<void> commitDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -273,14 +275,14 @@ final class OpenShiftRules {
   Future<List<SectionStaffing>> staffingForMonth(DateTime month) =>
       store.staffingForMonth(month);
   Future<void> setWeekdayMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     int minimum,
     int rnFloor,
   ) => store.setWeekdayMinimum(pool, window, weekday, minimum, rnFloor);
   Future<void> setDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -289,7 +291,7 @@ final class OpenShiftRules {
   Future<int> postOpenShifts(
     DateTime date,
     String shiftCode,
-    RolePool pool,
+    CoveragePool pool,
     int count, {
     bool fillGap = false,
   }) => store.postOpenShifts(date, shiftCode, pool, count, fillGap: fillGap);
@@ -310,6 +312,8 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   _InMemoryOpenShiftStore(this.database, this.actor);
   final InMemoryScheduleDatabase database;
   final String actor;
+  @override
+  Future<bool> canManageCoverageRules() async => _manager;
   @override
   Future<List<CoveragePoolConfig>> coveragePoolsOn(DateTime date) async {
     final seeds = [
@@ -358,7 +362,36 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> coverageRuleHistory() async => [];
+  Future<List<Map<String, dynamic>>> coverageRuleHistory() async =>
+      database._coverageRuleHistory.reversed.toList();
+
+  List<Map<String, dynamic>> _poolSnapshot(List<CoveragePoolConfig> pools) => [
+    for (final pool in pools)
+      {
+        'id': pool.id,
+        'name': pool.name,
+        'sort_order': pool.sortOrder,
+        'retired': pool.retired,
+        'floor_role': pool.floorRole?.value,
+        'job_roles': [for (final role in pool.jobRoles) role.value],
+      },
+  ];
+
+  void _recordRuleChange(
+    String action,
+    DateTime effectiveFrom,
+    Object? before,
+    Object? after,
+  ) {
+    database._coverageRuleHistory.add({
+      'action': action,
+      'actor_name': actor,
+      'effective_from': _day(effectiveFrom),
+      'changed_at': database._clock().toIso8601String(),
+      'before_value': before,
+      'after_value': after,
+    });
+  }
 
   Future<void> _saveCoveragePools(
     DateTime effectiveFrom,
@@ -374,12 +407,14 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     )) {
       throw ArgumentError('Coverage pool changes cannot start before today');
     }
+    final before = _poolSnapshot(await coveragePoolsOn(effectiveFrom));
     final roles = [for (final pool in pools) ...pool.jobRoles];
     if (roles.length != JobRole.values.length ||
         roles.toSet().length != roles.length ||
         pools.any(
           (pool) =>
               pool.retired && pool.jobRoles.isNotEmpty ||
+              !pool.retired && pool.jobRoles.isEmpty ||
               pool.floorRole != null && !pool.jobRoles.contains(pool.floorRole),
         )) {
       throw ArgumentError('Invalid Coverage pool membership or floor');
@@ -392,10 +427,16 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       history.removeWhere((entry) => _sameDay(entry.from, effectiveFrom));
       history.add((from: effectiveFrom, config: pool));
     }
+    _recordRuleChange(
+      'coverage_pools',
+      effectiveFrom,
+      before,
+      _poolSnapshot(pools),
+    );
   }
 
   Future<void> _setStandingMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     DateTime effectiveFrom,
@@ -403,8 +444,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     JobRole? floorRole,
     int floor,
   ) async {
-    if (!_manager)
+    if (!_manager) {
       throw StateError('Only the Manager can set Staffing minimums');
+    }
     if (effectiveFrom.isBefore(
           DateTime(
             database._clock().year,
@@ -431,6 +473,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     }
     final key = '${pool.value}:${window.value}:$weekday';
     final history = database._standingRuleVersions.putIfAbsent(key, () => []);
+    final before = history
+        .where((entry) => !entry.from.isAfter(effectiveFrom))
+        .lastOrNull;
     history.removeWhere((entry) => _sameDay(entry.from, effectiveFrom));
     history.add((
       from: effectiveFrom,
@@ -438,6 +483,26 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       floorRole: floorRole,
       floor: floor,
     ));
+    _recordRuleChange(
+      'weekday_minimum',
+      effectiveFrom,
+      {
+        'pool': pool.value,
+        'window': window.value,
+        'weekday': weekday,
+        'minimum': before?.minimum,
+        'floor_role': before?.floorRole?.value,
+        'floor': before?.floor,
+      },
+      {
+        'pool': pool.value,
+        'window': window.value,
+        'weekday': weekday,
+        'minimum': minimum,
+        'floor_role': floorRole?.value,
+        'floor': floor,
+      },
+    );
   }
 
   @override
@@ -456,7 +521,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<List<Map<String, dynamic>>> previewStandingMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     DateTime effectiveFrom,
@@ -467,7 +532,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<void> commitStandingMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     DateTime effectiveFrom,
@@ -488,7 +553,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<List<Map<String, dynamic>>> previewDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -498,7 +563,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<void> commitDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
@@ -686,8 +751,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<void> setApprovalDefault(bool requiresApproval) async {
-    if (!_manager)
+    if (!_manager) {
       throw StateError('Only the Manager can set Open shift approval');
+    }
     database._openShiftApprovalDefault = requiresApproval;
   }
 
@@ -696,8 +762,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     String openShiftId,
     bool requiresApproval,
   ) async {
-    if (!_manager)
+    if (!_manager) {
       throw StateError('Only the Manager can set Open shift approval');
+    }
     if (!(await openShifts()).any((shift) => shift.id == openShiftId)) {
       throw StateError('Open shift is unavailable');
     }
@@ -716,29 +783,35 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       final configs = (await coveragePoolsOn(date))
           .where((pool) => !pool.retired)
           .toList();
-      RolePool poolFor(JobRole role) {
+      CoveragePool poolFor(JobRole role) {
         final config = configs.firstWhere(
           (pool) => pool.jobRoles.contains(role),
         );
-        return RolePool(config.id, config.name, sortOrder: config.sortOrder);
+        return CoveragePool(
+          config.id,
+          config.name,
+          sortOrder: config.sortOrder,
+        );
       }
 
-      final working = <(RolePool, CoverageWindow, JobRole)>[];
+      final working = <(CoveragePool, CoverageWindow, JobRole)>[];
       for (final entry in grid.rowsOn(date)) {
-        if (!isWorkingShift(entry.shiftCode, codes: database._shiftCodes))
+        if (!isWorkingShift(entry.shiftCode, codes: database._shiftCodes)) {
           continue;
+        }
         final window = _windowForCode(entry.shiftCode);
         final role = await _role(entry.row.staffMemberId, date);
         if (window != null && role != null) {
           working.add((poolFor(role), window, role));
         }
       }
-      final opened = <(RolePool, CoverageWindow, JobRole)>[];
+      final opened = <(CoveragePool, CoverageWindow, JobRole)>[];
       for (final short in grid.shortShifts.where(
         (item) => _sameDay(item.date, date),
       )) {
-        if (!isWorkingShift(short.shiftCode, codes: database._shiftCodes))
+        if (!isWorkingShift(short.shiftCode, codes: database._shiftCodes)) {
           continue;
+        }
         final window = short.coverageWindow ?? _windowForCode(short.shiftCode);
         final role = short.jobRole ?? _originalRole(short.staffMemberId, date);
         if (window != null && role != null) {
@@ -746,7 +819,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
         }
       }
       for (final config in configs) {
-        final pool = RolePool(
+        final pool = CoveragePool(
           config.id,
           config.name,
           sortOrder: config.sortOrder,
@@ -796,14 +869,15 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<void> setWeekdayMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     int weekday,
     int minimum,
     int rnFloor,
   ) async {
-    if (!_manager)
+    if (!_manager) {
       throw StateError('Only the Manager can set staffing minimums');
+    }
     final config = (await coveragePoolsOn(database._clock()))
         .where((item) => item.id == pool.value && !item.retired)
         .firstOrNull;
@@ -823,14 +897,15 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<void> setDateMinimum(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
     int? minimum,
     int? rnFloor,
   ) async {
-    if (!_manager)
+    if (!_manager) {
       throw StateError('Only the Manager can set staffing minimums');
+    }
     final config = (await coveragePoolsOn(date))
         .where((item) => item.id == pool.value && !item.retired)
         .firstOrNull;
@@ -844,6 +919,13 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       throw ArgumentError('Invalid staffing minimum');
     }
     final key = '${pool.value}:${window.value}:${_day(date)}';
+    final before = {
+      'pool': pool.value,
+      'window': window.value,
+      'date': _day(date),
+      'minimum': database._dateMinimums[key],
+      'floor': database._dateRnFloors[key],
+    };
     if (minimum == null) {
       database._dateMinimums.remove(key);
       database._dateRnFloors.remove(key);
@@ -851,13 +933,20 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       database._dateMinimums[key] = minimum;
       database._dateRnFloors[key] = rnFloor!;
     }
+    _recordRuleChange('date_minimum', date, before, {
+      'pool': pool.value,
+      'window': window.value,
+      'date': _day(date),
+      'minimum': minimum,
+      'floor': rnFloor,
+    });
   }
 
   @override
   Future<int> postOpenShifts(
     DateTime date,
     String shiftCode,
-    RolePool pool,
+    CoveragePool pool,
     int count, {
     bool fillGap = false,
   }) async {

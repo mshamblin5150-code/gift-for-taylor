@@ -409,28 +409,33 @@ enum JobRole {
 
 /// Stable identity for a Coverage pool. Names and membership are read for the
 /// work date; the seed constants only preserve callers' initial defaults.
-final class RolePool {
-  const RolePool(this.value, this.label, {this.sortOrder = 0});
+final class CoveragePool {
+  const CoveragePool(this.value, this.label, {this.sortOrder = 0});
   final String value;
   final String label;
   final int sortOrder;
 
-  static const nurses = RolePool('nurses', 'Nurses', sortOrder: 0);
-  static const cna = RolePool('cna', 'CNAs', sortOrder: 1);
-  static const unitClerk = RolePool('unit_clerk', 'Unit clerks', sortOrder: 2);
+  static const nurses = CoveragePool('nurses', 'Nurses', sortOrder: 0);
+  static const cna = CoveragePool('cna', 'CNAs', sortOrder: 1);
+  static const unitClerk = CoveragePool(
+    'unit_clerk',
+    'Unit clerks',
+    sortOrder: 2,
+  );
   static const values = [nurses, cna, unitClerk];
 
-  static RolePool fromValue(String value) =>
+  static CoveragePool fromValue(String value) =>
       values.where((pool) => pool.value == value).firstOrNull ??
-      RolePool(value, value);
+      CoveragePool(value, value);
 
   @override
-  bool operator ==(Object other) => other is RolePool && other.value == value;
+  bool operator ==(Object other) =>
+      other is CoveragePool && other.value == value;
 
   @override
   int get hashCode => value.hashCode;
 
-  static RolePool forJobRole(JobRole role) => switch (role) {
+  static CoveragePool forJobRole(JobRole role) => switch (role) {
     JobRole.rn || JobRole.lpn => nurses,
     JobRole.cna => cna,
     JobRole.unitClerk => unitClerk,
@@ -523,7 +528,7 @@ final class ShortShift {
   final String? staffMemberId;
   final JobRole? jobRole;
   final CoverageWindow? coverageWindow;
-  final RolePool? coveragePool;
+  final CoveragePool? coveragePool;
 }
 
 final class ScheduleSection {
@@ -753,7 +758,7 @@ final class MonthGrid {
   }
 
   List<ShortShift> shortShiftsOn(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
   ) => shortShifts
@@ -761,7 +766,7 @@ final class MonthGrid {
         (short) =>
             _sameDay(short.date, date) &&
             short.jobRole != null &&
-            (short.coveragePool ?? RolePool.forJobRole(short.jobRole!)) ==
+            (short.coveragePool ?? CoveragePool.forJobRole(short.jobRole!)) ==
                 pool &&
             short.coverageWindow == window,
       )
@@ -1261,6 +1266,7 @@ final class InMemoryScheduleDatabase {
   };
   final Map<String, int> _dateMinimums = {};
   final Map<String, int> _dateRnFloors = {};
+  final List<Map<String, dynamic>> _coverageRuleHistory = [];
   final Map<String, List<({DateTime from, CoveragePoolConfig config})>>
   _coveragePoolVersions = {};
   final Map<
@@ -1694,7 +1700,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           coverageWindow: short.coverageWindow,
           coveragePool: pool == null
               ? null
-              : RolePool(pool.id, pool.name, sortOrder: pool.sortOrder),
+              : CoveragePool(pool.id, pool.name, sortOrder: pool.sortOrder),
         ),
       );
     }

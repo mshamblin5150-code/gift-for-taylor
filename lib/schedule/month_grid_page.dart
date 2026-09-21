@@ -557,7 +557,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _managePoolDay(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
   ) async {
@@ -1034,7 +1034,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             ),
         ],
       ),
-    if (_isManager && widget.openShiftRules != null)
+    if (_canManageUnit && widget.openShiftRules != null)
       _ScheduleAction(
         label: 'Unit coverage settings',
         icon: Icons.tune,
@@ -1491,14 +1491,14 @@ final class _DraggedCell {
 }
 
 typedef _OnManageDay = Future<void> Function(
-  RolePool pool,
+  CoveragePool pool,
   CoverageWindow window,
   DateTime date,
 );
 
 SectionStaffing? _staffingOn(
   List<SectionStaffing> staffing,
-  RolePool pool,
+  CoveragePool pool,
   CoverageWindow window,
   DateTime day,
 ) => staffing
@@ -1512,12 +1512,12 @@ SectionStaffing? _staffingOn(
     )
     .firstOrNull;
 
-List<RolePool> _poolsForDay(
+List<CoveragePool> _poolsForDay(
   List<SectionStaffing> staffing,
   List<ShortShift> shortShifts,
   DateTime day,
 ) {
-  final pools = <String, RolePool>{};
+  final pools = <String, CoveragePool>{};
   for (final item in staffing) {
     if (item.date.year == day.year &&
         item.date.month == day.month &&
@@ -1529,7 +1529,9 @@ List<RolePool> _poolsForDay(
     if (_dateOnly(short.date) != _dateOnly(day)) continue;
     final pool =
         short.coveragePool ??
-        (short.jobRole == null ? null : RolePool.forJobRole(short.jobRole!));
+        (short.jobRole == null
+            ? null
+            : CoveragePool.forJobRole(short.jobRole!));
     if (pool != null) pools.putIfAbsent(pool.value, () => pool);
   }
   return pools.values.toList()
@@ -1746,16 +1748,18 @@ class _MonthViewState extends State<_MonthView> {
     );
   }
 
-  List<RolePool> get _visiblePools {
+  List<CoveragePool> get _visiblePools {
     final days = widget.grid.days;
-    final pools = <String, RolePool>{};
+    final pools = <String, CoveragePool>{};
     for (final item in widget.staffing) {
       pools.putIfAbsent(item.pool.value, () => item.pool);
     }
     for (final short in widget.grid.shortShifts) {
       final pool =
           short.coveragePool ??
-          (short.jobRole == null ? null : RolePool.forJobRole(short.jobRole!));
+          (short.jobRole == null
+              ? null
+              : CoveragePool.forJobRole(short.jobRole!));
       if (pool != null) pools.putIfAbsent(pool.value, () => pool);
     }
     return [
@@ -1887,7 +1891,7 @@ class _MonthViewState extends State<_MonthView> {
 class _PoolNames extends StatelessWidget {
   const _PoolNames({required this.visiblePools});
 
-  final List<RolePool> visiblePools;
+  final List<CoveragePool> visiblePools;
 
   @override
   Widget build(BuildContext context) {
@@ -2067,7 +2071,7 @@ class _PoolBand extends StatelessWidget {
   });
 
   final MonthGrid grid;
-  final RolePool pool;
+  final CoveragePool pool;
   final List<DateTime> days;
   final DateTime today;
   final List<SectionStaffing> staffing;

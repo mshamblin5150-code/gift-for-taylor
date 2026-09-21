@@ -70,11 +70,13 @@ alter table public.pool_weekday_minimums add constraint pool_weekday_minimums_pk
   primary key (pool, coverage_window, weekday, effective_from);
 alter table public.pool_weekday_minimums drop constraint pool_weekday_minimums_pool_check;
 alter table public.pool_weekday_minimums drop constraint pool_weekday_minimums_check;
+alter table public.pool_weekday_minimums drop constraint pool_weekday_minimums_check1;
 alter table public.pool_weekday_minimums add constraint weekday_floor_valid
   check ((floor_role is null and rn_floor = 0) or
     (floor_role is not null and rn_floor between 0 and minimum));
 alter table public.pool_date_minimums drop constraint pool_date_minimums_pool_check;
 alter table public.pool_date_minimums drop constraint pool_date_minimums_check;
+alter table public.pool_date_minimums drop constraint pool_date_minimums_check1;
 alter table public.pool_date_minimums add column floor_role public.job_role;
 update public.pool_date_minimums set floor_role = 'rn' where pool = 'nurses';
 alter table public.pool_date_minimums add constraint date_floor_valid
@@ -119,6 +121,11 @@ begin
   select jsonb_agg(to_jsonb(version) order by version.sort_order)
     into v_before from public.coverage_pools pool
     cross join lateral public.coverage_pool_version_on(pool.id, p_effective_from) version;
+  v_before := jsonb_build_object(
+    'pools', coalesce(v_before, '[]'::jsonb),
+    'memberships', (select jsonb_object_agg(role::text,
+      public.coverage_pool_on(role, p_effective_from))
+      from unnest(enum_range(null::public.job_role)) role));
 
   create temporary table if not exists next_pools (
     id text primary key, name text not null, sort_order integer not null,
@@ -157,6 +164,9 @@ begin
     or exists (select 1 from pg_temp.next_memberships member
       left join pg_temp.next_pools pool on pool.id = member.pool
       where pool.id is null or pool.retired)
+    or exists (select 1 from pg_temp.next_pools pool
+      where not pool.retired and not exists (
+        select 1 from pg_temp.next_memberships member where member.pool = pool.id))
     or exists (select 1 from pg_temp.next_pools pool where pool.floor_role is not null
       and not exists (select 1 from pg_temp.next_memberships member
         where member.pool = pool.id and member.job_role = pool.floor_role)) then
@@ -172,11 +182,22 @@ begin
         where later.pool = rule.pool and later.coverage_window = rule.coverage_window
           and later.weekday = rule.weekday and later.effective_from > rule.effective_from
           and later.effective_from <= p_effective_from))
+    or exists (select 1 from public.pool_weekday_minimums rule
+      join pg_temp.next_pools pool on pool.id = rule.pool
+      where rule.effective_from > p_effective_from
+        and rule.rn_floor > 0 and not pool.retired
+        and pool.floor_role is distinct from rule.floor_role
+        and not exists (select 1 from public.coverage_pool_versions later
+          where later.pool = pool.id and later.effective_from > p_effective_from
+            and later.effective_from <= rule.effective_from))
     or exists (select 1 from public.pool_date_minimums rule
       join pg_temp.next_pools pool on pool.id = rule.pool
       where rule.work_date >= p_effective_from and
         rule.rn_floor > 0 and not pool.retired and
-          pool.floor_role is distinct from rule.floor_role) then
+          pool.floor_role is distinct from rule.floor_role
+        and not exists (select 1 from public.coverage_pool_versions later
+          where later.pool = pool.id and later.effective_from > p_effective_from
+            and later.effective_from <= rule.work_date)) then
     raise exception 'Move or clear affected Staffing minimum floors before changing pools';
   end if;
   insert into public.coverage_pools(id, created_on)
@@ -193,6 +214,10 @@ begin
   on conflict (job_role, effective_from) do update set pool = excluded.pool;
   select jsonb_agg(to_jsonb(next) order by next.sort_order) into v_current
   from pg_temp.next_pools next;
+  v_current := jsonb_build_object(
+    'pools', coalesce(v_current, '[]'::jsonb),
+    'memberships', (select jsonb_object_agg(job_role::text, pool)
+      from pg_temp.next_memberships));
   insert into public.coverage_rule_audit(actor, effective_from, action,
     before_value, after_value)
   values (public.current_staff_member_id(), p_effective_from, 'coverage_pools',
@@ -571,5 +596,3 @@ revoke all on function public.confirm_loaded_month_checked(date, boolean) from p
 grant execute on function public.confirm_loaded_month_checked(date, boolean)
   to authenticated;
 revoke execute on function public.confirm_loaded_month(date) from public, authenticated;
-
-\n
