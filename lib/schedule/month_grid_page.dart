@@ -26,6 +26,7 @@ import 'print_wording_dialog.dart';
 import 'print_wording_gateway.dart';
 import 'swaps_page.dart';
 import 'open_shifts_page.dart';
+import 'pending_work.dart';
 import 'requests_off_page.dart';
 import 'shift_codes_page.dart';
 import 'staffing_sheet.dart';
@@ -117,11 +118,8 @@ class MonthGridPage extends StatefulWidget {
 class _MonthGridPageState extends State<MonthGridPage> {
   late DateTime _month = DateTime(widget.month.year, widget.month.month);
   StreamSubscription<void>? _updates;
-  StreamSubscription<void>? _swapUpdates;
   StreamSubscription<void>? _openShiftUpdates;
-  int _pendingSwaps = 0;
-  int _pendingApprovals = 0;
-  Timer? _requestNoticeTimer;
+  late final PendingWork _pendingWork;
   Timer? _midnightTimer;
   late DateTime _today = _dateOnly(_now());
   MonthGrid? _grid;
@@ -143,7 +141,6 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Object? _loadError;
-  int _unreadRequests = 0;
   late ScheduleView _view = widget.staffMemberId == null
       ? ScheduleView.month
       : ScheduleView.person;
@@ -157,26 +154,23 @@ class _MonthGridPageState extends State<MonthGridPage> {
   @override
   void initState() {
     super.initState();
+    _pendingWork = PendingWork(
+      rules: widget.rules,
+      access: widget.access,
+      swapRules: widget.swapRules,
+      openShiftRules: widget.openShiftRules,
+      staffGateway: widget.staffGateway,
+      swapStaffMemberId: widget.swapStaffMemberId,
+    );
     _scheduleMidnight();
     _listen();
-    if (widget.swapRules case final swapRules?) {
-      _swapUpdates = swapRules.updates().listen((_) {
-        _refreshSwaps();
-        _refreshApprovals();
-      });
-    }
     if (widget.openShiftRules case final openShiftRules?) {
       _openShiftUpdates = openShiftRules.updates().listen((_) {
         _reload();
-        _refreshApprovals();
       });
     }
     _load();
     _loadWording();
-    _requestNoticeTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      _refreshRequestNotices();
-      _refreshApprovals();
-    });
   }
 
   void _listen() {
@@ -201,9 +195,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
   void dispose() {
     _midnightTimer?.cancel();
     _updates?.cancel();
-    _swapUpdates?.cancel();
     _openShiftUpdates?.cancel();
-    _requestNoticeTimer?.cancel();
+    _pendingWork.dispose();
     super.dispose();
   }
 
@@ -229,7 +222,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _load() {
-    _refreshRequestNotices();
+    _pendingWork.refresh();
     return _readMonth(initial: true);
   }
 
@@ -252,66 +245,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
         _announcement = read.announcement;
         _unreached = read.unreached;
       });
-      if (initial) {
-        _refreshSwaps();
-        _refreshApprovals();
-      }
     } catch (error) {
       if (initial) {
         if (mounted) setState(() => _loadError = error);
       } else {
         // The next save or update reloads again.
       }
-    }
-  }
-
-  Future<void> _refreshSwaps() async {
-    final swapRules = widget.swapRules;
-    if (swapRules == null) return;
-    try {
-      final swaps = await swapRules.swaps();
-      if (!mounted) return;
-      setState(
-        () => _pendingSwaps = swaps
-            .where(
-              (swap) =>
-                  swap.status == SwapStatus.proposed &&
-                  swap.colleagueId == widget.swapStaffMemberId,
-            )
-            .length,
-      );
-    } catch (_) {
-      // Schedule access still works if the Swap inbox is temporarily unavailable.
-    }
-  }
-
-  Future<void> _refreshApprovals() async {
-    if (!_access.canRunSchedule ||
-        widget.swapRules == null ||
-        widget.openShiftRules == null) {
-      return;
-    }
-    try {
-      final pending = await readPendingApprovals(
-        widget.rules,
-        widget.swapRules!,
-        widget.openShiftRules!,
-        widget.staffGateway,
-      );
-      if (mounted) {
-        setState(() => _pendingApprovals = pending.count);
-      }
-    } catch (_) {
-      // A temporary queue read failure must not hide the Schedule.
-    }
-  }
-
-  Future<void> _refreshRequestNotices() async {
-    try {
-      final count = await widget.rules.unreadRequestOffNotices();
-      if (mounted) setState(() => _unreadRequests = count);
-    } catch (_) {
-      // The Schedule stays usable if notices are temporarily unavailable.
     }
   }
 
@@ -719,9 +658,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: page))
         .then((_) {
-          _refreshRequestNotices();
-          _refreshSwaps();
-          _refreshApprovals();
+          _pendingWork.refresh();
         });
   }
 
@@ -882,7 +819,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
     };
   }
 
-  List<_ScheduleAction> _appBarActions(BuildContext context) => [
+  List<_ScheduleAction> _appBarActions(
+    BuildContext context,
+    PendingWorkState pending,
+  ) => [
     _ScheduleAction(
       label: 'Settings',
       icon: Icons.settings_outlined,
@@ -923,7 +863,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       _ScheduleAction(
         label: 'Approval queue',
         icon: Icons.fact_check_outlined,
-        badgeCount: _pendingApprovals,
+        badgeCount: pending.pendingApprovals,
         onPressed: () => _open(
           (context) => ApprovalQueuePage(
             rules: widget.rules,
@@ -955,7 +895,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       _ScheduleAction(
         label: 'Swaps',
         icon: Icons.swap_horiz,
-        badgeCount: _pendingSwaps,
+        badgeCount: pending.pendingSwaps,
         onPressed: () => _open(
           (context) => SwapsPage(
             rules: widget.rules,
@@ -986,7 +926,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       _ScheduleAction(
         label: 'My Requests off',
         icon: Icons.event_busy_outlined,
-        badgeCount: _unreadRequests,
+        badgeCount: pending.unreadRequestsOff,
         onPressed: () => _open(
           (context) => RequestsOffPage(
             rules: widget.rules,
@@ -1183,8 +1123,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
       );
 
   @override
-  Widget build(BuildContext context) {
-    final appBarActions = _appBarActions(context);
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: _pendingWork,
+    builder: (context, _) => _buildPage(context),
+  );
+
+  Widget _buildPage(BuildContext context) {
+    final appBarActions = _appBarActions(context, _pendingWork.state);
     final secondaryActions = appBarActions
         .where((action) => action.secondary)
         .toList();

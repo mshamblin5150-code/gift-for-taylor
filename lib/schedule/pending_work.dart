@@ -1,0 +1,171 @@
+// Public constructor names stay distinct from the private dependencies.
+// ignore_for_file: prefer_initializing_formals
+
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:schedule_rules/schedule_rules.dart';
+
+import '../staff/staff_gateway.dart';
+import 'pending_approvals.dart';
+
+@immutable
+final class PendingWorkState {
+  const PendingWorkState({
+    this.pendingSwaps = 0,
+    this.pendingApprovals = 0,
+    this.unreadRequestsOff = 0,
+  });
+
+  final int pendingSwaps;
+  final int pendingApprovals;
+  final int unreadRequestsOff;
+
+  PendingWorkState copyWith({
+    int? pendingSwaps,
+    int? pendingApprovals,
+    int? unreadRequestsOff,
+  }) => PendingWorkState(
+    pendingSwaps: pendingSwaps ?? this.pendingSwaps,
+    pendingApprovals: pendingApprovals ?? this.pendingApprovals,
+    unreadRequestsOff: unreadRequestsOff ?? this.unreadRequestsOff,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is PendingWorkState &&
+      other.pendingSwaps == pendingSwaps &&
+      other.pendingApprovals == pendingApprovals &&
+      other.unreadRequestsOff == unreadRequestsOff;
+
+  @override
+  int get hashCode =>
+      Object.hash(pendingSwaps, pendingApprovals, unreadRequestsOff);
+}
+
+typedef PendingWorkTimerFactory = Timer Function(
+  Duration interval,
+  void Function(Timer) callback,
+);
+
+/// Viewer-wide work that remains live while the page changes months.
+final class PendingWork extends ChangeNotifier {
+  PendingWork({
+    required ScheduleRules rules,
+    required Access access,
+    required String? swapStaffMemberId,
+    SwapRules? swapRules,
+    OpenShiftRules? openShiftRules,
+    StaffGateway? staffGateway,
+    PendingWorkTimerFactory? timerFactory,
+  }) : _rules = rules,
+       _access = access,
+       _swapStaffMemberId = swapStaffMemberId,
+       _swapRules = swapRules,
+       _openShiftRules = openShiftRules,
+       _staffGateway = staffGateway {
+    if (swapRules != null) {
+      _swapUpdates = swapRules.updates().listen((_) {
+        _refreshSwaps();
+        _refreshApprovals();
+      });
+    }
+    if (openShiftRules != null) {
+      _openShiftUpdates = openShiftRules.updates().listen(
+        (_) => _refreshApprovals(),
+      );
+    }
+    _timer = (timerFactory ?? Timer.periodic)(const Duration(seconds: 15), (_) {
+      _refreshRequestsOff();
+      _refreshApprovals();
+    });
+  }
+
+  final ScheduleRules _rules;
+  final Access _access;
+  final String? _swapStaffMemberId;
+  final SwapRules? _swapRules;
+  final OpenShiftRules? _openShiftRules;
+  final StaffGateway? _staffGateway;
+  StreamSubscription<void>? _swapUpdates;
+  StreamSubscription<void>? _openShiftUpdates;
+  Timer? _timer;
+  bool _disposed = false;
+
+  PendingWorkState _state = const PendingWorkState();
+  PendingWorkState get state => _state;
+
+  void _replace(PendingWorkState next) {
+    if (_disposed || next == _state) return;
+    _state = next;
+    notifyListeners();
+  }
+
+  Future<void> refresh() async {
+    await Future.wait([
+      _refreshSwaps(),
+      _refreshApprovals(),
+      _refreshRequestsOff(),
+    ]);
+  }
+
+  Future<void> _refreshSwaps() async {
+    final swapRules = _swapRules;
+    if (swapRules == null) return;
+    try {
+      final swaps = await swapRules.swaps();
+      _replace(
+        _state.copyWith(
+          pendingSwaps: swaps
+              .where(
+                (swap) =>
+                    swap.status == SwapStatus.proposed &&
+                    swap.colleagueId == _swapStaffMemberId,
+              )
+              .length,
+        ),
+      );
+    } catch (_) {
+      // Keep the last count when the Swap inbox is unavailable.
+    }
+  }
+
+  Future<void> _refreshApprovals() async {
+    final swapRules = _swapRules;
+    final openShiftRules = _openShiftRules;
+    if (!_access.canRunSchedule ||
+        swapRules == null ||
+        openShiftRules == null) {
+      return;
+    }
+    try {
+      final pending = await readPendingApprovals(
+        _rules,
+        swapRules,
+        openShiftRules,
+        _staffGateway,
+      );
+      _replace(_state.copyWith(pendingApprovals: pending.count));
+    } catch (_) {
+      // Keep the last count when the approval queue is unavailable.
+    }
+  }
+
+  Future<void> _refreshRequestsOff() async {
+    try {
+      final count = await _rules.unreadRequestOffNotices();
+      _replace(_state.copyWith(unreadRequestsOff: count));
+    } catch (_) {
+      // Keep the last count when Request off notices are unavailable.
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _swapUpdates?.cancel();
+    _openShiftUpdates?.cancel();
+    _timer?.cancel();
+    super.dispose();
+  }
+}
