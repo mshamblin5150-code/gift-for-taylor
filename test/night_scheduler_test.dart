@@ -103,8 +103,8 @@ void main() {
     tester,
   ) async {
     await manager.assignNightScheduler('rn-3', {'nights'});
-    await manager.startNextMonth(september);
     final october = DateTime(2026, 10);
+    await manager.startEmptyMonth(october);
     final october16 = DateTime(2026, 10, 16);
     await pumpGrid(tester, actingAs: 'rn-3', month: october);
 
@@ -112,6 +112,7 @@ void main() {
     expect(cell('rn-2', october16), findsOneWidget);
     expect(find.text('Release month'), findsNothing);
     expect(find.text('Start from September'), findsNothing);
+    expect(find.text('Start empty month'), findsNothing);
 
     await tester.tap(cell('rn-1', october16));
     await tester.pumpAndSettle();

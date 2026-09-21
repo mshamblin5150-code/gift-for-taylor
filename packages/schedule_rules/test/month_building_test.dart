@@ -205,6 +205,62 @@ void main() {
     });
   });
 
+  group('Start empty month', () {
+    test('creates a dated unpublished grid with current rows and no codes', () async {
+      final month = DateTime(2026, 10);
+      await manager.startEmptyMonth(month);
+
+      final grid = await manager.monthGrid(month);
+      expect(grid.status, MonthStatus.unpublished);
+      expect(grid.days, hasLength(31));
+      expect(grid.rows.map((row) => row.staffMemberId), ['rn-1', 'rn-2']);
+      expect(grid.shiftCodeFor('rn-1', DateTime(2026, 10, 16)), isNull);
+
+      await save(dayNurse, DateTime(2026, 10, 16), '7A');
+      await manager.releaseMonth(month);
+      expect((await manager.monthGrid(month)).status, MonthStatus.released);
+      expect(
+        (await manager.monthGrid(month)).shiftCodeFor('rn-1', DateTime(2026, 10, 16)),
+        '7A',
+      );
+    });
+
+    test('does not copy codes when the previous month exists', () async {
+      await save(dayNurse, DateTime(2026, 9, 18), '4P-8A');
+      await manager.startEmptyMonth(DateTime(2026, 10));
+      expect(
+        (await manager.monthGrid(DateTime(2026, 10)))
+            .shiftCodeFor('rn-1', DateTime(2026, 10, 16)),
+        isNull,
+      );
+    });
+
+    test('refuses an already started month without changing its cells', () async {
+      await save(dayNurse, DateTime(2026, 10, 16), 'D');
+      await expectLater(
+        manager.startEmptyMonth(DateTime(2026, 10)),
+        throwsA(isA<MonthAlreadyStarted>()),
+      );
+      expect(
+        (await manager.monthGrid(DateTime(2026, 10)))
+            .shiftCodeFor('rn-1', DateTime(2026, 10, 16)),
+        'D',
+      );
+    });
+
+    test('only the Manager may start an empty month', () async {
+      final staffMember = ScheduleRules.inMemory(database, actingAs: 'rn-1');
+      await expectLater(
+        staffMember.startEmptyMonth(DateTime(2026, 10)),
+        throwsA(isA<ScheduleEditRefused>()),
+      );
+      expect(
+        (await manager.monthGrid(DateTime(2026, 10))).status,
+        MonthStatus.notStarted,
+      );
+    });
+  });
+
   group('Release a month', () {
     setUp(() async {
       await save(dayNurse, DateTime(2026, 10, 5), '7A');

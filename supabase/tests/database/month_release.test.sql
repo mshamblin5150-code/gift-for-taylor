@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(36);
 
 insert into auth.users (id, email)
 values
@@ -371,6 +371,67 @@ select is(
       and work_date = '2027-03-02' and shift_code = 'X'),
   1,
   'the Staff member sees the changed cell'
+);
+
+-- Empty manual entry uses the same unpublished month and release lifecycle.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000301","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  $$select public.start_month('2027-07-01', '[]'::jsonb)$$,
+  'the Manager starts a month without a previous Schedule or copied cells'
+);
+select is(
+  (select release_state::text from public.schedule_months where month_start = '2027-07-01'),
+  'unpublished',
+  'an empty month starts unpublished'
+);
+select is(
+  (select count(*)::integer from public.schedule_cells
+    where work_date >= '2027-07-01' and work_date < '2027-08-01'),
+  0,
+  'the empty month contains no Shift codes'
+);
+select lives_ok(
+  $$select public.save_schedule_cell(
+      '00000000-0000-0000-0000-000000000323',
+      '00000000-0000-0000-0000-000000000311',
+      '2027-07-16', '7A'
+    )$$,
+  'the Manager enters a Shift code on a chosen date'
+);
+select throws_ok(
+  $$select public.start_month('2027-07-01', '[]'::jsonb)$$,
+  'That month has already been started',
+  'starting the empty month again is rejected'
+);
+select is(
+  (select shift_code from public.schedule_cells
+    where staff_member_id = '00000000-0000-0000-0000-000000000323'
+      and work_date = '2027-07-16'),
+  '7A',
+  'a rejected start preserves the entered Shift code'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000303","role":"authenticated"}',
+  true
+);
+select is(
+  (select count(*)::integer from public.schedule_months where month_start = '2027-07-01'),
+  0,
+  'Staff members cannot see the empty unpublished month'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000301","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  $$select public.release_month_checked('2027-07-01', true)$$,
+  'the Manager releases the manually entered month'
 );
 
 select * from finish();
