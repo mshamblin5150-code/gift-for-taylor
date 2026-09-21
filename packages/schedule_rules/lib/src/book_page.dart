@@ -126,6 +126,9 @@ String bookPageHtml(
     ..writeln('<html lang="en">')
     ..writeln('<head>')
     ..writeln('<meta charset="utf-8">')
+    ..writeln(
+      '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    )
     ..writeln('<title>${_escape(title)}</title>')
     ..writeln('<style>')
     ..writeln(_styles(initialScale: initialScale))
