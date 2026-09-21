@@ -4,23 +4,23 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 /// Returns the Manager's choices for every set of newly needed Open shifts.
 /// Null means the edit was cancelled before it reached the database.
-Future<List<Map<String, dynamic>>?> confirmCoverageRuleBatch(
+Future<List<CoverageRuleChoice>?> confirmCoverageRuleBatch(
   BuildContext context, {
-  required List<Map<String, dynamic>> plan,
+  required List<CoverageRulePlan> plan,
   required List<CoveragePoolConfig> pools,
   required List<LegendCode> codes,
 }) async {
   final choices = <String, _BatchChoice>{};
-  String key(Map<String, dynamic> row) =>
-      '${row['work_date']}:${row['pool']}:${row['window']}';
+  String key(CoverageRulePlan row) =>
+      '${row.workDate}:${row.pool}:${row.window.value}';
   for (final row in plan) {
-    final pool = pools.where((item) => item.id == row['pool']).firstOrNull;
+    final pool = pools.where((item) => item.id == row.pool).firstOrNull;
     final windowCodes = codes
         .where(
           (code) =>
               code.active &&
               code.isWorking &&
-              code.coverageWindow == row['window'],
+              code.coverageWindow == row.window.value,
         )
         .toList();
     choices[key(row)] = _BatchChoice(
@@ -52,7 +52,7 @@ Future<List<Map<String, dynamic>>?> confirmCoverageRuleBatch(
                   Builder(
                     builder: (context) {
                       final pool = pools
-                          .where((item) => item.id == row['pool'])
+                          .where((item) => item.id == row.pool)
                           .firstOrNull;
                       final choice = choices[key(row)]!;
                       final windowCodes = codes
@@ -60,15 +60,14 @@ Future<List<Map<String, dynamic>>?> confirmCoverageRuleBatch(
                             (code) =>
                                 code.active &&
                                 code.isWorking &&
-                                code.coverageWindow == row['window'],
+                                code.coverageWindow == row.window.value,
                           )
                           .toList();
-                      final date = DateTime.parse(row['work_date'] as String);
-                      final floorCount = row['post_floor'] as int;
-                      final ordinaryCount = row['post_ordinary'] as int;
+                      final date = row.workDate;
+                      final floorCount = row.postFloor;
+                      final ordinaryCount = row.postOrdinary;
                       final withdrawn =
-                          (row['withdraw_floor'] as int) +
-                          (row['withdraw_ordinary'] as int);
+                          row.withdrawFloor + row.withdrawOrdinary;
                       return Card(
                         child: Padding(
                           padding: const EdgeInsets.all(12),
@@ -77,7 +76,7 @@ Future<List<Map<String, dynamic>>?> confirmCoverageRuleBatch(
                             children: [
                               Text(
                                 '${DateFormat.MMMd().format(date)} · '
-                                '${pool?.name ?? row['pool']} · ${row['window']}',
+                                '${pool?.name ?? row.pool} · ${row.window.value}',
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               if (withdrawn > 0)
@@ -88,7 +87,7 @@ Future<List<Map<String, dynamic>>?> confirmCoverageRuleBatch(
                               if (floorCount > 0) ...[
                                 Text(
                                   'Post $floorCount floor-critical '
-                                  '${row['floor_role']} shifts (approval required).',
+                                  '${row.floorRole?.value} shifts (approval required).',
                                 ),
                                 DropdownButtonFormField<String>(
                                   initialValue: choice.floorCode,
@@ -169,9 +168,9 @@ Future<List<Map<String, dynamic>>?> confirmCoverageRuleBatch(
             onPressed: () {
               if (plan.any((row) {
                 final choice = choices[key(row)]!;
-                return (row['post_floor'] as int) > 0 &&
+                return row.postFloor > 0 &&
                         choice.floorCode == null ||
-                    (row['post_ordinary'] as int) > 0 &&
+                    row.postOrdinary > 0 &&
                         (choice.ordinaryCode == null ||
                             choice.ordinaryRole == null);
               })) {
@@ -193,16 +192,16 @@ Future<List<Map<String, dynamic>>?> confirmCoverageRuleBatch(
   if (confirmed != true) return null;
   return [
     for (final row in plan)
-      if ((row['post_floor'] as int) > 0 || (row['post_ordinary'] as int) > 0)
-        {
-          'work_date': row['work_date'],
-          'pool': row['pool'],
-          'window': row['window'],
-          'floor_role': row['floor_role'],
-          'floor_shift_code': choices[key(row)]!.floorCode,
-          'ordinary_role': choices[key(row)]!.ordinaryRole?.value,
-          'ordinary_shift_code': choices[key(row)]!.ordinaryCode,
-        },
+      if (row.postFloor > 0 || row.postOrdinary > 0)
+        CoverageRuleChoice(
+          workDate: row.workDate,
+          pool: row.pool,
+          window: row.window,
+          floorRole: row.floorRole,
+          floorShiftCode: choices[key(row)]!.floorCode,
+          ordinaryRole: choices[key(row)]!.ordinaryRole,
+          ordinaryShiftCode: choices[key(row)]!.ordinaryCode,
+        ),
   ];
 }
 
