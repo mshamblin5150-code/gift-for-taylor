@@ -1,4 +1,5 @@
 let installPrompt = null;
+let installed = false;
 
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
@@ -7,10 +8,11 @@ window.addEventListener('beforeinstallprompt', (event) => {
 
 window.addEventListener('appinstalled', () => {
   installPrompt = null;
+  installed = true;
 });
 
 window.erInstallState = () => {
-  if (window.matchMedia('(display-mode: standalone)').matches ||
+  if (installed || window.matchMedia('(display-mode: standalone)').matches ||
       navigator.standalone === true) return 'installed';
   return installPrompt ? 'available' : 'unavailable';
 };

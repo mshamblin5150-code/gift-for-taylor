@@ -86,7 +86,14 @@ const helpTopics = <HelpTopic>[
     title: 'Accept your Invite',
     who: 'A Staff member who received an Invite text',
     what: 'An Invite links your personal email to the Staff list after the Manager confirms who accepted it.',
-    how: '1. Open the one-time link in your Invite text.\n2. Enter the Cell number the Manager has for you.\n3. Enter your personal email and verify the code sent there.\n4. Wait for Manager confirmation, then tap Check confirmation on the waiting screen. On another device, sign in with that same personal email.\nIf the link expired, ask the Manager for a new Invite. You can open Add ER Schedule and Help while waiting.',
+    how:
+        '1. Open the one-time link in your Invite text.\n'
+        '2. Enter the Cell number the Manager has for you.\n'
+        '3. Enter your personal email.\n'
+        '4. Enter the code sent to that email. Your Invite then waits for Manager confirmation.\n'
+        '5. After the Manager confirms it, tap Check confirmation on the waiting screen. Your Schedule opens.\n'
+        '6. On another device, sign in with that same personal email.\n'
+        'If the link expired, ask the Manager for a new Invite. Add ER Schedule and Help are available while you wait.',
     searchTerms:
         'invite text accept cell number personal email sign in confirmation',
   ),
@@ -95,21 +102,45 @@ const helpTopics = <HelpTopic>[
     who: 'Everyone using a phone or tablet',
     what:
         'Add ER Schedule to your phone or tablet for its own Home Screen icon.',
-    how: '1. Open Add ER Schedule from the Invite flow or Settings.\n2. On iPhone or iPad, tap Copy app link and paste it into Safari’s address bar. Tap Share > Add to Home Screen, choose Open as Web App, and tap Add. Open the new ER Schedule icon.\n3. On Android Chrome, tap Install if offered, or choose Install app from Chrome’s menu. Open the new icon.\nIf installation is unavailable, bookmark the ordinary app link. Installation always needs your confirmation.',
+    how:
+        'iPhone or iPad:\n'
+        '1. Open Add ER Schedule from the Invite flow or Settings.\n'
+        '2. Tap Copy app link.\n'
+        '3. Paste the link into Safari’s address bar.\n'
+        '4. Tap Share > Add to Home Screen.\n'
+        '5. Choose Open as Web App, then tap Add.\n'
+        '6. Open ER Schedule from its new Home Screen icon.\n'
+        'Android Chrome:\n'
+        '1. Open Add ER Schedule.\n'
+        '2. Tap Install if offered, or choose Install app from Chrome’s menu.\n'
+        '3. Open ER Schedule from its new icon.\n'
+        'If installation is unavailable, bookmark the ordinary app link. Installation needs your confirmation.',
     searchTerms: 'install app download app home screen iphone ipad android safari chrome icon',
   ),
   HelpTopic(
     title: 'Install on a computer',
     who: 'Everyone using a computer',
     what: 'ER Schedule can have its own icon on your computer as well as your phone.',
-    how: '1. On your phone, open Add ER Schedule and tap Copy app link. Paste that ordinary link into a message to yourself, then open it on the computer; do not reuse the one-time Invite link.\n2. After Manager confirmation, sign in with the same personal email.\n3. On Windows Edge, choose Apps > Install this site as an app. In Windows Chrome, choose Install page as app from the menu. On Mac Safari, choose File > Add to Dock. In Mac Chrome, choose Install page as app from the menu.\n4. Open the ER Schedule icon. If installation is unavailable, bookmark the ordinary app link.',
+    how:
+        '1. On your phone, open Add ER Schedule.\n'
+        '2. Tap Copy app link.\n'
+        '3. Paste the ordinary link into a message to yourself. Do not reuse the one-time Invite link.\n'
+        '4. Open that link on your computer.\n'
+        '5. After Manager confirmation, sign in with the same personal email.\n'
+        '6. Install using your browser: Windows Edge: Apps > Install this site as an app; Windows or Mac Chrome: Install page as app; Mac Safari: File > Add to Dock. Follow the browser’s confirmation.\n'
+        '7. Open ER Schedule from its new icon. If installation is unavailable, bookmark the ordinary app link.',
     searchTerms: 'install app download app computer desktop windows mac edge chrome safari dock bookmark',
   ),
   HelpTopic(
     title: 'Allow notifications',
     who: 'A confirmed Staff member on each device',
     what: 'Notifications can tell you about Schedule changes and other notices. Permission is separate on every device.',
-    how: '1. Wait for the Manager to confirm your Invite.\n2. Open Settings > Notifications > Allow notifications on each device.\n3. Choose Allow when the browser or device asks. If you denied it earlier, change permission in that device’s browser or app settings.\nOn iPhone or iPad, first add the web app to the Home Screen and open its icon; Web Push requires iOS or iPadOS 16.4 or later.',
+    how:
+        '1. Wait for the Manager to confirm your Invite.\n'
+        '2. On each device, open Settings > Notifications.\n'
+        '3. Tap Allow notifications.\n'
+        '4. Choose Allow when the browser or device asks. Notices can now reach that device.\n'
+        'If you denied permission earlier, change it in that device’s browser or app settings. On iPhone or iPad, first add the web app to the Home Screen and open its icon; Web Push requires iOS or iPadOS 16.4 or later.',
     searchTerms: 'notifications alerts push permission allow home screen device denied blocked',
   ),
   HelpTopic(

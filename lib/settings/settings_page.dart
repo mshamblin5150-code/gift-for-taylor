@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../notifications/notice_gateway.dart';
 import '../notifications/notices_page.dart';
+import '../help/help_page.dart';
 import '../schedule/print_wording_dialog.dart';
 import '../schedule/print_wording_gateway.dart';
 import '../schedule/shift_codes_page.dart';
@@ -22,6 +23,8 @@ class SettingsPage extends StatelessWidget {
     this.onManageStaff,
     this.role = 'staff_member',
     this.auditClient,
+    this.helpRole = HelpRole.staffMember,
+    this.hasNightSchedulerGrant = false,
   });
 
   final ScheduleRules scheduleRules;
@@ -32,6 +35,8 @@ class SettingsPage extends StatelessWidget {
   final Future<void> Function()? onManageStaff;
   final String role;
   final SupabaseClient? auditClient;
+  final HelpRole helpRole;
+  final bool hasNightSchedulerGrant;
 
   bool get _canManageUnit =>
       role == 'manager' || role == 'administrator' || role == 'maintainer';
@@ -52,7 +57,12 @@ class SettingsPage extends StatelessWidget {
             leading: const Icon(Icons.install_mobile_outlined),
             title: const Text('Add ER Schedule'),
             subtitle: const Text('Install on a phone or computer'),
-            onTap: () => open(const AppSetupPage()),
+            onTap: () => open(
+              AppSetupPage(
+                helpRole: helpRole,
+                hasNightSchedulerGrant: hasNightSchedulerGrant,
+              ),
+            ),
           ),
           if (role != 'maintainer' && onCalendarFeed != null)
             ListTile(

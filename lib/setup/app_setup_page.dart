@@ -15,9 +15,16 @@ Uri ordinaryAppUri(Uri current) => Uri(
 );
 
 class AppSetupPage extends StatefulWidget {
-  const AppSetupPage({super.key, this.awaitingConfirmation = false});
+  const AppSetupPage({
+    super.key,
+    this.awaitingConfirmation = false,
+    this.helpRole = HelpRole.staffMember,
+    this.hasNightSchedulerGrant = false,
+  });
 
   final bool awaitingConfirmation;
+  final HelpRole helpRole;
+  final bool hasNightSchedulerGrant;
 
   @override
   State<AppSetupPage> createState() => _AppSetupPageState();
@@ -25,7 +32,7 @@ class AppSetupPage extends StatefulWidget {
 
 class _AppSetupPageState extends State<AppSetupPage> {
   Timer? _refresh;
-  String _installState = browser.installState();
+  browser.InstallState _installState = browser.installState();
 
   @override
   void initState() {
@@ -73,12 +80,12 @@ class _AppSetupPageState extends State<AppSetupPage> {
         const Text(
           'Add it separately on each device to get an ER Schedule icon. Your browser will ask you to confirm installation.',
         ),
-        if (_installState == 'installed') ...[
+        if (_installState == browser.InstallState.installed) ...[
           const SizedBox(height: 16),
           const Text(
             'ER Schedule is already open as an installed app on this device.',
           ),
-        ] else if (_installState == 'available') ...[
+        ] else if (_installState == browser.InstallState.available) ...[
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: _install,
@@ -134,7 +141,10 @@ class _AppSetupPageState extends State<AppSetupPage> {
         TextButton.icon(
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => const HelpPage(role: HelpRole.staffMember),
+              builder: (_) => HelpPage(
+                role: widget.helpRole,
+                hasNightSchedulerGrant: widget.hasNightSchedulerGrant,
+              ),
             ),
           ),
           icon: const Icon(Icons.help_outline),
