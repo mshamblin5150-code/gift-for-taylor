@@ -426,7 +426,9 @@ class _StaffListPageState extends State<StaffListPage> {
                   role: helpRoleForAccess(
                     _currentRole,
                     canEditSchedule:
-                        _currentRole == null || _currentRole == 'manager',
+                        _currentRole == null ||
+                        _currentRole == 'manager' ||
+                        _currentRole == 'maintainer',
                     hasEditableSections: _hasNightSchedulerGrant,
                   ),
                 ),

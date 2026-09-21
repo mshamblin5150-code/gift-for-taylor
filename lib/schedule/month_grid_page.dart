@@ -964,14 +964,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
         ),
       ),
-    if (widget.noticeGateway case final gateway?)
+    if (_currentRole != 'maintainer' && widget.noticeGateway != null)
       _ScheduleAction(
         label: 'Notices',
         icon: Icons.notifications_outlined,
         secondary: true,
-        onPressed: () => _open((context) => NoticesPage(gateway: gateway)),
+        onPressed: () => _open(
+          (context) => NoticesPage(gateway: widget.noticeGateway!),
+        ),
       ),
-    if (widget.onCalendarFeed != null)
+    if (_currentRole != 'maintainer' && widget.onCalendarFeed != null)
       _ScheduleAction(
         label: 'My calendar',
         icon: Icons.calendar_month_outlined,

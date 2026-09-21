@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Help is shipped as source with the PWA: searching and reading never needs
 /// a network request. Update the corresponding topic when a capability changes.
-enum HelpRole { staffMember, nightScheduler, administrator, manager }
+enum HelpRole { staffMember, nightScheduler, administrator, manager, maintainer }
 
 HelpRole helpRoleForAccess(
   String? role, {
@@ -10,6 +10,7 @@ HelpRole helpRoleForAccess(
   required bool hasEditableSections,
 }) => switch (role) {
   'manager' => HelpRole.manager,
+  'maintainer' => HelpRole.maintainer,
   'administrator' => HelpRole.administrator,
   'night_scheduler' => HelpRole.nightScheduler,
   _ when canEditSchedule => HelpRole.manager,
@@ -29,6 +30,7 @@ class HelpTopic {
       HelpRole.nightScheduler,
       HelpRole.administrator,
       HelpRole.manager,
+      HelpRole.maintainer,
     },
   });
 
@@ -50,19 +52,34 @@ class HelpTopic {
 // labels the action as Manager only.
 const _manager = {
   HelpRole.manager,
+  HelpRole.maintainer,
   HelpRole.nightScheduler,
   HelpRole.administrator,
 };
-const _editors = {HelpRole.manager, HelpRole.nightScheduler};
+const _editors = {
+  HelpRole.manager,
+  HelpRole.maintainer,
+  HelpRole.nightScheduler,
+};
 
 /// One topic per reader task. Keep this catalog aligned with the Schedule
 /// views and the pages linked from the Schedule and Staff list.
 const helpTopics = <HelpTopic>[
   HelpTopic(
+    title: 'Maintainer repairs',
+    who: 'Maintainer only',
+    what:
+        'The Maintainer can use Manager controls to investigate and repair the app under their own account. The Staff Manager still makes ED decisions.',
+    how:
+        'Sign in with the separately provisioned Maintainer account. For a Unit change, enter a short reason when asked. The change and reason appear in Unit audit history. The Maintainer has no Staff list or Schedule row.',
+    searchTerms: 'repair reason manager access',
+    roles: {HelpRole.maintainer},
+  ),
+  HelpTopic(
     title: 'Settings',
-    who: 'Everyone; Unit choices require Manager or Administrator access',
+    who: 'Everyone; Unit choices require Manager, Administrator, or Maintainer access',
     what: 'Settings is the directory for choices that affect future behavior. Personal choices belong to you or this device. Unit choices govern the department.',
-    how: 'Open Schedule actions, then Settings. On a wide screen use More destinations. Choose Appearance, My calendar, or Notifications under Personal. Managers and Administrators can also open Staffing minimums, Open shift pickup approval, Print wording, Shift codes, Sections, Permission assignments, and Unit audit history.',
+    how: 'Open Schedule actions, then Settings. On a wide screen use More destinations. Everyone can choose Appearance on this device. Staff can also open My calendar and Notifications under Personal. Managers, Administrators, and the Maintainer can open Staffing minimums, Open shift pickup approval, Print wording, Shift codes, Sections, Permission assignments, and Unit audit history.',
     searchTerms:
         'appearance dark light theme calendar notifications unit audit history',
   ),

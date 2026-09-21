@@ -29,6 +29,7 @@ class ScheduleApp extends StatelessWidget {
     this.printBookPage,
     this.printWordingGateway,
     this.calendarFeedGateway,
+    this.navigatorKey,
   });
 
   final AuthGateway authGateway;
@@ -43,12 +44,14 @@ class ScheduleApp extends StatelessWidget {
   final ValueChanged<String>? printBookPage;
   final PrintWordingGateway? printWordingGateway;
   final CalendarFeedGateway? calendarFeedGateway;
+  final GlobalKey<NavigatorState>? navigatorKey;
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: appearanceMode,
       builder: (context, mode, _) => MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'ER Schedule',
         theme: ScheduleTheme.light,
         darkTheme: ScheduleTheme.dark,

@@ -38,13 +38,13 @@ dependencies:
   intl: ^0.20.3
   shared_preferences: ^2.5.5
   web: ^1.1.1
+  http: ^1.6.0
   schedule_rules:
     path: packages/schedule_rules
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  http: ^1.6.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

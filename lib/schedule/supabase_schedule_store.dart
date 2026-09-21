@@ -213,7 +213,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
           .from('schedule_changes')
           .select(
             'id, staff_member_id, work_date, old_shift_code, new_shift_code, '
-            'changed_by_staff_member_id, changed_at, announced_at, moot_at, reach, '
+            'changed_by_staff_member_id, changed_by_auth_user_id, '
+            'changed_at, announced_at, moot_at, reach, '
             'changed_by:staff_members!changed_by_staff_member_id(display_name)',
           )
           .gte('work_date', _date(_monthStart(month)))
@@ -230,11 +231,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
             date: DateTime.parse(row['work_date'] as String),
             oldShiftCode: row['old_shift_code'] as String,
             newShiftCode: row['new_shift_code'] as String,
-            changedBy: row['changed_by_staff_member_id'] as String,
+            changedBy:
+                (row['changed_by_staff_member_id'] ??
+                        row['changed_by_auth_user_id'])
+                    as String,
             changedByName:
                 (row['changed_by'] as Map<String, dynamic>?)?['display_name']
                     as String? ??
-                '',
+                (row['changed_by_auth_user_id'] != null ? 'Maintainer' : ''),
             changedAt: DateTime.parse(row['changed_at'] as String).toLocal(),
             announced: row['announced_at'] != null,
             moot: row['moot_at'] != null,
@@ -613,7 +617,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
         .from('staff_changes')
         .select(
           'staff_member_id, kind, old_value, new_value, effective_from, '
-          'changed_by_staff_member_id, changed_at',
+          'changed_by_staff_member_id, changed_by_auth_user_id, changed_at',
         )
         .order('changed_at', ascending: true);
     return [
@@ -624,7 +628,10 @@ final class SupabaseScheduleStore implements ScheduleStore {
           oldValue: row['old_value'] as String?,
           newValue: row['new_value'] as String?,
           effectiveFrom: DateTime.parse(row['effective_from'] as String),
-          changedBy: row['changed_by_staff_member_id'] as String,
+          changedBy:
+              (row['changed_by_staff_member_id'] ??
+                      row['changed_by_auth_user_id'])
+                  as String,
           changedAt: DateTime.parse(row['changed_at'] as String).toLocal(),
         ),
     ];

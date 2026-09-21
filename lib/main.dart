@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'auth/auth_gateway.dart';
+import 'auth/repair_reason_client.dart';
 import 'calendar/calendar_feed_page.dart';
 import 'notifications/notice_gateway.dart';
 import 'schedule/book_page_printer.dart';
@@ -32,19 +33,30 @@ Future<void> main() async {
     return;
   }
 
+  final navigatorKey = GlobalKey<NavigatorState>();
+  final repairClient = RepairReasonClient(navigatorKey);
   await Supabase.initialize(
     url: supabaseUrl,
     publishableKey: supabasePublishableKey,
+    httpClient: repairClient,
   );
 
   final client = Supabase.instance.client;
   runApp(
     ScheduleApp(
-      authGateway: SupabaseAuthGateway(client),
+      authGateway: SupabaseAuthGateway(
+        client,
+        onSignedOut: () => repairClient.isMaintainer = false,
+      ),
       scheduleStore: SupabaseScheduleStore(client),
       swapRules: SwapRules(SupabaseSwapStore(client)),
       openShiftRules: OpenShiftRules(SupabaseOpenShiftStore(client)),
-      staffGateway: SupabaseStaffGateway(client),
+      staffGateway: SupabaseStaffGateway(
+        client,
+        onAccessRoleLoaded: (role) =>
+            repairClient.isMaintainer = role == 'maintainer',
+      ),
+      navigatorKey: navigatorKey,
       inviteComposer: SmsInviteComposer(Uri.base),
       messagesComposer: const SmsMessagesComposer(),
       noticeGateway: SupabaseNoticeGateway(
