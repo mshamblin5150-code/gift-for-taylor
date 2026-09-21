@@ -112,15 +112,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
   late MonthSession _session;
   late final PendingWork _pendingWork;
   PrintWording? _wording;
-  bool _dropInProgress = false;
 
   Access get _access => widget.access;
-
-  void _refreshIfUnauthorized(Object error) {
-    if (error is AccessRejected) {
-      widget.onAccessRejected?.call();
-    }
-  }
 
   late ScheduleView _view = widget.staffMemberId == null
       ? ScheduleView.month
@@ -156,6 +149,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     openShiftRules: widget.openShiftRules,
     month: _month,
     now: widget.now,
+    onAccessRejected: widget.onAccessRejected,
   );
 
   void _goToMonth(int offset) {
@@ -197,75 +191,56 @@ class _MonthGridPageState extends State<MonthGridPage> {
             messagesComposer: widget.messagesComposer,
           );
     if (draftOpenedStaffMemberIds == null) return;
-    try {
-      await widget.rules.markAnnounced(
-        announcement,
-        draftOpenedStaffMemberIds: draftOpenedStaffMemberIds,
-      );
-      await _session.refresh();
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("The changes weren't marked announced. Try again."),
-        ),
-      );
-      _refreshIfUnauthorized(error);
+    final outcome = await _session.announce(
+      announcement,
+      draftOpenedStaffMemberIds,
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case Announced():
+        break;
+      case AnnounceFailed():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("The changes weren't marked announced. Try again."),
+          ),
+        );
     }
   }
 
   Future<void> _edit(ScheduleRow row, DateTime date) async {
-    final grid = _session.state.grid;
-    if (!_access.canEditSection(row.sectionId) || grid == null) return;
-    if (!grid.isOnSchedule(row, date)) return;
-    if (grid.status == MonthStatus.notStarted) {
-      // An edit would create the month empty, and it could then no longer be
-      // started from last month.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Start ${DateFormat.MMMM().format(_month)} first.'),
-        ),
-      );
-      return;
+    final editable = _session.editableCell(row, date);
+    switch (editable) {
+      case NotEditable():
+        return;
+      case MonthNotStarted():
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Start ${DateFormat.MMMM().format(_month)} first.'),
+          ),
+        );
+        return;
+      case Editable():
+        break;
     }
     final edit = await showCellEditSheet(
       context,
       row: row,
       date: date,
-      currentCode: grid.shiftCodeFor(row.staffMemberId, date) ?? '',
-      publishedCode: grid.isUnannounced(row.staffMemberId, date)
-          ? grid.publishedCodeFor(row.staffMemberId, date)
-          : null,
+      currentCode: editable.currentCode,
+      publishedCode: editable.publishedCode,
       codes: _session.state.shiftCodes,
     );
     if (edit == null) return;
-    try {
-      switch (edit) {
-        case SaveCode(:final shiftCode):
-          await widget.rules.saveCell(
-            SaveCell(
-              staffMemberId: row.staffMemberId,
-              sectionId: row.sectionId,
-              date: date,
-              shiftCode: shiftCode,
-            ),
-          );
-        case UndoToPublished():
-          await widget.rules.undoCell(
-            UndoCell(
-              staffMemberId: row.staffMemberId,
-              sectionId: row.sectionId,
-              date: date,
-            ),
-          );
-      }
-      await _session.refresh();
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("That change wasn't saved. Try again.")),
-      );
-      _refreshIfUnauthorized(error);
+    final outcome = await _session.edit(row, date, edit);
+    if (!mounted) return;
+    switch (outcome) {
+      case EditSaved():
+        break;
+      case EditFailed():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("That change wasn't saved. Try again.")),
+        );
     }
   }
 
@@ -274,87 +249,57 @@ class _MonthGridPageState extends State<MonthGridPage> {
     _DraggedCell target,
     bool copy,
   ) async {
-    final grid = _session.state.grid;
-    if (_dropInProgress ||
-        grid == null ||
-        grid.status == MonthStatus.notStarted ||
-        !_access.canEditSection(source.row.sectionId) ||
-        !_access.canEditSection(target.row.sectionId) ||
-        !grid.isOnSchedule(source.row, source.date) ||
-        !grid.isOnSchedule(target.row, target.date)) {
-      return;
-    }
-    final sourceCode =
-        grid.shiftCodeFor(source.row.staffMemberId, source.date) ?? '';
-    final targetCode =
-        grid.shiftCodeFor(target.row.staffMemberId, target.date) ?? '';
-    if (sourceCode.isEmpty || (sourceCode == targetCode)) return;
-    if (!copy && targetCode.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Choose a cell with a Shift code to swap, or hold Ctrl or Option to copy here.',
-          ),
-        ),
-      );
-      return;
-    }
-    SaveCell cell(_DraggedCell location, String code) => SaveCell(
-      staffMemberId: location.row.staffMemberId,
-      sectionId: location.row.sectionId,
-      date: location.date,
-      shiftCode: code,
+    final outcome = await _session.drop(
+      CellLocation(source.row, source.date),
+      CellLocation(target.row, target.date),
+      copy: copy,
     );
-    final action = SaveCellPair(
-      first: cell(source, copy ? sourceCode : targetCode),
-      second: cell(target, sourceCode),
-      expectedFirstCode: sourceCode,
-      expectedSecondCode: targetCode,
-    );
-    setState(() => _dropInProgress = true);
-    try {
-      await widget.rules.saveCellPair(action);
-      await _session.refresh();
-      if (!mounted) return;
-      final undo = SaveCellPair(
-        first: cell(source, sourceCode),
-        second: cell(target, targetCode),
-        expectedFirstCode: action.first.shiftCode,
-        expectedSecondCode: action.second.shiftCode,
-      );
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(copy ? 'Shift code copied.' : 'Shift codes swapped.'),
-          duration: const Duration(seconds: 5),
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () async {
-              try {
-                await widget.rules.saveCellPair(undo);
-                await _session.refresh();
-              } catch (error) {
-                if (mounted) _showDropError(error);
-              }
-            },
+    if (!mounted) return;
+    switch (outcome) {
+      case DropIgnored():
+        break;
+      case NothingToSwap():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Choose a cell with a Shift code to swap, or hold Ctrl or Option to copy here.',
+            ),
           ),
-        ),
-      );
-    } catch (error) {
-      if (mounted) {
-        await _session.refresh();
-        if (mounted) _showDropError(error);
-      }
-    } finally {
-      if (mounted) setState(() => _dropInProgress = false);
+        );
+      case DropFailed():
+        _showDropError();
+      case Swapped(:final undo):
+      case Copied(:final undo):
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              outcome is Copied ? 'Shift code copied.' : 'Shift codes swapped.',
+            ),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () async {
+                final undone = await _session.undoDrop(undo);
+                if (!mounted) return;
+                switch (undone) {
+                  case DropUndone():
+                    break;
+                  case UndoDropFailed():
+                    _showDropError();
+                }
+              },
+            ),
+          ),
+        );
     }
   }
 
-  void _showDropError(Object error) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('The drop was not saved: $error')));
-    _refreshIfUnauthorized(error);
+  void _showDropError() {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("The drop wasn't saved. Try again.")),
+    );
   }
 
   Future<void> _managePoolDay(
@@ -482,7 +427,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           content: Text("The print wording wasn't saved. Try again."),
         ),
       );
-      _refreshIfUnauthorized(error);
+      if (error is AccessRejected) widget.onAccessRejected?.call();
     }
   }
 
@@ -505,12 +450,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('The month wording was not saved.')),
         );
-        _refreshIfUnauthorized(error);
+        if (error is AccessRejected) widget.onAccessRejected?.call();
       }
     }
   }
-
-  Future<void> _confirmMonth() => _finishMonth(confirm: true);
 
   void _open(
     Widget Function(BuildContext context) page, {
@@ -525,61 +468,47 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _startMonth({bool empty = false}) async {
-    try {
-      if (empty) {
-        await widget.rules.startEmptyMonth(_month);
-      } else {
-        await widget.rules.startNextMonth(_previousMonth);
-      }
-      await _session.refresh();
-    } on MonthAlreadyStarted {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This month has already been started.')),
-      );
-      await _session.refresh();
-    } on StateError {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${DateFormat.MMMM().format(_previousMonth)} has no Schedule '
-            'to start from.',
+    final outcome = await _session.startMonth(empty: empty);
+    if (!mounted) return;
+    switch (outcome) {
+      case Started():
+        break;
+      case AlreadyStarted():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This month has already been started.')),
+        );
+      case NoPreviousMonth():
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${DateFormat.MMMM().format(_previousMonth)} has no Schedule to start from.',
+            ),
           ),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("The month wasn't started. Try again.")),
-      );
-      _refreshIfUnauthorized(error);
+        );
+      case StartMonthFailed():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("The month wasn't started. Try again.")),
+        );
     }
   }
 
-  Future<void> _releaseMonth() => _finishMonth(confirm: false);
-
-  Future<void> _finishMonth({required bool confirm}) async {
-    List<SectionStaffing> staffing;
-    try {
-      staffing =
-          await widget.openShiftRules?.staffingForMonth(_month) ??
-          _session.state.staffing;
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Staffing could not be checked. Try again.'),
-          ),
-        );
-      }
+  Future<void> _reviewMonthRelease() async {
+    final outcome = await _session.reviewMonthRelease();
+    if (!mounted) return;
+    if (outcome is ReviewMonthReleaseFailed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Staffing could not be checked. Try again.'),
+        ),
+      );
       return;
     }
-    if (!mounted || _session.state.grid == null) return;
-    final reading = CoverageReading(_session.state.grid!, staffing);
-    final shortDays = reading.shortfallDays;
-    final openDays = reading.openShiftDays;
-    final verb = confirm ? 'Confirm' : 'Release';
+    final review = (outcome as ReleaseReady).review;
+    final shortDays = review.shortfallDays;
+    final openDays = review.openShiftDays;
+    final verb = review.kind == MonthReleaseKind.loadedMonth
+        ? 'Confirm'
+        : 'Release';
     String dates(List<DateTime> days) =>
         days.map((day) => DateFormat.MMMd().format(day)).join(', ');
     final lines = [
@@ -592,7 +521,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             '${openDays.length == 1 ? 'has' : 'have'} an Open shift: '
             '${dates(openDays)}.',
       if (shortDays.isEmpty && openDays.isEmpty)
-        confirm
+        review.kind == MonthReleaseKind.loadedMonth
             ? 'Confirming releases this month as the live Schedule.'
             : 'This month then becomes the live Schedule that staff can see.',
     ];
@@ -618,29 +547,19 @@ class _MonthGridPageState extends State<MonthGridPage> {
       ),
     );
     if (accepted != true) return;
-    try {
-      if (confirm) {
-        await widget.rules.confirmLoadedMonth(
-          _month,
-          acknowledgeShortfalls: shortDays.isNotEmpty,
-        );
-      } else {
-        await widget.rules.releaseMonth(
-          _month,
-          acknowledgeShortfalls: shortDays.isNotEmpty,
-        );
-      }
-      await _session.refresh();
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "The month wasn't ${confirm ? 'confirmed' : 'released'}. Try again.",
+    final released = await _session.releaseMonth(review);
+    if (!mounted) return;
+    switch (released) {
+      case Released():
+        break;
+      case ReleaseMonthFailed():
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "The month wasn't ${review.kind == MonthReleaseKind.loadedMonth ? 'confirmed' : 'released'}. Try again.",
+            ),
           ),
-        ),
-      );
-      _refreshIfUnauthorized(error);
+        );
     }
   }
 
@@ -658,7 +577,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             'it was loaded from. '
             'Tap any cell to correct it.',
         actionLabel: 'Confirm month',
-        onPressed: _confirmMonth,
+        onPressed: _reviewMonthRelease,
       );
     }
     return switch (grid.status) {
@@ -678,7 +597,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       MonthStatus.unpublished => _Banner(
         message: "Unpublished: staff can't see this month yet.",
         actionLabel: 'Release month',
-        onPressed: _releaseMonth,
+        onPressed: _reviewMonthRelease,
       ),
       MonthStatus.released => null,
     };
@@ -1145,7 +1064,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
           onDrop: _drop,
           access: _access,
           dragEnabled:
-              grid.status != MonthStatus.notStarted && !_dropInProgress,
+              grid.status != MonthStatus.notStarted &&
+              !_session.state.savingDrop,
           onOpenStaffDetails: widget.onOpenStaffDetails == null
               ? null
               : _openStaffDetails,

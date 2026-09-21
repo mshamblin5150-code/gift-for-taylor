@@ -3,19 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
-sealed class CellEdit {
-  const CellEdit();
-}
-
-final class SaveCode extends CellEdit {
-  const SaveCode(this.shiftCode);
-
-  final String shiftCode;
-}
-
-final class UndoToPublished extends CellEdit {
-  const UndoToPublished();
-}
+import 'month_session.dart';
 
 /// Offers the legend, a free-text Shift code, and undo when the cell has an
 /// unannounced change ([publishedCode] is then its published value).

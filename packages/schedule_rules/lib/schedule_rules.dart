@@ -274,6 +274,11 @@ final class MonthAlreadyStarted implements Exception {
   String toString() => 'That month has already been started';
 }
 
+/// The month to copy from has no Schedule yet.
+final class PreviousMonthNotStarted extends StateError {
+  PreviousMonthNotStarted() : super('There is no Schedule to start from');
+}
+
 /// Thrown when the signed-in person may not change the Schedule.
 final class ScheduleEditRefused implements Exception {
   const ScheduleEditRefused([
@@ -1132,7 +1137,7 @@ final class _ScheduleRules implements ScheduleRules {
       throw const MonthAlreadyStarted();
     }
     if (await _store.monthStatus(current) == MonthStatus.notStarted) {
-      throw StateError('There is no Schedule to start from');
+      throw PreviousMonthNotStarted();
     }
     final (rows, currentCells) = await (
       _store.rows(next),

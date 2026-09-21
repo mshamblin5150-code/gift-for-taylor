@@ -67,9 +67,6 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Finder unannounced(String staffMemberId) =>
-      find.byKey(ValueKey('unannounced-$staffMemberId-2026-09-18'));
-
   testWidgets('no tray when there is nothing to announce', (tester) async {
     await pumpGrid(tester);
 
@@ -134,20 +131,21 @@ void main() {
     expect(messages.opened.single.$2, startsWith('ER Schedule changes:'));
   });
 
-  testWidgets('mark announced clears the tray and the highlights', (
-    tester,
-  ) async {
+  testWidgets('failed announcement shows retry wording', (tester) async {
     await save(dana, 'X');
     await pumpGrid(tester);
-    expect(unannounced('rn-1'), findsOneWidget);
-
     await tester.tap(find.text('Announce'));
     await tester.pumpAndSettle();
+    database.failNext(
+      InMemoryStoreCall.markChangesAnnounced,
+      StateError('write failed'),
+    );
     await tester.tap(find.text('Mark announced'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('1 unannounced change'), findsNothing);
-    expect(unannounced('rn-1'), findsNothing);
+    await tester.pump();
+    expect(
+      find.text("The changes weren't marked announced. Try again."),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a reverted-only batch can be cleared without a text', (
