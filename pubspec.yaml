@@ -41,6 +41,7 @@ dependencies:
   http: ^1.6.0
   schedule_rules:
     path: packages/schedule_rules
+  pdf: ^3.13.1
 
 dev_dependencies:
   flutter_test:

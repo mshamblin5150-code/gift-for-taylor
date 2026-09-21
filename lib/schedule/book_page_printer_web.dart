@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:js_interop';
 
 import 'package:web/web.dart' as web;
@@ -12,30 +13,22 @@ bool get needsPrintPageGesture =>
     (web.window.navigator.userAgent.contains('Macintosh') &&
         web.window.navigator.maxTouchPoints > 1);
 
+/// Opens an already generated landscape PDF while the phone's tap is active.
+void openBookPagePdf(Uint8List bytes) {
+  final file = web.Blob(
+    [bytes.toJS].toJS,
+    web.BlobPropertyBag(type: 'application/pdf'),
+  );
+  final url = web.URL.createObjectURL(file);
+  final page = web.window.open(url, '_blank');
+  if (page == null) {
+    web.URL.revokeObjectURL(url);
+    throw StateError('The landscape PDF was blocked.');
+  }
+}
+
 /// Prints [html] as a standalone page, without the app's screen chrome.
 void printBookPage(String html) {
-  if (needsPrintPageGesture) {
-    // A top-level page can be printed from the phone's native browser controls.
-    // This call runs directly in the confirmation button's user gesture.
-    final page = web.window.open('', '_blank');
-    if (page == null) throw StateError('The printable page was blocked.');
-    final printable = html
-        .replaceFirst(
-          '</head>',
-          '<style>.page { pointer-events: none; } '
-              '#print-action { position: fixed; left: 12px; top: 12px; '
-              'z-index: 2147483647; padding: 10px; } '
-              '@media print { #print-action { display: none; } }</style></head>',
-        )
-        .replaceFirst(
-          '</body>',
-          '<button id="print-action" onclick="window.print()">Print this page</button>'
-              '</body>',
-        );
-    page.document.write(printable.toJS);
-    page.document.close();
-    return;
-  }
   web.document.getElementById(_frameId)?.remove();
   final frame = web.HTMLIFrameElement()
     ..id = _frameId
