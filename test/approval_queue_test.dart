@@ -166,6 +166,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          access: db.accessFor('manager'),
           rules: manager,
           month: month,
           swapRules: SwapRules(swaps),
@@ -238,6 +239,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          access: db.accessFor('alice'),
           rules: ScheduleRules.inMemory(db, actingAs: 'alice'),
           month: month,
           staffMemberId: 'alice',

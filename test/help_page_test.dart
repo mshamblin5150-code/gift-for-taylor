@@ -65,6 +65,20 @@ void main() {
     );
   });
 
+  testWidgets('Night scheduler finds how to check a Manager override', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: HelpPage(role: HelpRole.nightScheduler)),
+    );
+    await tester.enterText(find.byType(TextField), 'manager overrode');
+    await tester.pump();
+    expect(find.text('Change log'), findsOneWidget);
+    await tester.tap(find.text('Change log'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('old and new codes'), findsOneWidget);
+  });
+
   testWidgets('Maintainer finds Manager guidance and repair instructions', (
     tester,
   ) async {

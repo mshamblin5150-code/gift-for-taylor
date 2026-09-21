@@ -448,6 +448,41 @@ void main() {
     );
     expect(find.textContaining('23505'), findsNothing);
   });
+
+  testWidgets(
+    'returning to the foreground rebuilds the Schedule when Access changes',
+    (tester) async {
+      final staffGateway = _FakeStaffGateway('staff-1');
+      final database = InMemoryScheduleDatabase(
+        sections: const [ScheduleSection(id: 'days', name: 'Days')],
+        rows: const [
+          ScheduleRow(
+            staffMemberId: 'staff-1',
+            displayName: 'Staff',
+            sectionId: 'days',
+          ),
+        ],
+        editors: const {'manager'},
+      );
+      await tester.pumpWidget(
+        ScheduleApp(
+          authGateway: _FakeAuthGateway(true),
+          scheduleStore: database.storeFor('manager'),
+          staffGateway: staffGateway,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining("hasn't been released"), findsOneWidget);
+
+      staffGateway.access = Access(
+        grants: Grants(manager: true),
+        ownStaffMemberId: 'staff-1',
+      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.text('Start empty month'), findsOneWidget);
+    },
+  );
 }
 
 ScheduleStore _scheduleStore(List<ScheduleSection> sections) {
@@ -496,8 +531,8 @@ final class _FakeAuthGateway implements AuthGateway {
 
 final class _FakeStaffGateway implements StaffGateway {
   @override
-  Future<Access> currentAccess() async =>
-      Access(grants: Grants(), ownStaffMemberId: 'staff');
+  Future<Access> currentAccess() async => access;
+  late Access access;
   Object? acceptanceError;
   @override
   Future<bool> canTransferManagerTo(String id) async => false;
@@ -528,7 +563,9 @@ final class _FakeStaffGateway implements StaffGateway {
     bool formerAdministrator,
     Set<String> formerSections,
   ) async {}
-  _FakeStaffGateway([this.staffMemberId]);
+  _FakeStaffGateway([this.staffMemberId]) {
+    access = Access(grants: Grants(), ownStaffMemberId: staffMemberId);
+  }
 
   final String? staffMemberId;
   @override

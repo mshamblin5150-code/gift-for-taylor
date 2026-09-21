@@ -380,9 +380,10 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Change log',
-    who: 'Manager or Administrator; Night schedulers can read this guidance',
-    what: 'The Change log lets schedulers and Administrators look back at Schedule edits in a month.',
-    how: 'Manager or Administrator: open Change log from the Schedule. Choose a day to narrow a long list. Read the recorded changes there; this is a history, not the place to edit a shift.',
+    who: 'Manager, Maintainer, Administrator, or Night scheduler',
+    what: 'The Change log shows who changed a shift, when they changed it, and the old and new Shift codes. Night schedulers can see when the Manager changed one of their edits.',
+    how: 'Open Change log from the Schedule. Find the Staff member and shift date you edited, then look for a later entry for that shift with the Manager’s name. The old and new codes show what the Manager replaced and entered. Use Everyone to filter by editor or Any day to filter by when the edit was made.',
+    searchTerms: 'history audit override overrode night scheduler shift changes',
     roles: _manager,
   ),
   HelpTopic(

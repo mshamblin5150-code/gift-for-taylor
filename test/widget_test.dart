@@ -62,6 +62,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          access: database.accessFor(actingAs),
           key: ValueKey(month ?? september),
           rules: rules,
           month: month ?? september,
@@ -131,6 +132,7 @@ void main() {
       MaterialApp(
         theme: ThemeData.dark(),
         home: MonthGridPage(
+          access: database.accessFor('manager'),
           rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
           month: september,
           now: () => today,
