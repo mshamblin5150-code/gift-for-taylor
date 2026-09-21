@@ -9,7 +9,7 @@ Future<void> main(List<String> args) async {
     for (var i = 0; i < (args[0] == 'dense' ? 42 : 2); i++)
       ScheduleRow(
         staffMemberId: 'rn-$i',
-        displayName: 'RN ${i + 1}',
+        displayName: i == 0 ? 'Alexandria Montgomery-Williams' : 'RN ${i + 1}',
         sectionId: 'days',
       ),
   ];

@@ -41,6 +41,7 @@ def check(kind, staff_count, directory):
         text = page.extract_text()
         assert "SEPTEMBER 2026" in text
         assert "StatedayshiftRN" in text.replace(" ", "")
+        assert "AlexandriaMontgomery-Williams" in text.replace(" ", "")
         assert f"RN{staff_count}" in text.replace(" ", "")
         assert "16D" in text
         print(f"{kind}: one landscape page, thick cell rules and weekend fill")
