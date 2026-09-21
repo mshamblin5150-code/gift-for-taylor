@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 /// Help is shipped as source with the PWA: searching and reading never needs
 /// a network request. Update the corresponding topic when a capability changes.
-enum HelpRole { staffMember, nightScheduler, administrator, manager, maintainer }
+enum HelpRole {
+  staffMember,
+  nightScheduler,
+  administrator,
+  manager,
+  maintainer,
+}
 
 HelpRole helpRoleForAccess(
   String? role, {
@@ -61,6 +67,12 @@ const _editors = {
   HelpRole.maintainer,
   HelpRole.nightScheduler,
 };
+const _staffReaders = {
+  HelpRole.staffMember,
+  HelpRole.nightScheduler,
+  HelpRole.administrator,
+  HelpRole.manager,
+};
 
 /// One topic per reader task. Keep this catalog aligned with the Schedule
 /// views and the pages linked from the Schedule and Staff list.
@@ -68,10 +80,8 @@ const helpTopics = <HelpTopic>[
   HelpTopic(
     title: 'Maintainer repairs',
     who: 'Maintainer only',
-    what:
-        'The Maintainer can use Manager controls to investigate and repair the app under their own account. The Staff Manager still makes ED decisions.',
-    how:
-        'Sign in with the separately provisioned Maintainer account. For a Unit change, enter a short reason when asked. The change and reason appear in Unit audit history. The Maintainer has no Staff list or Schedule row.',
+    what: 'The Maintainer can use Manager controls to investigate and repair the app under their own account. The Staff Manager still makes ED decisions.',
+    how: 'Sign in with the separately provisioned Maintainer account. For a Unit change, enter a short reason when asked. The change and reason appear in Unit audit history. The Maintainer has no Staff list or Schedule row.',
     searchTerms: 'repair reason manager access',
     roles: {HelpRole.maintainer},
   ),
@@ -79,9 +89,73 @@ const helpTopics = <HelpTopic>[
     title: 'Settings',
     who: 'Everyone; Unit choices require Manager, Administrator, or Maintainer access',
     what: 'Settings is the directory for choices that affect future behavior. Personal choices belong to you or this device. Unit choices govern the department.',
-    how: 'Open Schedule actions, then Settings. On a wide screen use More destinations. Everyone can choose Appearance on this device. Staff can also open My calendar and Notifications under Personal. Managers, Administrators, and the Maintainer can open Staffing minimums, Open shift pickup approval, Print wording, Shift codes, Sections, Permission assignments, and Unit audit history.',
+    how: 'Open Schedule actions, then Settings. On a wide screen use More destinations. Everyone can choose Appearance and Add ER Schedule on this device. Staff can also open My calendar and Notifications under Personal. Managers, Administrators, and the Maintainer can open Staffing minimums, Open shift pickup approval, Print wording, Shift codes, Sections, Permission assignments, and Unit audit history.',
+    searchTerms: 'appearance dark light theme install app calendar notifications unit audit history',
+  ),
+  HelpTopic(
+    title: 'Accept your Invite',
+    who: 'A Staff member who received an Invite text',
+    what: 'An Invite links your personal email to the Staff list after the Manager confirms who accepted it.',
+    how:
+        '1. Open the one-time link in your Invite text.\n'
+        '2. Enter the Cell number the Manager has for you.\n'
+        '3. Enter your personal email.\n'
+        '4. Enter the code sent to that email. Your Invite then waits for Manager confirmation.\n'
+        '5. After the Manager confirms it, tap Check confirmation on the waiting screen. Your Schedule opens.\n'
+        '6. On another device, sign in with that same personal email.\n'
+        'If the link expired, ask the Manager for a new Invite. Add ER Schedule and Help are available while you wait.',
     searchTerms:
-        'appearance dark light theme calendar notifications unit audit history',
+        'invite text accept cell number personal email sign in confirmation',
+    roles: _staffReaders,
+  ),
+  HelpTopic(
+    title: 'Install on a phone',
+    who: 'Everyone using a phone or tablet',
+    what:
+        'Add ER Schedule to your phone or tablet for its own Home Screen icon.',
+    how:
+        'iPhone or iPad:\n'
+        '1. Open Add ER Schedule from the Invite flow or Settings.\n'
+        '2. Tap Copy app link.\n'
+        '3. Paste the link into Safari’s address bar.\n'
+        '4. Tap Share > Add to Home Screen.\n'
+        '5. Choose Open as Web App.\n'
+        '6. Tap Add.\n'
+        '7. Open ER Schedule from its new Home Screen icon.\n'
+        'Android Chrome:\n'
+        '1. Open Add ER Schedule.\n'
+        '2. Tap Install if offered, or choose Install app from Chrome’s menu.\n'
+        '3. Open ER Schedule from its new icon.\n'
+        'If installation is unavailable, bookmark the ordinary app link. Installation needs your confirmation.',
+    searchTerms: 'install app download app home screen iphone ipad android safari chrome icon',
+  ),
+  HelpTopic(
+    title: 'Install on a computer',
+    who: 'Everyone using a computer',
+    what: 'ER Schedule can have its own icon on your computer as well as your phone.',
+    how:
+        '1. On your phone, open Add ER Schedule.\n'
+        '2. Tap Copy app link.\n'
+        '3. Paste the ordinary link into a message to yourself. Do not reuse the one-time Invite link.\n'
+        '4. Open that link on your computer.\n'
+        '5. After Manager confirmation, sign in with the same personal email.\n'
+        '6. Choose your browser’s install action: Windows Edge: Apps > Install this site as an app; Windows or Mac Chrome: Install page as app; Mac Safari: File > Add to Dock.\n'
+        '7. Confirm installation when your browser asks.\n'
+        '8. Open ER Schedule from its new icon. If installation is unavailable, bookmark the ordinary app link.',
+    searchTerms: 'install app download app computer desktop windows mac edge chrome safari dock bookmark',
+  ),
+  HelpTopic(
+    title: 'Allow notifications',
+    who: 'A confirmed Staff member on each device',
+    what: 'Notifications can tell you about Schedule changes and other notices. Permission is separate on every device.',
+    how:
+        '1. Wait for the Manager to confirm your Invite.\n'
+        '2. On each device, open Settings > Notifications.\n'
+        '3. Tap Allow notifications.\n'
+        '4. Choose Allow when the browser or device asks. Notices can now reach that device.\n'
+        'If you denied permission earlier, change it in that device’s browser or app settings. On iPhone or iPad, first add the web app to the Home Screen and open its icon; Web Push requires iOS or iPadOS 16.4 or later.',
+    searchTerms: 'notifications alerts push permission allow home screen device denied blocked',
+    roles: _staffReaders,
   ),
   HelpTopic(
     title: 'Month view',

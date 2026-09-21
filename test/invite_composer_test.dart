@@ -11,7 +11,8 @@ void main() {
   final appUri = Uri.parse('https://example.invalid/schedule?old=1#section');
   const body =
       'You have an Invite to the ER Schedule: '
-      'https://example.invalid/schedule?invite=sample-token';
+      'https://example.invalid/schedule?invite=sample-token '
+      'After confirmation, you can use ER Schedule on a computer too.';
 
   test('iPhone Invite draft has readable text and a complete link', () {
     final uri = inviteSmsUri(appUri, invite, isIos: true);

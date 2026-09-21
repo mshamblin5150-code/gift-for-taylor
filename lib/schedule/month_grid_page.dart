@@ -917,6 +917,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
             onCalendarFeed: widget.onCalendarFeed,
             onManageStaff: widget.onManageStaff,
             role: role,
+            helpRole: helpRoleForAccess(
+              _currentRole,
+              canEditSchedule: _isManager,
+              hasEditableSections: !_editable.isEmpty,
+            ),
+            hasNightSchedulerGrant: !_editable.isEmpty && !_isManager,
             auditClient: widget.staffGateway is SupabaseStaffGateway
                 ? Supabase.instance.client
                 : null,

@@ -13,6 +13,15 @@ import 'staff/staff_list_page.dart';
 import 'staff/staff_details_page.dart';
 import 'schedule_theme.dart';
 import 'settings/appearance.dart';
+import 'setup/app_setup_page.dart';
+
+void _openSetup(BuildContext context, {bool awaitingConfirmation = false}) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => AppSetupPage(awaitingConfirmation: awaitingConfirmation),
+    ),
+  );
+}
 
 class ScheduleApp extends StatelessWidget {
   const ScheduleApp({
@@ -152,7 +161,10 @@ class _AuthGateState extends State<_AuthGate> {
                       setState(() => _inviteCellNumber = number),
                 );
               }
-              return SignInPage(authGateway: widget.authGateway);
+              return SignInPage(
+                authGateway: widget.authGateway,
+                awaitingConfirmation: widget.inviteToken != null,
+              );
             }
             if (widget.inviteToken != null && widget.staffGateway != null) {
               return _InviteAcceptance(
@@ -230,6 +242,10 @@ class _InviteCellEntryState extends State<_InviteCellEntry> {
                 const Text(
                   'Enter the Cell number your Manager has on the Staff list.',
                 ),
+                const SizedBox(height: 8),
+                const Text(
+                  'You can add ER Schedule to this phone and to a computer now or after accepting your Invite.',
+                ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _controller,
@@ -244,6 +260,11 @@ class _InviteCellEntryState extends State<_InviteCellEntry> {
                     }
                   },
                   child: const Text('Continue to email'),
+                ),
+                TextButton(
+                  onPressed: () =>
+                      _openSetup(context, awaitingConfirmation: true),
+                  child: const Text('Add ER Schedule'),
                 ),
               ],
             ),
@@ -492,15 +513,28 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
               ],
             ),
             body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  data?.invitePending == true
-                      ? 'Your Invite is waiting for the Manager to confirm it. '
-                            'Check again after they review it.'
-                      : "This email isn't on the ER staff list. "
-                            'Ask your manager to add you.',
-                  textAlign: TextAlign.center,
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        data?.invitePending == true
+                            ? 'Your Invite is waiting for the Manager to confirm it. Check again after they review it. You can add ER Schedule on this device and a computer while you wait.'
+                            : "This email isn't on the ER staff list. Ask your Manager to add you.",
+                        textAlign: TextAlign.center,
+                      ),
+                      if (data?.invitePending == true) ...[
+                        const SizedBox(height: 16),
+                        OutlinedButton(
+                          onPressed: () =>
+                              _openSetup(context, awaitingConfirmation: true),
+                          child: const Text('Add ER Schedule'),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ),
