@@ -495,6 +495,9 @@ final class _FakeAuthGateway implements AuthGateway {
 }
 
 final class _FakeStaffGateway implements StaffGateway {
+  @override
+  Future<Access> currentAccess() async =>
+      Access(grants: Grants(), ownStaffMemberId: 'staff');
   Object? acceptanceError;
   @override
   Future<bool> canTransferManagerTo(String id) async => false;

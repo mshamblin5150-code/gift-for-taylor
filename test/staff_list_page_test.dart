@@ -1258,6 +1258,8 @@ void main() {
 }
 
 final class _FakeStaffGateway implements StaffGateway {
+  @override
+  Future<Access> currentAccess() async => Access(grants: Grants());
   bool transferEligible = true;
 
   @override

@@ -565,9 +565,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     List<Map<String, dynamic>> plan,
     List<Map<String, dynamic>> choices,
   ) => setDateMinimum(pool, window, date, minimum, floor);
-  bool get _manager =>
-      !database._nightSchedulers.containsKey(actor) &&
-      (database.editors?.contains(actor) ?? true);
+  bool get _manager => database.accessFor(actor).canRunSchedule;
 
   Future<JobRole?> _role(String id, DateTime date) =>
       ScheduleRules.inMemory(database, actingAs: actor).jobRoleOn(id, date);

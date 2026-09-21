@@ -2,6 +2,9 @@ library;
 
 import 'dart:async';
 
+import 'src/access.dart';
+
+export 'src/access.dart';
 export 'src/book_page.dart';
 export 'src/first_month_transcript.dart';
 
@@ -1217,6 +1220,8 @@ final class InMemoryScheduleDatabase {
     required List<ScheduleSection> sections,
     List<ScheduleRow> rows = const [],
     this.editors,
+    Map<String, Grants> grants = const {},
+    this.maintainerId,
     Map<String, String> names = const {},
     this.managerEmail = 'manager@example.test',
     Set<DateTime> releasedMonths = const {},
@@ -1226,6 +1231,12 @@ final class InMemoryScheduleDatabase {
            DateTime(month.year, month.month): MonthStatus.released,
        },
        _sections = List.unmodifiable(sections),
+       _legacyEveryoneEdits = editors == null && grants.isEmpty,
+       _grants = {
+         for (final entry in grants.entries) entry.key: entry.value,
+         for (final id in editors ?? const <String>{})
+           id: (grants[id] ?? Grants()).copyWith(manager: true),
+       },
        _names = {
          for (final row in rows) row.staffMemberId: row.displayName,
          ...names,
@@ -1246,15 +1257,16 @@ final class InMemoryScheduleDatabase {
 
   final List<ScheduleSection> _sections;
 
-  /// Staff member ids who act as the Manager; null lets everyone who is not a
-  /// Night scheduler.
+  /// Legacy test shortcut: these people receive a Manager grant.
   final Set<String>? editors;
+  final String? maintainerId;
+  final bool _legacyEveryoneEdits;
+  final Map<String, Grants> _grants;
   final String managerEmail;
 
   /// Display names of everyone, including people not on a Schedule row such
   /// as the Manager.
   final Map<String, String> _names;
-  final Map<String, Set<String>> _nightSchedulers = {};
   final Map<String, String> _cellNumbers = {};
   final Set<String> _pushSubscriptions = {};
   final DateTime Function() _clock;
@@ -1360,6 +1372,15 @@ final class InMemoryScheduleDatabase {
   ScheduleStore storeFor(String staffMemberId) =>
       _InMemoryScheduleStore(this, staffMemberId);
 
+  Access accessFor(String actor) => Access(
+    grants: _lastDays.containsKey(actor)
+        ? Grants()
+        : _grants[actor] ??
+              (_legacyEveryoneEdits ? Grants(manager: true) : Grants()),
+    maintainer: actor == maintainerId,
+    ownStaffMemberId: actor == maintainerId || !_isActive(actor) ? null : actor,
+  );
+
   bool _isActive(String staffMemberId) =>
       _names.containsKey(staffMemberId) &&
       !_lastDays.containsKey(staffMemberId);
@@ -1401,6 +1422,12 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   final InMemoryScheduleDatabase _database;
   final String _actingAs;
+
+  void _requireStaffManagement() {
+    if (!_database.accessFor(_actingAs).canManageStaff) {
+      throw const ScheduleEditRefused();
+    }
+  }
 
   @override
   Future<List<LegendCode>> shiftCodes() async {
@@ -1503,7 +1530,10 @@ final class _InMemoryScheduleStore implements ScheduleStore {
       decidedAt: null,
     );
     _database._requestsOff.add(request);
-    for (final manager in _database.editors ?? const <String>{}) {
+    for (final manager
+        in _database._grants.entries
+            .where((entry) => entry.value.manager)
+            .map((entry) => entry.key)) {
       _database._unreadRequestOffNotices.update(
         manager,
         (count) => count + 1,
@@ -1834,10 +1864,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<EditableSections> editableSections() async {
-    final assigned = _database._nightSchedulers[_actingAs];
-    if (assigned != null) return EditableSections.only({...assigned});
-    if (await canEditSchedule()) return const EditableSections.all();
-    return const EditableSections.only({});
+    return _database.accessFor(_actingAs).editableSections;
   }
 
   @override
@@ -1845,20 +1872,40 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     String staffMemberId,
     Set<String> sectionIds,
   ) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
-    _database._nightSchedulers[staffMemberId] = {...sectionIds};
+    _requireStaffManagement();
+    // Preserve the old no-grants test default: assigning a Section made that
+    // actor a Night scheduler rather than an implicit Manager.
+    final existing =
+        _database._grants[staffMemberId] ??
+        (_database._legacyEveryoneEdits
+            ? Grants()
+            : _database.accessFor(staffMemberId).grants);
+    _database._grants[staffMemberId] = existing.copyWith(
+      nightSchedulerSectionIds: sectionIds,
+    );
   }
 
   @override
   Future<void> removeNightScheduler(String staffMemberId) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
-    _database._nightSchedulers.remove(staffMemberId);
+    _requireStaffManagement();
+    if (_database._legacyEveryoneEdits) {
+      _database._grants.remove(staffMemberId);
+      return;
+    }
+    _database._grants[staffMemberId] = _database
+        .accessFor(staffMemberId)
+        .grants
+        .copyWith(nightSchedulerSectionIds: {});
   }
 
   @override
   Future<List<NightScheduler>> nightSchedulers() async => [
-    for (final MapEntry(:key, :value) in _database._nightSchedulers.entries)
-      NightScheduler(staffMemberId: key, sectionIds: {...value}),
+    for (final MapEntry(:key, :value) in _database._grants.entries)
+      if (value.nightSchedulerSectionIds.isNotEmpty)
+        NightScheduler(
+          staffMemberId: key,
+          sectionIds: {...value.nightSchedulerSectionIds},
+        ),
   ];
 
   @override
@@ -1868,8 +1915,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<bool> canEditSchedule() async =>
-      !_database._nightSchedulers.containsKey(_actingAs) &&
-      (_database.editors?.contains(_actingAs) ?? true);
+      _database.accessFor(_actingAs).canRunSchedule;
 
   @override
   Future<List<DateTime>> monthsAwaitingConfirmation() async {
@@ -1891,7 +1937,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> setLastDay(SetLastDay action) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    _requireStaffManagement();
     final id = action.staffMemberId;
     final lastDay = action.lastDay;
     if (id == _actingAs) throw StateError("You can't set your own Last day");
@@ -1899,6 +1945,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
       throw StateError('That person is not on the Staff list');
     }
     _database._lastDays[id] = lastDay;
+    _database._grants[id] = Grants();
 
     // Placements planned to start after the Last day no longer apply.
     _database._assignments.removeWhere(
@@ -1968,7 +2015,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> reactivate(Reactivate action) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    _requireStaffManagement();
     final id = action.staffMemberId;
     final lastDay = _database._lastDays[id];
     if (lastDay == null) {
@@ -2008,7 +2055,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> changeSection(ChangeSection action) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    _requireStaffManagement();
     final id = action.staffMemberId;
     final open = _database._openAssignment(id);
     if (!_database._isActive(id) || open == null) {
@@ -2047,7 +2094,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> changeJobRole(ChangeJobRole action) async {
-    if (!await canEditSchedule()) throw const ScheduleEditRefused();
+    _requireStaffManagement();
     final id = action.staffMemberId;
     if (!_database._isActive(id)) {
       throw StateError('That person is not on the Staff list');
@@ -2193,7 +2240,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   /// Only schedulers see a month before it is released.
   Future<bool> _canSee(DateTime month) async =>
       _database._monthStatus[month] != MonthStatus.unpublished ||
-      !(await editableSections()).isEmpty;
+      _database.accessFor(_actingAs).canReadUnreleased;
 
   @override
   Future<void> startMonth(DateTime month, List<ScheduleCell> cells) async {
