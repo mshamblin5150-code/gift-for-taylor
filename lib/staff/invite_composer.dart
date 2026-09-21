@@ -28,8 +28,7 @@ final class SmsInviteComposer implements InviteComposer {
 Uri inviteSmsUri(Uri appUri, StaffInvite invite, {required bool isIos}) {
   final inviteUri = appUri.replace(
     queryParameters: {'invite': invite.token},
-    fragment: '',
-  );
+  ).removeFragment();
   return messagesUri(
     [invite.cellNumber],
     'You have an Invite to the ER Schedule: $inviteUri',
