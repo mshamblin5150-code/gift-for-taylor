@@ -19,8 +19,12 @@ The system's designer, with a separate account and permanent access to every Man
 _Avoid_: Administrator, Manager, owner
 
 **Night scheduler**:
-A Staff member granted permission to edit specific Sections (today, the night sections). Their edits take effect at once; the Manager can override them.
+A Staff member granted permission to edit specific Sections (today, the night sections). Their edits take effect at once; the Manager can override them. They can read unpublished Schedules and the Change log, so they can see when an edit of theirs was overridden.
 _Avoid_: Co-scheduler, assistant manager
+
+**Access grant**:
+Permission a Staff member holds beyond ordinary Staff actions: Administrator, or Night scheduler for named Sections. A person may hold both; granting or removing one keeps the other. The Manager role is transferred, not granted, and the Maintainer's access is never granted in the app.
+_Avoid_: Role, access role, permission level
 
 **Staff member**:
 A person on the Schedule who can see it, ask for a Request off, a Swap or an
