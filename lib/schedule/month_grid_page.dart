@@ -17,7 +17,8 @@ import '../settings/settings_page.dart';
 
 import 'announce_sheet.dart';
 import 'approval_queue_page.dart';
-import 'book_page_printer.dart' show needsPrintPageGesture;
+import 'book_page_pdf.dart';
+import 'book_page_printer.dart' show needsPrintPageGesture, openBookPagePdf;
 import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
 import 'coverage_settings_page.dart';
@@ -623,15 +624,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
         );
         if (proceed != true || !mounted) return;
       }
-      final html = bookPageHtml(grid, wording: wording, codes: codes);
       if (needsPrintPageGesture) {
+        final pdf = await bookPagePdf(grid, wording: wording, codes: codes);
         if (!mounted) return;
         await showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Print the book page'),
             content: const Text(
-              'Open the printable page, then tap Print this page or use your browser’s Print option.',
+              'Open the landscape PDF, then print it from your browser’s controls.',
             ),
             actions: [
               TextButton(
@@ -642,25 +643,23 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 onPressed: () {
                   Navigator.pop(context);
                   try {
-                    printBookPage(html);
+                    openBookPagePdf(pdf);
                   } catch (_) {
                     if (!mounted) return;
                     ScaffoldMessenger.of(this.context).showSnackBar(
                       const SnackBar(
-                        content: Text(
-                          "The page couldn't be opened. Allow pop-ups and try again.",
-                        ),
+                        content: Text("The PDF couldn't be opened. Try again."),
                       ),
                     );
                   }
                 },
-                child: const Text('Open printable page'),
+                child: const Text('Open landscape PDF'),
               ),
             ],
           ),
         );
       } else {
-        printBookPage(html);
+        printBookPage(bookPageHtml(grid, wording: wording, codes: codes));
       }
     } catch (_) {
       if (!mounted) return;
