@@ -93,6 +93,11 @@ void main() {
       ('who is working', 'Day view'),
       ('calendar email', 'Calendar invitations'),
       ('subscribe calendar', 'Calendar feed'),
+      ('install app', 'Install on a phone'),
+      ('home screen', 'Install on a phone'),
+      ('computer', 'Install on a computer'),
+      ('desktop', 'Install on a computer'),
+      ('notifications', 'Allow notifications'),
     ]) {
       await tester.enterText(find.byType(TextField), query);
       await tester.pump();

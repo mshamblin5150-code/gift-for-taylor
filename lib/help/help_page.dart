@@ -79,9 +79,38 @@ const helpTopics = <HelpTopic>[
     title: 'Settings',
     who: 'Everyone; Unit choices require Manager, Administrator, or Maintainer access',
     what: 'Settings is the directory for choices that affect future behavior. Personal choices belong to you or this device. Unit choices govern the department.',
-    how: 'Open Schedule actions, then Settings. On a wide screen use More destinations. Everyone can choose Appearance on this device. Staff can also open My calendar and Notifications under Personal. Managers, Administrators, and the Maintainer can open Staffing minimums, Open shift pickup approval, Print wording, Shift codes, Sections, Permission assignments, and Unit audit history.',
+    how: 'Open Schedule actions, then Settings. On a wide screen use More destinations. Everyone can choose Appearance and Add ER Schedule on this device. Staff can also open My calendar and Notifications under Personal. Managers, Administrators, and the Maintainer can open Staffing minimums, Open shift pickup approval, Print wording, Shift codes, Sections, Permission assignments, and Unit audit history.',
+    searchTerms: 'appearance dark light theme install app calendar notifications unit audit history',
+  ),
+  HelpTopic(
+    title: 'Accept your Invite',
+    who: 'A Staff member who received an Invite text',
+    what: 'An Invite links your personal email to the Staff list after the Manager confirms who accepted it.',
+    how: '1. Open the one-time link in your Invite text.\n2. Enter the Cell number the Manager has for you.\n3. Enter your personal email and verify the code sent there.\n4. Wait for Manager confirmation, then tap Check confirmation on the waiting screen. On another device, sign in with that same personal email.\nIf the link expired, ask the Manager for a new Invite. You can open Add ER Schedule and Help while waiting.',
     searchTerms:
-        'appearance dark light theme calendar notifications unit audit history',
+        'invite text accept cell number personal email sign in confirmation',
+  ),
+  HelpTopic(
+    title: 'Install on a phone',
+    who: 'Everyone using a phone or tablet',
+    what:
+        'Add ER Schedule to your phone or tablet for its own Home Screen icon.',
+    how: '1. Open Add ER Schedule from the Invite flow or Settings.\n2. On iPhone or iPad, tap Copy app link and paste it into Safari’s address bar. Tap Share > Add to Home Screen, choose Open as Web App, and tap Add. Open the new ER Schedule icon.\n3. On Android Chrome, tap Install if offered, or choose Install app from Chrome’s menu. Open the new icon.\nIf installation is unavailable, bookmark the ordinary app link. Installation always needs your confirmation.',
+    searchTerms: 'install app download app home screen iphone ipad android safari chrome icon',
+  ),
+  HelpTopic(
+    title: 'Install on a computer',
+    who: 'Everyone using a computer',
+    what: 'ER Schedule can have its own icon on your computer as well as your phone.',
+    how: '1. On your phone, open Add ER Schedule and tap Copy app link. Paste that ordinary link into a message to yourself, then open it on the computer; do not reuse the one-time Invite link.\n2. After Manager confirmation, sign in with the same personal email.\n3. On Windows Edge, choose Apps > Install this site as an app. In Windows Chrome, choose Install page as app from the menu. On Mac Safari, choose File > Add to Dock. In Mac Chrome, choose Install page as app from the menu.\n4. Open the ER Schedule icon. If installation is unavailable, bookmark the ordinary app link.',
+    searchTerms: 'install app download app computer desktop windows mac edge chrome safari dock bookmark',
+  ),
+  HelpTopic(
+    title: 'Allow notifications',
+    who: 'A confirmed Staff member on each device',
+    what: 'Notifications can tell you about Schedule changes and other notices. Permission is separate on every device.',
+    how: '1. Wait for the Manager to confirm your Invite.\n2. Open Settings > Notifications > Allow notifications on each device.\n3. Choose Allow when the browser or device asks. If you denied it earlier, change permission in that device’s browser or app settings.\nOn iPhone or iPad, first add the web app to the Home Screen and open its icon; Web Push requires iOS or iPadOS 16.4 or later.',
+    searchTerms: 'notifications alerts push permission allow home screen device denied blocked',
   ),
   HelpTopic(
     title: 'Month view',

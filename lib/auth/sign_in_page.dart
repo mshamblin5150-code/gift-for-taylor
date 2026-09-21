@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 
 import 'auth_gateway.dart';
 import '../settings/appearance.dart';
+import '../setup/app_setup_page.dart';
 
 class SignInPage extends StatefulWidget {
-  const SignInPage({super.key, required this.authGateway});
+  const SignInPage({
+    super.key,
+    required this.authGateway,
+    this.awaitingConfirmation = false,
+  });
 
   final AuthGateway authGateway;
+  final bool awaitingConfirmation;
 
   @override
   State<SignInPage> createState() => _SignInPageState();
@@ -120,6 +126,16 @@ class _SignInPageState extends State<SignInPage> {
                         child: Text(
                           _codeRequested ? 'Verify code' : 'Email me a code',
                         ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => AppSetupPage(
+                              awaitingConfirmation: widget.awaitingConfirmation,
+                            ),
+                          ),
+                        ),
+                        child: const Text('Add ER Schedule'),
                       ),
                     ],
                   ),

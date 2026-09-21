@@ -9,6 +9,7 @@ import '../schedule/print_wording_gateway.dart';
 import '../schedule/shift_codes_page.dart';
 import '../schedule/coverage_settings_page.dart';
 import 'appearance.dart';
+import '../setup/app_setup_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -47,6 +48,12 @@ class SettingsPage extends StatelessWidget {
         children: [
           const _SectionHeading('Personal'),
           const AppearanceTile(),
+          ListTile(
+            leading: const Icon(Icons.install_mobile_outlined),
+            title: const Text('Add ER Schedule'),
+            subtitle: const Text('Install on a phone or computer'),
+            onTap: () => open(const AppSetupPage()),
+          ),
           if (role != 'maintainer' && onCalendarFeed != null)
             ListTile(
               leading: const Icon(Icons.calendar_month_outlined),

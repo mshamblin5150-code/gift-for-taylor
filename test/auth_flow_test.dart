@@ -305,6 +305,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Email me a code'), findsNothing);
+      expect(find.text('Add ER Schedule'), findsOneWidget);
+      await tester.tap(find.text('Add ER Schedule'));
+      await tester.pumpAndSettle();
+      expect(find.text('Copy app link'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.widgetWithText(TextField, 'Cell number'),
         '555-0137',
@@ -328,6 +334,10 @@ void main() {
       expect(staffGateway.acceptedToken, 'fresh-token');
       expect(staffGateway.acceptedCellNumber, '555-0137');
       expect(find.textContaining('waiting for the Manager'), findsOneWidget);
+      expect(find.text('Add ER Schedule'), findsOneWidget);
+      await tester.tap(find.text('Add ER Schedule'));
+      await tester.pumpAndSettle();
+      expect(find.text('Copy app link'), findsOneWidget);
     },
   );
 
