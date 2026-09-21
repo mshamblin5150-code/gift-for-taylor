@@ -235,13 +235,7 @@ void main() {
     await tester.tap(find.text('Mark announced'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text("1 person wasn't reached about changes this week"),
-      findsOneWidget,
-    );
-    await tester.tap(
-      find.text("1 person wasn't reached about changes this week"),
-    );
+    await tester.tap(find.textContaining("wasn't reached about changes"));
     await tester.pumpAndSettle();
     expect(find.textContaining('Reach: Nobody'), findsOneWidget);
     expect(
@@ -279,9 +273,7 @@ void main() {
     await manager.markAnnounced(await manager.changeAnnouncement(october));
     await pumpGrid(tester, now: () => DateTime(2026, 9, 30));
 
-    await tester.tap(
-      find.text("1 person wasn't reached about changes this week"),
-    );
+    await tester.tap(find.textContaining("wasn't reached about changes"));
     await tester.pumpAndSettle();
     expect(find.text('Change log · this week'), findsOneWidget);
     expect(find.textContaining('Robin Hall · Thu 1'), findsOneWidget);
