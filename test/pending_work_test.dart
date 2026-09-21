@@ -126,6 +126,7 @@ void main() {
         RequestOffDecision.declined,
         'No coverage',
       );
+      database.seedUnreadRequestOffNotices('alice', 1);
       final work = create(alice, 'alice');
       await work.refresh();
       expect(
@@ -142,6 +143,9 @@ void main() {
 
   test('counts Manager approvals from all three rule sets', () async {
     await alice.requestOff(RequestOffDraft(dates: [day]));
+    database.seedPendingRequestsOff(
+      await alice.store.requestsOff(pendingOnly: false),
+    );
     swaps.items.add(_swap('accepted', SwapStatus.accepted));
     openShifts.items.add(
       const OpenShiftPickup(
@@ -179,6 +183,10 @@ void main() {
       await _settle();
       expect(work.state.pendingApprovals, 2);
       await alice.requestOff(RequestOffDraft(dates: [day]));
+      database.seedPendingRequestsOff(
+        await alice.store.requestsOff(pendingOnly: false),
+      );
+      database.seedUnreadRequestOffNotices('manager', 1);
       timer.fire();
       await _settle();
       expect(work.state.pendingApprovals, 3);
