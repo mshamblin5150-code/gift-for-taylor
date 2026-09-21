@@ -127,6 +127,14 @@ _Avoid_: Missed announcement, failed notification, untold change
 The moment the Manager makes a newly built month's Schedule visible to staff. Until then the month is unpublished. It is announced to everyone, unlike a Change announcement.
 _Avoid_: Publish, go-live
 
+**Loaded month**:
+The first month in the app, transcribed from the printed Schedule book page
+rather than built in it. The Manager proofreads it against that page and
+corrects cells as she goes; those corrections were never seen by staff, so
+they need no Change announcement. Confirming it is its Month release, and the
+moment it replaces her Excel file.
+_Avoid_: Imported month, first month, seed month
+
 **UKG**:
 The hospital's workforce system where schedules, timesheets and payroll are completed. Kronos is its former name, and "the state UG thing" in the interview notes means the same system.
 _Avoid_: Kronos, the state system
