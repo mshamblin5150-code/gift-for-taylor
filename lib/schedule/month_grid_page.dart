@@ -779,7 +779,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             role: helpRoleForAccess(
               _currentRole,
               canEditSchedule: _isManager,
-              hasEditableSections: _editable.isNotEmpty,
+              hasEditableSections: !_editable.isEmpty,
             ),
           ),
         ),
@@ -911,7 +911,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     if (_isManager ||
         _currentRole == 'administrator' ||
         _currentRole == 'night_scheduler' ||
-        _editable.isNotEmpty)
+        !_editable.isEmpty)
       _ScheduleAction(
         label: 'Change log',
         icon: Icons.history,
