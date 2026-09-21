@@ -1,17 +1,15 @@
 part of '../schedule_rules_testing.dart';
 
-/// Small in-memory counterpart of the Swap transaction for schedule rules tests.
+/// Records Swap writes and seeded Schedule cells for client tests.
 final class InMemorySwapDatabase {
   InMemorySwapDatabase({
-    required this.managerId,
     required Map<(String, DateTime), String> shifts,
-    this.shiftCodes = shiftLegend,
-  }) : _shifts = Map.of(shifts);
+    List<Swap> swaps = const [],
+  }) : _shifts = Map.of(shifts),
+       _swaps = List.of(swaps);
 
-  final String managerId;
   final Map<(String, DateTime), String> _shifts;
-  final List<LegendCode> shiftCodes;
-  final List<Swap> _swaps = [];
+  final List<Swap> _swaps;
 
   SwapStore storeFor(String staffMemberId) =>
       _InMemorySwapStore(this, staffMemberId);
@@ -27,13 +25,7 @@ final class _InMemorySwapStore implements SwapStore {
   final String actor;
 
   @override
-  Future<List<Swap>> swaps() async => [
-    for (final swap in database._swaps)
-      if (actor == database.managerId ||
-          swap.requesterId == actor ||
-          swap.colleagueId == actor)
-        swap,
-  ];
+  Future<List<Swap>> swaps() async => List.of(database._swaps);
 
   @override
   Stream<void> updates() => const Stream<void>.empty();
@@ -50,22 +42,14 @@ final class _InMemorySwapStore implements SwapStore {
     final theirs = database.shiftCodeFor(colleagueId, colleagueDate);
     final myTarget = database.shiftCodeFor(actor, colleagueDate) ?? '';
     final theirTarget = database.shiftCodeFor(colleagueId, requesterDate) ?? '';
-    if (actor == colleagueId ||
-        !isWorkingShift(mine ?? '', codes: database.shiftCodes) ||
-        !isWorkingShift(theirs ?? '', codes: database.shiftCodes) ||
-        (requesterDate == colleagueDate && mine == theirs) ||
-        (requesterDate != colleagueDate &&
-            (!_free(myTarget) || !_free(theirTarget)))) {
-      throw StateError('Choose two working shifts that change the Schedule');
-    }
     final swap = Swap(
       id: '${database._swaps.length + 1}',
       requesterId: actor,
       colleagueId: colleagueId,
       requesterDate: requesterDate,
       colleagueDate: colleagueDate,
-      requesterCode: mine!,
-      colleagueCode: theirs!,
+      requesterCode: mine ?? '',
+      colleagueCode: theirs ?? '',
       requesterTargetCode: myTarget,
       colleagueTargetCode: theirTarget,
       status: SwapStatus.proposed,
@@ -81,11 +65,6 @@ final class _InMemorySwapStore implements SwapStore {
     String? reason,
   }) async {
     final index = database._swaps.indexWhere((swap) => swap.id == swapId);
-    if (index < 0 ||
-        database._swaps[index].colleagueId != actor ||
-        database._swaps[index].status != SwapStatus.proposed) {
-      throw StateError('This Swap cannot be answered');
-    }
     final swap = database._swaps[index];
     database._swaps[index] = _copy(
       swap,
@@ -97,25 +76,7 @@ final class _InMemorySwapStore implements SwapStore {
   @override
   Future<void> approveSwap(String swapId) async {
     final index = database._swaps.indexWhere((swap) => swap.id == swapId);
-    if (actor != database.managerId ||
-        index < 0 ||
-        database._swaps[index].status != SwapStatus.accepted) {
-      throw StateError('This Swap is not awaiting Manager approval');
-    }
     final swap = database._swaps[index];
-    if (database.shiftCodeFor(swap.requesterId, swap.requesterDate) !=
-            swap.requesterCode ||
-        database.shiftCodeFor(swap.colleagueId, swap.colleagueDate) !=
-            swap.colleagueCode ||
-        (swap.requesterDate != swap.colleagueDate &&
-            ((database.shiftCodeFor(swap.requesterId, swap.colleagueDate) ??
-                        '') !=
-                    swap.requesterTargetCode ||
-                (database.shiftCodeFor(swap.colleagueId, swap.requesterDate) ??
-                        '') !=
-                    swap.colleagueTargetCode))) {
-      throw StateError('A Shift code changed; propose a new Swap');
-    }
     if (swap.requesterDate == swap.colleagueDate) {
       database._shifts[(swap.requesterId, swap.requesterDate)] =
           swap.colleagueCode;
@@ -135,11 +96,6 @@ final class _InMemorySwapStore implements SwapStore {
   @override
   Future<void> declineSwap(String swapId, {String? reason}) async {
     final index = database._swaps.indexWhere((swap) => swap.id == swapId);
-    if (actor != database.managerId ||
-        index < 0 ||
-        database._swaps[index].status != SwapStatus.accepted) {
-      throw StateError('This Swap is not awaiting Manager approval');
-    }
     database._swaps[index] = _copy(
       database._swaps[index],
       SwapStatus.declined,
@@ -161,5 +117,3 @@ Swap _copy(Swap swap, SwapStatus status, String? reason) => Swap(
   status: status,
   reason: reason,
 );
-
-bool _free(String code) => code.isEmpty || code == 'X';
