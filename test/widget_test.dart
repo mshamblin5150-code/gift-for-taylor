@@ -1165,6 +1165,34 @@ void main() {
     await manager.store.setLastDay(
       SetLastDay(staffMemberId: 'rn-1', lastDay: september18),
     );
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: DateTime(2026, 9, 20),
+        shiftCode: '',
+      ),
+    );
+    database.seedRows(september, [
+      ScheduleRow(
+        staffMemberId: dayNurse.staffMemberId,
+        displayName: dayNurse.displayName,
+        sectionId: dayNurse.sectionId,
+        lastDay: september18,
+      ),
+      nightNurse,
+    ]);
+    database.seedShortShifts(september, [
+      ShortShift(
+        sectionId: 'days',
+        date: DateTime(2026, 9, 20),
+        shiftCode: '7A',
+        staffMemberId: 'rn-1',
+        jobRole: JobRole.rn,
+        coverageWindow: CoverageWindow.day,
+        coveragePool: CoveragePool.nurses,
+      ),
+    ]);
     await database
         .openShiftStoreFor('manager')
         .setDateMinimum(

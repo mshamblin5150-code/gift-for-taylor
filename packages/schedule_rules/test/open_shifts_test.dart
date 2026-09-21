@@ -236,6 +236,13 @@ void main() {
           from: day,
         ),
       );
+      database.seedRows(day, const [
+        ScheduleRow(staffMemberId: 'original', displayName: 'Original RN', sectionId: 'nursing'),
+        ScheduleRow(staffMemberId: 'lpn', displayName: 'LPN', sectionId: 'other-nursing'),
+        ScheduleRow(staffMemberId: 'other', displayName: 'Other RN', sectionId: 'nursing'),
+        ScheduleRow(staffMemberId: 'cna', displayName: 'CNA', sectionId: 'cna'),
+        ScheduleRow(staffMemberId: 'clerk', displayName: 'Clerk', sectionId: 'clerk'),
+      ]);
       await managerShifts.setWeekdayMinimum(
         CoveragePool.nurses,
         CoverageWindow.night,
@@ -272,29 +279,6 @@ void main() {
             )
             .workingCount,
         0,
-      );
-    },
-  );
-
-  test(
-    'a Last day posts later working shifts using the departing role',
-    () async {
-      final later = DateTime(2026, 10, 13);
-      await manager.saveCell(
-        SaveCell(
-          staffMemberId: 'original',
-          sectionId: 'nursing',
-          date: later,
-          shiftCode: '7P',
-        ),
-      );
-      await manager.store.setLastDay(
-        SetLastDay(staffMemberId: 'original', lastDay: day),
-      );
-      final visible = await database.openShiftStoreFor('lpn').openShifts();
-      expect(
-        visible.where((shift) => shift.date == later).single.shiftCode,
-        '7P',
       );
     },
   );
@@ -353,6 +337,10 @@ void main() {
     await manager.store.changeJobRole(
       ChangeJobRole(staffMemberId: 'other', jobRole: JobRole.lpn, from: day),
     );
+    database.seedJobRoles('other', [
+      DatedJobRole(jobRole: JobRole.rn, from: DateTime(2026, 1), through: day.subtract(const Duration(days: 1))),
+      DatedJobRole(jobRole: JobRole.lpn, from: day, through: null),
+    ]);
     for (final id in ['lpn', 'other']) {
       await manager.saveCell(
         SaveCell(

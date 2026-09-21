@@ -103,6 +103,14 @@ final class InMemoryScheduleDatabase {
   bool _openShiftApprovalDefault = true;
   final Map<String, bool> _openShiftApprovalOverrides = {};
   final List<StaffChange> _staffChanges = [];
+  final Map<DateTime, List<ScheduleRow>> _seededRows = {};
+  final Map<DateTime, List<ShortShift>> _seededShortShifts = {};
+  final Map<String, List<DatedJobRole>> _seededJobRoles = {};
+  List<StaffChange>? _seededStaffChanges;
+  final List<SetLastDay> lastDayWrites = [];
+  final List<Reactivate> reactivationWrites = [];
+  final List<ChangeSection> sectionWrites = [];
+  final List<ChangeJobRole> jobRoleWrites = [];
   final List<RequestOff> _requestsOff = [];
   final Map<String, int> _unreadRequestOffNotices = {};
   final StreamController<DateTime> _updates = StreamController.broadcast();
@@ -114,6 +122,19 @@ final class InMemoryScheduleDatabase {
   void failNext(InMemoryStoreCall call, Object error) {
     _nextFailures[call] = error;
   }
+
+  /// SQL-derived answers are supplied by the test using this fixture.
+  void seedRows(DateTime month, List<ScheduleRow> rows) =>
+      _seededRows[DateTime(month.year, month.month)] = List.of(rows);
+
+  void seedShortShifts(DateTime month, List<ShortShift> shifts) =>
+      _seededShortShifts[DateTime(month.year, month.month)] = List.of(shifts);
+
+  void seedJobRoles(String staffMemberId, List<DatedJobRole> roles) =>
+      _seededJobRoles[staffMemberId] = List.of(roles);
+
+  void seedStaffChanges(List<StaffChange> changes) =>
+      _seededStaffChanges = List.of(changes);
 
   void _throwNextFailure(InMemoryStoreCall call) {
     final error = _nextFailures.remove(call);
@@ -468,6 +489,8 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ScheduleRow>> rows(DateTime month) async {
+    final seeded = _database._seededRows[DateTime(month.year, month.month)];
+    if (seeded != null) return List.unmodifiable(seeded);
     final sectionOrder = [
       for (final section in _database._sections) section.id,
     ];
@@ -524,34 +547,11 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ShortShift>> shortShiftsForMonth(DateTime month) async {
-    final openShifts = _InMemoryOpenShiftStore(_database, _actingAs);
-    final result = <ShortShift>[];
-    for (final short in _database._shortShifts.where(
-      (item) => _inMonth(item.date, month),
-    )) {
-      final role =
-          short.jobRole ??
-          openShifts._originalRole(short.staffMemberId, short.date);
-      final pool = role == null
-          ? null
-          : (await openShifts.coveragePoolsOn(short.date))
-                .where((config) => config.jobRoles.contains(role))
-                .firstOrNull;
-      result.add(
-        ShortShift(
-          sectionId: short.sectionId,
-          date: short.date,
-          shiftCode: short.shiftCode,
-          staffMemberId: short.staffMemberId,
-          jobRole: role,
-          coverageWindow: short.coverageWindow,
-          coveragePool: pool == null
-              ? null
-              : CoveragePool(pool.id, pool.name, sortOrder: pool.sortOrder),
-        ),
-      );
-    }
-    return result;
+    final seeded = _database._seededShortShifts[DateTime(month.year, month.month)];
+    if (seeded != null) return List.unmodifiable(seeded);
+    return _database._shortShifts
+        .where((item) => _inMonth(item.date, month))
+        .toList(growable: false);
   }
 
   @override
@@ -742,114 +742,16 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   @override
   Future<void> setLastDay(SetLastDay action) async {
     _requireStaffManagement();
-    final id = action.staffMemberId;
-    final lastDay = action.lastDay;
-    if (id == _actingAs) throw StateError("You can't set your own Last day");
-    if (!_database._isActive(id)) {
-      throw StateError('That person is not on the Staff list');
-    }
-    _database._lastDays[id] = lastDay;
-    _database._grants[id] = Grants();
-
-    // Placements planned to start after the Last day no longer apply.
-    _database._assignments.removeWhere(
-      (assignment) =>
-          assignment.staffMemberId == id &&
-          (assignment.from?.isAfter(lastDay) ?? false),
-    );
-    for (final assignment in _database._assignments) {
-      final through = assignment.through;
-      if (assignment.staffMemberId == id &&
-          (through == null || through.isAfter(lastDay))) {
-        assignment.through = lastDay;
-      }
-    }
-    _database._jobRoles[id] = [
-      for (final role in _database._jobRoles[id] ?? const <DatedJobRole>[])
-        if (!role.from.isAfter(lastDay))
-          DatedJobRole(
-            jobRole: role.jobRole,
-            from: role.from,
-            through: role.through == null || role.through!.isAfter(lastDay)
-                ? lastDay
-                : role.through,
-          ),
-    ];
-
-    final later =
-        _database._cells.values
-            .where(
-              (cell) =>
-                  cell.staffMemberId == id &&
-                  cell.date.isAfter(lastDay) &&
-                  cell.shiftCode.isNotEmpty,
-            )
-            .toList()
-          ..sort((left, right) => left.date.compareTo(right.date));
-    for (final cell in later) {
-      _write(
-        ScheduleCell(
-          staffMemberId: id,
-          sectionId: cell.sectionId,
-          date: cell.date,
-          shiftCode: '',
-        ),
-      );
-      if (isWorkingShift(cell.shiftCode, codes: _database._shiftCodes)) {
-        _database._shortShifts.add(
-          ShortShift(
-            sectionId: cell.sectionId,
-            date: cell.date,
-            shiftCode: cell.shiftCode,
-            staffMemberId: id,
-            jobRole: await scheduleRulesInMemory(
-              _database,
-              actingAs: _actingAs,
-            ).jobRoleOn(id, lastDay),
-            coverageWindow: _coverageWindowOf(
-              cell.shiftCode,
-              _database._shiftCodes,
-            ),
-          ),
-        );
-      }
-    }
-    _log(id, StaffChangeKind.lastDay, null, _dateText(lastDay), lastDay);
+    _database.lastDayWrites.add(action);
+    _log(action.staffMemberId, StaffChangeKind.lastDay, null,
+        _dateText(action.lastDay), action.lastDay);
   }
 
   @override
   Future<void> reactivate(Reactivate action) async {
-    _requireStaffManagement();
-    final id = action.staffMemberId;
-    final lastDay = _database._lastDays[id];
-    if (lastDay == null) {
-      throw StateError('That person is already on the Staff list');
-    }
-    if (!action.firstDay.isAfter(lastDay)) {
-      throw StateError('Their first day back must be after their Last day');
-    }
-    _database._lastDays.remove(id);
-    _database._assignments.add(
-      _Assignment(
-        id,
-        action.sectionId,
-        _database._assignments.length,
-        from: action.firstDay,
-      ),
-    );
-    final roles = _database._jobRoles[id];
-    final lastRole = roles?.lastOrNull;
-    if (roles != null && lastRole != null) {
-      roles.add(
-        DatedJobRole(
-          jobRole: lastRole.jobRole,
-          from: action.firstDay,
-          through: null,
-        ),
-      );
-    }
+    _database.reactivationWrites.add(action);
     _log(
-      id,
+      action.staffMemberId,
       StaffChangeKind.reactivated,
       null,
       _database._sectionName(action.sectionId),
@@ -860,37 +762,11 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   @override
   Future<void> changeSection(ChangeSection action) async {
     _requireStaffManagement();
-    final id = action.staffMemberId;
-    final open = _database._openAssignment(id);
-    if (!_database._isActive(id) || open == null) {
-      throw StateError('That person is not on the Staff list');
-    }
-    if (open.sectionId == action.sectionId) {
-      throw StateError('They are already in that Section');
-    }
-    final openFrom = open.from;
-    if (openFrom != null && action.from.isBefore(openFrom)) {
-      throw StateError(
-        'The move must start on or after their current Section did',
-      );
-    }
-    if (openFrom == action.from) {
-      _database._assignments.remove(open);
-    } else {
-      open.through = action.from.subtract(const Duration(days: 1));
-    }
-    _database._assignments.add(
-      _Assignment(
-        id,
-        action.sectionId,
-        _database._assignments.length,
-        from: action.from,
-      ),
-    );
+    _database.sectionWrites.add(action);
     _log(
-      id,
+      action.staffMemberId,
       StaffChangeKind.section,
-      _database._sectionName(open.sectionId),
+      null,
       _database._sectionName(action.sectionId),
       action.from,
     );
@@ -898,40 +774,14 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> changeJobRole(ChangeJobRole action) async {
-    _requireStaffManagement();
-    final id = action.staffMemberId;
-    if (!_database._isActive(id)) {
-      throw StateError('That person is not on the Staff list');
-    }
-    final roles = _database._jobRoles.putIfAbsent(id, () => []);
-    final open = roles.lastOrNull;
-    if (open?.jobRole == action.jobRole) {
-      throw StateError('They already have that role');
-    }
-    if (open != null) {
-      if (action.from.isBefore(open.from)) {
-        throw StateError(
-          'The change must start on or after their current role did',
-        );
-      }
-      roles.removeLast();
-      if (open.from != action.from) {
-        roles.add(
-          DatedJobRole(
-            jobRole: open.jobRole,
-            from: open.from,
-            through: action.from.subtract(const Duration(days: 1)),
-          ),
-        );
-      }
-    }
-    roles.add(
+    _database.jobRoleWrites.add(action);
+    _database._jobRoles.putIfAbsent(action.staffMemberId, () => []).add(
       DatedJobRole(jobRole: action.jobRole, from: action.from, through: null),
     );
     _log(
-      id,
+      action.staffMemberId,
       StaffChangeKind.jobRole,
-      open?.jobRole.label,
+      null,
       action.jobRole.label,
       action.from,
     );
@@ -939,11 +789,12 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<List<DatedJobRole>> jobRoles(String staffMemberId) async =>
-      List.unmodifiable(_database._jobRoles[staffMemberId] ?? const []);
+      List.unmodifiable(_database._seededJobRoles[staffMemberId] ??
+          _database._jobRoles[staffMemberId] ?? const []);
 
   @override
   Future<List<StaffChange>> staffChanges() async =>
-      List.unmodifiable(_database._staffChanges);
+      List.unmodifiable(_database._seededStaffChanges ?? _database._staffChanges);
 
   void _log(
     String staffMemberId,

@@ -524,6 +524,17 @@ void main() {
     final gateway = _FakeStaffGateway(
       const StaffList(sections: [days], members: [alex]),
     );
+    database.seedStaffChanges([
+      StaffChange(
+        staffMemberId: 'staff-1',
+        kind: StaffChangeKind.lastDay,
+        oldValue: null,
+        newValue: '2026-09-21',
+        effectiveFrom: DateTime(2026, 9, 21),
+        changedBy: 'manager',
+        changedAt: DateTime(2026, 9, 21),
+      ),
+    ]);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -547,6 +558,7 @@ void main() {
     final change = (await rules.store.staffChanges()).single;
     expect(change.kind, StaffChangeKind.lastDay);
     expect(change.staffMemberId, 'staff-1');
+    expect(database.lastDayWrites.single.staffMemberId, 'staff-1');
     expect(gateway.loads, 2);
   });
 
