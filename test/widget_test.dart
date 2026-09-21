@@ -1115,6 +1115,7 @@ void main() {
 
       expect(find.text('October 2026'), findsOneWidget);
       expect(find.textContaining("hasn't been started"), findsOneWidget);
+      expect(find.text('Start empty month'), findsOneWidget);
 
       await tester.tap(find.text('Start from September'));
       await tester.pumpAndSettle();
@@ -1137,6 +1138,20 @@ void main() {
 
       expect(find.textContaining('Unpublished'), findsNothing);
       expect(find.text('4P-8A'), findsOneWidget);
+    });
+
+    testWidgets('the Manager can choose an empty draft instead of copying', (
+      tester,
+    ) async {
+      await pumpGrid(tester, month: DateTime(2026, 10));
+      expect(find.text('Start from September'), findsOneWidget);
+
+      await tester.tap(find.text('Start empty month'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Unpublished'), findsOneWidget);
+      expect(find.text('4P-8A'), findsNothing);
+      expect(find.text('Start from September'), findsNothing);
     });
 
     testWidgets('a month is started before it is edited', (tester) async {
@@ -1186,6 +1201,39 @@ void main() {
       expect(find.text('4P-8A'), findsNothing);
       expect(find.text('Release month'), findsNothing);
     });
+  });
+
+  testWidgets('the Manager starts without a previous Schedule, edits, and releases', (
+    tester,
+  ) async {
+    database = InMemoryScheduleDatabase(
+      sections: const [days, nights],
+      rows: const [dayNurse, nightNurse],
+      editors: const {'manager'},
+    );
+    final month = DateTime(2026, 10);
+    final date = DateTime(2026, 10, 16);
+    await pumpGrid(tester, month: month);
+
+    expect(find.text('Start empty month'), findsOneWidget);
+    expect(find.text('Start from September'), findsNothing);
+    await tester.tap(find.text('Start empty month'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(cell('rn-1', date));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: cell('rn-1', date), matching: find.text('7A')),
+        findsOneWidget);
+
+    await tester.tap(find.text('Release month'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Release'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Unpublished'), findsNothing);
+    expect(find.descendant(of: cell('rn-1', date), matching: find.text('7A')),
+        findsOneWidget);
   });
 
   testWidgets('Print sends the live month as the book page', (tester) async {

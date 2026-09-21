@@ -53,6 +53,7 @@ final class _ScheduleAction {
 
 typedef _MonthRead = ({
   MonthGrid grid,
+  bool previousMonthStarted,
   ChangeAnnouncement? announcement,
   List<LegendCode> codes,
   List<SectionStaffing> staffing,
@@ -118,6 +119,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Timer? _midnightTimer;
   late DateTime _today = _dateOnly(_now());
   MonthGrid? _grid;
+  bool _previousMonthStarted = false;
   List<LegendCode> _shiftCodes = const [];
   List<SectionStaffing> _staffing = [];
   ChangeAnnouncement? _announcement;
@@ -249,6 +251,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           _loadError = null;
         }
         _grid = read.grid;
+        _previousMonthStarted = read.previousMonthStarted;
         _shiftCodes = read.codes;
         _staffing = read.staffing;
         _announcement = read.announcement;
@@ -359,8 +362,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
     // leaves no unobserved error on the other, and reports the error itself
     // rather than a wrapper.
     final required = await Future.wait<Object?>([gridRead, announcementRead]);
+    final grid = required[0]! as MonthGrid;
+    final previousMonthStarted = isManager && grid.status == MonthStatus.notStarted
+        ? (await widget.rules.monthGrid(DateTime(month.year, month.month - 1)))
+                  .status !=
+              MonthStatus.notStarted
+        : false;
     return (
-      grid: required[0]! as MonthGrid,
+      grid: grid,
+      previousMonthStarted: previousMonthStarted,
       announcement: required[1] as ChangeAnnouncement?,
       codes: await codesRead,
       staffing: await staffingRead,
@@ -754,9 +764,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
         });
   }
 
-  Future<void> _startMonth() async {
+  Future<void> _startMonth({bool empty = false}) async {
     try {
-      await widget.rules.startNextMonth(_previousMonth);
+      if (empty) {
+        await widget.rules.startEmptyMonth(_month);
+      } else {
+        await widget.rules.startNextMonth(_previousMonth);
+      }
       await _reload();
     } on MonthAlreadyStarted {
       if (!mounted) return;
@@ -864,9 +878,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
       MonthStatus.notStarted => _Banner(
         message:
             "${DateFormat.MMMM().format(_month)} hasn't been started. "
-            'Start it from last month, lined up by weekday.',
-        actionLabel: 'Start from ${DateFormat.MMMM().format(_previousMonth)}',
-        onPressed: _startMonth,
+            (_previousMonthStarted
+                ? 'Start empty or copy last month, lined up by weekday.'
+                : 'Start an empty month to enter Shift codes.'),
+        actionLabel: 'Start empty month',
+        onPressed: () => _startMonth(empty: true),
+        secondaryActionLabel: _previousMonthStarted
+            ? 'Start from ${DateFormat.MMMM().format(_previousMonth)}'
+            : null,
+        onSecondaryPressed: _previousMonthStarted ? () => _startMonth() : null,
       ),
       MonthStatus.unpublished => _Banner(
         message: "Unpublished: staff can't see this month yet.",
@@ -1407,24 +1427,44 @@ class _Banner extends StatelessWidget {
     required this.message,
     required this.actionLabel,
     required this.onPressed,
+    this.secondaryActionLabel,
+    this.onSecondaryPressed,
   });
 
   final String message;
   final String actionLabel;
   final VoidCallback onPressed;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryPressed;
 
   @override
   Widget build(BuildContext context) {
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        if (secondaryActionLabel case final label?)
+          OutlinedButton(onPressed: onSecondaryPressed, child: Text(label)),
+        FilledButton(onPressed: onPressed, child: Text(actionLabel)),
+      ],
+    );
     return ColoredBox(
       color: Theme.of(context).colorScheme.secondaryContainer,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Row(
-          children: [
-            Expanded(child: Text(message)),
-            const SizedBox(width: 12),
-            FilledButton(onPressed: onPressed, child: Text(actionLabel)),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) => constraints.maxWidth < 600
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [Text(message), const SizedBox(height: 8), actions],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: Text(message)),
+                    const SizedBox(width: 12),
+                    actions,
+                  ],
+                ),
         ),
       ),
     );

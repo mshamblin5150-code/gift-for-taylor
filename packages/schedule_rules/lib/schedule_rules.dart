@@ -136,6 +136,9 @@ abstract interface class ScheduleRules {
   /// R/O, H, S/L and A/L are cleared. [month] must have been started itself.
   Future<void> startNextMonth(DateTime month);
 
+  /// Starts [month] unpublished with its current Staff rows and no Shift codes.
+  Future<void> startEmptyMonth(DateTime month);
+
   /// Makes an unpublished month the live Schedule. Edits made while building
   /// it were never seen by staff, so they need no Change announcement.
   Future<void> releaseMonth(
@@ -1167,6 +1170,16 @@ final class _ScheduleRules implements ScheduleRules {
       }
     }
     await _store.startMonth(next, cells);
+  }
+
+  @override
+  Future<void> startEmptyMonth(DateTime month) async {
+    final start = DateTime(month.year, month.month);
+    if (!await _store.canEditSchedule()) throw const ScheduleEditRefused();
+    if (await _store.monthStatus(start) != MonthStatus.notStarted) {
+      throw const MonthAlreadyStarted();
+    }
+    await _store.startMonth(start, const []);
   }
 
   @override
