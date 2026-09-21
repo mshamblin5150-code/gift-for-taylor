@@ -210,9 +210,9 @@ body { margin: 0; padding: 12px; font-family: Arial, Helvetica, sans-serif; colo
 .sheet { position: absolute; top: 0; left: 0; width: ${(100 / initialScale).toStringAsFixed(4)}%; transform: scale(var(--initial-scale)); transform-origin: top left; }
 .notice { margin: 0; font-size: 9pt; font-style: italic; text-align: center; }
 h1 { margin: 2pt 0 4pt; font-size: 14pt; text-align: center; }
-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; border-top: 1.5pt solid #000; border-left: 1.5pt solid #000; }
 col.name { width: 20%; }
-th, td { height: 12pt; padding: 0 1pt; border: 0.5pt solid #000; font-size: 9pt; line-height: 1; text-align: center; white-space: nowrap; overflow: hidden; }
+th, td { height: 12pt; padding: 0 1pt; border: 0; border-right: 1.5pt solid #000; border-bottom: 1.5pt solid #000; font-size: 9pt; line-height: 1; text-align: center; white-space: nowrap; overflow: hidden; }
 th.name { text-align: left; font-weight: normal; text-overflow: ellipsis; }
 thead th { font-weight: bold; }
 .weekend { background: #d0d0d0; }
@@ -234,8 +234,7 @@ function fitCellText() {
       label.className = 'fitted-text';
       label.textContent = cell.textContent;
       cell.replaceChildren(label);
-      // Keep the table cell unpositioned: positioned cells can paint over
-      // shared borders in a collapsed table when their background is shaded.
+      // Keep the cell unpositioned so its border paints over shaded content.
       cell.style.textAlign = 'left';
       label.style.display = 'inline-block';
       label.style.position = 'relative';

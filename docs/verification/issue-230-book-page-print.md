@@ -31,3 +31,14 @@ landscape page for both a two-person page and a dense 42-person page. Both
 passed. Visual inspection of the PDFs found the Shift codes, weekday
 borders, weekend shading, heading, and legend legible, with the dense month
 contained on one sheet. Physical printer output was not checked.
+
+## Follow-up from the real Schedule print
+
+The reporter's Chrome PDFs from before and after the first change rasterize
+pixel-for-pixel identically. The first change therefore did not improve the
+reported grid. On the real page, many weekend cells are filled and the old
+0.5pt collapsed rules print as hairlines. The follow-up uses separate cell
+borders that each cell paints itself, with a 1.5pt rule. The browser PDF
+check now requires at least three dark pixels per rule at 200 dpi; it failed
+on the old CSS and passed after this change for sparse and dense Schedule
+fixtures. This measures visible rule weight as well as continuity.
