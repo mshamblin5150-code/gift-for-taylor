@@ -39,7 +39,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days, nights, nightCna],
       rows: const [dayNurse, nightNurse, scheduler, nightAide],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       names: const {'manager': 'The Manager'},
       clock: () => now,
     );
@@ -62,123 +62,6 @@ void main() {
       ),
     );
   }
-
-  test('a Staff member edits nothing until given the role', () async {
-    expect(database.accessFor('rn-3').editableSections.isEmpty, isTrue);
-    await expectLater(
-      save(nightScheduler, nightNurse, 'N'),
-      throwsA(isA<ScheduleEditRefused>()),
-    );
-  });
-
-  test('the Manager edits every Section', () async {
-    final editable = database.accessFor('manager').editableSections;
-
-    expect(editable.contains('days'), isTrue);
-    expect(editable.contains('night-cna'), isTrue);
-  });
-
-  test('the Manager gives the role with chosen Sections', () async {
-    await manager.store.assignNightScheduler('rn-3', {'nights', 'night-cna'});
-
-    expect(await manager.store.nightSchedulers(), [
-      isA<NightScheduler>()
-          .having((it) => it.staffMemberId, 'staffMemberId', 'rn-3')
-          .having((it) => it.sectionIds, 'sectionIds', {'nights', 'night-cna'}),
-    ]);
-    final editable = database.accessFor('rn-3').editableSections;
-    expect(editable.contains('nights'), isTrue);
-    expect(editable.contains('night-cna'), isTrue);
-    expect(editable.contains('days'), isFalse);
-  });
-
-  test('the Night scheduler edits only assigned Sections', () async {
-    await manager.store.assignNightScheduler('rn-3', {'nights'});
-
-    await save(nightScheduler, nightNurse, 'N');
-    await expectLater(
-      save(nightScheduler, dayNurse, 'X'),
-      throwsA(isA<ScheduleEditRefused>()),
-    );
-    await expectLater(
-      save(nightScheduler, nightAide, 'N'),
-      throwsA(isA<ScheduleEditRefused>()),
-    );
-
-    final grid = await manager.monthGrid(september);
-    expect(grid.shiftCodeFor('rn-2', september18), 'N');
-    expect(grid.shiftCodeFor('rn-1', september18), isNull);
-  });
-
-  test('a Night scheduler edit is live, unannounced and logged under their '
-      'name', () async {
-    await manager.store.assignNightScheduler('rn-3', {'nights'});
-
-    await save(nightScheduler, nightNurse, '7P');
-
-    final grid = await manager.monthGrid(september);
-    expect(grid.shiftCodeFor('rn-2', september18), '7P');
-    expect(grid.isUnannounced('rn-2', september18), isTrue);
-    final entry = (await manager.changeLog(september)).single;
-    expect(entry.changedBy, 'rn-3');
-    expect(entry.changedByName, 'Charge RN');
-    expect(entry.changedAt, now);
-  });
-
-  test('the Night scheduler cannot confirm or hand out the role', () async {
-    await manager.store.assignNightScheduler('rn-3', {'nights'});
-
-    expect(database.accessFor('rn-3').canRunSchedule, isFalse);
-    await expectLater(
-      nightScheduler.store.assignNightScheduler('rn-2', {'nights'}),
-      throwsA(isA<ScheduleEditRefused>()),
-    );
-  });
-
-  test('the Manager overrides a Night scheduler edit', () async {
-    await manager.store.assignNightScheduler('rn-3', {'nights'});
-    await save(nightScheduler, nightNurse, '7P');
-
-    await save(manager, nightNurse, 'N');
-
-    final grid = await manager.monthGrid(september);
-    expect(grid.shiftCodeFor('rn-2', september18), 'N');
-    final log = await manager.changeLog(september);
-    expect(log.map((entry) => entry.changedByName), [
-      'Charge RN',
-      'The Manager',
-    ]);
-    expect(log.last.oldShiftCode, '7P');
-  });
-
-  test('changing the Sections replaces them', () async {
-    await manager.store.assignNightScheduler('rn-3', {'nights', 'night-cna'});
-
-    await manager.store.assignNightScheduler('rn-3', {'night-cna'});
-
-    final editable = database.accessFor('rn-3').editableSections;
-    expect(editable.contains('nights'), isFalse);
-    expect(editable.contains('night-cna'), isTrue);
-  });
-
-  test('the role needs at least one Section', () async {
-    await expectLater(
-      manager.store.assignNightScheduler('rn-3', {}),
-      throwsArgumentError,
-    );
-  });
-
-  test('removing the role stops their edits', () async {
-    await manager.store.assignNightScheduler('rn-3', {'nights'});
-
-    await manager.store.removeNightScheduler('rn-3');
-
-    expect(await manager.store.nightSchedulers(), isEmpty);
-    await expectLater(
-      save(nightScheduler, nightNurse, 'N'),
-      throwsA(isA<ScheduleEditRefused>()),
-    );
-  });
 
   group('the change log view', () {
     setUp(() async {

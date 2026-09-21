@@ -78,7 +78,7 @@ void main() {
     final invites = _Invites();
     final db = InMemoryScheduleDatabase(
       sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -123,7 +123,7 @@ void main() {
           sectionId: 'nurses',
         ),
       ],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {month, DateTime(2026, 10)},
     );
     final manager = scheduleRulesInMemory(db, actingAs: 'manager');
@@ -238,7 +238,7 @@ void main() {
           sectionId: 'nurses',
         ),
       ],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {month},
     );
     await tester.pumpWidget(

@@ -86,7 +86,7 @@ void main() {
           sectionId: 'nurses',
         ),
       ],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {DateTime(2026, 9)},
     );
     manager = scheduleRulesInMemory(database, actingAs: 'manager');

@@ -21,7 +21,7 @@ void main() {
     final database = InMemoryScheduleDatabase(
       sections: const [section],
       rows: const [row],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {month},
     );
     await tester.pumpWidget(
@@ -149,7 +149,7 @@ void main() {
     final database = InMemoryScheduleDatabase(
       sections: const [section],
       rows: const [row],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
     );
     final rules = scheduleRulesInMemory(database, actingAs: 'manager');
     await rules.startEmptyMonth(month);
@@ -192,7 +192,7 @@ void main() {
           ),
           row,
         ],
-        editors: const {'manager'},
+        grants: {'manager': Grants(manager: true)},
         releasedMonths: {month},
       );
       await tester.pumpWidget(

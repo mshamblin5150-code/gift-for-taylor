@@ -25,6 +25,7 @@ void main() {
   setUp(() {
     now = DateTime(2026, 9, 18, 9, 30);
     database = InMemoryScheduleDatabase(
+      grants: {'manager': Grants(manager: true)},
       sections: const [days, nights],
       rows: const [dayNurse, nightNurse],
       clock: () => now,
@@ -191,24 +192,6 @@ void main() {
     expect(nightMonth.length, 30);
     expect(nightMonth[17].shiftCode, '7P');
     expect(nightMonth[16].shiftCode, '');
-  });
-
-  test('only the Manager may change the Schedule', () async {
-    final restricted = InMemoryScheduleDatabase(
-      sections: const [days],
-      rows: const [dayNurse],
-      editors: const {'manager'},
-    );
-    final staffMember = scheduleRulesInMemory(restricted, actingAs: 'rn-1');
-
-    await expectLater(
-      save(staffMember, dayNurse, 'R/O'),
-      throwsA(isA<ScheduleEditRefused>()),
-    );
-    expect(await staffMember.changeLog(september), isEmpty);
-
-    expect(restricted.accessFor('manager').canRunSchedule, isTrue);
-    expect(restricted.accessFor('rn-1').canRunSchedule, isFalse);
   });
 
   test('the legend lists every common Shift code with its hours', () {

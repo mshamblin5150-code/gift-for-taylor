@@ -21,7 +21,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days],
       rows: const [dayNurse],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {september},
     );
   });

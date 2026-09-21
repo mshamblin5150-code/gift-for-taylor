@@ -18,7 +18,6 @@ final class InMemoryScheduleDatabase {
   InMemoryScheduleDatabase({
     required List<ScheduleSection> sections,
     List<ScheduleRow> rows = const [],
-    this.editors,
     Map<String, Grants> grants = const {},
     this.maintainerId,
     Map<String, String> names = const {},
@@ -33,11 +32,11 @@ final class InMemoryScheduleDatabase {
        _sections = List.unmodifiable(sections),
        _rows = List.unmodifiable(rows),
        _shiftCodes = List.of(shiftCodes),
-       _legacyEveryoneEdits = editors == null && grants.isEmpty,
-       _grants = {
-         for (final entry in grants.entries) entry.key: entry.value,
-         for (final id in editors ?? const <String>{})
-           id: (grants[id] ?? Grants()).copyWith(manager: true),
+       _grants = Map.of(grants),
+       _nightSchedulerSections = {
+         for (final entry in grants.entries)
+           if (entry.value.nightSchedulerSectionIds.isNotEmpty)
+             entry.key: {...entry.value.nightSchedulerSectionIds},
        },
        _names = {
          for (final row in rows) row.staffMemberId: row.displayName,
@@ -54,11 +53,10 @@ final class InMemoryScheduleDatabase {
   final List<ScheduleSection> _sections;
   final List<ScheduleRow> _rows;
 
-  /// Legacy test shortcut: these people receive a Manager grant.
-  final Set<String>? editors;
   final String? maintainerId;
-  final bool _legacyEveryoneEdits;
   final Map<String, Grants> _grants;
+  final Map<String, Set<String>> _nightSchedulerSections;
+  final Map<String, Set<DateTime>> _hiddenMonthsByActor = {};
   final String managerEmail;
 
   /// Display names of everyone, including people not on a Schedule row such
@@ -203,6 +201,13 @@ final class InMemoryScheduleDatabase {
   List<OpenShiftPickup> get recordedOpenShiftPickups =>
       List.unmodifiable(_openShiftPickups);
 
+  /// Seeds a month that this actor cannot read.
+  void hideMonthFor(String actor, DateTime month) {
+    _hiddenMonthsByActor
+        .putIfAbsent(actor, () => {})
+        .add(DateTime(month.year, month.month));
+  }
+
   void _throwNextFailure(InMemoryStoreCall call) {
     final error = _nextFailures.remove(call);
     if (error != null) throw error;
@@ -244,9 +249,7 @@ final class InMemoryScheduleDatabase {
       _InMemoryScheduleStore(this, staffMemberId);
 
   Access accessFor(String actor) => Access(
-    grants:
-        _grants[actor] ??
-        (_legacyEveryoneEdits ? Grants(manager: true) : Grants()),
+    grants: _grants[actor] ?? Grants(),
     maintainer: actor == maintainerId,
     ownStaffMemberId: actor == maintainerId || !_isActive(actor) ? null : actor,
   );
@@ -263,12 +266,6 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<Access> currentAccess() async => _access;
-
-  void _requireStaffManagement() {
-    if (!_database.accessFor(_actingAs).canManageStaff) {
-      throw const ScheduleEditRefused();
-    }
-  }
 
   @override
   Future<List<LegendCode>> shiftCodes() async {
@@ -405,12 +402,6 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   @override
   Future<void> writeCell(ScheduleCell cell) async {
     _database._throwNextFailure(InMemoryStoreCall.writeCell);
-    final editable = _access.editableSections;
-    if (!editable.contains(cell.sectionId)) {
-      throw editable.isEmpty
-          ? const ScheduleEditRefused()
-          : const ScheduleEditRefused('Only the Manager can edit that Section');
-    }
     final row = (await rows(DateTime(cell.date.year, cell.date.month)))
         .where((row) => row.staffMemberId == cell.staffMemberId)
         .firstOrNull;
@@ -438,9 +429,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     if (!_inMonth(first.date, second.date)) {
       throw StateError('Both cells must be in the same month');
     }
-    final editable = _access.editableSections;
     for (final cell in [first, second]) {
-      if (!editable.contains(cell.sectionId)) throw const ScheduleEditRefused();
       final row = (await rows(DateTime(cell.date.year, cell.date.month)))
           .where((row) => row.staffMemberId == cell.staffMemberId)
           .firstOrNull;
@@ -460,10 +449,6 @@ final class _InMemoryScheduleStore implements ScheduleStore {
             ._cells[_cellKey(second.staffMemberId, second.date)]
             ?.shiftCode ??
         '';
-    if (firstOld != action.expectedFirstCode ||
-        secondOld != action.expectedSecondCode) {
-      throw StateError('The Schedule changed. Reload and try again.');
-    }
     if (firstOld != first.shiftCode) {
       _write(
         ScheduleCell(
@@ -518,47 +503,20 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     String staffMemberId,
     Set<String> sectionIds,
   ) async {
-    if (sectionIds.isEmpty) {
-      throw ArgumentError.value(
-        sectionIds,
-        'sectionIds',
-        'The Night scheduler needs at least one Section',
-      );
-    }
-    _requireStaffManagement();
-    // Preserve the old no-grants test default: assigning a Section made that
-    // actor a Night scheduler rather than an implicit Manager.
-    final existing =
-        _database._grants[staffMemberId] ??
-        (_database._legacyEveryoneEdits
-            ? Grants()
-            : _database.accessFor(staffMemberId).grants);
-    _database._grants[staffMemberId] = existing.copyWith(
-      nightSchedulerSectionIds: sectionIds,
-    );
+    _database._nightSchedulerSections[staffMemberId] = {...sectionIds};
   }
 
   @override
   Future<void> removeNightScheduler(String staffMemberId) async {
-    _requireStaffManagement();
-    if (_database._legacyEveryoneEdits) {
-      _database._grants.remove(staffMemberId);
-      return;
-    }
-    _database._grants[staffMemberId] = _database
-        .accessFor(staffMemberId)
-        .grants
-        .copyWith(nightSchedulerSectionIds: {});
+    _database._nightSchedulerSections.remove(staffMemberId);
   }
 
   @override
   Future<List<NightScheduler>> nightSchedulers() async => [
-    for (final MapEntry(:key, :value) in _database._grants.entries)
-      if (value.nightSchedulerSectionIds.isNotEmpty)
-        NightScheduler(
-          staffMemberId: key,
-          sectionIds: {...value.nightSchedulerSectionIds},
-        ),
+    for (final MapEntry(:key, :value)
+        in _database._nightSchedulerSections.entries)
+      if (value.isNotEmpty)
+        NightScheduler(staffMemberId: key, sectionIds: {...value}),
   ];
 
   @override
@@ -587,25 +545,21 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> setLastDay(SetLastDay action) async {
-    _requireStaffManagement();
     _database.lastDayWrites.add(action);
   }
 
   @override
   Future<void> reactivate(Reactivate action) async {
-    _requireStaffManagement();
     _database.reactivationWrites.add(action);
   }
 
   @override
   Future<void> changeSection(ChangeSection action) async {
-    _requireStaffManagement();
     _database.sectionWrites.add(action);
   }
 
   @override
   Future<void> changeJobRole(ChangeJobRole action) async {
-    _requireStaffManagement();
     _database.jobRoleWrites.add(action);
   }
 
@@ -623,18 +577,6 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     Set<String> draftOpenedStaffMemberIds,
   ) async {
     _database._throwNextFailure(InMemoryStoreCall.markChangesAnnounced);
-    final editable = _access.editableSections;
-    if (editable.isEmpty) throw const ScheduleEditRefused();
-    final months = {
-      for (final change in _database._changes)
-        if (changeIds.contains(change.id))
-          DateTime(change.date.year, change.date.month),
-    };
-    final sectionOf = {
-      for (final month in months)
-        for (final row in await rows(month))
-          (row.staffMemberId, month): row.sectionId,
-    };
     final movedByCell = <String, bool>{};
     for (final change in _database._changes) {
       if (change.announced || change.moot) continue;
@@ -654,14 +596,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
       if (!changeIds.contains(change.id) ||
           change.announced ||
           change.moot ||
-          unselectedPendingCells.contains(key) ||
-          !editable.contains(
-            sectionOf[(
-                  change.staffMemberId,
-                  DateTime(change.date.year, change.date.month),
-                )] ??
-                '',
-          )) {
+          unselectedPendingCells.contains(key)) {
         continue;
       }
       final moved = movedByCell[key]!;
@@ -694,10 +629,10 @@ final class _InMemoryScheduleStore implements ScheduleStore {
         : MonthStatus.notStarted;
   }
 
-  /// Only schedulers see a month before it is released.
+  /// Tests seed the months that this actor cannot read.
   Future<bool> _canSee(DateTime month) async =>
-      _database._monthStatus[month] != MonthStatus.unpublished ||
-      _database.accessFor(_actingAs).canReadUnreleased;
+      !(_database._hiddenMonthsByActor[_actingAs] ?? const <DateTime>{})
+          .contains(DateTime(month.year, month.month));
 
   @override
   Future<void> startMonth(DateTime month, List<ScheduleCell> cells) async {

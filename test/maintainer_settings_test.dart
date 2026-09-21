@@ -9,7 +9,10 @@ void main() {
     tester,
   ) async {
     final rules = scheduleRulesInMemory(
-      InMemoryScheduleDatabase(sections: const []),
+      InMemoryScheduleDatabase(
+        grants: {'manager': Grants(manager: true)},
+        sections: const [],
+      ),
       actingAs: 'manager',
     );
     await tester.pumpWidget(

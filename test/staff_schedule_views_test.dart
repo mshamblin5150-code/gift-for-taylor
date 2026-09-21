@@ -33,7 +33,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [section],
       rows: rows,
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {month},
     );
     final manager = scheduleRulesInMemory(database, actingAs: 'manager');

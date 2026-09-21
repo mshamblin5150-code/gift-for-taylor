@@ -9,7 +9,10 @@ void main() {
   final fourteenth = DateTime(2026, 10, 14);
 
   Future<MonthGrid> grid() => scheduleRulesInMemory(
-    InMemoryScheduleDatabase(sections: const []),
+    InMemoryScheduleDatabase(
+      grants: {'manager': Grants(manager: true)},
+      sections: const [],
+    ),
     actingAs: 'manager',
   ).monthGrid(month);
 
@@ -153,6 +156,7 @@ void main() {
     'fresh staffing takes precedence over an older grid Open shift',
     () async {
       final database = InMemoryScheduleDatabase(
+        grants: {'manager': Grants(manager: true)},
         sections: const [],
         releasedMonths: {month},
       );

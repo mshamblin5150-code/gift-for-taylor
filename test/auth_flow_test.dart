@@ -263,7 +263,7 @@ void main() {
         ),
       ],
       releasedMonths: {DateTime(now.year, now.month)},
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
     );
     await tester.pumpWidget(
       ScheduleApp(
@@ -465,7 +465,7 @@ void main() {
             sectionId: 'days',
           ),
         ],
-        editors: const {'manager'},
+        grants: {'manager': Grants(manager: true)},
       );
       await tester.pumpWidget(
         ScheduleApp(
@@ -489,7 +489,10 @@ void main() {
 }
 
 ScheduleStore _scheduleStore(List<ScheduleSection> sections) {
-  return InMemoryScheduleDatabase(sections: sections).storeFor('manager');
+  return InMemoryScheduleDatabase(
+    grants: {'manager': Grants(manager: true)},
+    sections: sections,
+  ).storeFor('manager');
 }
 
 final class _FakeAuthGateway implements AuthGateway {

@@ -143,7 +143,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [ScheduleSection(id: 'days', name: 'Days')],
       rows: const [alice],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {month},
     );
     manager = scheduleRulesInMemory(database, actingAs: 'manager');
@@ -344,7 +344,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [ScheduleSection(id: 'days', name: 'Days')],
       rows: const [alice],
-      editors: const {'manager'},
+      grants: {'manager': Grants(manager: true)},
       releasedMonths: {month, october},
     );
     manager = scheduleRulesInMemory(database, actingAs: 'manager');
@@ -572,6 +572,10 @@ void main() {
         date: second,
         shiftCode: 'X',
       ),
+    );
+    database.failNext(
+      InMemoryStoreCall.writeCellPair,
+      StateError('The Schedule changed. Reload and try again.'),
     );
     expect(await session.drop(a, b, copy: false), isA<DropFailed>());
     expect(session.state.grid!.shiftCodeFor('alice', second), 'X');

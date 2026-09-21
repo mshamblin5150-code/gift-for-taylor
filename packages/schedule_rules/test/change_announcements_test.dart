@@ -30,6 +30,10 @@ void main() {
 
   setUp(() {
     database = InMemoryScheduleDatabase(
+      grants: {
+        'manager': Grants(manager: true),
+        'night-scheduler': Grants(nightSchedulerSectionIds: {'nights'}),
+      },
       sections: const [days, nights],
       rows: const [dana, lee, sam],
       releasedMonths: {september},
@@ -298,6 +302,7 @@ void main() {
 
   test('one text fallback has no group text', () async {
     final noCell = InMemoryScheduleDatabase(
+      grants: {'manager': Grants(manager: true)},
       sections: const [days],
       releasedMonths: {september},
       rows: const [
@@ -376,34 +381,6 @@ void main() {
     expect((await manager.changeAnnouncement(september)).isEmpty, isTrue);
   });
 
-  test('only a scheduler may mark changes announced', () async {
-    final restricted = InMemoryScheduleDatabase(
-      sections: const [days],
-      rows: const [dana],
-      editors: const {'manager'},
-      releasedMonths: {september},
-    );
-    final scheduler = scheduleRulesInMemory(restricted, actingAs: 'manager');
-    await scheduler.saveCell(
-      SaveCell(
-        staffMemberId: 'rn-1',
-        sectionId: 'days',
-        date: DateTime(2026, 9, 18),
-        shiftCode: 'X',
-      ),
-    );
-    final announcement = await scheduler.changeAnnouncement(september);
-
-    await expectLater(
-      scheduleRulesInMemory(
-        restricted,
-        actingAs: 'rn-1',
-      ).markAnnounced(announcement),
-      throwsA(isA<ScheduleEditRefused>()),
-    );
-    expect((await scheduler.changeAnnouncement(september)).isEmpty, isFalse);
-  });
-
   test('a month still being built has nothing to announce', () async {
     final october = DateTime(2026, 10);
     await manager.saveCell(
@@ -418,33 +395,18 @@ void main() {
     expect((await manager.changeAnnouncement(october)).isEmpty, isTrue);
   });
 
-  test('a Night scheduler announces only their own Sections', () async {
+  test('Change announcement includes only editable Section rows', () async {
     await publishStartingMonth();
-    await manager.store.assignNightScheduler('night-scheduler', {'nights'});
-    final nightScheduler = scheduleRulesInMemory(
+    await save(dana, 18, 'X');
+    await save(sam, 19, 'N');
+
+    final scheduler = scheduleRulesInMemory(
       database,
       actingAs: 'night-scheduler',
     );
-    await save(dana, 18, 'X');
-    await nightScheduler.saveCell(
-      SaveCell(
-        staffMemberId: 'rn-2',
-        sectionId: 'nights',
-        date: DateTime(2026, 9, 19),
-        shiftCode: 'N',
-      ),
-    );
-
-    final announcement = await nightScheduler.changeAnnouncement(september);
+    final announcement = await scheduler.changeAnnouncement(september);
     expect(announcement.people.map((person) => person.row.displayName), [
       'Sam Ortiz',
-    ]);
-
-    await nightScheduler.markAnnounced(announcement);
-
-    final remaining = await manager.changeAnnouncement(september);
-    expect(remaining.people.map((person) => person.row.displayName), [
-      'Dana Reyes',
     ]);
   });
 

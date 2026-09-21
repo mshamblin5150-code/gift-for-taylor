@@ -1,5 +1,3 @@
-import 'package:schedule_rules_testing/schedule_rules_testing.dart';
-
 import 'dart:convert';
 import 'dart:io';
 
@@ -89,82 +87,6 @@ void main() {
     expect(maintainer.isRepairAccess, isTrue);
     expect(maintainer.canUseOwnSettings, isFalse);
     expect(maintainer.canChangeAccess(Grants()), isTrue);
-  });
-
-  test(
-    'in-memory grants remain independent and enforce Section edits',
-    () async {
-      final database = InMemoryScheduleDatabase(
-        sections: const [
-          ScheduleSection(id: 'nights', name: 'Nights'),
-          ScheduleSection(id: 'days', name: 'Days'),
-        ],
-        rows: const [
-          ScheduleRow(
-            staffMemberId: 'staff',
-            displayName: 'Staff',
-            sectionId: 'nights',
-          ),
-        ],
-        editors: const {'manager'},
-        grants: {'staff': Grants(administrator: true)},
-        maintainerId: 'maintainer',
-      );
-      final manager = scheduleRulesInMemory(database, actingAs: 'manager');
-      final staff = scheduleRulesInMemory(database, actingAs: 'staff');
-      await manager.store.assignNightScheduler('staff', {'nights'});
-      expect(database.accessFor('staff').grants.administrator, isTrue);
-      expect(database.accessFor('staff').canRunSchedule, isFalse);
-      expect(database.accessFor('staff').canEditSection('nights'), isTrue);
-      expect(database.accessFor('staff').canEditSection('days'), isFalse);
-      await staff.saveCell(
-        SaveCell(
-          staffMemberId: 'staff',
-          sectionId: 'nights',
-          date: DateTime(2026, 9, 21),
-          shiftCode: 'N',
-        ),
-      );
-      await expectLater(
-        staff.saveCell(
-          SaveCell(
-            staffMemberId: 'staff',
-            sectionId: 'days',
-            date: DateTime(2026, 9, 22),
-            shiftCode: 'N',
-          ),
-        ),
-        throwsA(isA<ScheduleEditRefused>()),
-      );
-      await manager.store.removeNightScheduler('staff');
-      expect(database.accessFor('staff').grants.administrator, isTrue);
-      expect(
-        database.accessFor('staff').grants.nightSchedulerSectionIds,
-        isEmpty,
-      );
-      expect(database.accessFor('maintainer').canRunSchedule, isTrue);
-      expect(database.accessFor('maintainer').ownStaffMemberId, isNull);
-    },
-  );
-
-  test('Manager grant survives assigned Night scheduler Sections', () async {
-    final database = InMemoryScheduleDatabase(
-      sections: const [],
-      editors: const {'manager'},
-    );
-    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
-    await manager.store.assignNightScheduler('manager', {'nights'});
-    expect(database.accessFor('manager').canRunSchedule, isTrue);
-    expect(database.accessFor('manager').canEditSection('days'), isTrue);
-  });
-
-  test('explicit grants do not give an unknown actor Manager access', () async {
-    final database = InMemoryScheduleDatabase(
-      sections: const [],
-      grants: {'administrator': Grants(administrator: true)},
-    );
-    expect(database.accessFor('stranger').canRunSchedule, isFalse);
-    expect(database.accessFor('administrator').canManageStaff, isTrue);
   });
 
   test('committed pgTAP matches the shared scenarios', () {

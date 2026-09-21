@@ -19,7 +19,7 @@ void main() {
     database = InMemoryScheduleDatabase(
       sections: const [days],
       rows: const [dayNurse],
-      editors: {'manager'},
+      grants: {'manager': Grants(manager: true)},
     );
     database.loadFromPage(october, [
       ScheduleCell(
@@ -35,7 +35,10 @@ void main() {
   test('the loaded month waits for the Manager to check it', () async {
     final grid = await manager.monthGrid(october);
 
-    expect((await manager.store.monthsAwaitingConfirmation()).firstOrNull, october);
+    expect(
+      (await manager.store.monthsAwaitingConfirmation()).firstOrNull,
+      october,
+    );
     expect(grid.awaitingConfirmation, isTrue);
     expect(grid.shiftCodeFor('rn-1', october1), '4P-8A');
     expect(await manager.changeLog(october), isEmpty);
@@ -73,7 +76,10 @@ void main() {
     expect(grid.awaitingConfirmation, isFalse);
     expect(grid.isUnannounced('rn-1', october1), isFalse);
     expect(grid.shiftCodeFor('rn-1', october1), '7P');
-    expect((await manager.store.monthsAwaitingConfirmation()).firstOrNull, isNull);
+    expect(
+      (await manager.store.monthsAwaitingConfirmation()).firstOrNull,
+      isNull,
+    );
   });
 
   test('only the Manager may confirm the month', () async {
@@ -83,6 +89,9 @@ void main() {
       staffMember.store.confirmLoadedMonth(october),
       throwsA(isA<ScheduleEditRefused>()),
     );
-    expect((await manager.store.monthsAwaitingConfirmation()).firstOrNull, october);
+    expect(
+      (await manager.store.monthsAwaitingConfirmation()).firstOrNull,
+      october,
+    );
   });
 }
