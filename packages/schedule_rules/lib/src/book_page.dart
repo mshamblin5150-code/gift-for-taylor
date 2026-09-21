@@ -231,11 +231,13 @@ function fitCellText() {
       label.className = 'fitted-text';
       label.textContent = cell.textContent;
       cell.replaceChildren(label);
-      cell.style.position = 'relative';
-      label.style.position = 'absolute';
+      // Keep the table cell unpositioned: positioned cells can paint over
+      // shared borders in a collapsed table when their background is shaded.
+      cell.style.textAlign = 'left';
+      label.style.display = 'inline-block';
+      label.style.position = 'relative';
       label.style.width = 'max-content';
       label.style.whiteSpace = 'nowrap';
-      label.style.top = '50%';
       label.style.transformOrigin = 'left center';
     }
     label.style.transform = 'none';
@@ -244,7 +246,7 @@ function fitCellText() {
     const ratio = width > available && available > 0 ? available / width : 1;
     label.style.left = cell.matches('th.name') ? '1px' :
       ((cell.clientWidth - width * ratio) / 2) + 'px';
-    label.style.transform = 'translateY(-50%) scaleX(' + ratio + ')';
+    label.style.transform = 'scaleX(' + ratio + ')';
   }
 }
 function fitBookPage() {
