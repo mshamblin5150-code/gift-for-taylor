@@ -177,22 +177,44 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
 
   Future<void> _changeAccessRole() async {
     final details = _details!;
-    final selection = await showDialog<(String, Set<String>)>(
-      context: context,
-      builder: (context) => _AccessRoleDialog(
-        details: details,
-        sections: _list!.sections,
-        nightSectionIds: _nightSectionIds,
-        canTransferManager: _canTransferManager,
-      ),
-    );
+    final selection =
+        await showDialog<
+          ({
+            bool administrator,
+            Set<String> sections,
+            bool transfer,
+            bool formerAdministrator,
+            Set<String> formerSections,
+          })
+        >(
+          context: context,
+          builder: (context) => _AccessRoleDialog(
+            details: details,
+            sections: _list!.sections,
+            nightSectionIds: _nightSectionIds,
+            canTransferManager:
+                _currentRole == 'manager' && _canTransferManager,
+          ),
+        );
     if (selection == null) return;
     try {
-      await widget.gateway.setAccessRole(
-        details.id,
-        selection.$1,
-        selection.$2,
-      );
+      if (selection.transfer) {
+        await widget.gateway.transferManagerWithAccess(
+          details.id,
+          selection.formerAdministrator,
+          selection.formerSections,
+        );
+      } else {
+        await widget.gateway.setAccessRole(
+          details.id,
+          selection.administrator
+              ? 'administrator'
+              : selection.sections.isNotEmpty
+              ? 'night_scheduler'
+              : 'staff_member',
+          selection.sections,
+        );
+      }
       await _load();
     } catch (_) {
       if (mounted) _showError('Could not change the access role.');
@@ -229,8 +251,14 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
               value: person.jobRole?.label ?? 'Not set',
             ),
             _Detail(
-              label: 'Access role',
-              value: person.role.replaceAll('_', ' '),
+              label: 'Access',
+              value: [
+                if (person.role == 'manager') 'Manager',
+                if (person.role == 'administrator') 'Administrator',
+                if (_nightSectionIds.isNotEmpty) 'Night scheduler',
+                if (person.role == 'staff_member' && _nightSectionIds.isEmpty)
+                  'Staff member',
+              ].join(' and '),
             ),
             _Detail(
               label: 'Last day',
@@ -257,7 +285,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
                 person.role != 'manager')
               OutlinedButton(
                 onPressed: _changeAccessRole,
-                child: const Text('Change access role'),
+                child: const Text('Change access'),
               ),
             if (person.lastDay == null) ...[
               OutlinedButton(
@@ -279,7 +307,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
             ],
             if (_accessChanges.isNotEmpty) ...[
               const SizedBox(height: 16),
-              const Text('Access role history'),
+              const Text('Access history'),
               for (final change in _accessChanges)
                 ListTile(
                   title: Text(
@@ -325,61 +353,82 @@ class _AccessRoleDialog extends StatefulWidget {
 }
 
 class _AccessRoleDialogState extends State<_AccessRoleDialog> {
-  late String _role = widget.details.role;
+  late bool _administrator = widget.details.role == 'administrator';
   late final Set<String> _sectionIds = {...widget.nightSectionIds};
+  bool _transfer = false;
+  bool _formerAdministrator = false;
+  final Set<String> _formerSections = {};
 
   @override
   Widget build(BuildContext context) {
     final departed = widget.details.lastDay != null;
-    final choices = <String>[
-      'staff_member',
-      if (!departed) 'administrator',
-      if (!departed) 'night_scheduler',
-      if (!departed && widget.canTransferManager) 'manager',
-    ];
     return AlertDialog(
-      title: Text('Change access role for ${widget.details.displayName}'),
+      title: Text('Change access for ${widget.details.displayName}'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (departed && _role != 'staff_member')
+            if (departed && (_administrator || _sectionIds.isNotEmpty))
               const Text('Remove access after the Last day.'),
-            DropdownButtonFormField<String>(
-              initialValue: _role,
-              decoration: const InputDecoration(labelText: 'Access role'),
-              items: [
-                for (final role in {...choices, _role})
-                  DropdownMenuItem(
-                    value: role,
-                    child: Text(role.replaceAll('_', ' ')),
-                  ),
-              ],
-              onChanged: (value) {
-                if (value != null) setState(() => _role = value);
-              },
+            CheckboxListTile(
+              title: const Text('Administrator'),
+              value: _administrator,
+              onChanged: departed && !_administrator
+                  ? null
+                  : (value) => setState(() => _administrator = value ?? false),
             ),
-            if (_role == 'night_scheduler') ...[
+            if (!departed || _sectionIds.isNotEmpty) ...[
               const SizedBox(height: 12),
               const Text('Sections this Night scheduler may edit'),
               for (final section in widget.sections)
                 CheckboxListTile(
                   title: Text(section.name),
                   value: _sectionIds.contains(section.id),
-                  onChanged: (checked) => setState(() {
-                    if (checked == true) {
-                      _sectionIds.add(section.id);
-                    } else {
-                      _sectionIds.remove(section.id);
-                    }
-                  }),
+                  onChanged: departed && !_sectionIds.contains(section.id)
+                      ? null
+                      : (checked) => setState(() {
+                          if (checked == true) {
+                            _sectionIds.add(section.id);
+                          } else {
+                            _sectionIds.remove(section.id);
+                          }
+                        }),
                 ),
             ],
-            if (_role == 'manager')
-              const Text(
-                'They will become Manager and you will become an administrator immediately.',
+            if (!departed && widget.canTransferManager) ...[
+              const Divider(),
+              CheckboxListTile(
+                title: const Text('Transfer Manager'),
+                value: _transfer,
+                onChanged: (value) =>
+                    setState(() => _transfer = value ?? false),
               ),
+              if (_transfer) ...[
+                const Text(
+                  'Your access after handover (Staff member by default)',
+                ),
+                CheckboxListTile(
+                  title: const Text('Administrator'),
+                  value: _formerAdministrator,
+                  onChanged: (value) =>
+                      setState(() => _formerAdministrator = value ?? false),
+                ),
+                const Text('Night scheduler Sections'),
+                for (final section in widget.sections)
+                  CheckboxListTile(
+                    title: Text(section.name),
+                    value: _formerSections.contains(section.id),
+                    onChanged: (checked) => setState(() {
+                      if (checked == true) {
+                        _formerSections.add(section.id);
+                      } else {
+                        _formerSections.remove(section.id);
+                      }
+                    }),
+                  ),
+              ],
+            ],
           ],
         ),
       ),
@@ -390,17 +439,19 @@ class _AccessRoleDialogState extends State<_AccessRoleDialog> {
         ),
         FilledButton(
           onPressed:
-              _role == widget.details.role &&
-                      (_role != 'night_scheduler' ||
-                          _sectionIds.length == widget.nightSectionIds.length &&
-                              _sectionIds.containsAll(
-                                widget.nightSectionIds,
-                              )) ||
-                  _role == 'night_scheduler' && _sectionIds.isEmpty ||
-                  departed && _role != 'staff_member'
+              !_transfer &&
+                  _administrator == (widget.details.role == 'administrator') &&
+                  _sectionIds.length == widget.nightSectionIds.length &&
+                  _sectionIds.containsAll(widget.nightSectionIds)
               ? null
-              : () => Navigator.pop(context, (_role, _sectionIds)),
-          child: const Text('Save access role'),
+              : () => Navigator.pop(context, (
+                  administrator: _administrator,
+                  sections: _sectionIds,
+                  transfer: _transfer,
+                  formerAdministrator: _formerAdministrator,
+                  formerSections: _formerSections,
+                )),
+          child: Text(_transfer ? 'Transfer Manager' : 'Save access'),
         ),
       ],
     );

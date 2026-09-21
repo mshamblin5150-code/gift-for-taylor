@@ -443,6 +443,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
         ? await widget.staffGateway!.isInviteAcceptancePending()
         : false;
     final canManageStaff = await widget.staffGateway?.canManageStaff() ?? false;
+    final currentRole = await widget.staffGateway?.currentStaffRole();
     final staffMemberId = await widget.staffGateway?.currentStaffMemberId();
     final editable = await widget.scheduleStore.editableSections();
     final monthToCheck = await ScheduleRules(widget.scheduleStore)
@@ -453,7 +454,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
       canManageStaff,
       monthToCheck,
       !canManageStaff && editable.isEmpty ? staffMemberId : null,
-      canManageStaff ? null : staffMemberId,
+      currentRole == 'manager' ? null : staffMemberId,
     );
   }
 

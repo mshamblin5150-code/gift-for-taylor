@@ -89,7 +89,7 @@ select throws_ok(
       array['00000000-0000-0000-0000-000000000204']::uuid[]
     )
   $$,
-  'Only the Manager can change access roles',
+  'Only the Manager or Administrator can change Staff access',
   'a Staff member cannot make themselves the Night scheduler'
 );
 
@@ -265,7 +265,7 @@ select throws_ok(
       array['00000000-0000-0000-0000-000000000204']::uuid[]
     )
   $$,
-  'Only the Manager can change access roles',
+  'Only the Manager or Administrator can change Staff access',
   'the Night scheduler cannot widen their own Sections'
 );
 

@@ -1,7 +1,7 @@
 begin;
 set local time zone 'America/New_York';
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(22);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000901', 'call-manager@example.test'),
@@ -55,6 +55,13 @@ reset role;
 select is((select shift_code from public.schedule_cells where staff_member_id =
   '00000000-0000-0000-0000-000000000907' and work_date = '2027-10-14'), '7A',
   'withdrawal restores the exact previous Shift code');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000901","role":"authenticated"}', true);
+select lives_ok($$select public.assign_administrator('00000000-0000-0000-0000-000000000906')$$,
+  'Manager grants working recorder Administrator access');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000902","role":"authenticated"}', true);
+select lives_ok($$select public.record_call_in('00000000-0000-0000-0000-000000000907', '2027-10-14')$$,
+  'working Administrator retains ordinary Call-in access');
+select public.withdraw_call_in('00000000-0000-0000-0000-000000000907', '2027-10-14');
 set local role authenticated;
 select throws_ok($$select public.withdraw_call_in('00000000-0000-0000-0000-000000000907', '2027-10-14')$$,
   'There is no Call-in to withdraw', 'withdrawal cannot be repeated');
