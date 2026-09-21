@@ -45,6 +45,8 @@ dependencies:
     path: packages/schedule_book
 
 dev_dependencies:
+  schedule_rules_testing:
+    path: packages/schedule_rules_testing
   flutter_test:
     sdk: flutter
 

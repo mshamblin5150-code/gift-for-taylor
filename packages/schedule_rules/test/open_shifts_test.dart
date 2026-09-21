@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
 
@@ -5,7 +6,7 @@ void main() {
   final day = DateTime(2026, 10, 12);
   late InMemoryScheduleDatabase database;
   late ScheduleRules manager;
-  late OpenShiftRules managerShifts;
+  late OpenShiftStore managerShifts;
 
   setUp(() async {
     database = InMemoryScheduleDatabase(
@@ -41,8 +42,8 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {DateTime(2026, 10)},
     );
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
-    managerShifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
+    managerShifts = database.openShiftStoreFor('manager');
     for (final (id, role) in [
       ('original', JobRole.rn),
       ('lpn', JobRole.lpn),
@@ -50,7 +51,7 @@ void main() {
       ('cna', JobRole.cna),
       ('clerk', JobRole.unitClerk),
     ]) {
-      await manager.changeJobRole(
+      await manager.store.changeJobRole(
         ChangeJobRole(
           staffMemberId: id,
           jobRole: role,
@@ -66,13 +67,14 @@ void main() {
         shiftCode: '7A',
       ),
     );
-    final request = await ScheduleRules.inMemory(
+    final request = await scheduleRulesInMemory(
       database,
       actingAs: 'original',
     ).requestOff(RequestOffDraft(dates: [day]));
-    await manager.decideRequestOff(
+    await manager.store.decideRequestOff(
       request.requestId,
       RequestOffDecision.approved,
+      null,
     );
   });
 
@@ -80,17 +82,11 @@ void main() {
     'nurses share Open shifts; CNA and unit clerk do not see nursing shifts',
     () async {
       expect(
-        await OpenShiftRules(database.openShiftStoreFor('lpn')).openShifts(),
+        await database.openShiftStoreFor('lpn').openShifts(),
         hasLength(1),
       );
-      expect(
-        await OpenShiftRules(database.openShiftStoreFor('cna')).openShifts(),
-        isEmpty,
-      );
-      expect(
-        await OpenShiftRules(database.openShiftStoreFor('clerk')).openShifts(),
-        isEmpty,
-      );
+      expect(await database.openShiftStoreFor('cna').openShifts(), isEmpty);
+      expect(await database.openShiftStoreFor('clerk').openShifts(), isEmpty);
       expect((await managerShifts.openShifts()).single.shiftCode, '7A');
     },
   );
@@ -99,7 +95,7 @@ void main() {
     'Manager can decline a pending pickup without filling its Open shift',
     () async {
       final shift = (await managerShifts.openShifts()).single;
-      final staff = OpenShiftRules(database.openShiftStoreFor('lpn'));
+      final staff = database.openShiftStoreFor('lpn');
       await staff.requestPickup(shift.id);
       final pickup = (await staff.pickups()).single;
       await expectLater(staff.declinePickup(pickup.id), throwsStateError);
@@ -126,31 +122,32 @@ void main() {
           shiftCode: code,
         ),
       );
-      final request = await ScheduleRules.inMemory(
+      final request = await scheduleRulesInMemory(
         database,
         actingAs: id,
       ).requestOff(RequestOffDraft(dates: [day]));
-      await manager.decideRequestOff(
+      await manager.store.decideRequestOff(
         request.requestId,
         RequestOffDecision.approved,
+        null,
       );
     }
     expect(
-      (await OpenShiftRules(
-        database.openShiftStoreFor('lpn'),
-      ).openShifts()).map((shift) => shift.shiftCode),
+      (await database.openShiftStoreFor('lpn').openShifts()).map(
+        (shift) => shift.shiftCode,
+      ),
       ['7A'],
     );
     expect(
-      (await OpenShiftRules(
-        database.openShiftStoreFor('cna'),
-      ).openShifts()).map((shift) => shift.shiftCode),
+      (await database.openShiftStoreFor('cna').openShifts()).map(
+        (shift) => shift.shiftCode,
+      ),
       ['7C'],
     );
     expect(
-      (await OpenShiftRules(
-        database.openShiftStoreFor('clerk'),
-      ).openShifts()).map((shift) => shift.shiftCode),
+      (await database.openShiftStoreFor('clerk').openShifts()).map(
+        (shift) => shift.shiftCode,
+      ),
       ['7U'],
     );
   });
@@ -158,7 +155,7 @@ void main() {
   test(
     'pickup waits for Manager; approval assigns shift and clears short mark',
     () async {
-      final lpn = OpenShiftRules(database.openShiftStoreFor('lpn'));
+      final lpn = database.openShiftStoreFor('lpn');
       final open = (await lpn.openShifts()).single;
       await lpn.requestPickup(open.id);
       expect((await lpn.pickups()).single.status, PickupStatus.pending);
@@ -193,7 +190,7 @@ void main() {
         shiftCode: '7P',
       ),
     );
-    final lpn = OpenShiftRules(database.openShiftStoreFor('lpn'));
+    final lpn = database.openShiftStoreFor('lpn');
     await expectLater(
       lpn.requestPickup((await lpn.openShifts()).single.id),
       throwsStateError,
@@ -201,8 +198,8 @@ void main() {
   });
 
   test('approving one pickup closes competing requests', () async {
-    final lpn = OpenShiftRules(database.openShiftStoreFor('lpn'));
-    final other = OpenShiftRules(database.openShiftStoreFor('other'));
+    final lpn = database.openShiftStoreFor('lpn');
+    final other = database.openShiftStoreFor('other');
     final open = (await lpn.openShifts()).single;
     await lpn.requestPickup(open.id);
     await other.requestPickup(open.id);
@@ -213,7 +210,7 @@ void main() {
   test(
     'Manager default and per-shift choice control immediate pickup',
     () async {
-      final lpn = OpenShiftRules(database.openShiftStoreFor('lpn'));
+      final lpn = database.openShiftStoreFor('lpn');
       final existing = (await lpn.openShifts()).single;
       await managerShifts.setApprovalDefault(false);
       expect((await lpn.openShifts()).single.requiresApproval, isTrue);
@@ -232,7 +229,7 @@ void main() {
   test(
     'a night nurse picking up a night code counts in the night nursing pool',
     () async {
-      await manager.changeSection(
+      await manager.store.changeSection(
         ChangeSection(
           staffMemberId: 'lpn',
           sectionId: 'other-nursing',
@@ -247,7 +244,7 @@ void main() {
         0,
       );
       await managerShifts.postOpenShifts(day, '7P', CoveragePool.nurses, 1);
-      final lpn = OpenShiftRules(database.openShiftStoreFor('lpn'));
+      final lpn = database.openShiftStoreFor('lpn');
       final posted = (await lpn.openShifts())
           .where((shift) => shift.shiftCode == '7P')
           .single;
@@ -291,11 +288,10 @@ void main() {
           shiftCode: '7P',
         ),
       );
-      await manager.setLastDay(
+      await manager.store.setLastDay(
         SetLastDay(staffMemberId: 'original', lastDay: day),
       );
-      final visible = await OpenShiftRules(database.openShiftStoreFor('lpn'))
-          .openShifts();
+      final visible = await database.openShiftStoreFor('lpn').openShifts();
       expect(
         visible.where((shift) => shift.date == later).single.shiftCode,
         '7P',
@@ -354,7 +350,7 @@ void main() {
       2,
       1,
     );
-    await manager.changeJobRole(
+    await manager.store.changeJobRole(
       ChangeJobRole(staffMemberId: 'other', jobRole: JobRole.lpn, from: day),
     );
     for (final id in ['lpn', 'other']) {

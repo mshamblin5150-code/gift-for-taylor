@@ -341,28 +341,28 @@ final class MonthSession extends ChangeNotifier {
     required ScheduleRules rules,
     required Access access,
     required DateTime month,
-    OpenShiftRules? openShiftRules,
+    OpenShiftStore? openShiftStore,
     DateTime Function()? now,
     MonthSessionTimerFactory? timerFactory,
     VoidCallback? onAccessRejected,
   }) : _rules = rules,
        _access = access,
-       _openShiftRules = openShiftRules,
+       _openShiftStore = openShiftStore,
        month = DateTime(month.year, month.month),
        _now = now ?? DateTime.now,
        _timerFactory = timerFactory ?? Timer.new,
        _onAccessRejected = onAccessRejected {
     _state = MonthSessionState(today: _dateOnly(_now()));
-    _updates = _rules.monthUpdates(this.month).listen((_) => refresh());
-    if (openShiftRules != null) {
-      _openShiftUpdates = openShiftRules.updates().listen((_) => refresh());
+    _updates = _rules.store.monthUpdates(this.month).listen((_) => refresh());
+    if (openShiftStore != null) {
+      _openShiftUpdates = openShiftStore.updates().listen((_) => refresh());
     }
     _scheduleMidnight();
   }
 
   final ScheduleRules _rules;
   final Access _access;
-  final OpenShiftRules? _openShiftRules;
+  final OpenShiftStore? _openShiftStore;
   final DateTime month;
   final DateTime Function() _now;
   final MonthSessionTimerFactory _timerFactory;
@@ -509,7 +509,7 @@ final class MonthSession extends ChangeNotifier {
     );
     _replace(_withState(savingDrop: true));
     try {
-      await _rules.saveCellPair(pair);
+      await _rules.store.writeCellPair(pair);
       await refresh();
       return copy ? Copied(undo) : Swapped(undo);
     } catch (error) {
@@ -525,7 +525,7 @@ final class MonthSession extends ChangeNotifier {
     if (state.savingDrop) return const UndoDropFailed();
     _replace(_withState(savingDrop: true));
     try {
-      await _rules.saveCellPair(token._pair);
+      await _rules.store.writeCellPair(token._pair);
       await refresh();
       return const DropUndone();
     } catch (error) {
@@ -542,7 +542,7 @@ final class MonthSession extends ChangeNotifier {
     if (grid == null) return const ReviewMonthReleaseFailed();
     try {
       final staffing =
-          await _openShiftRules?.staffingForMonth(month) ?? state.staffing;
+          await _openShiftStore?.staffingForMonth(month) ?? state.staffing;
       final reading = CoverageReading(grid, staffing);
       return ReleaseReady(
         MonthReleaseReview(
@@ -561,12 +561,12 @@ final class MonthSession extends ChangeNotifier {
   Future<ReleaseMonthOutcome> releaseMonth(MonthReleaseReview review) async {
     try {
       if (review.kind == MonthReleaseKind.loadedMonth) {
-        await _rules.confirmLoadedMonth(
+        await _rules.store.confirmLoadedMonth(
           month,
           acknowledgeShortfalls: review.shortfallDays.isNotEmpty,
         );
       } else {
-        await _rules.releaseMonth(
+        await _rules.store.releaseMonth(
           month,
           acknowledgeShortfalls: review.shortfallDays.isNotEmpty,
         );
@@ -661,10 +661,10 @@ final class MonthSession extends ChangeNotifier {
     final announcementRead = _access.editableSections.isEmpty
         ? Future<ChangeAnnouncement?>.value()
         : _rules.changeAnnouncement(month);
-    final codesRead = _adjunct(_rules.shiftCodes, const <LegendCode>[]);
+    final codesRead = _adjunct(_rules.store.shiftCodes, const <LegendCode>[]);
     final staffingRead = _adjunct(
       () async =>
-          await _openShiftRules?.staffingForMonth(month) ??
+          await _openShiftStore?.staffingForMonth(month) ??
           const <SectionStaffing>[],
       const <SectionStaffing>[],
     );

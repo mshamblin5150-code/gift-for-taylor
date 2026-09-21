@@ -296,6 +296,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  schedule_rules_testing:
+    dependency: "direct dev"
+    description:
+      path: "../schedule_rules_testing"
+      relative: true
+    source: path
+    version: "1.0.0"
   shelf:
     dependency: transitive
     description:

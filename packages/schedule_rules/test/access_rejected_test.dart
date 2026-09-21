@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
 
@@ -14,7 +15,7 @@ void main() {
       ],
       editors: const {'manager'},
     );
-    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     final action = SaveCell(
       staffMemberId: 'nurse',
       sectionId: 'days',

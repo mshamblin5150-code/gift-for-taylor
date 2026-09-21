@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
 
@@ -28,13 +29,13 @@ void main() {
         shiftCode: '4P-8A',
       ),
     ]);
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
   });
 
   test('the loaded month waits for the Manager to check it', () async {
     final grid = await manager.monthGrid(october);
 
-    expect(await manager.monthAwaitingConfirmation(), october);
+    expect((await manager.store.monthsAwaitingConfirmation()).firstOrNull, october);
     expect(grid.awaitingConfirmation, isTrue);
     expect(grid.shiftCodeFor('rn-1', october1), '4P-8A');
     expect(await manager.changeLog(october), isEmpty);
@@ -56,35 +57,32 @@ void main() {
     expect(change.changedBy, 'manager');
   });
 
-  test(
-    'confirming ends the review and leaves no change to announce',
-    () async {
-      await manager.saveCell(
-        SaveCell(
-          staffMemberId: 'rn-1',
-          sectionId: 'days',
-          date: october1,
-          shiftCode: '7P',
-        ),
-      );
+  test('confirming ends the review and leaves no change to announce', () async {
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: october1,
+        shiftCode: '7P',
+      ),
+    );
 
-      await manager.confirmLoadedMonth(october);
+    await manager.store.confirmLoadedMonth(october);
 
-      final grid = await manager.monthGrid(october);
-      expect(grid.awaitingConfirmation, isFalse);
-      expect(grid.isUnannounced('rn-1', october1), isFalse);
-      expect(grid.shiftCodeFor('rn-1', october1), '7P');
-      expect(await manager.monthAwaitingConfirmation(), isNull);
-    },
-  );
+    final grid = await manager.monthGrid(october);
+    expect(grid.awaitingConfirmation, isFalse);
+    expect(grid.isUnannounced('rn-1', october1), isFalse);
+    expect(grid.shiftCodeFor('rn-1', october1), '7P');
+    expect((await manager.store.monthsAwaitingConfirmation()).firstOrNull, isNull);
+  });
 
   test('only the Manager may confirm the month', () async {
-    final staffMember = ScheduleRules.inMemory(database, actingAs: 'rn-1');
+    final staffMember = scheduleRulesInMemory(database, actingAs: 'rn-1');
 
     await expectLater(
-      staffMember.confirmLoadedMonth(october),
+      staffMember.store.confirmLoadedMonth(october),
       throwsA(isA<ScheduleEditRefused>()),
     );
-    expect(await manager.monthAwaitingConfirmation(), october);
+    expect((await manager.store.monthsAwaitingConfirmation()).firstOrNull, october);
   });
 }

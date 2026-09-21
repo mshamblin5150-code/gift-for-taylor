@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/notifications/notice_gateway.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:flutter/material.dart';
@@ -26,7 +27,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
+          rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           access: access,
           month: month,
           staffMemberId: access.canRunSchedule ? null : access.ownStaffMemberId,
@@ -150,7 +151,7 @@ void main() {
       rows: const [row],
       editors: const {'manager'},
     );
-    final rules = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final rules = scheduleRulesInMemory(database, actingAs: 'manager');
     await rules.startEmptyMonth(month);
     await tester.pumpWidget(
       MaterialApp(
@@ -197,7 +198,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: MonthGridPage(
-            rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
+            rules: scheduleRulesInMemory(database, actingAs: 'manager'),
             access: Access(
               grants: Grants(
                 administrator: true,

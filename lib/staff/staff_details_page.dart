@@ -125,7 +125,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
     if (change == null) return;
     try {
       if (change.sectionId case final id?) {
-        await widget.rules.changeSection(
+        await widget.rules.store.changeSection(
           ChangeSection(
             staffMemberId: details.id,
             sectionId: id,
@@ -134,7 +134,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
         );
       }
       if (change.jobRole case final role?) {
-        await widget.rules.changeJobRole(
+        await widget.rules.store.changeJobRole(
           ChangeJobRole(
             staffMemberId: details.id,
             jobRole: role,
@@ -157,7 +157,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
     );
     if (day == null) return;
     try {
-      await widget.rules.setLastDay(
+      await widget.rules.store.setLastDay(
         SetLastDay(staffMemberId: details.id, lastDay: day),
       );
       await _load();

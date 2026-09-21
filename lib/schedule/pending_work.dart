@@ -54,24 +54,24 @@ final class PendingWork extends ChangeNotifier {
     required ScheduleRules rules,
     required Access access,
     required String? swapStaffMemberId,
-    SwapRules? swapRules,
-    OpenShiftRules? openShiftRules,
+    SwapStore? swapStore,
+    OpenShiftStore? openShiftStore,
     StaffGateway? staffGateway,
     PendingWorkTimerFactory? timerFactory,
   }) : _rules = rules,
        _access = access,
        _swapStaffMemberId = swapStaffMemberId,
-       _swapRules = swapRules,
-       _openShiftRules = openShiftRules,
+       _swapStore = swapStore,
+       _openShiftStore = openShiftStore,
        _staffGateway = staffGateway {
-    if (swapRules != null) {
-      _swapUpdates = swapRules.updates().listen((_) {
+    if (swapStore != null) {
+      _swapUpdates = swapStore.updates().listen((_) {
         _refreshSwaps();
         _refreshApprovals();
       });
     }
-    if (openShiftRules != null) {
-      _openShiftUpdates = openShiftRules.updates().listen(
+    if (openShiftStore != null) {
+      _openShiftUpdates = openShiftStore.updates().listen(
         (_) => _refreshApprovals(),
       );
     }
@@ -84,8 +84,8 @@ final class PendingWork extends ChangeNotifier {
   final ScheduleRules _rules;
   final Access _access;
   final String? _swapStaffMemberId;
-  final SwapRules? _swapRules;
-  final OpenShiftRules? _openShiftRules;
+  final SwapStore? _swapStore;
+  final OpenShiftStore? _openShiftStore;
   final StaffGateway? _staffGateway;
   StreamSubscription<void>? _swapUpdates;
   StreamSubscription<void>? _openShiftUpdates;
@@ -110,10 +110,10 @@ final class PendingWork extends ChangeNotifier {
   }
 
   Future<void> _refreshSwaps() async {
-    final swapRules = _swapRules;
-    if (swapRules == null) return;
+    final swapStore = _swapStore;
+    if (swapStore == null) return;
     try {
-      final swaps = await swapRules.swaps();
+      final swaps = await swapStore.swaps();
       _replace(
         _state.copyWith(
           pendingSwaps: swaps
@@ -131,18 +131,18 @@ final class PendingWork extends ChangeNotifier {
   }
 
   Future<void> _refreshApprovals() async {
-    final swapRules = _swapRules;
-    final openShiftRules = _openShiftRules;
+    final swapStore = _swapStore;
+    final openShiftStore = _openShiftStore;
     if (!_access.canRunSchedule ||
-        swapRules == null ||
-        openShiftRules == null) {
+        swapStore == null ||
+        openShiftStore == null) {
       return;
     }
     try {
       final pending = await readPendingApprovals(
         _rules,
-        swapRules,
-        openShiftRules,
+        swapStore,
+        openShiftStore,
         _staffGateway,
       );
       _replace(_state.copyWith(pendingApprovals: pending.count));
@@ -153,7 +153,7 @@ final class PendingWork extends ChangeNotifier {
 
   Future<void> _refreshRequestsOff() async {
     try {
-      final count = await _rules.unreadRequestOffNotices();
+      final count = await _rules.store.unreadRequestOffNotices();
       _replace(_state.copyWith(unreadRequestsOff: count));
     } catch (_) {
       // Keep the last count when Request off notices are unavailable.

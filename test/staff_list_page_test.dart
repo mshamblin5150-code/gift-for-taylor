@@ -1,3 +1,5 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
+
 import 'dart:async';
 
 import 'package:er_schedule/staff/staff_gateway.dart';
@@ -36,7 +38,7 @@ void main() {
         ),
       ],
     );
-    rules = ScheduleRules.inMemory(database, actingAs: 'manager');
+    rules = scheduleRulesInMemory(database, actingAs: 'manager');
   });
 
   testWidgets('pasted overlong Staff name stays visible and cannot save', (
@@ -224,7 +226,7 @@ void main() {
     tester,
   ) async {
     final lastDay = DateTime.now().subtract(const Duration(days: 30));
-    await rules.setLastDay(
+    await rules.store.setLastDay(
       SetLastDay(staffMemberId: 'staff-1', lastDay: lastDay),
     );
     final gateway = _FakeStaffGateway(
@@ -275,7 +277,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(gateway.added, isNull);
-    expect((await rules.staffChanges()).last.kind, StaffChangeKind.reactivated);
+    expect(
+      (await rules.store.staffChanges()).last.kind,
+      StaffChangeKind.reactivated,
+    );
     expect(gateway.resentStaffMemberId, 'staff-1');
     expect(composer.openedToken, 'fresh-token');
   });
@@ -328,7 +333,7 @@ void main() {
     tester,
   ) async {
     final lastDay = DateTime.now().subtract(const Duration(days: 30));
-    await rules.setLastDay(
+    await rules.store.setLastDay(
       SetLastDay(staffMemberId: 'staff-1', lastDay: lastDay),
     );
     final gateway = _FakeStaffGateway(
@@ -539,7 +544,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Set Last day'));
     await tester.pumpAndSettle();
 
-    final change = (await rules.staffChanges()).single;
+    final change = (await rules.store.staffChanges()).single;
     expect(change.kind, StaffChangeKind.lastDay);
     expect(change.staffMemberId, 'staff-1');
     expect(gateway.loads, 2);
@@ -578,7 +583,7 @@ void main() {
     await tester.tap(find.text('Save change'));
     await tester.pumpAndSettle();
 
-    final changes = await rules.staffChanges();
+    final changes = await rules.store.staffChanges();
     expect(changes.map((change) => change.kind), [
       StaffChangeKind.section,
       StaffChangeKind.jobRole,
@@ -1054,7 +1059,7 @@ void main() {
     tester,
   ) async {
     final lastDay = DateTime.now().subtract(const Duration(days: 30));
-    await rules.setLastDay(
+    await rules.store.setLastDay(
       SetLastDay(staffMemberId: 'staff-1', lastDay: lastDay),
     );
     final gateway = _FakeStaffGateway(
@@ -1089,7 +1094,7 @@ void main() {
     await tester.tap(find.text('Reactivate and text Invite'));
     await tester.pumpAndSettle();
 
-    final reactivated = (await rules.staffChanges()).last;
+    final reactivated = (await rules.store.staffChanges()).last;
     expect(reactivated.kind, StaffChangeKind.reactivated);
     expect(reactivated.newValue, 'State dayshift RN');
     expect(gateway.resentStaffMemberId, 'staff-1');

@@ -12,14 +12,14 @@ class ApprovalQueuePage extends StatefulWidget {
   const ApprovalQueuePage({
     super.key,
     required this.rules,
-    required this.swapRules,
-    required this.openShiftRules,
+    required this.swapStore,
+    required this.openShiftStore,
     this.staffGateway,
   });
 
   final ScheduleRules rules;
-  final SwapRules swapRules;
-  final OpenShiftRules openShiftRules;
+  final SwapStore swapStore;
+  final OpenShiftStore openShiftStore;
   final StaffGateway? staffGateway;
 
   @override
@@ -47,11 +47,11 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
     final (pending, shifts) = await (
       readPendingApprovals(
         widget.rules,
-        widget.swapRules,
-        widget.openShiftRules,
+        widget.swapStore,
+        widget.openShiftStore,
         widget.staffGateway,
       ),
-      widget.openShiftRules.openShifts(),
+      widget.openShiftStore.openShifts(),
     ).wait;
     final shiftById = {for (final shift in shifts) shift.id: shift};
     final dates = <DateTime>{
@@ -98,15 +98,15 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
               '${request.dates.map((d) => DateFormat.yMMMd().format(d)).join(', ')}'
               '${request.reason?.isNotEmpty == true ? '\nReason: ${request.reason}' : ''}',
           approvalReasonSupported: true,
-          approve: () => widget.rules.decideRequestOff(
+          approve: () => widget.rules.store.decideRequestOff(
             request.id,
             RequestOffDecision.approved,
-            reason: _reason,
+            _reason?.trim(),
           ),
-          decline: () => widget.rules.decideRequestOff(
+          decline: () => widget.rules.store.decideRequestOff(
             request.id,
             RequestOffDecision.declined,
-            reason: _reason,
+            _reason?.trim(),
           ),
         ),
       for (final swap in pending.swaps)
@@ -120,8 +120,9 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
           detail:
               '${DateFormat.yMMMd().format(swap.requesterDate)} ${swap.requesterCode}'
               ' ↔ ${DateFormat.yMMMd().format(swap.colleagueDate)} ${swap.colleagueCode}',
-          approve: () => widget.swapRules.approve(swap.id),
-          decline: () => widget.swapRules.decline(swap.id, reason: _reason),
+          approve: () => widget.swapStore.approveSwap(swap.id),
+          decline: () =>
+              widget.swapStore.declineSwap(swap.id, reason: _reason?.trim()),
         ),
       for (final pickup in pending.pickups)
         if (shiftById[pickup.openShiftId] case final shift?)
@@ -131,18 +132,22 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                 'Open shift pickup — ${name(pickup.staffMemberId, shift.date)}',
             detail:
                 '${DateFormat.yMMMd().format(shift.date)} ${shift.shiftCode} • ${shift.jobRole.label}',
-            approve: () => widget.openShiftRules.approvePickup(pickup.id),
-            decline: () =>
-                widget.openShiftRules.declinePickup(pickup.id, reason: _reason),
+            approve: () => widget.openShiftStore.approvePickup(pickup.id),
+            decline: () => widget.openShiftStore.declinePickup(
+              pickup.id,
+              reason: _reason?.trim(),
+            ),
           )
         else
           _Decision(
             date: DateTime(9999),
             title: 'Open shift pickup — ${pickup.staffMemberId}',
             detail: 'The Open shift is no longer available.',
-            approve: () => widget.openShiftRules.approvePickup(pickup.id),
-            decline: () =>
-                widget.openShiftRules.declinePickup(pickup.id, reason: _reason),
+            approve: () => widget.openShiftStore.approvePickup(pickup.id),
+            decline: () => widget.openShiftStore.declinePickup(
+              pickup.id,
+              reason: _reason?.trim(),
+            ),
           ),
     ];
     decisions.sort((a, b) => a.date.compareTo(b.date));

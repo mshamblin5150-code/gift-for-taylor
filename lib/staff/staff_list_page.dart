@@ -148,7 +148,7 @@ class _StaffListPageState extends State<StaffListPage> {
     );
     if (reactivation == null || !mounted) return;
     try {
-      await widget.rules.reactivate(
+      await widget.rules.store.reactivate(
         Reactivate(
           staffMemberId: member.id,
           sectionId: reactivation.sectionId,
@@ -189,7 +189,7 @@ class _StaffListPageState extends State<StaffListPage> {
     );
     if (lastDay == null) return;
     try {
-      await widget.rules.setLastDay(
+      await widget.rules.store.setLastDay(
         SetLastDay(staffMemberId: member.id, lastDay: lastDay),
       );
       await _load();
@@ -213,7 +213,7 @@ class _StaffListPageState extends State<StaffListPage> {
     if (change == null) return;
     try {
       if (change.sectionId case final sectionId?) {
-        await widget.rules.changeSection(
+        await widget.rules.store.changeSection(
           ChangeSection(
             staffMemberId: member.id,
             sectionId: sectionId,
@@ -222,7 +222,7 @@ class _StaffListPageState extends State<StaffListPage> {
         );
       }
       if (change.jobRole case final jobRole?) {
-        await widget.rules.changeJobRole(
+        await widget.rules.store.changeJobRole(
           ChangeJobRole(
             staffMemberId: member.id,
             jobRole: jobRole,

@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
 
@@ -32,14 +33,14 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {DateTime(2026, 9)},
     );
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
     await manager.saveCell(cell(dayNurse, '7A'));
     await manager.saveCell(cell(nightNurse, 'X'));
   });
 
   test('a drop swaps codes and records both Schedule changes', () async {
     final before = (await manager.changeLog(date)).length;
-    await manager.saveCellPair(
+    await manager.store.writeCellPair(
       SaveCellPair(
         first: cell(dayNurse, 'X'),
         second: cell(nightNurse, '7A'),
@@ -56,7 +57,7 @@ void main() {
   test('a stale target leaves both cells unchanged', () async {
     await manager.saveCell(cell(nightNurse, 'N'));
     await expectLater(
-      manager.saveCellPair(
+      manager.store.writeCellPair(
         SaveCellPair(
           first: cell(dayNurse, 'X'),
           second: cell(nightNurse, '7A'),
@@ -73,7 +74,7 @@ void main() {
 
   test('copying across days leaves the source in place', () async {
     final nextDay = DateTime(2026, 9, 19);
-    await manager.saveCellPair(
+    await manager.store.writeCellPair(
       SaveCellPair(
         first: cell(dayNurse, '7A'),
         second: SaveCell(
@@ -92,10 +93,10 @@ void main() {
   });
 
   test('a Night scheduler cannot drop into another Section', () async {
-    final scheduler = ScheduleRules.inMemory(database, actingAs: 'scheduler');
-    await manager.assignNightScheduler('scheduler', {'nights'});
+    final scheduler = scheduleRulesInMemory(database, actingAs: 'scheduler');
+    await manager.store.assignNightScheduler('scheduler', {'nights'});
     await expectLater(
-      scheduler.saveCellPair(
+      scheduler.store.writeCellPair(
         SaveCellPair(
           first: cell(nightNurse, '7A'),
           second: cell(dayNurse, 'X'),
@@ -111,9 +112,9 @@ void main() {
   });
 
   test('a Staff member cannot drag either cell', () async {
-    final staff = ScheduleRules.inMemory(database, actingAs: 'day');
+    final staff = scheduleRulesInMemory(database, actingAs: 'day');
     await expectLater(
-      staff.saveCellPair(
+      staff.store.writeCellPair(
         SaveCellPair(
           first: cell(dayNurse, 'X'),
           second: cell(nightNurse, '7A'),

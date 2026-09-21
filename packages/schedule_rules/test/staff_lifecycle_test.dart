@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:test/test.dart';
 
@@ -34,7 +35,7 @@ void main() {
       rows: const [dayNurse, secondDayNurse, nightNurse],
       clock: () => now,
     );
-    manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    manager = scheduleRulesInMemory(database, actingAs: 'manager');
   });
 
   Future<void> save(String staffMemberId, DateTime date, String code) {
@@ -59,7 +60,7 @@ void main() {
     });
 
     test('keeps shifts through the Last day and clears later ones', () async {
-      await manager.setLastDay(
+      await manager.store.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
       );
 
@@ -75,14 +76,14 @@ void main() {
     test(
       'marks a cleared working shift short in its pool and window',
       () async {
-        await manager.changeJobRole(
+        await manager.store.changeJobRole(
           ChangeJobRole(
             staffMemberId: 'rn-1',
             jobRole: JobRole.rn,
             from: DateTime(2026, 1),
           ),
         );
-        await manager.setLastDay(
+        await manager.store.setLastDay(
           SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
         );
 
@@ -116,7 +117,7 @@ void main() {
     );
 
     test('every cleared cell is written to the change log', () async {
-      await manager.setLastDay(
+      await manager.store.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
       );
 
@@ -131,7 +132,7 @@ void main() {
     test(
       'the row stays through the Last day, then leaves later months',
       () async {
-        await manager.setLastDay(
+        await manager.store.setLastDay(
           SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 10, 1)),
         );
 
@@ -152,7 +153,7 @@ void main() {
     );
 
     test('past months keep the person as they were', () async {
-      await manager.setLastDay(
+      await manager.store.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
       );
 
@@ -168,7 +169,7 @@ void main() {
     });
 
     test('no cell after the Last day can be saved', () async {
-      await manager.setLastDay(
+      await manager.store.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
       );
 
@@ -185,17 +186,17 @@ void main() {
     });
 
     test('is logged and can be set only once', () async {
-      await manager.setLastDay(
+      await manager.store.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
       );
 
-      final change = (await manager.staffChanges()).single;
+      final change = (await manager.store.staffChanges()).single;
       expect(change.kind, StaffChangeKind.lastDay);
       expect(change.staffMemberId, 'rn-1');
       expect(change.effectiveFrom, DateTime(2026, 9, 30));
       expect(change.changedBy, 'manager');
       await expectLater(
-        manager.setLastDay(
+        manager.store.setLastDay(
           SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 10, 30)),
         ),
         throwsA(isA<StateError>()),
@@ -203,10 +204,10 @@ void main() {
     });
 
     test('the Manager cannot set her own Last day', () async {
-      final own = ScheduleRules.inMemory(database, actingAs: 'rn-2');
+      final own = scheduleRulesInMemory(database, actingAs: 'rn-2');
 
       await expectLater(
-        own.setLastDay(
+        own.store.setLastDay(
           SetLastDay(staffMemberId: 'rn-2', lastDay: DateTime(2026, 9, 30)),
         ),
         throwsA(isA<StateError>()),
@@ -217,13 +218,13 @@ void main() {
   group('reactivation', () {
     setUp(() async {
       await save('rn-1', DateTime(2026, 9, 10), '7A');
-      await manager.setLastDay(
+      await manager.store.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 15)),
       );
     });
 
     test('restores the same person, with their history connected', () async {
-      await manager.reactivate(
+      await manager.store.reactivate(
         Reactivate(
           staffMemberId: 'rn-1',
           sectionId: 'nights',
@@ -252,14 +253,14 @@ void main() {
         throwsA(isA<StateError>()),
       );
       expect(
-        (await manager.staffChanges()).last.kind,
+        (await manager.store.staffChanges()).last.kind,
         StaffChangeKind.reactivated,
       );
     });
 
     test('must start after their Last day', () async {
       await expectLater(
-        manager.reactivate(
+        manager.store.reactivate(
           Reactivate(
             staffMemberId: 'rn-1',
             sectionId: 'days',
@@ -272,7 +273,7 @@ void main() {
 
     test('only someone off the Staff list can be reactivated', () async {
       await expectLater(
-        manager.reactivate(
+        manager.store.reactivate(
           Reactivate(
             staffMemberId: 'rn-2',
             sectionId: 'days',
@@ -291,7 +292,7 @@ void main() {
         await save('rn-1', DateTime(2026, 10, 5), '7A');
         await save('rn-1', DateTime(2026, 10, 20), '7A');
 
-        await manager.changeSection(
+        await manager.store.changeSection(
           ChangeSection(
             staffMemberId: 'rn-1',
             sectionId: 'nights',
@@ -330,7 +331,7 @@ void main() {
     );
 
     test('is logged with the old and new Section', () async {
-      await manager.changeSection(
+      await manager.store.changeSection(
         ChangeSection(
           staffMemberId: 'rn-1',
           sectionId: 'nights',
@@ -338,7 +339,7 @@ void main() {
         ),
       );
 
-      final change = (await manager.staffChanges()).single;
+      final change = (await manager.store.staffChanges()).single;
       expect(change.kind, StaffChangeKind.section);
       expect(change.oldValue, 'State dayshift RN');
       expect(change.newValue, 'PRN nightshift RN');
@@ -347,7 +348,7 @@ void main() {
     });
 
     test('cannot start before their current Section did', () async {
-      await manager.changeSection(
+      await manager.store.changeSection(
         ChangeSection(
           staffMemberId: 'rn-1',
           sectionId: 'nights',
@@ -356,7 +357,7 @@ void main() {
       );
 
       await expectLater(
-        manager.changeSection(
+        manager.store.changeSection(
           ChangeSection(
             staffMemberId: 'rn-1',
             sectionId: 'days',
@@ -368,14 +369,14 @@ void main() {
     });
 
     test('a Last day before a planned move drops the move', () async {
-      await manager.changeSection(
+      await manager.store.changeSection(
         ChangeSection(
           staffMemberId: 'rn-1',
           sectionId: 'nights',
           from: DateTime(2026, 11, 1),
         ),
       );
-      await manager.setLastDay(
+      await manager.store.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 10, 10)),
       );
 
@@ -393,14 +394,14 @@ void main() {
 
   group('role change', () {
     test('takes effect from the chosen date and is logged', () async {
-      await manager.changeJobRole(
+      await manager.store.changeJobRole(
         ChangeJobRole(
           staffMemberId: 'rn-1',
           jobRole: JobRole.lpn,
           from: DateTime(2026, 9, 1),
         ),
       );
-      await manager.changeJobRole(
+      await manager.store.changeJobRole(
         ChangeJobRole(
           staffMemberId: 'rn-1',
           jobRole: JobRole.rn,
@@ -417,7 +418,7 @@ void main() {
         await manager.jobRoleOn('rn-1', DateTime(2026, 10, 15)),
         JobRole.rn,
       );
-      final changes = await manager.staffChanges();
+      final changes = await manager.store.staffChanges();
       expect(changes.map((change) => change.kind), [
         StaffChangeKind.jobRole,
         StaffChangeKind.jobRole,
@@ -433,16 +434,16 @@ void main() {
       rows: const [dayNurse, secondDayNurse],
       editors: const {'manager'},
     );
-    final staffMember = ScheduleRules.inMemory(restricted, actingAs: 'rn-2');
+    final staffMember = scheduleRulesInMemory(restricted, actingAs: 'rn-2');
 
     await expectLater(
-      staffMember.setLastDay(
+      staffMember.store.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
       ),
       throwsA(isA<ScheduleEditRefused>()),
     );
     await expectLater(
-      staffMember.changeSection(
+      staffMember.store.changeSection(
         ChangeSection(
           staffMemberId: 'rn-1',
           sectionId: 'days',

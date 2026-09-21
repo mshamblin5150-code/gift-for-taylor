@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/approval_queue_page.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
@@ -82,9 +83,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: ApprovalQueuePage(
-          rules: ScheduleRules.inMemory(db, actingAs: 'manager'),
-          swapRules: SwapRules(_Swaps()),
-          openShiftRules: OpenShiftRules(_Pickups()),
+          rules: scheduleRulesInMemory(db, actingAs: 'manager'),
+          swapStore: _Swaps(),
+          openShiftStore: _Pickups(),
           staffGateway: invites,
         ),
       ),
@@ -125,8 +126,8 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {month, DateTime(2026, 10)},
     );
-    final manager = ScheduleRules.inMemory(db, actingAs: 'manager');
-    await ScheduleRules.inMemory(
+    final manager = scheduleRulesInMemory(db, actingAs: 'manager');
+    await scheduleRulesInMemory(
       db,
       actingAs: 'alice',
     ).requestOff(RequestOffDraft(dates: [requestDay]));
@@ -169,8 +170,8 @@ void main() {
           access: db.accessFor('manager'),
           rules: manager,
           month: month,
-          swapRules: SwapRules(swaps),
-          openShiftRules: OpenShiftRules(pickups),
+          swapStore: swaps,
+          openShiftStore: pickups,
           now: () => DateTime(2026, 9, 19),
         ),
       ),
@@ -208,17 +209,17 @@ void main() {
     await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Request off — Alice'), findsNothing);
-    final decided = (await ScheduleRules.inMemory(
+    final decided = (await scheduleRulesInMemory(
       db,
       actingAs: 'alice',
-    ).myRequestsOff()).single;
+    ).store.requestsOff(pendingOnly: false)).single;
     expect(decided.decision, RequestOffDecision.approved);
     expect(decided.decisionReason, 'Covered');
     expect(
-      await ScheduleRules.inMemory(
+      await scheduleRulesInMemory(
         db,
         actingAs: 'alice',
-      ).unreadRequestOffNotices(),
+      ).store.unreadRequestOffNotices(),
       1,
     );
   });
@@ -240,12 +241,12 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           access: db.accessFor('alice'),
-          rules: ScheduleRules.inMemory(db, actingAs: 'alice'),
+          rules: scheduleRulesInMemory(db, actingAs: 'alice'),
           month: month,
           staffMemberId: 'alice',
           swapStaffMemberId: 'alice',
-          swapRules: SwapRules(_Swaps()),
-          openShiftRules: OpenShiftRules(_Pickups()),
+          swapStore: _Swaps(),
+          openShiftStore: _Pickups(),
         ),
       ),
     );

@@ -60,7 +60,7 @@ class _PastStaffPageState extends State<PastStaffPage> {
     );
     if (reactivation == null) return;
     try {
-      await widget.rules.reactivate(
+      await widget.rules.store.reactivate(
         Reactivate(
           staffMemberId: member.id,
           sectionId: reactivation.sectionId,
@@ -86,9 +86,8 @@ class _PastStaffPageState extends State<PastStaffPage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,7 +34,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           access: database.accessFor('manager'),
-          rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
+          rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: september,
         ),
       ),

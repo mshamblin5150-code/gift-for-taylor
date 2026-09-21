@@ -21,14 +21,14 @@ class PendingApprovals {
 
 Future<PendingApprovals> readPendingApprovals(
   ScheduleRules rules,
-  SwapRules swapRules,
-  OpenShiftRules openShiftRules, [
+  SwapStore swapStore,
+  OpenShiftStore openShiftStore, [
   StaffGateway? staffGateway,
 ]) async {
   final (requests, swaps, pickups, invites) = await (
-    rules.approvalQueue(),
-    swapRules.swaps(),
-    openShiftRules.pickups(),
+    rules.store.requestsOff(pendingOnly: true),
+    swapStore.swaps(),
+    openShiftStore.pickups(),
     staffGateway?.pendingInviteAcceptances() ??
         Future.value(const <PendingInviteAcceptance>[]),
   ).wait;

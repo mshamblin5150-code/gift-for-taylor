@@ -70,8 +70,8 @@ class MonthGridPage extends StatefulWidget {
     this.onOpenStaffDetails,
     this.onManagerTransferred,
     this.messagesComposer,
-    this.swapRules,
-    this.openShiftRules,
+    this.swapStore,
+    this.openShiftStore,
     this.noticeGateway,
     this.staffGateway,
     this.bookPagePresenter,
@@ -94,8 +94,8 @@ class MonthGridPage extends StatefulWidget {
   final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
   final VoidCallback? onManagerTransferred;
   final MessagesComposer? messagesComposer;
-  final SwapRules? swapRules;
-  final OpenShiftRules? openShiftRules;
+  final SwapStore? swapStore;
+  final OpenShiftStore? openShiftStore;
   final NoticeGateway? noticeGateway;
   final StaffGateway? staffGateway;
 
@@ -131,8 +131,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
     _pendingWork = PendingWork(
       rules: widget.rules,
       access: widget.access,
-      swapRules: widget.swapRules,
-      openShiftRules: widget.openShiftRules,
+      swapStore: widget.swapStore,
+      openShiftStore: widget.openShiftStore,
       staffGateway: widget.staffGateway,
       swapStaffMemberId: widget.swapStaffMemberId,
     );
@@ -146,7 +146,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   MonthSession _createSession() => MonthSession(
     rules: widget.rules,
     access: widget.access,
-    openShiftRules: widget.openShiftRules,
+    openShiftStore: widget.openShiftStore,
     month: _month,
     now: widget.now,
     onAccessRejected: widget.onAccessRejected,
@@ -307,7 +307,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     CoverageWindow window,
     DateTime date,
   ) async {
-    final rules = widget.openShiftRules;
+    final rules = widget.openShiftStore;
     if (!_access.canRunSchedule || rules == null) return;
     final staffing = _staffingOn(_session.state.staffing, pool, window, date);
     if (staffing == null) return;
@@ -616,7 +616,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         _open(
           (context) => SettingsPage(
             scheduleRules: widget.rules,
-            openShiftRules: widget.openShiftRules,
+            openShiftStore: widget.openShiftStore,
             noticeGateway: widget.noticeGateway,
             printWordingGateway: widget.printWordingGateway,
             onCalendarFeed: widget.onCalendarFeed,
@@ -642,8 +642,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
       ),
     ),
     if (_access.canRunSchedule &&
-        widget.swapRules != null &&
-        widget.openShiftRules != null)
+        widget.swapStore != null &&
+        widget.openShiftStore != null)
       _ScheduleAction(
         label: 'Approval queue',
         icon: Icons.fact_check_outlined,
@@ -651,21 +651,21 @@ class _MonthGridPageState extends State<MonthGridPage> {
         onPressed: () => _open(
           (context) => ApprovalQueuePage(
             rules: widget.rules,
-            swapRules: widget.swapRules!,
-            openShiftRules: widget.openShiftRules!,
+            swapStore: widget.swapStore!,
+            openShiftStore: widget.openShiftStore!,
             staffGateway: widget.staffGateway,
           ),
         ),
       ),
     if (!_access.canRunSchedule &&
         _access.ownStaffMemberId != null &&
-        widget.openShiftRules != null)
+        widget.openShiftStore != null)
       _ScheduleAction(
         label: 'Open shifts',
         icon: Icons.add_circle_outline,
         onPressed: () => _open(
           (context) => OpenShiftsPage(
-            rules: widget.openShiftRules!,
+            rules: widget.openShiftStore!,
             scheduleRules: widget.rules,
             month: _month,
             staffMemberId: widget.swapStaffMemberId,
@@ -675,7 +675,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       ),
     if (!_access.canRunSchedule &&
         _access.ownStaffMemberId != null &&
-        widget.swapRules != null)
+        widget.swapStore != null)
       _ScheduleAction(
         label: 'Swaps',
         icon: Icons.swap_horiz,
@@ -683,7 +683,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         onPressed: () => _open(
           (context) => SwapsPage(
             rules: widget.rules,
-            swapRules: widget.swapRules!,
+            swapStore: widget.swapStore!,
             month: _month,
             staffMemberId: widget.swapStaffMemberId,
             isManager: _access.canRunSchedule,
@@ -731,14 +731,14 @@ class _MonthGridPageState extends State<MonthGridPage> {
                   RequestsOffPage(rules: widget.rules, isManager: true),
             ),
           ),
-          if (widget.swapRules != null)
+          if (widget.swapStore != null)
             _ScheduleAction(
               label: 'Swaps',
               icon: Icons.swap_horiz,
               onPressed: () => _open(
                 (context) => SwapsPage(
                   rules: widget.rules,
-                  swapRules: widget.swapRules!,
+                  swapStore: widget.swapStore!,
                   month: _month,
                   staffMemberId: widget.swapStaffMemberId,
                   isManager: true,
@@ -746,27 +746,27 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 ),
               ),
             ),
-          if (widget.openShiftRules != null)
+          if (widget.openShiftStore != null)
             _ScheduleAction(
               label: 'Open shifts',
               icon: Icons.add_circle_outline,
               onPressed: () => _open(
                 (context) => OpenShiftsPage(
-                  rules: widget.openShiftRules!,
+                  rules: widget.openShiftStore!,
                   scheduleRules: widget.rules,
                   month: _month,
                   staffMemberId: widget.swapStaffMemberId,
                   isManager: true,
                   onApprovalSettings: () => _open(
                     (context) =>
-                        ApprovalDefaultPage(rules: widget.openShiftRules!),
+                        ApprovalDefaultPage(rules: widget.openShiftStore!),
                   ),
                 ),
               ),
             ),
         ],
       ),
-    if (_access.canManageUnit && widget.openShiftRules != null)
+    if (_access.canManageUnit && widget.openShiftStore != null)
       _ScheduleAction(
         label: 'Unit coverage settings',
         icon: Icons.tune,
@@ -774,7 +774,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           await Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (context) => CoverageSettingsPage(
-                rules: widget.openShiftRules!,
+                rules: widget.openShiftStore!,
                 scheduleRules: widget.rules,
               ),
             ),

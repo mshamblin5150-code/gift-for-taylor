@@ -13,7 +13,7 @@ class CoverageSettingsPage extends StatefulWidget {
     required this.scheduleRules,
   });
 
-  final OpenShiftRules rules;
+  final OpenShiftStore rules;
   final ScheduleRules scheduleRules;
 
   @override
@@ -37,7 +37,7 @@ class _CoverageSettingsPageState extends State<CoverageSettingsPage> {
   Future<void> _load() async {
     try {
       final pools = await widget.rules.coveragePoolsOn(_effective);
-      final codes = await widget.scheduleRules.shiftCodes();
+      final codes = await widget.scheduleRules.store.shiftCodes();
       final history = await widget.rules.coverageRuleHistory();
       if (!mounted) return;
       setState(() {

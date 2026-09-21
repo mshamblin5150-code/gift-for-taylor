@@ -32,8 +32,8 @@ class ScheduleApp extends StatelessWidget {
     this.staffGateway,
     this.inviteComposer,
     this.messagesComposer,
-    this.swapRules,
-    this.openShiftRules,
+    this.swapStore,
+    this.openShiftStore,
     this.noticeGateway,
     this.inviteToken,
     this.bookPagePresenter,
@@ -47,8 +47,8 @@ class ScheduleApp extends StatelessWidget {
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
-  final SwapRules? swapRules;
-  final OpenShiftRules? openShiftRules;
+  final SwapStore? swapStore;
+  final OpenShiftStore? openShiftStore;
   final NoticeGateway? noticeGateway;
   final String? inviteToken;
   final BookPagePresenter? bookPagePresenter;
@@ -72,8 +72,8 @@ class ScheduleApp extends StatelessWidget {
           staffGateway: staffGateway,
           inviteComposer: inviteComposer,
           messagesComposer: messagesComposer,
-          swapRules: swapRules,
-          openShiftRules: openShiftRules,
+          swapStore: swapStore,
+          openShiftStore: openShiftStore,
           noticeGateway: noticeGateway,
           inviteToken: inviteToken,
           bookPagePresenter: bookPagePresenter,
@@ -92,8 +92,8 @@ class _AuthGate extends StatefulWidget {
     required this.staffGateway,
     required this.inviteComposer,
     required this.messagesComposer,
-    required this.swapRules,
-    required this.openShiftRules,
+    required this.swapStore,
+    required this.openShiftStore,
     required this.noticeGateway,
     required this.inviteToken,
     required this.bookPagePresenter,
@@ -106,8 +106,8 @@ class _AuthGate extends StatefulWidget {
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
-  final SwapRules? swapRules;
-  final OpenShiftRules? openShiftRules;
+  final SwapStore? swapStore;
+  final OpenShiftStore? openShiftStore;
   final NoticeGateway? noticeGateway;
   final String? inviteToken;
   final BookPagePresenter? bookPagePresenter;
@@ -174,8 +174,8 @@ class _AuthGateState extends State<_AuthGate> {
                 staffGateway: widget.staffGateway!,
                 inviteComposer: widget.inviteComposer,
                 messagesComposer: widget.messagesComposer,
-                swapRules: widget.swapRules,
-                openShiftRules: widget.openShiftRules,
+                swapStore: widget.swapStore,
+                openShiftStore: widget.openShiftStore,
                 noticeGateway: widget.noticeGateway,
                 inviteToken: widget.inviteToken!,
                 cellNumber: _inviteCellNumber!,
@@ -190,8 +190,8 @@ class _AuthGateState extends State<_AuthGate> {
               staffGateway: widget.staffGateway,
               inviteComposer: widget.inviteComposer,
               messagesComposer: widget.messagesComposer,
-              swapRules: widget.swapRules,
-              openShiftRules: widget.openShiftRules,
+              swapStore: widget.swapStore,
+              openShiftStore: widget.openShiftStore,
               noticeGateway: widget.noticeGateway,
               bookPagePresenter: widget.bookPagePresenter,
               printWordingGateway: widget.printWordingGateway,
@@ -283,8 +283,8 @@ class _InviteAcceptance extends StatefulWidget {
     required this.staffGateway,
     required this.inviteComposer,
     required this.messagesComposer,
-    required this.swapRules,
-    required this.openShiftRules,
+    required this.swapStore,
+    required this.openShiftStore,
     required this.noticeGateway,
     required this.inviteToken,
     required this.cellNumber,
@@ -298,8 +298,8 @@ class _InviteAcceptance extends StatefulWidget {
   final StaffGateway staffGateway;
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
-  final SwapRules? swapRules;
-  final OpenShiftRules? openShiftRules;
+  final SwapStore? swapStore;
+  final OpenShiftStore? openShiftStore;
   final NoticeGateway? noticeGateway;
   final String inviteToken;
   final String cellNumber;
@@ -408,8 +408,8 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           staffGateway: widget.staffGateway,
           inviteComposer: widget.inviteComposer,
           messagesComposer: widget.messagesComposer,
-          swapRules: widget.swapRules,
-          openShiftRules: widget.openShiftRules,
+          swapStore: widget.swapStore,
+          openShiftStore: widget.openShiftStore,
           noticeGateway: widget.noticeGateway,
           bookPagePresenter: widget.bookPagePresenter,
           printWordingGateway: widget.printWordingGateway,
@@ -427,8 +427,8 @@ class _ScheduleAccess extends StatefulWidget {
     required this.staffGateway,
     required this.inviteComposer,
     required this.messagesComposer,
-    required this.swapRules,
-    required this.openShiftRules,
+    required this.swapStore,
+    required this.openShiftStore,
     required this.noticeGateway,
     required this.bookPagePresenter,
     required this.printWordingGateway,
@@ -440,8 +440,8 @@ class _ScheduleAccess extends StatefulWidget {
   final StaffGateway? staffGateway;
   final InviteComposer? inviteComposer;
   final MessagesComposer? messagesComposer;
-  final SwapRules? swapRules;
-  final OpenShiftRules? openShiftRules;
+  final SwapStore? swapStore;
+  final OpenShiftStore? openShiftStore;
   final NoticeGateway? noticeGateway;
   final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;
@@ -495,8 +495,8 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
         : false;
     final access =
         await widget.staffGateway?.currentAccess() ?? Access(grants: Grants());
-    final monthToCheck = await ScheduleRules(widget.scheduleStore)
-        .monthAwaitingConfirmation();
+    final monthToCheck =
+        (await widget.scheduleStore.monthsAwaitingConfirmation()).firstOrNull;
     return _ScheduleData(
       sections,
       invitePending,
@@ -588,8 +588,8 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
               DateTime(now.year, now.month),
           staffMemberId: data.staffMemberId,
           swapStaffMemberId: data.swapStaffMemberId,
-          swapRules: widget.swapRules,
-          openShiftRules: widget.openShiftRules,
+          swapStore: widget.swapStore,
+          openShiftStore: widget.openShiftStore,
           onSignOut: _signOut,
           onManagerTransferred: _refreshAccess,
           messagesComposer: widget.messagesComposer,
