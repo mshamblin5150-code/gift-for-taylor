@@ -167,12 +167,9 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Open shift pickup approvals',
-    who:
-        'Manager only; Night schedulers and Administrators can read this guidance',
-    what:
-        'Some Open shift pickups wait for the Manager; others take effect when a Staff member picks them up. The listing shows which rule applies.',
-    how:
-        'Manager only: open Approval queue from the Schedule and check the person, date, and Shift code before approving or declining a pending pickup. To change whether an available shift needs approval, open Browse requests, then Open shifts, and use its switch. The decision removes a pending pickup from the queue.',
+    who: 'Manager for pickup decisions; Manager or Administrator for the Unit default',
+    what: 'Some Open shift pickups wait for the Manager; others take effect when a Staff member picks them up. The listing shows which rule applies.',
+    how: 'Manager only: open Approval queue from the Schedule and check the person, date, and Shift code before approving or declining a pending pickup. Managers and Administrators can change the Unit default in Settings, then Open shift pickup approval. For one available shift, the Manager can open Browse requests, then Open shifts, and use its switch. The decision removes a pending pickup from the queue.',
     roles: _manager,
   ),
   HelpTopic(
@@ -240,16 +237,14 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Staffing minimums',
-    who:
-        'Manager only; Night schedulers and Administrators can read this guidance',
-    what:
-        'A Staffing minimum is set for a Job role pool and a Day or Night Coverage window, never for a Section. The Nursing pool counts RNs and LPNs together and can also require a number of RNs.',
+    who: 'Manager or Administrator; Night schedulers can read this guidance',
+    what: 'A Staffing minimum is set for a Job role pool and a Day or Night Coverage window, never for a Section. The Nursing pool counts RNs and LPNs together and can also require a number of RNs.',
     how:
-        'Manager only:\n'
+        'Manager or Administrator: open Settings, then Staffing minimums to edit a standing weekday Minimum people or Nursing RN floor. The Manager can make a one-day exception:\n'
         '1. In Day view, choose the date.\n'
         '2. Tap the pool’s Day or Night coverage row.\n'
         '3. Enter Minimum people and, for the Nursing pool, the RN floor.\n'
-        '4. Tap Save this date for one day or the button labeled for that weekday (for example, Save every Monday) for the repeating default.\n'
+        '4. Tap Save this date.\n'
         'Return to Day view to check whether it reads Covered or Short. In Month view, tap a pool coverage band to inspect a day when that band is shown.',
     searchTerms:
         'short staffing minimum coverage nurses RN floor role pool weekday date',

@@ -1222,7 +1222,9 @@ void main() {
     expect(printed, hasLength(1));
   });
 
-  testWidgets('Manager changes the print wording default for a draft month', (tester) async {
+  testWidgets('Manager changes the print wording default for a draft month', (
+    tester,
+  ) async {
     final gateway = _TestPrintWordingGateway();
     final printed = <String>[];
     await pumpGrid(
@@ -1247,6 +1249,31 @@ void main() {
     await tester.tap(find.byTooltip('Print this Schedule'));
     await tester.pumpAndSettle();
     expect(printed.single, contains('ER Schedule - OCTOBER 2026</h1>'));
+  });
+
+  testWidgets('editing the Unit default keeps a released month’s wording', (
+    tester,
+  ) async {
+    final gateway = _TestMonthPrintWordingGateway();
+    await pumpGrid(
+      tester,
+      printWordingGateway: gateway,
+      printBookPage: (_) {},
+    );
+    expect(find.byTooltip('Historical print'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Change print wording'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).at(0)).controller!.text,
+      'Current default',
+    );
+    await tester.enterText(find.byType(TextField).at(0), 'New default');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.wording.tooltip, 'New default');
+    expect(find.byTooltip('Historical print'), findsOneWidget);
   });
 
   testWidgets('wording over 80 is retained for editing but refused on save', (
@@ -1357,4 +1384,25 @@ final class _TestPrintWordingGateway implements PrintWordingGateway {
   Future<void> save(PrintWording next) async {
     wording = next;
   }
+}
+
+final class _TestMonthPrintWordingGateway implements MonthPrintWordingGateway {
+  PrintWording wording = const PrintWording(tooltip: 'Current default');
+  final PrintWording historical = const PrintWording(
+    tooltip: 'Historical print',
+  );
+
+  @override
+  Future<PrintWording> read() async => wording;
+
+  @override
+  Future<PrintWording> readForMonth(DateTime month) async => historical;
+
+  @override
+  Future<void> save(PrintWording next) async {
+    wording = next;
+  }
+
+  @override
+  Future<void> correctMonth(DateTime month, PrintWording wording) async {}
 }

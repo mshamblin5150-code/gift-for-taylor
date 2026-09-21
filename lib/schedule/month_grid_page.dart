@@ -37,6 +37,7 @@ final class _ScheduleAction {
     this.onPressed,
     this.badgeCount = 0,
     this.children,
+    this.secondary = false,
   });
 
   final String label;
@@ -44,6 +45,7 @@ final class _ScheduleAction {
   final VoidCallback? onPressed;
   final int badgeCount;
   final List<_ScheduleAction>? children;
+  final bool secondary;
 
   String get menuLabel => badgeCount > 0 ? '$label ($badgeCount)' : label;
 }
@@ -575,12 +577,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _print(ValueChanged<String> printBookPage) async {
     try {
-      final wording =
-          await (widget.printWordingGateway is MonthPrintWordingGateway
-              ? (widget.printWordingGateway! as MonthPrintWordingGateway)
-                    .readForMonth(_month)
-              : widget.printWordingGateway?.read()) ??
-          const PrintWording();
+      final wording = await _wordingForMonth();
       if (mounted) setState(() => _wording = wording);
       final grid = await widget.rules.monthGrid(_month);
       final codes = await widget.rules.shiftCodes();
@@ -621,27 +618,31 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   Future<void> _loadWording() async {
     try {
-      final wording =
-          await (widget.printWordingGateway is MonthPrintWordingGateway
-              ? (widget.printWordingGateway! as MonthPrintWordingGateway)
-                    .readForMonth(_month)
-              : widget.printWordingGateway?.read()) ??
-          const PrintWording();
+      final wording = await _wordingForMonth();
       if (mounted) setState(() => _wording = wording);
     } catch (_) {
       if (mounted) setState(() => _wording = null);
     }
   }
 
+  Future<PrintWording> _wordingForMonth() async {
+    final gateway = widget.printWordingGateway;
+    if (gateway is MonthPrintWordingGateway) {
+      return gateway.readForMonth(_month);
+    }
+    return await gateway?.read() ?? const PrintWording();
+  }
+
   Future<void> _changePrintWording() async {
     final gateway = widget.printWordingGateway;
-    final current = _wording;
-    if (gateway == null || current == null) return;
-    final next = await showPrintWordingDialog(context, current);
-    if (next == null) return;
+    if (gateway == null) return;
     try {
+      final current = await gateway.read();
+      if (!mounted) return;
+      final next = await showPrintWordingDialog(context, current);
+      if (next == null) return;
       await gateway.save(next);
-      if (mounted) setState(() => _wording = next);
+      await _loadWording();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -812,6 +813,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     _ScheduleAction(
       label: 'Settings',
       icon: Icons.settings_outlined,
+      secondary: true,
       onPressed: () async {
         final role =
             await widget.staffGateway?.currentStaffRole() ??
@@ -836,6 +838,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     _ScheduleAction(
       label: 'Help',
       icon: Icons.help_outline,
+      secondary: true,
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) => HelpPage(
@@ -847,7 +850,6 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
         ),
       ),
-    ),
     if (_isManager && widget.swapRules != null && widget.openShiftRules != null)
       _ScheduleAction(
         label: 'Approval queue',
@@ -896,12 +898,14 @@ class _MonthGridPageState extends State<MonthGridPage> {
       _ScheduleAction(
         label: 'Notices',
         icon: Icons.notifications_outlined,
+        secondary: true,
         onPressed: () => _open((context) => NoticesPage(gateway: gateway)),
       ),
     if (widget.onCalendarFeed != null)
       _ScheduleAction(
         label: 'My calendar',
         icon: Icons.calendar_month_outlined,
+        secondary: true,
         onPressed: widget.onCalendarFeed,
       ),
     if (!_isManager)
@@ -966,6 +970,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       _ScheduleAction(
         label: 'Manage Shift codes',
         icon: Icons.schedule_outlined,
+        secondary: true,
         onPressed: () async {
           await Navigator.of(context).push(
             MaterialPageRoute<void>(
@@ -979,6 +984,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       _ScheduleAction(
         label: 'Change log',
         icon: Icons.history,
+        secondary: true,
         onPressed: () => _open(
           (context) => ChangeLogPage(rules: widget.rules, month: _month),
         ),
@@ -1001,12 +1007,14 @@ class _MonthGridPageState extends State<MonthGridPage> {
       _ScheduleAction(
         label: 'Correct this month’s print wording',
         icon: Icons.edit_note_outlined,
+        secondary: true,
         onPressed: _correctMonthPrintWording,
       ),
     if (widget.onManageStaff != null)
       _ScheduleAction(
         label: 'Manage Staff list',
         icon: Icons.people_outline,
+        secondary: true,
         onPressed: () async {
           await widget.onManageStaff?.call();
           if (mounted) await _load();
@@ -1016,6 +1024,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       _ScheduleAction(
         label: 'Sign out',
         icon: Icons.logout,
+        secondary: true,
         onPressed: widget.onSignOut,
       ),
   ];
@@ -1085,19 +1094,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Widget build(BuildContext context) {
     final appBarActions = _appBarActions(context);
     final secondaryActions = appBarActions
-        .where(
-          (action) => const {
-            'Settings',
-            'Help',
-            'Notices',
-            'My calendar',
-            'Manage Shift codes',
-            'Change log',
-            'Manage Staff list',
-            'Sign out',
-            'Correct this month’s print wording',
-          }.contains(action.label),
-        )
+        .where((action) => action.secondary)
         .toList();
     final immediateActions = appBarActions
         .where((action) => !secondaryActions.contains(action))

@@ -17,6 +17,9 @@ final class SupabasePrintWordingGateway implements MonthPrintWordingGateway {
 
   final SupabaseClient _client;
 
+  String _monthStart(DateTime month) =>
+      '${month.year.toString().padLeft(4, '0')}-${month.month.toString().padLeft(2, '0')}-01';
+
   @override
   Future<PrintWording> read() async {
     final row = await _client
@@ -43,12 +46,10 @@ final class SupabasePrintWordingGateway implements MonthPrintWordingGateway {
 
   @override
   Future<PrintWording> readForMonth(DateTime month) async {
-    final monthStart =
-        '${month.year.toString().padLeft(4, '0')}-${month.month.toString().padLeft(2, '0')}-01';
     final row = await _client
         .from('schedule_months')
         .select('release_state, print_tooltip, print_title, print_notice')
-        .eq('month_start', monthStart)
+        .eq('month_start', _monthStart(month))
         .maybeSingle();
     if (row == null || row['release_state'] != 'released') return read();
     return PrintWording(
@@ -59,17 +60,14 @@ final class SupabasePrintWordingGateway implements MonthPrintWordingGateway {
   }
 
   @override
-  Future<void> correctMonth(
-    DateTime month,
-    PrintWording wording,
-  ) => _client.rpc<void>(
-    'correct_month_print_wording',
-    params: {
-      'p_month_start':
-          '${month.year.toString().padLeft(4, '0')}-${month.month.toString().padLeft(2, '0')}-01',
-      'p_tooltip': wording.tooltip,
-      'p_title': wording.title,
-      'p_notice': wording.notice,
-    },
-  );
+  Future<void> correctMonth(DateTime month, PrintWording wording) =>
+      _client.rpc<void>(
+        'correct_month_print_wording',
+        params: {
+          'p_month_start': _monthStart(month),
+          'p_tooltip': wording.tooltip,
+          'p_title': wording.title,
+          'p_notice': wording.notice,
+        },
+      );
 }
