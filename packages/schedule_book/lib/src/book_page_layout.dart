@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -7,11 +5,22 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'font_loader.dart' as loader;
+
 const _width = 756.0;
 const _margin = 18.0;
 const _legendSize = 8.0;
 const _legendHeight = 12.0;
 const _rule = pw.BorderSide(width: 1.5, color: PdfColors.black);
+
+/// Arimo faces supplied by the caller when file access is unavailable.
+final class BookFontBytes {
+  const BookFontBytes(this.regular, this.bold, this.italic);
+
+  final ByteData regular;
+  final ByteData bold;
+  final ByteData italic;
+}
 
 enum SqueezedKind { name, code }
 
@@ -75,7 +84,7 @@ final class BookPageLayout {
 
   final MonthGrid grid;
   final PrintWording wording;
-  final _Fonts _fonts;
+  final BookFontBytes _fonts;
   final double rowHeight;
   final double fontSize;
   final double nameWidth;
@@ -282,8 +291,9 @@ Future<BookPageLayout> prepareBookPage(
   MonthGrid grid, {
   Iterable<LegendCode> codes = shiftLegend,
   PrintWording wording = const PrintWording(),
+  BookFontBytes? fontBytes,
 }) async {
-  final fonts = await _Fonts.load();
+  final fonts = fontBytes ?? await loader.loadBookFonts();
   final metricsDocument = PdfDocument();
   final regular = PdfTtfFont(metricsDocument, fonts.regular);
   final bold = PdfTtfFont(metricsDocument, fonts.bold);
@@ -458,27 +468,4 @@ Future<BookPageLayout> prepareBookPage(
     noticeScale,
     sectionScales,
   );
-}
-
-final class _Fonts {
-  const _Fonts(this.regular, this.bold, this.italic);
-  final ByteData regular;
-  final ByteData bold;
-  final ByteData italic;
-
-  static Future<_Fonts> load() async {
-    Future<ByteData> read(String name) async {
-      final uri = await Isolate.resolvePackageUri(
-        Uri.parse('package:schedule_book/src/fonts/$name'),
-      );
-      if (uri == null) throw StateError('Missing bundled Arimo font $name');
-      return ByteData.sublistView(await File.fromUri(uri).readAsBytes());
-    }
-
-    return _Fonts(
-      await read('Arimo-Regular.ttf'),
-      await read('Arimo-Bold.ttf'),
-      await read('Arimo-Italic.ttf'),
-    );
-  }
 }

@@ -1,4 +1,5 @@
 import 'package:er_schedule/schedule/month_grid_page.dart';
+import 'package:er_schedule/schedule/book_page_printing.dart';
 import 'package:er_schedule/schedule/print_wording_gateway.dart';
 import 'package:er_schedule/schedule_theme.dart';
 import 'package:flutter/material.dart';
@@ -49,7 +50,7 @@ void main() {
     String actingAs = 'manager',
     String? staffMemberId,
     DateTime? month,
-    ValueChanged<String>? printBookPage,
+    BookPagePresenter? bookPagePresenter,
     PrintWordingGateway? printWordingGateway,
     DateTime Function()? now,
     bool withStaffing = false,
@@ -70,7 +71,7 @@ void main() {
           openShiftRules: withStaffing
               ? OpenShiftRules(database.openShiftStoreFor(actingAs))
               : null,
-          printBookPage: printBookPage,
+          bookPagePresenter: bookPagePresenter,
           printWordingGateway: printWordingGateway,
           now: now,
         ),
@@ -1311,8 +1312,8 @@ void main() {
   });
 
   testWidgets('Print sends the live month as the book page', (tester) async {
-    final printed = <String>[];
-    final rules = await pumpGrid(tester, printBookPage: printed.add);
+    final printed = _RecordingBookPagePresenter();
+    final rules = await pumpGrid(tester, bookPagePresenter: printed);
     await rules.saveCell(
       SaveCell(
         staffMemberId: 'rn-2',
@@ -1324,12 +1325,24 @@ void main() {
 
     await tester.tap(find.byTooltip('Print the book page'));
     await tester.pumpAndSettle();
-
-    expect(printed, hasLength(1));
-    expect(printed.single, contains('Schedule subject to change'));
-    expect(printed.single, contains('SEPTEMBER 2026'));
-    expect(printed.single, contains('>Night RN<'));
-    expect(printed.single, contains('4P-8A'));
+    expect(find.text('Print the book page'), findsOneWidget);
+    expect(printed.pages, isEmpty);
+    await tester.tap(find.text('Open PDF'));
+    await tester.pumpAndSettle();
+    expect(printed.pages, hasLength(1));
+    expect(
+      printed.pages.single.layout.wording.notice,
+      'Schedule subject to change',
+    );
+    expect(
+      printed.pages.single.layout.wording.titleFor(september),
+      contains('SEPTEMBER 2026'),
+    );
+    expect(
+      printed.pages.single.layout.grid.shiftCodeFor('rn-2', september18),
+      '4P-8A',
+    );
+    expect(printed.pages.single.pdf, isNotEmpty);
   });
 
   testWidgets('Print warns when one page will be hard to read', (tester) async {
@@ -1346,27 +1359,52 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {september},
     );
-    final printed = <String>[];
-    await pumpGrid(tester, printBookPage: printed.add);
+    final printed = _RecordingBookPagePresenter();
+    await pumpGrid(tester, bookPagePresenter: printed);
 
     await tester.tap(find.byTooltip('Print the book page'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('very small'), findsOneWidget);
-    expect(printed, isEmpty);
+    expect(find.textContaining('80 Staff members'), findsOneWidget);
+    expect(printed.pages, isEmpty);
 
-    await tester.tap(find.text('Print anyway'));
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(printed, hasLength(1));
+    expect(printed.pages, isEmpty);
+  });
+
+  testWidgets('Print names a cramped Shift code and its date', (tester) async {
+    final printed = _RecordingBookPagePresenter();
+    final rules = await pumpGrid(tester, bookPagePresenter: printed);
+    await rules.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: september18,
+        shiftCode: 'EXTRALONGCODEFORTHEDAY',
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Print the book page'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('EXTRALONGCODEFORTHEDAY'), findsWidgets);
+    expect(find.textContaining('2026-9-18'), findsOneWidget);
+    expect(printed.pages, isEmpty);
+    await tester.tap(find.text('Open PDF'));
+    await tester.pumpAndSettle();
+    expect(
+      printed.pages.single.causes.first.description,
+      contains('EXTRALONGCODEFORTHEDAY'),
+    );
   });
 
   testWidgets('Manager changes the print wording default for a draft month', (
     tester,
   ) async {
     final gateway = _TestPrintWordingGateway();
-    final printed = <String>[];
+    final printed = _RecordingBookPagePresenter();
     await pumpGrid(
       tester,
-      printBookPage: printed.add,
+      bookPagePresenter: printed,
       printWordingGateway: gateway,
     );
 
@@ -1385,14 +1423,24 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Print this Schedule'));
     await tester.pumpAndSettle();
-    expect(printed.single, contains('ER Schedule - OCTOBER 2026</h1>'));
+    await tester.tap(find.text('Open PDF'));
+    await tester.pumpAndSettle();
+    expect(
+      printed.pages.single.layout.wording.titleFor(DateTime(2026, 10)),
+      'ER Schedule - OCTOBER 2026',
+    );
   });
 
   testWidgets('editing the Unit default keeps a released month’s wording', (
     tester,
   ) async {
-    final gateway = _TestMonthPrintWordingGateway();
-    await pumpGrid(tester, printWordingGateway: gateway, printBookPage: (_) {});
+    final gateway = _TestCapturedPrintWordingGateway();
+    final printed = _RecordingBookPagePresenter();
+    await pumpGrid(
+      tester,
+      printWordingGateway: gateway,
+      bookPagePresenter: printed,
+    );
     expect(find.byTooltip('Historical print'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Change print wording'));
@@ -1407,6 +1455,50 @@ void main() {
 
     expect(gateway.wording.tooltip, 'New default');
     expect(find.byTooltip('Historical print'), findsOneWidget);
+    await tester.tap(find.byTooltip('Historical print'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open PDF'));
+    await tester.pumpAndSettle();
+    expect(printed.pages.single.layout.wording.tooltip, 'Historical print');
+  });
+
+  testWidgets('a blocked PDF shows the existing failure snackbar', (
+    tester,
+  ) async {
+    await pumpGrid(tester, bookPagePresenter: _FailingBookPagePresenter());
+    await tester.tap(find.byTooltip('Print the book page'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open PDF'));
+    await tester.pumpAndSettle();
+    expect(find.text("The PDF couldn't be opened. Try again."), findsOneWidget);
+  });
+
+  testWidgets('correcting released wording changes only that month', (
+    tester,
+  ) async {
+    final gateway = _TestCapturedPrintWordingGateway();
+    final printed = _RecordingBookPagePresenter();
+    await pumpGrid(
+      tester,
+      printWordingGateway: gateway,
+      bookPagePresenter: printed,
+    );
+
+    await tester.tap(find.byTooltip('More destinations'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Correct this month’s print wording'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'Corrected print');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.historical.tooltip, 'Corrected print');
+    expect(gateway.wording.tooltip, 'Current default');
+    await tester.tap(find.byTooltip('Corrected print'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open PDF'));
+    await tester.pumpAndSettle();
+    expect(printed.pages.single.layout.wording.tooltip, 'Corrected print');
   });
 
   testWidgets('wording over 80 is retained for editing but refused on save', (
@@ -1458,7 +1550,7 @@ void main() {
       tester,
       actingAs: 'staff',
       staffMemberId: 'rn-1',
-      printBookPage: (_) {},
+      bookPagePresenter: _RecordingBookPagePresenter(),
       printWordingGateway: _TestPrintWordingGateway(),
     );
     expect(find.byTooltip('Change print wording'), findsNothing);
@@ -1514,16 +1606,22 @@ final class _TestPrintWordingGateway implements PrintWordingGateway {
   Future<PrintWording> read() async => wording;
 
   @override
+  Future<PrintWording> readForMonth(DateTime month) => read();
+
+  @override
   Future<void> save(PrintWording next) async {
+    wording = next;
+  }
+
+  @override
+  Future<void> correctMonth(DateTime month, PrintWording next) async {
     wording = next;
   }
 }
 
-final class _TestMonthPrintWordingGateway implements MonthPrintWordingGateway {
+final class _TestCapturedPrintWordingGateway implements PrintWordingGateway {
   PrintWording wording = const PrintWording(tooltip: 'Current default');
-  final PrintWording historical = const PrintWording(
-    tooltip: 'Historical print',
-  );
+  PrintWording historical = const PrintWording(tooltip: 'Historical print');
 
   @override
   Future<PrintWording> read() async => wording;
@@ -1537,5 +1635,19 @@ final class _TestMonthPrintWordingGateway implements MonthPrintWordingGateway {
   }
 
   @override
-  Future<void> correctMonth(DateTime month, PrintWording wording) async {}
+  Future<void> correctMonth(DateTime month, PrintWording wording) async {
+    historical = wording;
+  }
+}
+
+final class _RecordingBookPagePresenter implements BookPagePresenter {
+  final pages = <PreparedBookPage>[];
+
+  @override
+  void present(PreparedBookPage page) => pages.add(page);
+}
+
+final class _FailingBookPagePresenter implements BookPagePresenter {
+  @override
+  void present(PreparedBookPage page) => throw StateError('blocked');
 }

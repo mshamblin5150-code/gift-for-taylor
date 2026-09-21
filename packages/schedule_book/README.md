@@ -3,8 +3,9 @@
 Pure-Dart measured PDF layout for the Schedule book page. Call
 `prepareBookPage(grid, codes: codes, wording: wording)` to get the sizes,
 legibility causes and a `renderPdf()` method. The package reads its bundled
-fonts through Dart package URI resolution, so it works under `dart test` and
-`dart run` without Flutter.
+fonts through Dart package URI resolution under `dart test` and `dart run`.
+Flutter web callers can pass `BookFontBytes` loaded from bundled assets as
+`fontBytes`.
 
 The Arimo regular, bold and italic files were generated from the variable
 fonts at [google/fonts commit 46d8a04](https://github.com/google/fonts/tree/46d8a043641ec6f446cddf39749c0b8d0dc71467/apache/arimo)
