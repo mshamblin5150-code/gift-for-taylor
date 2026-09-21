@@ -66,6 +66,9 @@ values
     '2027-01-01'
   );
 
+insert into public.staff_job_roles(staff_member_id, job_role, effective_from)
+values ('00000000-0000-0000-0000-000000000197', 'rn', '2027-01-01');
+
 insert into public.schedule_months (id, month_start, release_state, released_at, released_by_staff_member_id)
 values (
   '00000000-0000-0000-0000-000000000199',
