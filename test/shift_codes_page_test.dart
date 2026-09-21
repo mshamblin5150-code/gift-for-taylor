@@ -223,11 +223,9 @@ void main() {
     final database = InMemoryScheduleDatabase(
       sections: const [],
       editors: const {'manager'},
+      shiftCodes: const [...shiftLegend, LegendCode('CUSTOM', isWorking: true)],
     );
     final rules = scheduleRulesInMemory(database, actingAs: 'manager');
-    await rules.store.saveShiftCode(
-      const LegendCode('CUSTOM', isWorking: true),
-    );
 
     await tester.pumpWidget(MaterialApp(home: ShiftCodesPage(rules: rules)));
     await tester.pumpAndSettle();
