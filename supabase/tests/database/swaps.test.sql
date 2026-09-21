@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(35);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000281', 'swap-manager@example.test'),
@@ -98,6 +98,112 @@ select is((select count(*)::int from public.staff_notices where kind = 'swap_dec
   'requester receives the declined Swap');
 select is((select reason from public.swaps where status = 'declined'),
   'Cannot cover', 'requester sees the decline reason');
+
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', '2027-06-10', '7A');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
+  '00000000-0000-0000-0000-000000000284', '2027-06-12', '7P');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select lives_ok($$select public.propose_swap(
+  '00000000-0000-0000-0000-000000000287', '2027-06-10', '2027-06-12')$$,
+  'Staff member proposes another working Swap');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000283","role":"authenticated"}', true);
+select lives_ok($$select public.answer_swap(
+  (select id from public.swaps where requester_date = '2027-06-10'), true)$$,
+  'colleague accepts another Swap');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', '2027-06-10', '7P');
+select throws_ok($$select public.approve_swap(
+  (select id from public.swaps where requester_date = '2027-06-10'))$$,
+  'A Shift code changed; propose a new Swap',
+  'Manager cannot approve when requester Shift code changed');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', '2027-06-10', '7A');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
+  '00000000-0000-0000-0000-000000000284', '2027-06-12', '7A');
+select throws_ok($$select public.approve_swap(
+  (select id from public.swaps where requester_date = '2027-06-10'))$$,
+  'A Shift code changed; propose a new Swap',
+  'Manager cannot approve when colleague Shift code changed');
+
+select throws_ok($$select public.approve_swap(
+  (select id from public.swaps where status = 'declined' limit 1))$$,
+  'This Swap is not awaiting approval',
+  'Manager cannot approve a declined Swap');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select throws_ok($$select public.decline_swap(
+  (select id from public.swaps where requester_date = '2027-06-10'), 'No')$$,
+  'Only the Manager can decline a Swap',
+  'Staff member cannot decline an accepted Swap');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select lives_ok($$select public.decline_swap(
+  (select id from public.swaps where requester_date = '2027-06-10'), '  Coverage needed  ')$$,
+  'Manager declines an accepted Swap');
+select is((select status::text from public.swaps where requester_date = '2027-06-10'),
+  'declined', 'Manager decline records the Swap state');
+select is((select reason from public.swaps where requester_date = '2027-06-10'),
+  'Coverage needed', 'Manager decline trims and records the reason');
+select is((select shift_code from public.schedule_cells where staff_member_id =
+  '00000000-0000-0000-0000-000000000286' and work_date = '2027-06-10'),
+  '7A', 'Manager decline leaves the Schedule unchanged');
+select throws_ok($$select public.approve_swap(
+  (select id from public.swaps where requester_date = '2027-06-10'))$$,
+  'This Swap is not awaiting approval',
+  'Manager cannot approve a Swap they declined');
+
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', '2027-06-14', 'H');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
+  '00000000-0000-0000-0000-000000000284', '2027-06-16', '7P');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select throws_ok($$select public.propose_swap(
+  '00000000-0000-0000-0000-000000000287', '2027-06-14', '2027-06-16')$$,
+  'Both Staff members need working shifts on released Schedules',
+  'day off cannot be offered in a Swap');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', '2027-06-14', '7A');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
+  '00000000-0000-0000-0000-000000000284', '2027-06-16', 'S/L');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select throws_ok($$select public.propose_swap(
+  '00000000-0000-0000-0000-000000000287', '2027-06-14', '2027-06-16')$$,
+  'Both Staff members need working shifts on released Schedules',
+  'colleague Sick leave cannot be offered in a Swap');
+
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', '2027-06-18', '7A');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
+  '00000000-0000-0000-0000-000000000284', '2027-06-18', '7A');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', '2027-06-20', '7A');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
+  '00000000-0000-0000-0000-000000000284', '2027-06-22', '7P');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', '2027-06-22', '7A');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select throws_ok($$select public.propose_swap(
+  '00000000-0000-0000-0000-000000000287', '2027-06-18', '2027-06-18')$$,
+  'Choose shifts that would change the Schedule',
+  'same-day same-code Swap is refused');
+select throws_ok($$select public.propose_swap(
+  '00000000-0000-0000-0000-000000000287', '2027-06-20', '2027-06-22')$$,
+  'Both destination dates must be free',
+  'occupied destination date refuses a Swap');
 
 select * from finish();
 rollback;
