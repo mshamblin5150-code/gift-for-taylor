@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart';
+
+import '../schedule/messages_composer.dart';
 import 'staff_gateway.dart';
 import 'sms_launcher.dart';
 
@@ -12,17 +15,23 @@ final class SmsInviteComposer implements InviteComposer {
 
   @override
   Future<void> open(StaffInvite invite) {
-    final inviteUri = _appUri.replace(
-      queryParameters: {'invite': invite.token},
-      fragment: '',
+    return openSmsUrl(
+      inviteSmsUri(
+        _appUri,
+        invite,
+        isIos: defaultTargetPlatform == TargetPlatform.iOS,
+      ),
     );
-    final smsUri = Uri(
-      scheme: 'sms',
-      path: invite.cellNumber,
-      queryParameters: {
-        'body': 'You have an Invite to the ER Schedule: $inviteUri',
-      },
-    );
-    return openSmsUrl(smsUri);
   }
+}
+
+Uri inviteSmsUri(Uri appUri, StaffInvite invite, {required bool isIos}) {
+  final inviteUri = appUri.replace(
+    queryParameters: {'invite': invite.token},
+  ).removeFragment();
+  return messagesUri(
+    [invite.cellNumber],
+    'You have an Invite to the ER Schedule: $inviteUri',
+    isIos: isIos,
+  );
 }
