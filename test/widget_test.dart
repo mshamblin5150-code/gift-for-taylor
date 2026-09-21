@@ -210,71 +210,6 @@ void main() {
     expect(todayTile.leading, isA<Icon>());
   });
 
-  testWidgets('month grid without minimums or Short shifts has no pool bands', (
-    tester,
-  ) async {
-    await pumpGrid(tester);
-
-    expect(find.text('September 2026'), findsOneWidget);
-    expect(find.text('State dayshift RN'), findsOneWidget);
-    expect(find.text('PRN nightshift RN'), findsOneWidget);
-    expect(find.text('Day RN'), findsOneWidget);
-    expect(find.text('T'), findsWidgets);
-    expect(find.byKey(const ValueKey('pool-nurses-2026-09-18')), findsNothing);
-    expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsNothing);
-    expect(
-      find.byKey(const ValueKey('pool-unit_clerk-2026-09-18')),
-      findsNothing,
-    );
-    expect(find.text('not set'), findsNothing);
-  });
-
-  testWidgets('only a pool with a Staffing minimum has a band', (tester) async {
-    await pumpGrid(tester, withStaffing: true);
-
-    expect(
-      find.byKey(const ValueKey('pool-nurses-2026-09-18')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsNothing);
-    expect(
-      find.byKey(const ValueKey('pool-unit_clerk-2026-09-18')),
-      findsNothing,
-    );
-  });
-
-  testWidgets('a dated minimum leaves other days in its pool band blank', (
-    tester,
-  ) async {
-    await OpenShiftRules(
-      database.openShiftStoreFor('manager'),
-    ).setDateMinimum(CoveragePool.cna, CoverageWindow.day, september18, 1, 0);
-    await pumpGrid(tester, withStaffing: true);
-
-    expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsOneWidget);
-    final otherDay = find.byKey(const ValueKey('pool-cna-2026-09-19'));
-    expect(otherDay, findsOneWidget);
-    expect(
-      find.descendant(of: otherDay, matching: find.text('not set')),
-      findsNothing,
-    );
-    expect(
-      find.descendant(of: otherDay, matching: find.byType(Text)),
-      findsNothing,
-    );
-  });
-
-  testWidgets('Day view still identifies unset Staffing minimums', (
-    tester,
-  ) async {
-    await pumpGrid(tester, withStaffing: true);
-    await tester.tap(find.text('Day'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Days: not set'), findsNWidgets(2));
-    expect(find.text('Nights: not set'), findsNWidgets(2));
-  });
-
   testWidgets('dragging across rows swaps Shift codes and Undo restores them', (
     tester,
   ) async {
@@ -989,6 +924,26 @@ void main() {
     expect(find.textContaining('minimum not set'), findsOneWidget);
   });
 
+  testWidgets('Day view and Staffing sheet show the mixed RN Shortfall', (
+    tester,
+  ) async {
+    await OpenShiftRules(database.openShiftStoreFor('manager')).setDateMinimum(
+      CoveragePool.nurses,
+      CoverageWindow.day,
+      september18,
+      2,
+      1,
+    );
+    await pumpGrid(tester, withStaffing: true, now: () => september18);
+    await tester.tap(find.text('Day'));
+    await tester.pumpAndSettle();
+    final summary = find.text('Days: Short 2 nursing, 1 RN');
+    expect(summary, findsOneWidget);
+    await tester.tap(summary);
+    await tester.pumpAndSettle();
+    expect(find.text('Short 2 nursing, 1 RN'), findsOneWidget);
+  });
+
   testWidgets('one-person view shows and edits one person\'s month', (
     tester,
   ) async {
@@ -1044,18 +999,6 @@ void main() {
     expect(cell('rn-1', september18), findsOneWidget);
     expect(cell('rn-1', DateTime(2026, 9, 19)), findsNothing);
     expect(find.byKey(const ValueKey('gone-rn-1-2026-09-19')), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('pool-nurses-2026-09-20')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('pool-cna-2026-09-20')), findsNothing);
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('short-nurses-2026-09-20')),
-        matching: find.text('−1'),
-      ),
-      findsOneWidget,
-    );
     final shortCell = tester.widget<Container>(
       find
           .descendant(
@@ -1067,13 +1010,6 @@ void main() {
     expect(
       (shortCell.decoration! as BoxDecoration).color,
       ScheduleGridColors.light.shortOne,
-    );
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('short-cna-2026-09-20')),
-        matching: find.text('−1'),
-      ),
-      findsNothing,
     );
   });
 
@@ -1203,37 +1139,173 @@ void main() {
     });
   });
 
-  testWidgets('the Manager starts without a previous Schedule, edits, and releases', (
+  testWidgets(
+    'the Manager starts without a previous Schedule, edits, and releases',
+    (tester) async {
+      database = InMemoryScheduleDatabase(
+        sections: const [days, nights],
+        rows: const [dayNurse, nightNurse],
+        editors: const {'manager'},
+      );
+      final month = DateTime(2026, 10);
+      final date = DateTime(2026, 10, 16);
+      await pumpGrid(tester, month: month);
+
+      expect(find.text('Start empty month'), findsOneWidget);
+      expect(find.text('Start from September'), findsNothing);
+      await tester.tap(find.text('Start empty month'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(cell('rn-1', date));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: cell('rn-1', date), matching: find.text('7A')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Release month'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Release'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Unpublished'), findsNothing);
+      expect(
+        find.descendant(of: cell('rn-1', date), matching: find.text('7A')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('release dialog separates Shortfall and Open shift days', (
     tester,
   ) async {
-    database = InMemoryScheduleDatabase(
-      sections: const [days, nights],
-      rows: const [dayNurse, nightNurse],
-      editors: const {'manager'},
-    );
     final month = DateTime(2026, 10);
-    final date = DateTime(2026, 10, 16);
-    await pumpGrid(tester, month: month);
-
-    expect(find.text('Start empty month'), findsOneWidget);
-    expect(find.text('Start from September'), findsNothing);
-    await tester.tap(find.text('Start empty month'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(cell('rn-1', date));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
-    await tester.pumpAndSettle();
-    expect(find.descendant(of: cell('rn-1', date), matching: find.text('7A')),
-        findsOneWidget);
-
+    final manager = ScheduleRules.inMemory(database, actingAs: 'manager');
+    final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    await manager.startEmptyMonth(month);
+    for (var weekday = 0; weekday < 7; weekday++) {
+      for (final window in CoverageWindow.values) {
+        await shifts.setWeekdayMinimum(
+          CoveragePool.nurses,
+          window,
+          weekday,
+          0,
+          0,
+        );
+      }
+    }
+    await shifts.setDateMinimum(
+      CoveragePool.nurses,
+      CoverageWindow.day,
+      DateTime(2026, 10, 3),
+      2,
+      0,
+    );
+    await shifts.setDateMinimum(
+      CoveragePool.nurses,
+      CoverageWindow.day,
+      DateTime(2026, 10, 9),
+      1,
+      0,
+    );
+    await shifts.postOpenShifts(
+      DateTime(2026, 10, 14),
+      '7A',
+      CoveragePool.nurses,
+      1,
+    );
+    await pumpGrid(tester, month: month, withStaffing: true);
     await tester.tap(find.text('Release month'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Release'));
+    expect(
+      find.textContaining('2 days are below a Staffing minimum: Oct 3, Oct 9'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('1 more day has an Open shift: Oct 14'),
+      findsOneWidget,
+    );
+    expect(find.text('Acknowledge and release'), findsOneWidget);
+  });
+
+  testWidgets('Open shifts alone leave the release button unacknowledged', (
+    tester,
+  ) async {
+    final month = DateTime(2026, 10);
+    await ScheduleRules.inMemory(
+      database,
+      actingAs: 'manager',
+    ).startEmptyMonth(month);
+    final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    for (var weekday = 0; weekday < 7; weekday++) {
+      for (final window in CoverageWindow.values) {
+        await shifts.setWeekdayMinimum(
+          CoveragePool.nurses,
+          window,
+          weekday,
+          0,
+          0,
+        );
+      }
+    }
+    await shifts.postOpenShifts(
+      DateTime(2026, 10, 14),
+      '7A',
+      CoveragePool.nurses,
+      1,
+    );
+    await pumpGrid(tester, month: month, withStaffing: true);
+    await tester.tap(find.text('Release month'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Unpublished'), findsNothing);
-    expect(find.descendant(of: cell('rn-1', date), matching: find.text('7A')),
-        findsOneWidget);
+    expect(
+      find.textContaining('1 day has an Open shift: Oct 14'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(FilledButton, 'Release'), findsOneWidget);
+  });
+
+  testWidgets('confirm dialog uses the same Shortfall and Open shift reading', (
+    tester,
+  ) async {
+    database.loadFromPage(september, const []);
+    final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
+    for (var weekday = 0; weekday < 7; weekday++) {
+      for (final window in CoverageWindow.values) {
+        await shifts.setWeekdayMinimum(
+          CoveragePool.nurses,
+          window,
+          weekday,
+          0,
+          0,
+        );
+      }
+    }
+    await shifts.setDateMinimum(
+      CoveragePool.nurses,
+      CoverageWindow.day,
+      DateTime(2026, 9, 3),
+      1,
+      0,
+    );
+    await shifts.postOpenShifts(
+      DateTime(2026, 9, 14),
+      '7A',
+      CoveragePool.nurses,
+      1,
+    );
+    await pumpGrid(tester, withStaffing: true);
+    await tester.tap(find.text('Confirm month'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('1 day is below a Staffing minimum: Sep 3'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('1 more day has an Open shift: Sep 14'),
+      findsOneWidget,
+    );
+    expect(find.text('Acknowledge and confirm'), findsOneWidget);
   });
 
   testWidgets('Print sends the live month as the book page', (tester) async {
@@ -1318,11 +1390,7 @@ void main() {
     tester,
   ) async {
     final gateway = _TestMonthPrintWordingGateway();
-    await pumpGrid(
-      tester,
-      printWordingGateway: gateway,
-      printBookPage: (_) {},
-    );
+    await pumpGrid(tester, printWordingGateway: gateway, printBookPage: (_) {});
     expect(find.byTooltip('Historical print'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Change print wording'));

@@ -9,6 +9,7 @@ part 'src/change_announcement.dart';
 part 'src/swaps.dart';
 part 'src/request_off.dart';
 part 'src/open_shifts.dart';
+part 'src/coverage_reading.dart';
 
 /// Character budgets for text printed on the Schedule book page.
 const sectionNameLimit = 32;

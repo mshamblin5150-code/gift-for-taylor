@@ -50,6 +50,9 @@ final class SectionStaffing {
     required this.rnCount,
     required this.openCount,
     required this.rnOpenCount,
+    required this.shortCount,
+    required this.rnShortCount,
+    required this.unpostedCount,
     this.weekdayMinimum,
     this.dateMinimum,
     this.floorRole,
@@ -63,20 +66,14 @@ final class SectionStaffing {
   final int rnCount;
   final int openCount;
   final int rnOpenCount;
+
+  /// The Shortfall returned by the staffing read.
+  final int? shortCount;
+  final int? rnShortCount;
+  final int? unpostedCount;
   final int? weekdayMinimum;
   final int? dateMinimum;
   final JobRole? floorRole;
-  int? get shortCount => minimum == null
-      ? null
-      : [
-          minimum! - workingCount,
-          (rnFloor ?? 0) - rnCount,
-          0,
-        ].reduce((a, b) => a > b ? a : b);
-  int? get rnShortCount =>
-      minimum == null ? null : ((rnFloor ?? 0) - rnCount).clamp(0, 100);
-  int? get unpostedCount =>
-      shortCount == null ? null : (shortCount! - openCount).clamp(0, 100);
 }
 
 final class OpenShiftPickup {
@@ -841,17 +838,36 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
               standing?.minimum ?? database._weekdayMinimums[weekdayKey];
           final weekdayFloor =
               standing?.floor ?? database._weekdayRnFloors[weekdayKey];
+          final minimum = database._dateMinimums[dateKey] ?? weekdayMinimum;
+          final floor = database._dateRnFloors[dateKey] ?? weekdayFloor;
+          final floorShortfall = minimum == null
+              ? null
+              : ((floor ?? 0) -
+                        onFloor.where((item) => item.$3 == floorRole).length)
+                    .clamp(0, 100);
+          final shortfall = minimum == null
+              ? null
+              : [
+                  minimum - onFloor.length,
+                  floorShortfall!,
+                  0,
+                ].reduce((a, b) => a > b ? a : b);
           result.add(
             SectionStaffing(
               pool: pool,
               coverageWindow: window,
               date: date,
-              minimum: database._dateMinimums[dateKey] ?? weekdayMinimum,
-              rnFloor: database._dateRnFloors[dateKey] ?? weekdayFloor,
+              minimum: minimum,
+              rnFloor: floor,
               workingCount: onFloor.length,
               rnCount: onFloor.where((item) => item.$3 == floorRole).length,
               openCount: open.length,
               rnOpenCount: open.where((item) => item.$3 == floorRole).length,
+              shortCount: shortfall,
+              rnShortCount: floorShortfall,
+              unpostedCount: shortfall == null
+                  ? null
+                  : (shortfall - open.length).clamp(0, 100),
               weekdayMinimum: weekdayMinimum,
               dateMinimum: database._dateMinimums[dateKey],
               floorRole: floorRole,
