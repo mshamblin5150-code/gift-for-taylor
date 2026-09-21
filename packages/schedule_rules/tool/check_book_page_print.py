@@ -57,11 +57,15 @@ def check_grid(image, staff_count):
     assert all(end - start + 1 >= 3 for start, end in column_runs), column_runs
     column_lines = [(start + end) // 2 for start, end in column_runs]
 
-    def edge(x, y):
-        return any(
-            dark(image, px, py)
-            for px in range(x - 2, x + 3)
-            for py in range(y - 2, y + 3)
+    def edge_weight(x, y, vertical):
+        if vertical:
+            return max(
+                sum(dark(image, px, py) for px in range(x - 3, x + 4))
+                for py in range(y - 1, y + 2)
+            )
+        return max(
+            sum(dark(image, px, py) for py in range(y - 3, y + 4))
+            for px in range(x - 1, x + 2)
         )
 
     for row in range(staff_count):
@@ -70,13 +74,15 @@ def check_grid(image, staff_count):
         for day in range(1, 31):
             left, right = column_lines[day:day + 2]
             mid_x = (left + right) // 2
-            for side, x, y in (
-                ("top", mid_x, top),
-                ("bottom", mid_x, bottom),
-                ("left", left, mid_y),
-                ("right", right, mid_y),
+            for side, x, y, vertical in (
+                ("top", mid_x, top, False),
+                ("bottom", mid_x, bottom, False),
+                ("left", left, mid_y, True),
+                ("right", right, mid_y, True),
             ):
-                assert edge(x, y), f"row {row + 1}, day {day}: {side} border missing"
+                assert edge_weight(x, y, vertical) >= 3, (
+                    f"row {row + 1}, day {day}: {side} border too thin or missing"
+                )
 
             # September 2026 weekends include occupied and empty cells in
             # alternating rows. Sample away from the centered Shift code.
