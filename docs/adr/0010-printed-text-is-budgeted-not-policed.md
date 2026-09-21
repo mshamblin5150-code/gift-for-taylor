@@ -6,6 +6,8 @@ status: accepted
 
 **Later decision:** ADR-0012 captures print wording at Month release and permits an audited correction for one released month; changes to the Unit default no longer alter every released month.
 
+**Later decision:** ADR-0016 retires the HTML book page and `fitBookPage`; the budget described here is now one measured PDF layout model in `packages/schedule_book`.
+
 #54 shipped customisable print wording under an acceptance criterion reading
 "Nothing patient-related or personal can be added through this setting," and the
 implementer honoured it by making all three fields closed enums —
