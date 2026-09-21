@@ -111,7 +111,11 @@ abstract interface class ScheduleStore {
   Future<MonthStatus> monthStatus(DateTime month);
 
   /// Creates [month] unpublished holding [cells], without logging changes.
-  Future<void> startMonth(DateTime month, List<ScheduleCell> cells);
+  Future<void> startMonth(
+    DateTime month,
+    List<ScheduleCell> cells, {
+    DateTime? sourceMonth,
+  });
 
   Future<void> releaseMonth(
     DateTime month, {
@@ -897,15 +901,6 @@ final class _ScheduleRules implements ScheduleRules {
   Future<void> startNextMonth(DateTime month) async {
     final current = DateTime(month.year, month.month);
     final next = DateTime(month.year, month.month + 1);
-    if (!(await _store.currentAccess()).canRunSchedule) {
-      throw const ScheduleEditRefused();
-    }
-    if (await _store.monthStatus(next) != MonthStatus.notStarted) {
-      throw const MonthAlreadyStarted();
-    }
-    if (await _store.monthStatus(current) == MonthStatus.notStarted) {
-      throw PreviousMonthNotStarted();
-    }
     final (rows, currentCells) = await (
       _store.rows(next),
       _store.cellsForMonth(current),
@@ -938,18 +933,12 @@ final class _ScheduleRules implements ScheduleRules {
         );
       }
     }
-    await _store.startMonth(next, cells);
+    await _store.startMonth(next, cells, sourceMonth: current);
   }
 
   @override
   Future<void> startEmptyMonth(DateTime month) async {
     final start = DateTime(month.year, month.month);
-    if (!(await _store.currentAccess()).canRunSchedule) {
-      throw const ScheduleEditRefused();
-    }
-    if (await _store.monthStatus(start) != MonthStatus.notStarted) {
-      throw const MonthAlreadyStarted();
-    }
     await _store.startMonth(start, const []);
   }
 }

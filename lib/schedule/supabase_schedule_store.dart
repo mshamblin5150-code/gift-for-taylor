@@ -521,12 +521,19 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<void> startMonth(DateTime month, List<ScheduleCell> cells) async {
-    await mapAccessRejected(
+  Future<void> startMonth(
+    DateTime month,
+    List<ScheduleCell> cells, {
+    DateTime? sourceMonth,
+  }) async {
+    await mapStartMonthRefusal(
       () => _client.rpc<void>(
         'start_month',
         params: {
           'p_month_start': _date(_monthStart(month)),
+          'p_source_month_start': sourceMonth == null
+              ? null
+              : _date(_monthStart(sourceMonth)),
           'p_cells': [
             for (final cell in cells)
               {

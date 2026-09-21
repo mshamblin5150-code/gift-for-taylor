@@ -507,9 +507,7 @@ final class SupabaseStaffGateway implements StaffGateway {
         params: {'p_token': token, 'p_cell_number': cellNumber},
       );
     } on PostgrestException catch (error) {
-      if (error.message ==
-              'This email is already signed in as another Staff member.' ||
-          error.code == '23505') {
+      if (error.code == 'P2793') {
         throw const StaffInviteAlreadyLinkedException();
       }
       rethrow;

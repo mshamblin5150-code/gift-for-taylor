@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(14);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000b61', 'manager-confirm@example.test'),
@@ -29,6 +29,12 @@ select id from public.invites where staff_member_id =
 grant select on confirmation_invite to authenticated;
 
 set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000b61","role":"authenticated"}', true);
+select throws_ok($$select public.accept_invite(
+  (select token from confirmation_token), '+15551230002')$$,
+  'P2793', 'This email is already signed in as another Staff member.',
+  'an already linked account receives a distinct refusal code');
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000b62","role":"authenticated"}', true);
 select lives_ok($$select public.accept_invite(
