@@ -30,11 +30,15 @@ jobs:
       - run: dart pub get
         working-directory: packages/schedule_rules
       - run: dart pub get
+        working-directory: packages/schedule_rules_testing
+      - run: dart pub get
         working-directory: packages/schedule_book
       - run: flutter analyze
       - run: flutter test
       - run: dart test
         working-directory: packages/schedule_rules
+      - run: dart test
+        working-directory: packages/schedule_rules_testing
       - run: dart test
         working-directory: packages/schedule_book
       - run: python -m pip install pdfplumber
