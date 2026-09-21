@@ -131,6 +131,10 @@ void main() {
       db,
       actingAs: 'alice',
     ).requestOff(RequestOffDraft(dates: [requestDay]));
+    db.seedPendingRequestsOff(
+      await manager.store.requestsOff(pendingOnly: false),
+    );
+    db.seedUnreadRequestOffNotices('alice', 1);
     final swaps = _Swaps()
       ..items.add(
         Swap(
