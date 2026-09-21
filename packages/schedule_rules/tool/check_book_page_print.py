@@ -27,31 +27,35 @@ def dark(image, x, y):
     return max(image.getpixel((x, y))[:3]) < 110
 
 
-def line_centers(points):
+def line_runs(points):
     groups = []
     for point in points:
         if not groups or point > groups[-1][-1] + 1:
             groups.append([point])
         else:
             groups[-1].append(point)
-    return [(group[0] + group[-1]) // 2 for group in groups]
+    return [(group[0], group[-1]) for group in groups]
 
 
 def check_grid(image, staff_count):
     width, height = image.size
     # Full-width black rules identify row boundaries even when text overlaps.
-    row_lines = line_centers(
+    row_runs = line_runs(
         y for y in range(100, height - 60)
         if sum(dark(image, x, y) for x in range(30, width - 30, 2))
         > 0.6 * ((width - 60) // 2)
     )
-    assert len(row_lines) == staff_count + 4, (len(row_lines), staff_count)
+    assert len(row_runs) == staff_count + 4, (len(row_runs), staff_count)
+    assert all(end - start + 1 >= 3 for start, end in row_runs), row_runs
+    row_lines = [(start + end) // 2 for start, end in row_runs]
 
     # Immediately below the top rule there are borders but no header glyphs.
-    column_lines = line_centers(
+    column_runs = line_runs(
         x for x in range(10, width - 10) if dark(image, x, row_lines[0] + 4)
     )
-    assert len(column_lines) == 32, len(column_lines)  # name + 30 dates
+    assert len(column_runs) == 32, len(column_runs)  # name + 30 dates
+    assert all(end - start + 1 >= 3 for start, end in column_runs), column_runs
+    column_lines = [(start + end) // 2 for start, end in column_runs]
 
     def edge(x, y):
         return any(
