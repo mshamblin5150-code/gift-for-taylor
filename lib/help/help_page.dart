@@ -308,11 +308,11 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Change log',
-    who: 'Manager, Night scheduler, or Administrator',
+    who: 'Manager or Administrator; Night schedulers can read this guidance',
     what:
         'The Change log lets schedulers and Administrators look back at Schedule edits in a month.',
     how:
-        'Open Change log from the Schedule. Choose a day to narrow a long list. Read the recorded changes there; this is a history, not the place to edit a shift.',
+        'Manager or Administrator: open Change log from the Schedule. Choose a day to narrow a long list. Read the recorded changes there; this is a history, not the place to edit a shift.',
     roles: _manager,
   ),
   HelpTopic(

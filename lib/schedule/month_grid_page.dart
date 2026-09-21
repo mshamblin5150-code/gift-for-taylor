@@ -908,10 +908,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           if (mounted) await _load();
         },
       ),
-    if (_isManager ||
-        _currentRole == 'administrator' ||
-        _currentRole == 'night_scheduler' ||
-        !_editable.isEmpty)
+    if (_isManager || _currentRole == 'administrator')
       _ScheduleAction(
         label: 'Change log',
         icon: Icons.history,
