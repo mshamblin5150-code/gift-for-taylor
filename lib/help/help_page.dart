@@ -338,7 +338,8 @@ const helpTopics = <HelpTopic>[
     title: 'Month release',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'Month release makes a prepared month visible to Staff members and announces it to everyone. Before release, Staff members cannot read that month.',
-    how: 'Manager only:\n'
+    how:
+        'Manager only:\n'
         '1. Open the new month on the Schedule.\n'
         '2. Tap Start empty month, or tap Start from the previous month if it has a Schedule.\n'
         '3. Tap dated Staff cells to enter or correct Shift codes. Check the short days.\n'
@@ -351,7 +352,8 @@ const helpTopics = <HelpTopic>[
     title: 'Start a month',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'Start a month creates a draft Schedule hidden from Staff members until Month release. You can start empty or copy the previous month by weekday.',
-    how: 'Manager only:\n'
+    how:
+        'Manager only:\n'
         '1. Move to the new month with the arrows.\n'
         '2. Tap Start empty month. If the previous month has a Schedule, you can instead tap Start from that month to copy its Shift codes by weekday.\n'
         '3. Tap each dated Staff cell that needs a Shift code and enter it. If you copied the month, check and correct its codes.\n'
@@ -394,7 +396,7 @@ const helpTopics = <HelpTopic>[
     title: 'Administrator access',
     who: 'Administrator; Manager or Administrator grants access',
     what: 'An Administrator manages the Staff list, Invites, access grants, and Unit settings. They can read unpublished Schedules and the Change log. Administrator access alone does not allow Schedule edits, Manager approvals, Month release, or Change announcements. A working Administrator can record a Call-in.',
-    how: 'Open Staff list to add or update a person, send an Invite, confirm an acceptance, set a Last day, or change access. Night scheduler Sections may be selected alongside Administrator access. A Manager transfer is Manager only; the former Manager chooses their access during handover, with Staff member selected by default.',
+    how: 'Open Staff list to add or update a person, send an Invite, confirm an acceptance, set a Last day, or change access. Night scheduler Sections may be selected alongside Administrator access. A Manager can open Settings, then Transfer Manager to choose a successor and their Staff access after handover. Staff member is the default. The Maintainer can use the transfer control for repair from their separate account.',
     searchTerms: 'admin permissions staff invites draft schedule',
     roles: _manager,
   ),

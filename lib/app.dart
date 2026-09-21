@@ -544,6 +544,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
         // A month loaded from the printed page opens first until it is checked.
         final now = DateTime.now();
         return MonthGridPage(
+          key: ValueKey('${data?.staffMemberId}-${data?.swapStaffMemberId}'),
           rules: ScheduleRules(widget.scheduleStore),
           viewerId: widget.authGateway.currentUserId,
           month:
@@ -555,6 +556,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
           swapRules: widget.swapRules,
           openShiftRules: widget.openShiftRules,
           onSignOut: _signOut,
+          onManagerTransferred: () => setState(() => _data = _loadData()),
           messagesComposer: widget.messagesComposer,
           noticeGateway: widget.noticeGateway,
           staffGateway: widget.staffGateway,

@@ -11,6 +11,8 @@ import '../schedule/shift_codes_page.dart';
 import '../schedule/coverage_settings_page.dart';
 import 'appearance.dart';
 import '../setup/app_setup_page.dart';
+import '../staff/staff_gateway.dart';
+import 'manager_handover_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -25,6 +27,8 @@ class SettingsPage extends StatelessWidget {
     this.auditClient,
     this.helpRole = HelpRole.staffMember,
     this.hasNightSchedulerGrant = false,
+    this.staffGateway,
+    this.onManagerTransferred,
   });
 
   final ScheduleRules scheduleRules;
@@ -37,6 +41,8 @@ class SettingsPage extends StatelessWidget {
   final SupabaseClient? auditClient;
   final HelpRole helpRole;
   final bool hasNightSchedulerGrant;
+  final StaffGateway? staffGateway;
+  final VoidCallback? onManagerTransferred;
 
   bool get _canManageUnit =>
       role == 'manager' || role == 'administrator' || role == 'maintainer';
@@ -77,6 +83,32 @@ class SettingsPage extends StatelessWidget {
               title: const Text('Notifications'),
               subtitle: const Text('Allow notices on this device'),
               onTap: () => open(NoticesPage(gateway: noticeGateway!)),
+            ),
+          if ((role == 'manager' || role == 'maintainer') &&
+              staffGateway != null)
+            ListTile(
+              leading: const Icon(Icons.manage_accounts_outlined),
+              title: const Text('Transfer Manager'),
+              subtitle: Text(
+                role == 'maintainer'
+                    ? 'Choose a new Manager for repair'
+                    : 'Choose the next Manager and your access after handover',
+              ),
+              onTap: () async {
+                final transferred = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ManagerHandoverPage(
+                      gateway: staffGateway!,
+                      isMaintainer: role == 'maintainer',
+                    ),
+                  ),
+                );
+                if (transferred == true && context.mounted) {
+                  Navigator.pop(context);
+                  onManagerTransferred?.call();
+                }
+              },
             ),
           if (_canManageUnit) ...[
             const _SectionHeading('Unit'),

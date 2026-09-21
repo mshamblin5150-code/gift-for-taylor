@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:er_schedule/staff/staff_list_page.dart';
 import 'package:er_schedule/staff/staff_contacts.dart';
+import 'package:er_schedule/settings/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
@@ -1194,6 +1195,65 @@ void main() {
     gateway.orderGate!.complete();
     await tester.pumpAndSettle();
     expect(gateway.orderedSections, ['nights', 'days']);
+  });
+
+  testWidgets('Manager transfers from Personal settings with Staff default', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: [alex]),
+    )..currentId = 'current-manager';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          scheduleRules: rules,
+          role: 'manager',
+          staffGateway: gateway,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Transfer Manager'));
+    await tester.pumpAndSettle();
+    expect(find.text('Alex Tech'), findsOneWidget);
+    expect(
+      find.textContaining('Maintainer uses a separate account'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Alex Tech'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Transfer Manager'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(FilledButton, 'Transfer Manager'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(gateway.actorRole, 'staff_member');
+    expect(gateway.accessRole, 'manager');
+  });
+
+  testWidgets('Maintainer can open handover without Staff access choices', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: [alex]),
+    )..actorRole = 'maintainer';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          scheduleRules: rules,
+          role: 'maintainer',
+          staffGateway: gateway,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Transfer Manager'));
+    await tester.pumpAndSettle();
+    expect(find.text('Alex Tech'), findsOneWidget);
+    expect(find.text('Your Staff access after handover'), findsNothing);
+    expect(find.text('Administrator'), findsNothing);
   });
 }
 
