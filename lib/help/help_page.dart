@@ -247,7 +247,12 @@ const helpTopics = <HelpTopic>[
     title: 'Month release',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'Month release makes a prepared month visible to Staff members and announces it to everyone. Before release, Staff members cannot read that month.',
-    how: 'Manager only: open the new month on the Schedule. Tap Start empty month to enter Shift codes yourself, or Start from the previous month to copy a draft if that month exists. Check the Shift codes and short days. Tap Release month in the banner. If days are below a Staffing minimum, review the listed dates and tap Acknowledge and release. Release makes the month visible to Staff members and does not automatically post Open shifts for short days. Later edits need a Change announcement.',
+    how: 'Manager only:\n'
+        '1. Open the new month on the Schedule.\n'
+        '2. Tap Start empty month, or tap Start from the previous month if it has a Schedule.\n'
+        '3. Tap dated Staff cells to enter or correct Shift codes. Check the short days.\n'
+        '4. Tap Release month in the banner. If days are below a Staffing minimum, review the listed dates and tap Acknowledge and release.\n'
+        'Release makes the month visible to Staff members and does not automatically post Open shifts for short days. Later edits need a Change announcement.',
     searchTerms: 'release month new schedule',
     roles: _manager,
   ),
@@ -255,7 +260,12 @@ const helpTopics = <HelpTopic>[
     title: 'Start a month',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'Start a month creates a draft Schedule hidden from Staff members until Month release. You can start empty or copy the previous month by weekday.',
-    how: 'Manager only: move to the new month with the arrows. Tap Start empty month to enter Shift codes into its dated Staff rows yourself. If the previous month has a Schedule, you can instead tap Start from that month and check each copied Shift code. A Night scheduler can edit assigned Sections after you start the month. Release the month only after the new Schedule is ready.',
+    how: 'Manager only:\n'
+        '1. Move to the new month with the arrows.\n'
+        '2. Tap Start empty month. If the previous month has a Schedule, you can instead tap Start from that month to copy its Shift codes by weekday.\n'
+        '3. Tap each dated Staff cell that needs a Shift code and enter it. If you copied the month, check and correct its codes.\n'
+        '4. Check the new Schedule and release the month when it is ready.\n'
+        'A Night scheduler can edit assigned Sections after you start the month. Staff members cannot see it until release.',
     searchTerms: 'empty month manual entry copy previous schedule',
     roles: _manager,
   ),
