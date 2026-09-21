@@ -15,7 +15,8 @@ begin
     and invite.expires_at > now()
   for update;
   if not found then
-    raise exception 'This Invite is invalid, expired, or has already been used';
+    raise exception using errcode = 'P2794',
+      message = 'This Invite is invalid, expired, or has already been used';
   end if;
   begin
     v_cell := public.normalize_cell_number(p_cell_number);
@@ -64,4 +65,3 @@ begin
   return 'accepted';
 end;
 $$;
-

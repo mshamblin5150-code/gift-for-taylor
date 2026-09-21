@@ -130,6 +130,14 @@ final class StaffInviteAlreadyLinkedException implements Exception {
   const StaffInviteAlreadyLinkedException();
 }
 
+final class InvalidInviteException implements Exception {
+  const InvalidInviteException();
+}
+
+final class SectionInUseException implements Exception {
+  const SectionInUseException();
+}
+
 final class PendingInviteAcceptance {
   const PendingInviteAcceptance({
     required this.inviteId,
@@ -481,10 +489,17 @@ final class SupabaseStaffGateway implements StaffGateway {
       );
 
   @override
-  Future<void> deleteEmptySection(String sectionId) => _client.rpc<void>(
-    'delete_empty_section',
-    params: {'p_section_id': sectionId},
-  );
+  Future<void> deleteEmptySection(String sectionId) async {
+    try {
+      await _client.rpc<void>(
+        'delete_empty_section',
+        params: {'p_section_id': sectionId},
+      );
+    } on PostgrestException catch (error) {
+      if (error.code == 'P2795') throw const SectionInUseException();
+      rethrow;
+    }
+  }
 
   @override
   Future<StaffInvite> resendInvite(String staffMemberId) async {
@@ -510,6 +525,7 @@ final class SupabaseStaffGateway implements StaffGateway {
       if (error.code == 'P2793') {
         throw const StaffInviteAlreadyLinkedException();
       }
+      if (error.code == 'P2794') throw const InvalidInviteException();
       rethrow;
     }
     return switch (result) {

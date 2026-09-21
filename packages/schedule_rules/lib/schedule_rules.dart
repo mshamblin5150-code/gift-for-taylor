@@ -168,6 +168,11 @@ final class MonthAlreadyStarted implements Exception {
   String toString() => 'That month has already been started';
 }
 
+/// A Shift code used by a Schedule cannot be deleted.
+final class ShiftCodeInUse implements Exception {
+  const ShiftCodeInUse();
+}
+
 /// The month to copy from has no Schedule yet.
 final class PreviousMonthNotStarted extends StateError {
   PreviousMonthNotStarted() : super('There is no Schedule to start from');

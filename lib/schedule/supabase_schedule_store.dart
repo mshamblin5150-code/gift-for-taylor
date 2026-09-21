@@ -55,8 +55,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
       );
 
   @override
-  Future<void> deleteShiftCode(String code) =>
-      _client.rpc<void>('delete_shift_code', params: {'p_code': code});
+  Future<void> deleteShiftCode(String code) async {
+    try {
+      await _client.rpc<void>('delete_shift_code', params: {'p_code': code});
+    } on PostgrestException catch (error) {
+      if (error.code == 'P2796') throw const ShiftCodeInUse();
+      rethrow;
+    }
+  }
 
   @override
   Future<RequestOffEmail> createRequestOff(RequestOffDraft draft) async {
