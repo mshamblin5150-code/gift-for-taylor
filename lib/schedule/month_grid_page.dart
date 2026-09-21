@@ -850,6 +850,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
         ),
       ),
+    ),
     if (_isManager && widget.swapRules != null && widget.openShiftRules != null)
       _ScheduleAction(
         label: 'Approval queue',
