@@ -5,11 +5,6 @@ extension InMemoryOpenShifts on InMemoryScheduleDatabase {
       _InMemoryOpenShiftStore(this, actor);
 }
 
-bool _samePool(JobRole left, JobRole right) =>
-    left == right ||
-    ((left == JobRole.rn || left == JobRole.lpn) &&
-        (right == JobRole.rn || right == JobRole.lpn));
-
 final class _InMemoryOpenShiftStore implements OpenShiftStore {
   _InMemoryOpenShiftStore(this.database, this.actor);
   final InMemoryScheduleDatabase database;
@@ -274,184 +269,53 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   ) => setDateMinimum(pool, window, date, minimum, floor);
   bool get _manager => database.accessFor(actor).canRunSchedule;
 
-  Future<JobRole?> _role(String id, DateTime date) =>
-      scheduleRulesInMemory(database, actingAs: actor).jobRoleOn(id, date);
-
-  JobRole? _originalRole(String? id, DateTime date) => database._seededJobRoles[id]
-      ?.where((role) => !role.from.isAfter(date))
-      .lastOrNull
-      ?.jobRole;
-
-  OpenShift _shift(ShortShift short, JobRole role) => OpenShift(
-    id: 'short-${identityHashCode(short)}',
-    sectionId: short.sectionId,
-    date: short.date,
-    shiftCode: short.shiftCode,
-    originalStaffMemberId: short.staffMemberId,
-    jobRole: role,
-    requiresApproval:
-        database
-            ._openShiftApprovalOverrides['short-${identityHashCode(short)}'] ??
-        true,
-  );
+  @override
+  Future<List<OpenShift>> openShifts() async =>
+      List.of(database._openShiftAnswers[actor] ?? const <OpenShift>[]);
 
   @override
-  Future<List<OpenShift>> openShifts() async {
-    final visible = <OpenShift>[];
-    for (final short in database._shortShifts) {
-      if (!isWorkingShift(short.shiftCode, codes: database._shiftCodes)) {
-        continue;
-      }
-      final role =
-          short.jobRole ?? _originalRole(short.staffMemberId, short.date);
-      if (role == null ||
-          await database
-                  .storeFor(actor)
-                  .monthStatus(DateTime(short.date.year, short.date.month)) !=
-              MonthStatus.released) {
-        continue;
-      }
-      final mine = await _role(actor, short.date);
-      if (_manager || (mine != null && _samePool(mine, role))) {
-        visible.add(_shift(short, role));
-      }
-    }
-    return visible;
-  }
-
-  @override
-  Future<List<OpenShiftPickup>> pickups() async => [
-    for (final pickup in database._openShiftPickups)
-      if (_manager || pickup.staffMemberId == actor) pickup,
-  ];
+  Future<List<OpenShiftPickup>> pickups() async =>
+      List.of(database._pickupAnswers[actor] ?? const <OpenShiftPickup>[]);
 
   @override
   Future<void> requestPickup(String openShiftId) async {
-    if (_manager || !database._isActive(actor)) {
-      throw StateError('Only Staff members can request a pickup');
-    }
-    final shift = (await openShifts())
-        .where((shift) => shift.id == openShiftId)
-        .firstOrNull;
-    if (shift == null) throw StateError('Open shift is unavailable');
-    final row = (await database.storeFor(actor).rows(shift.date))
-        .where((row) => row.staffMemberId == actor)
-        .firstOrNull;
-    if (row == null ||
-        (row.lastDay != null && shift.date.isAfter(row.lastDay!))) {
-      throw StateError('Staff member is not on the Schedule for that day');
-    }
-    final current = database._cells[_cellKey(actor, shift.date)]?.shiftCode;
-    if (current != null && current != '' && current != 'X') {
-      throw StateError('You already have a shift that day');
-    }
-    if (database._openShiftPickups.any(
-      (pickup) =>
-          pickup.openShiftId == openShiftId && pickup.staffMemberId == actor,
-    )) {
-      throw StateError('Pickup already requested');
-    }
-    final pickup = OpenShiftPickup(
-      id: 'pickup-${database._openShiftPickups.length + 1}',
-      openShiftId: openShiftId,
-      staffMemberId: actor,
-      status: PickupStatus.pending,
-    );
-    database._openShiftPickups.add(pickup);
-    if (!shift.requiresApproval) await _completePickup(pickup.id);
-  }
-
-  @override
-  Future<void> approvePickup(String pickupId) async {
-    if (!_manager) throw StateError('Only the Manager can approve a pickup');
-    await _completePickup(pickupId);
-  }
-
-  Future<void> _completePickup(String pickupId) async {
-    final index = database._openShiftPickups.indexWhere(
-      (pickup) =>
-          pickup.id == pickupId && pickup.status == PickupStatus.pending,
-    );
-    if (index < 0) throw StateError('Pickup is not awaiting approval');
-    final pickup = database._openShiftPickups[index];
-    final shift = (await openShifts())
-        .where((shift) => shift.id == pickup.openShiftId)
-        .firstOrNull;
-    if (shift == null) throw StateError('Open shift has been filled');
-    final role = await _role(pickup.staffMemberId, shift.date);
-    if (role == null ||
-        !_samePool(role, shift.jobRole) ||
-        !database._isActive(pickup.staffMemberId)) {
-      throw StateError('Staff member is no longer eligible');
-    }
-    final row = (await database.storeFor(actor).rows(shift.date))
-        .where((row) => row.staffMemberId == pickup.staffMemberId)
-        .firstOrNull;
-    if (row == null) throw StateError('Staff member is not on the Schedule');
-    final current =
-        database._cells[_cellKey(pickup.staffMemberId, shift.date)]?.shiftCode;
-    if (current != null && current != '' && current != 'X') {
-      throw StateError('Staff member already has a shift that day');
-    }
-    _InMemoryScheduleStore(database, actor)._write(
-      ScheduleCell(
-        staffMemberId: pickup.staffMemberId,
-        sectionId: row.sectionId,
-        date: shift.date,
-        shiftCode: shift.shiftCode,
+    database._openShiftPickups.add(
+      OpenShiftPickup(
+        id: 'pickup-${database._openShiftPickups.length + 1}',
+        openShiftId: openShiftId,
+        staffMemberId: actor,
+        status: PickupStatus.pending,
       ),
     );
-    database._shortShifts.removeWhere(
-      (short) => 'short-${identityHashCode(short)}' == shift.id,
-    );
-    database._openShiftPickups[index] = OpenShiftPickup(
-      id: pickup.id,
-      openShiftId: pickup.openShiftId,
-      staffMemberId: pickup.staffMemberId,
-      status: PickupStatus.approved,
-    );
-    for (final (otherIndex, other) in database._openShiftPickups.indexed) {
-      if (otherIndex != index &&
-          other.openShiftId == shift.id &&
-          other.status == PickupStatus.pending) {
-        database._openShiftPickups[otherIndex] = OpenShiftPickup(
-          id: other.id,
-          openShiftId: other.openShiftId,
-          staffMemberId: other.staffMemberId,
-          status: PickupStatus.declined,
-        );
-      }
-    }
   }
 
   @override
-  Future<void> declinePickup(String pickupId, {String? reason}) async {
-    if (!_manager) throw StateError('Only the Manager can decline a pickup');
+  Future<void> approvePickup(String pickupId) async =>
+      _recordPickupDecision(pickupId, PickupStatus.approved);
+
+  @override
+  Future<void> declinePickup(String pickupId, {String? reason}) async =>
+      _recordPickupDecision(pickupId, PickupStatus.declined);
+
+  void _recordPickupDecision(String pickupId, PickupStatus status) {
     final index = database._openShiftPickups.indexWhere(
-      (pickup) =>
-          pickup.id == pickupId && pickup.status == PickupStatus.pending,
+      (pickup) => pickup.id == pickupId,
     );
-    if (index < 0) throw StateError('Pickup is not awaiting approval');
+    if (index < 0) throw StateError('Pickup not seeded or recorded');
     final pickup = database._openShiftPickups[index];
     database._openShiftPickups[index] = OpenShiftPickup(
       id: pickup.id,
       openShiftId: pickup.openShiftId,
       staffMemberId: pickup.staffMemberId,
-      status: PickupStatus.declined,
+      status: status,
     );
   }
-
-  CoverageWindow? _windowForCode(String code) =>
-      _coverageWindowOf(code, database._shiftCodes);
 
   @override
   Future<bool> approvalDefault() async => database._openShiftApprovalDefault;
 
   @override
   Future<void> setApprovalDefault(bool requiresApproval) async {
-    if (!_manager) {
-      throw StateError('Only the Manager can set Open shift approval');
-    }
     database._openShiftApprovalDefault = requiresApproval;
   }
 
@@ -460,13 +324,20 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     String openShiftId,
     bool requiresApproval,
   ) async {
-    if (!_manager) {
-      throw StateError('Only the Manager can set Open shift approval');
+    OpenShift revised(OpenShift shift) => shift.id != openShiftId
+        ? shift
+        : OpenShift(
+            id: shift.id,
+            sectionId: shift.sectionId,
+            date: shift.date,
+            shiftCode: shift.shiftCode,
+            originalStaffMemberId: shift.originalStaffMemberId,
+            jobRole: shift.jobRole,
+            requiresApproval: requiresApproval,
+          );
+    for (final entry in database._openShiftAnswers.entries) {
+      database._openShiftAnswers[entry.key] = entry.value.map(revised).toList();
     }
-    if (!(await openShifts()).any((shift) => shift.id == openShiftId)) {
-      throw StateError('Open shift is unavailable');
-    }
-    database._openShiftApprovalOverrides[openShiftId] = requiresApproval;
   }
 
   @override
@@ -476,6 +347,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       database._staffingAnswers[DateTime(month.year, month.month)] ?? const [],
     );
   }
+
   @override
   Future<void> setWeekdayMinimum(
     CoveragePool pool,
@@ -559,46 +431,20 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     int count, {
     bool fillGap = false,
   }) async {
-    if (!_manager) throw StateError('Only the Manager can post Open shifts');
-    final code = shiftCode.trim().toUpperCase();
-    final window = _windowForCode(code);
-    if (!isWorkingShift(code, codes: database._shiftCodes) ||
-        window == null ||
-        count < 1 ||
-        count > 100) {
-      throw ArgumentError('Invalid Open shift');
+    database.recordedOpenShiftPosts.add((
+      date: date,
+      shiftCode: shiftCode,
+      pool: pool,
+      count: count,
+      fillGap: fillGap,
+    ));
+    if (database._postOpenShiftResults.isNotEmpty) {
+      return database._postOpenShiftResults.removeAt(0);
     }
-    final config = (await coveragePoolsOn(date))
-        .where((item) => item.id == pool.value && !item.retired)
-        .firstOrNull;
-    if (config == null || config.jobRoles.isEmpty) {
-      throw ArgumentError('Invalid Coverage pool');
+    if (fillGap) {
+      throw StateError('Seed the SQL post result for a gap fill');
     }
-    final answer = database._nextPostOpenShiftsAnswer;
-    database._nextPostOpenShiftsAnswer = null;
-    final posted = answer?.posted ?? count;
-    final floorCritical = answer?.floorCritical ?? 0;
-    for (var i = 0; i < posted; i++) {
-      database._shortShifts.add(
-        ShortShift(
-          date: date,
-          shiftCode: code,
-          staffMemberId: null,
-          jobRole: i < floorCritical
-              ? config.floorRole
-              : config.jobRoles
-                        .where((role) => role != config.floorRole)
-                        .firstOrNull ??
-                    config.floorRole ??
-                    config.jobRoles.first,
-          coveragePool: pool,
-          coverageWindow: window,
-        ),
-      );
-      database._openShiftApprovalOverrides['short-${identityHashCode(database._shortShifts.last)}'] =
-          i < floorCritical ? true : database._openShiftApprovalDefault;
-    }
-    return posted;
+    return count;
   }
 
   @override

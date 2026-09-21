@@ -15,14 +15,6 @@ ScheduleRules scheduleRulesInMemory(
 
 DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
 
-CoverageWindow? _coverageWindowOf(String code, List<LegendCode> codes) {
-  final value = codes
-      .where((item) => item.code == code.trim().toUpperCase())
-      .firstOrNull
-      ?.coverageWindow;
-  return value == null ? null : CoverageWindow.fromValue(value);
-}
-
 bool _inMonth(DateTime date, DateTime month) =>
     date.year == month.year && date.month == month.month;
 
