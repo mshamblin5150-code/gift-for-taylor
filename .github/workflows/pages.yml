@@ -48,7 +48,10 @@ jobs:
       #
       # Never `supabase config push`: that applies config.toml
       # over the project's hosted settings, Auth included.
-      - run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
+      # Parallel merges can introduce migration versions older than the last
+      # applied version. Apply every pending file in version order so a later
+      # merge cannot strand the web deployment behind the database gate.
+      - run: supabase db push --db-url "$SUPABASE_DB_URL" --yes --include-all
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       # The new feed function reads columns and an RPC added by this migration.
