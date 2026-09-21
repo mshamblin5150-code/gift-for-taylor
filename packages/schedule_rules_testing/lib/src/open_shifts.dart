@@ -206,7 +206,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> previewCoveragePools(
+  Future<List<CoverageRulePlan>> previewCoveragePools(
     DateTime effectiveFrom,
     List<CoveragePoolConfig> pools,
   ) async => [];
@@ -215,12 +215,12 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   Future<void> commitCoveragePools(
     DateTime effectiveFrom,
     List<CoveragePoolConfig> pools,
-    List<Map<String, dynamic>> plan,
-    List<Map<String, dynamic>> choices,
+    List<CoverageRulePlan> plan,
+    List<CoverageRuleChoice> choices,
   ) => _saveCoveragePools(effectiveFrom, pools);
 
   @override
-  Future<List<Map<String, dynamic>>> previewStandingMinimum(
+  Future<List<CoverageRulePlan>> previewStandingMinimum(
     CoveragePool pool,
     CoverageWindow window,
     int weekday,
@@ -239,8 +239,8 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     int minimum,
     JobRole? floorRole,
     int floor,
-    List<Map<String, dynamic>> plan,
-    List<Map<String, dynamic>> choices,
+    List<CoverageRulePlan> plan,
+    List<CoverageRuleChoice> choices,
   ) => _setStandingMinimum(
     pool,
     window,
@@ -252,7 +252,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   );
 
   @override
-  Future<List<Map<String, dynamic>>> previewDateMinimum(
+  Future<List<CoverageRulePlan>> previewDateMinimum(
     CoveragePool pool,
     CoverageWindow window,
     DateTime date,
@@ -269,8 +269,8 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
     int? minimum,
     JobRole? floorRole,
     int floor,
-    List<Map<String, dynamic>> plan,
-    List<Map<String, dynamic>> choices,
+    List<CoverageRulePlan> plan,
+    List<CoverageRuleChoice> choices,
   ) => setDateMinimum(pool, window, date, minimum, floor);
   bool get _manager => database.accessFor(actor).canRunSchedule;
 
@@ -472,118 +472,10 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   @override
   Future<List<SectionStaffing>> staffingForMonth(DateTime month) async {
     database._throwNextFailure(InMemoryStoreCall.staffingForMonth);
-    final grid = await scheduleRulesInMemory(
-      database,
-      actingAs: actor,
-    ).monthGrid(month);
-    final result = <SectionStaffing>[];
-    for (final date in grid.days) {
-      final configs = (await coveragePoolsOn(date))
-          .where((pool) => !pool.retired)
-          .toList();
-      CoveragePool poolFor(JobRole role) {
-        final config = configs.firstWhere(
-          (pool) => pool.jobRoles.contains(role),
-        );
-        return CoveragePool(
-          config.id,
-          config.name,
-          sortOrder: config.sortOrder,
-        );
-      }
-
-      final working = <(CoveragePool, CoverageWindow, JobRole)>[];
-      for (final entry in grid.rowsOn(date)) {
-        if (!isWorkingShift(entry.shiftCode, codes: database._shiftCodes)) {
-          continue;
-        }
-        final window = _windowForCode(entry.shiftCode);
-        final role = await _role(entry.row.staffMemberId, date);
-        if (window != null && role != null) {
-          working.add((poolFor(role), window, role));
-        }
-      }
-      final opened = <(CoveragePool, CoverageWindow, JobRole)>[];
-      for (final short in grid.shortShifts.where(
-        (item) => _sameDay(item.date, date),
-      )) {
-        if (!isWorkingShift(short.shiftCode, codes: database._shiftCodes)) {
-          continue;
-        }
-        final window = short.coverageWindow ?? _windowForCode(short.shiftCode);
-        final role = short.jobRole ?? _originalRole(short.staffMemberId, date);
-        if (window != null && role != null) {
-          opened.add((poolFor(role), window, role));
-        }
-      }
-      for (final config in configs) {
-        final pool = CoveragePool(
-          config.id,
-          config.name,
-          sortOrder: config.sortOrder,
-        );
-        for (final window in CoverageWindow.values) {
-          final weekdayKey =
-              '${pool.value}:${window.value}:${date.weekday % 7}';
-          final dateKey = '${pool.value}:${window.value}:${_day(date)}';
-          final onFloor = working.where(
-            (item) => item.$1 == pool && item.$2 == window,
-          );
-          final open = opened.where(
-            (item) => item.$1 == pool && item.$2 == window,
-          );
-          final history =
-              database._standingRuleVersions[weekdayKey]
-                  ?.where((entry) => !entry.from.isAfter(date))
-                  .toList()
-                ?..sort((a, b) => a.from.compareTo(b.from));
-          final standing = history?.lastOrNull;
-          final floorRole = config.floorRole;
-          final weekdayMinimum =
-              standing?.minimum ?? database._weekdayMinimums[weekdayKey];
-          final weekdayFloor =
-              standing?.floor ?? database._weekdayRnFloors[weekdayKey];
-          final minimum = database._dateMinimums[dateKey] ?? weekdayMinimum;
-          final floor = database._dateRnFloors[dateKey] ?? weekdayFloor;
-          final floorShortfall = minimum == null
-              ? null
-              : ((floor ?? 0) -
-                        onFloor.where((item) => item.$3 == floorRole).length)
-                    .clamp(0, 100);
-          final shortfall = minimum == null
-              ? null
-              : [
-                  minimum - onFloor.length,
-                  floorShortfall!,
-                  0,
-                ].reduce((a, b) => a > b ? a : b);
-          result.add(
-            SectionStaffing(
-              pool: pool,
-              coverageWindow: window,
-              date: date,
-              minimum: minimum,
-              rnFloor: floor,
-              workingCount: onFloor.length,
-              rnCount: onFloor.where((item) => item.$3 == floorRole).length,
-              openCount: open.length,
-              rnOpenCount: open.where((item) => item.$3 == floorRole).length,
-              shortCount: shortfall,
-              rnShortCount: floorShortfall,
-              unpostedCount: shortfall == null
-                  ? null
-                  : (shortfall - open.length).clamp(0, 100),
-              weekdayMinimum: weekdayMinimum,
-              dateMinimum: database._dateMinimums[dateKey],
-              floorRole: floorRole,
-            ),
-          );
-        }
-      }
-    }
-    return result;
+    return List.of(
+      database._staffingAnswers[DateTime(month.year, month.month)] ?? const [],
+    );
   }
-
   @override
   Future<void> setWeekdayMinimum(
     CoveragePool pool,

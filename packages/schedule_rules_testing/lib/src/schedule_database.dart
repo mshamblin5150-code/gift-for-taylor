@@ -78,6 +78,15 @@ final class InMemoryScheduleDatabase {
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
   final List<ShortShift> _shortShifts = [];
+  final Map<DateTime, List<SectionStaffing>> _staffingAnswers = {};
+
+  /// Supplies SQL's answer for a month. A later seed replaces the earlier one.
+  void seedStaffingForMonth(DateTime month, List<SectionStaffing> answer) {
+    _staffingAnswers[DateTime(month.year, month.month)] = List.of(answer);
+  }
+
+  bool hasStaffingForMonth(DateTime month) =>
+      _staffingAnswers.containsKey(DateTime(month.year, month.month));
   final List<LegendCode> _shiftCodes = [...shiftLegend];
   final Map<String, int> _weekdayMinimums = {
     for (var weekday = 0; weekday < 7; weekday++)

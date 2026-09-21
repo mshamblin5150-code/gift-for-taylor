@@ -20,6 +20,84 @@ final class CoveragePoolConfig {
   final JobRole? floorRole;
 }
 
+final class CoverageRulePlan {
+  const CoverageRulePlan({
+    required this.workDate,
+    required this.pool,
+    required this.window,
+    required this.floorRole,
+    required this.postFloor,
+    required this.postOrdinary,
+    required this.withdrawFloor,
+    required this.withdrawOrdinary,
+  });
+
+  factory CoverageRulePlan.fromJson(Map<String, dynamic> json) =>
+      CoverageRulePlan(
+        workDate: DateTime.parse(json['work_date'] as String),
+        pool: json['pool'] as String,
+        window: CoverageWindow.fromValue(json['window'] as String),
+        floorRole: switch (json['floor_role']) {
+          final String value => JobRole.fromValue(value),
+          _ => null,
+        },
+        postFloor: json['post_floor'] as int,
+        postOrdinary: json['post_ordinary'] as int,
+        withdrawFloor: json['withdraw_floor'] as int,
+        withdrawOrdinary: json['withdraw_ordinary'] as int,
+      );
+
+  final DateTime workDate;
+  final String pool;
+  final CoverageWindow window;
+  final JobRole? floorRole;
+  final int postFloor;
+  final int postOrdinary;
+  final int withdrawFloor;
+  final int withdrawOrdinary;
+
+  Map<String, dynamic> toJson() => {
+    'work_date': workDate.toIso8601String().substring(0, 10),
+    'pool': pool,
+    'window': window.value,
+    'floor_role': floorRole?.value,
+    'post_floor': postFloor,
+    'post_ordinary': postOrdinary,
+    'withdraw_floor': withdrawFloor,
+    'withdraw_ordinary': withdrawOrdinary,
+  };
+}
+
+final class CoverageRuleChoice {
+  const CoverageRuleChoice({
+    required this.workDate,
+    required this.pool,
+    required this.window,
+    required this.floorRole,
+    this.floorShiftCode,
+    this.ordinaryRole,
+    this.ordinaryShiftCode,
+  });
+
+  final DateTime workDate;
+  final String pool;
+  final CoverageWindow window;
+  final JobRole? floorRole;
+  final String? floorShiftCode;
+  final JobRole? ordinaryRole;
+  final String? ordinaryShiftCode;
+
+  Map<String, dynamic> toJson() => {
+    'work_date': workDate.toIso8601String().substring(0, 10),
+    'pool': pool,
+    'window': window.value,
+    'floor_role': floorRole?.value,
+    'floor_shift_code': floorShiftCode,
+    'ordinary_role': ordinaryRole?.value,
+    'ordinary_shift_code': ordinaryShiftCode,
+  };
+}
+
 final class OpenShift {
   const OpenShift({
     required this.id,
@@ -92,17 +170,17 @@ final class OpenShiftPickup {
 abstract interface class OpenShiftStore {
   Future<List<CoveragePoolConfig>> coveragePoolsOn(DateTime date);
   Future<List<Map<String, dynamic>>> coverageRuleHistory();
-  Future<List<Map<String, dynamic>>> previewCoveragePools(
+  Future<List<CoverageRulePlan>> previewCoveragePools(
     DateTime effectiveFrom,
     List<CoveragePoolConfig> pools,
   );
   Future<void> commitCoveragePools(
     DateTime effectiveFrom,
     List<CoveragePoolConfig> pools,
-    List<Map<String, dynamic>> plan,
-    List<Map<String, dynamic>> choices,
+    List<CoverageRulePlan> plan,
+    List<CoverageRuleChoice> choices,
   );
-  Future<List<Map<String, dynamic>>> previewStandingMinimum(
+  Future<List<CoverageRulePlan>> previewStandingMinimum(
     CoveragePool pool,
     CoverageWindow window,
     int weekday,
@@ -119,10 +197,10 @@ abstract interface class OpenShiftStore {
     int minimum,
     JobRole? floorRole,
     int floor,
-    List<Map<String, dynamic>> plan,
-    List<Map<String, dynamic>> choices,
+    List<CoverageRulePlan> plan,
+    List<CoverageRuleChoice> choices,
   );
-  Future<List<Map<String, dynamic>>> previewDateMinimum(
+  Future<List<CoverageRulePlan>> previewDateMinimum(
     CoveragePool pool,
     CoverageWindow window,
     DateTime date,
@@ -137,8 +215,8 @@ abstract interface class OpenShiftStore {
     int? minimum,
     JobRole? floorRole,
     int floor,
-    List<Map<String, dynamic>> plan,
-    List<Map<String, dynamic>> choices,
+    List<CoverageRulePlan> plan,
+    List<CoverageRuleChoice> choices,
   );
   Future<List<OpenShift>> openShifts();
   Future<List<OpenShiftPickup>> pickups();

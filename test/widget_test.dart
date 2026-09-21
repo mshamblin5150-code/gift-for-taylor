@@ -27,6 +27,38 @@ void main() {
 
   late InMemoryScheduleDatabase database;
 
+  void seedStaffing(
+    DateTime month, {
+    Map<(String, CoverageWindow, int), (int?, int, int, int)> facts = const {},
+  }) {
+    database.seedStaffingForMonth(month, [
+      for (var day = 1; day <= DateTime(month.year, month.month + 1, 0).day; day++)
+        for (final pool in CoveragePool.values)
+          for (final window in CoverageWindow.values)
+            SectionStaffing(
+              pool: pool,
+              coverageWindow: window,
+              date: DateTime(month.year, month.month, day),
+              minimum: facts[(pool.value, window, day)]?.$1 ??
+                  (window == CoverageWindow.night ? 0 : null),
+              rnFloor: null,
+              workingCount: 0,
+              rnCount: 0,
+              openCount: facts[(pool.value, window, day)]?.$3 ?? 0,
+              rnOpenCount: 0,
+              shortCount: facts[(pool.value, window, day)]?.$2 ??
+                  (window == CoverageWindow.night ? 0 : null),
+              rnShortCount: facts[(pool.value, window, day)]?.$4 ??
+                  (window == CoverageWindow.night ? 0 : null),
+              unpostedCount: window == CoverageWindow.night ||
+                      facts.containsKey((pool.value, window, day))
+                  ? 0
+                  : null,
+              floorRole: pool == CoveragePool.nurses ? JobRole.rn : null,
+            ),
+    ]);
+  }
+
   setUp(() async {
     database = InMemoryScheduleDatabase(
       sections: const [days, nights],
@@ -57,6 +89,9 @@ void main() {
     bool withStaffing = false,
     Size size = const Size(2400, 1600),
   }) async {
+    if (withStaffing && !database.hasStaffingForMonth(month ?? september)) {
+      seedStaffing(month ?? september);
+    }
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -485,28 +520,11 @@ void main() {
   testWidgets('pool band fill distinguishes covered, short 1, and short 4', (
     tester,
   ) async {
-    final shifts = database.openShiftStoreFor('manager');
-    await shifts.setDateMinimum(
-      CoveragePool.cna,
-      CoverageWindow.day,
-      DateTime(2026, 9, 18),
-      1,
-      0,
-    );
-    await shifts.setDateMinimum(
-      CoveragePool.cna,
-      CoverageWindow.day,
-      DateTime(2026, 9, 19),
-      4,
-      0,
-    );
-    await shifts.setDateMinimum(
-      CoveragePool.cna,
-      CoverageWindow.day,
-      DateTime(2026, 9, 20),
-      0,
-      0,
-    );
+    seedStaffing(september, facts: {
+      ('cna', CoverageWindow.day, 18): (1, 1, 0, 0),
+      ('cna', CoverageWindow.day, 19): (4, 4, 0, 0),
+      ('cna', CoverageWindow.day, 20): (0, 0, 0, 0),
+    });
     await pumpGrid(tester, now: () => september18, withStaffing: true);
 
     Finder poolDay(int day) => find.byKey(
@@ -579,16 +597,10 @@ void main() {
       editors: const {'manager'},
       releasedMonths: {september},
     );
-    final shifts = database.openShiftStoreFor('manager');
-    for (final pool in CoveragePool.values) {
-      await shifts.setDateMinimum(
-        pool,
-        CoverageWindow.day,
-        DateTime(2026, 9, 4),
-        1,
-        0,
-      );
-    }
+    seedStaffing(september, facts: {
+      for (final pool in CoveragePool.values)
+        (pool.value, CoverageWindow.day, 4): (1, 1, 0, 0),
+    });
     await pumpGrid(
       tester,
       now: () => DateTime(2026, 8, 1),
@@ -1111,15 +1123,9 @@ void main() {
   testWidgets('Day view and Staffing sheet show the mixed RN Shortfall', (
     tester,
   ) async {
-    await database
-        .openShiftStoreFor('manager')
-        .setDateMinimum(
-          CoveragePool.nurses,
-          CoverageWindow.day,
-          september18,
-          2,
-          1,
-        );
+    seedStaffing(september, facts: {
+      ('nurses', CoverageWindow.day, 18): (2, 2, 0, 1),
+    });
     await pumpGrid(tester, withStaffing: true, now: () => september18);
     await tester.tap(find.text('Day'));
     await tester.pumpAndSettle();
@@ -1165,24 +1171,9 @@ void main() {
     await manager.store.setLastDay(
       SetLastDay(staffMemberId: 'rn-1', lastDay: september18),
     );
-    await database
-        .openShiftStoreFor('manager')
-        .setDateMinimum(
-          CoveragePool.nurses,
-          CoverageWindow.day,
-          DateTime(2026, 9, 20),
-          1,
-          0,
-        );
-    await database
-        .openShiftStoreFor('manager')
-        .setDateMinimum(
-          CoveragePool.nurses,
-          CoverageWindow.night,
-          DateTime(2026, 9, 20),
-          0,
-          0,
-        );
+    seedStaffing(september, facts: {
+      ('nurses', CoverageWindow.day, 20): (1, 1, 1, 0),
+    });
 
     await pumpGrid(tester, withStaffing: true);
 
@@ -1296,6 +1287,10 @@ void main() {
       final manager = scheduleRulesInMemory(database, actingAs: 'manager');
       await manager.startNextMonth(september);
       final day = DateTime(2026, 10, 16);
+      seedStaffing(DateTime(2026, 10), facts: {
+        ('nurses', CoverageWindow.day, 16): (3, 3, 0, 0),
+        ('nurses', CoverageWindow.night, 16): (3, 3, 0, 0),
+      });
       await pumpGrid(tester, month: DateTime(2026, 10), withStaffing: true);
       final marker = find.byKey(const ValueKey('short-nurses-2026-10-16'));
       expect(
@@ -1306,6 +1301,10 @@ void main() {
       await tester.tap(cell('rn-1', day));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
+      seedStaffing(DateTime(2026, 10), facts: {
+        ('nurses', CoverageWindow.day, 16): (3, 2, 0, 0),
+        ('nurses', CoverageWindow.night, 16): (3, 3, 0, 0),
+      });
       await tester.pumpAndSettle();
 
       expect(
@@ -1374,31 +1373,11 @@ void main() {
     final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     final shifts = database.openShiftStoreFor('manager');
     await manager.startEmptyMonth(month);
-    for (var weekday = 0; weekday < 7; weekday++) {
-      for (final window in CoverageWindow.values) {
-        await shifts.setWeekdayMinimum(
-          CoveragePool.nurses,
-          window,
-          weekday,
-          0,
-          0,
-        );
-      }
-    }
-    await shifts.setDateMinimum(
-      CoveragePool.nurses,
-      CoverageWindow.day,
-      DateTime(2026, 10, 3),
-      2,
-      0,
-    );
-    await shifts.setDateMinimum(
-      CoveragePool.nurses,
-      CoverageWindow.day,
-      DateTime(2026, 10, 9),
-      1,
-      0,
-    );
+    seedStaffing(month, facts: {
+      ('nurses', CoverageWindow.day, 3): (2, 2, 0, 0),
+      ('nurses', CoverageWindow.day, 9): (1, 1, 0, 0),
+      ('nurses', CoverageWindow.day, 14): (0, 0, 1, 0),
+    });
     await shifts.postOpenShifts(
       DateTime(2026, 10, 14),
       '7A',
@@ -1428,17 +1407,9 @@ void main() {
       actingAs: 'manager',
     ).startEmptyMonth(month);
     final shifts = database.openShiftStoreFor('manager');
-    for (var weekday = 0; weekday < 7; weekday++) {
-      for (final window in CoverageWindow.values) {
-        await shifts.setWeekdayMinimum(
-          CoveragePool.nurses,
-          window,
-          weekday,
-          0,
-          0,
-        );
-      }
-    }
+    seedStaffing(month, facts: {
+      ('nurses', CoverageWindow.day, 14): (0, 0, 1, 0),
+    });
     await shifts.postOpenShifts(
       DateTime(2026, 10, 14),
       '7A',
@@ -1460,24 +1431,10 @@ void main() {
   ) async {
     database.loadFromPage(september, const []);
     final shifts = database.openShiftStoreFor('manager');
-    for (var weekday = 0; weekday < 7; weekday++) {
-      for (final window in CoverageWindow.values) {
-        await shifts.setWeekdayMinimum(
-          CoveragePool.nurses,
-          window,
-          weekday,
-          0,
-          0,
-        );
-      }
-    }
-    await shifts.setDateMinimum(
-      CoveragePool.nurses,
-      CoverageWindow.day,
-      DateTime(2026, 9, 3),
-      1,
-      0,
-    );
+    seedStaffing(september, facts: {
+      ('nurses', CoverageWindow.day, 3): (1, 1, 0, 0),
+      ('nurses', CoverageWindow.day, 14): (0, 0, 1, 0),
+    });
     await shifts.postOpenShifts(
       DateTime(2026, 9, 14),
       '7A',
