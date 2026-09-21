@@ -67,6 +67,14 @@ void main() {
         shiftCode: '7A',
       ),
     );
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'original',
+        sectionId: 'nursing',
+        date: day,
+        shiftCode: 'R/O',
+      ),
+    );
     database.seedShortShift(
       ShortShift(
         sectionId: 'nursing',
@@ -121,6 +129,14 @@ void main() {
           sectionId: section,
           date: day,
           shiftCode: code,
+        ),
+      );
+      await manager.saveCell(
+        SaveCell(
+          staffMemberId: id,
+          sectionId: section,
+          date: day,
+          shiftCode: 'R/O',
         ),
       );
       database.seedShortShift(
