@@ -55,6 +55,14 @@ _Avoid_: Shift type, day/night, shift block
 How many people from one Coverage pool the Manager wants on the floor in one Coverage window on one day, such as three nurses on days. She sets a default per weekday and overrides single dates. A day below its minimum reads short.
 _Avoid_: Target, requirement, quota, staffing level
 
+**Shortfall**:
+How many people a Coverage pool is below its Staffing minimum in one Coverage
+window on one day. It is the one gap that goes against an instruction the
+Manager has already given, so a Month release with a Shortfall in it needs her
+acknowledgement. A day with no Staffing minimum set has no Shortfall, whatever
+is uncovered on it.
+_Avoid_: Short day, gap, understaffing
+
 **Coverage pool**:
 A group of Job roles counted together against one Staffing minimum. Each Job role belongs to one Coverage pool on a given date; a pool may also have a floor for one of its Job roles.
 _Avoid_: Role pool, Staffing group
@@ -145,12 +153,8 @@ really them before the account works. It lapses after a month if unused.
 _Avoid_: Registration, sign-up
 
 **Last day**:
-The final day a departing Staff member is on the Schedule. Their shifts after it become short days.
+The final day a departing Staff member is on the Schedule. Their shifts after it become Open shifts.
 _Avoid_: Termination date, end date
-
-**Short shift**:
-A scheduled shift that no one covers any more, such as one cleared after a Last day. The day shows short in its Section until someone fills it.
-_Avoid_: Hole, gap
 
 **Request off**:
 A Staff member's request for specific days off. The Manager approves or declines it; an approved day appears on the Schedule as R/O. Today it must arrive by email so it is kept for reference.
@@ -161,8 +165,8 @@ An exchange of shifts two Staff members agree to, which takes effect only when t
 _Avoid_: Trade
 
 **Open shift**:
-A scheduled shift left uncovered (for example by an approved Request off, or by a Call-in) and offered for pickup. Any nurse, RN or LPN, may pick up a nursing shift; other roles pick up within their own role. Each shift records whether pickup needs Manager approval; otherwise an eligible Staff member takes it immediately.
-_Avoid_: Hole, vacancy
+A scheduled shift left uncovered, by an approved Request off, a Last day or a Call-in, or posted by the Manager, and offered for pickup until someone fills it. Any nurse, RN or LPN, may pick up a nursing shift; other roles pick up within their own role. Each shift records whether pickup needs Manager approval; otherwise an eligible Staff member takes it immediately. The day reads short for its Coverage pool while one is open, even when there is no Shortfall because the Staffing minimum is still met or none is set. Releasing a month with one needs no acknowledgement, but she is shown it.
+_Avoid_: Short shift, hole, gap, vacancy
 
 **Calendar invitation**:
 The way a Staff member's working shifts reach their calendar: one invitation
