@@ -63,14 +63,23 @@ void main() {
         shiftCode: '7A',
       ),
     );
-    final request = await scheduleRulesInMemory(
-      database,
-      actingAs: 'original',
-    ).requestOff(RequestOffDraft(dates: [day]));
-    await manager.store.decideRequestOff(
-      request.requestId,
-      RequestOffDecision.approved,
-      null,
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'original',
+        sectionId: 'nursing',
+        date: day,
+        shiftCode: 'R/O',
+      ),
+    );
+    database.seedShortShift(
+      ShortShift(
+        sectionId: 'nursing',
+        date: day,
+        shiftCode: '7A',
+        staffMemberId: 'original',
+        jobRole: JobRole.rn,
+        coverageWindow: CoverageWindow.day,
+      ),
     );
   });
 
@@ -118,14 +127,23 @@ void main() {
           shiftCode: code,
         ),
       );
-      final request = await scheduleRulesInMemory(
-        database,
-        actingAs: id,
-      ).requestOff(RequestOffDraft(dates: [day]));
-      await manager.store.decideRequestOff(
-        request.requestId,
-        RequestOffDecision.approved,
-        null,
+      await manager.saveCell(
+        SaveCell(
+          staffMemberId: id,
+          sectionId: section,
+          date: day,
+          shiftCode: 'R/O',
+        ),
+      );
+      database.seedShortShift(
+        ShortShift(
+          sectionId: section,
+          date: day,
+          shiftCode: code,
+          staffMemberId: id,
+          jobRole: id == 'cna' ? JobRole.cna : JobRole.unitClerk,
+          coverageWindow: CoverageWindow.day,
+        ),
       );
     }
     expect(

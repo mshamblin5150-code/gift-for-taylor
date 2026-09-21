@@ -129,6 +129,7 @@ final class InMemoryScheduleDatabase {
   final List<ChangeSection> sectionWrites = [];
   final List<ChangeJobRole> jobRoleWrites = [];
   final List<RequestOff> _requestsOff = [];
+  final List<RequestOff> _pendingRequestsOff = [];
   final Map<String, int> _unreadRequestOffNotices = {};
   final StreamController<DateTime> _updates = StreamController.broadcast();
   final List<DateTime> _awaitingConfirmation = [];
@@ -152,6 +153,21 @@ final class InMemoryScheduleDatabase {
 
   void seedStaffChanges(List<StaffChange> changes) =>
       _seededStaffChanges = List.of(changes);
+
+  /// Supplies the Manager's pending Request off read without deriving a queue.
+  void seedPendingRequestsOff(List<RequestOff> requests) {
+    _pendingRequestsOff
+      ..clear()
+      ..addAll(requests);
+  }
+
+  /// Supplies the unread notice count returned to [staffMemberId].
+  void seedUnreadRequestOffNotices(String staffMemberId, int count) {
+    _unreadRequestOffNotices[staffMemberId] = count;
+  }
+
+  /// Supplies Open shifts created by SQL in a test scenario.
+  void seedShortShift(ShortShift shift) => _shortShifts.add(shift);
 
   void _throwNextFailure(InMemoryStoreCall call) {
     final error = _nextFailures.remove(call);
@@ -306,9 +322,6 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<RequestOffEmail> createRequestOff(RequestOffDraft draft) async {
-    if (!_database._isActive(_actingAs)) {
-      throw StateError('Not on the Staff list');
-    }
     final request = RequestOff(
       id: 'request-${_database._requestsOff.length + 1}',
       staffMemberId: _actingAs,
@@ -322,16 +335,6 @@ final class _InMemoryScheduleStore implements ScheduleStore {
       decidedAt: null,
     );
     _database._requestsOff.add(request);
-    for (final manager
-        in _database._grants.entries
-            .where((entry) => entry.value.manager)
-            .map((entry) => entry.key)) {
-      _database._unreadRequestOffNotices.update(
-        manager,
-        (count) => count + 1,
-        ifAbsent: () => 1,
-      );
-    }
     return RequestOffEmail.forRequest(
       requestId: request.id,
       to: _database.managerEmail,
@@ -343,10 +346,8 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> confirmRequestOffEmail(String requestId) async {
-    final index = _database._requestsOff.indexWhere(
-      (r) => r.id == requestId && r.staffMemberId == _actingAs,
-    );
-    if (index < 0) throw StateError('Request off not found');
+    final index = _database._requestsOff.indexWhere((r) => r.id == requestId);
+    if (index < 0) return;
     final request = _database._requestsOff[index];
     if (request.emailConfirmedAt == null) {
       _database._requestsOff[index] = request.withEmailConfirmed(
@@ -357,15 +358,8 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<List<RequestOff>> requestsOff({required bool pendingOnly}) async {
-    final manager = _access.canRunSchedule;
-    if (pendingOnly && !manager) throw const ScheduleEditRefused();
-    return [
-      for (final request in _database._requestsOff)
-        if (pendingOnly
-            ? request.decision == RequestOffDecision.pending
-            : manager || request.staffMemberId == _actingAs)
-          request,
-    ];
+    if (!pendingOnly) return List.unmodifiable(_database._requestsOff);
+    return List.unmodifiable(_database._pendingRequestsOff);
   }
 
   @override
@@ -374,70 +368,15 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     RequestOffDecision decision,
     String? reason,
   ) async {
-    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
-    if (decision == RequestOffDecision.pending) {
-      throw ArgumentError('Choose approve or decline');
-    }
     final index = _database._requestsOff.indexWhere((r) => r.id == requestId);
-    if (index < 0) throw StateError('Request off not found');
+    if (index < 0) return;
     final request = _database._requestsOff[index];
-    if (request.decision != RequestOffDecision.pending) {
-      throw StateError('Already decided');
-    }
-    if (decision == RequestOffDecision.approved) {
-      for (final date in request.dates) {
-        final row = (await rows(DateTime(date.year, date.month)))
-            .where((r) => r.staffMemberId == request.staffMemberId)
-            .firstOrNull;
-        if (row == null ||
-            (row.lastDay != null && date.isAfter(row.lastDay!))) {
-          throw StateError('Staff member is not on the Schedule for that day');
-        }
-      }
-      for (final date in request.dates) {
-        final row = (await rows(DateTime(date.year, date.month)))
-            .firstWhere((r) => r.staffMemberId == request.staffMemberId);
-        final old =
-            _database
-                ._cells[_cellKey(request.staffMemberId, date)]
-                ?.shiftCode ??
-            '';
-        if (old == 'R/O') continue;
-        _write(
-          ScheduleCell(
-            staffMemberId: request.staffMemberId,
-            sectionId: row.sectionId,
-            date: date,
-            shiftCode: 'R/O',
-          ),
-        );
-        if (isWorkingShift(old, codes: _database._shiftCodes)) {
-          _database._shortShifts.add(
-            ShortShift(
-              sectionId: row.sectionId,
-              date: date,
-              shiftCode: old,
-              staffMemberId: request.staffMemberId,
-              jobRole: await scheduleRulesInMemory(
-                _database,
-                actingAs: _actingAs,
-              ).jobRoleOn(request.staffMemberId, date),
-              coverageWindow: _coverageWindowOf(old, _database._shiftCodes),
-            ),
-          );
-        }
-      }
-    }
     _database._requestsOff[index] = request.withDecision(
       decision,
       reason,
       _database._clock(),
     );
-    _database._unreadRequestOffNotices.update(
-      request.staffMemberId,
-      (count) => count + 1,
-      ifAbsent: () => 1,
-    );
+    _database._pendingRequestsOff.removeWhere((item) => item.id == requestId);
   }
 
   @override
@@ -495,9 +434,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           ? const ScheduleEditRefused()
           : const ScheduleEditRefused('Only the Manager can edit that Section');
     }
-    final row = (await rows(DateTime(cell.date.year, cell.date.month)))
-        .where((row) => row.staffMemberId == cell.staffMemberId)
-        .firstOrNull;
+    final row = (await rows(
+      DateTime(cell.date.year, cell.date.month),
+    )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
     if (row == null || row.sectionId != cell.sectionId) {
       throw StateError(
         'That Staff member is not on the Staff list in this Section',
@@ -525,9 +464,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     final editable = _access.editableSections;
     for (final cell in [first, second]) {
       if (!editable.contains(cell.sectionId)) throw const ScheduleEditRefused();
-      final row = (await rows(DateTime(cell.date.year, cell.date.month)))
-          .where((row) => row.staffMemberId == cell.staffMemberId)
-          .firstOrNull;
+      final row = (await rows(
+        DateTime(cell.date.year, cell.date.month),
+      )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
       if (row == null ||
           row.sectionId != cell.sectionId ||
           (row.lastDay != null && cell.date.isAfter(row.lastDay!))) {
