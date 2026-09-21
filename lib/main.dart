@@ -16,9 +16,11 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 import 'staff/invite_composer.dart';
 import 'staff/staff_gateway.dart';
+import 'settings/appearance.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await loadAppearance();
 
   const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
   const supabasePublishableKey = String.fromEnvironment(

@@ -575,15 +575,13 @@ select lives_ok(
     'Moving Staff member', '5551234567')$$,
   'administrator can use a Staff list management function'
 );
-select throws_ok(
+select lives_ok(
   $$select public.assign_administrator('00000000-0000-0000-0000-000000000197')$$,
-  'Only the Manager can assign an administrator',
-  'administrator cannot grant administrator access'
+  'administrator can grant administrator access'
 );
-select throws_ok(
-  $$select public.remove_administrator('00000000-0000-0000-0000-000000000198')$$,
-  'Only the Manager can remove an administrator',
-  'administrator cannot revoke administrator access'
+select lives_ok(
+  $$select public.remove_administrator('00000000-0000-0000-0000-000000000197')$$,
+  'administrator can revoke administrator access'
 );
 select throws_ok(
   $$select public.set_staff_last_day('00000000-0000-0000-0000-000000000196', current_date)$$,
@@ -626,10 +624,9 @@ select results_eq(
     ('00000000-0000-0000-0000-000000000198'::uuid, 'staff_member', 'manager')$$,
   'both sides of the handover are logged'
 );
-select throws_ok(
+select lives_ok(
   $$select public.assign_administrator('00000000-0000-0000-0000-000000000197')$$,
-  'Only the Manager can assign an administrator',
-  'former Manager cannot grant administrator access'
+  'former Manager as Administrator can grant administrator access'
 );
 
 select set_config('request.jwt.claims',

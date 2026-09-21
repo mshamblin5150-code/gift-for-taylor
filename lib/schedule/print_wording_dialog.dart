@@ -4,15 +4,21 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 Future<PrintWording?> showPrintWordingDialog(
   BuildContext context,
-  PrintWording current,
-) => showDialog<PrintWording>(
+  PrintWording current, {
+  bool forReleasedMonth = false,
+}) => showDialog<PrintWording>(
   context: context,
-  builder: (context) => _PrintWordingDialog(current: current),
+  builder: (context) =>
+      _PrintWordingDialog(current: current, forReleasedMonth: forReleasedMonth),
 );
 
 class _PrintWordingDialog extends StatefulWidget {
-  const _PrintWordingDialog({required this.current});
+  const _PrintWordingDialog({
+    required this.current,
+    required this.forReleasedMonth,
+  });
   final PrintWording current;
+  final bool forReleasedMonth;
 
   @override
   State<_PrintWordingDialog> createState() => _PrintWordingDialogState();
@@ -95,7 +101,11 @@ class _PrintWordingDialogState extends State<_PrintWordingDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('These choices apply to every month.'),
+          Text(
+            widget.forReleasedMonth
+                ? 'This correction changes only this released month.'
+                : 'This default applies to draft prints and months released after the change.',
+          ),
           const SizedBox(height: 16),
           wordingField(
             'Print button tooltip',

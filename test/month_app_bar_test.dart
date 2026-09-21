@@ -186,7 +186,9 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byTooltip('Schedule actions'), findsNothing);
 
-    await tester.tap(find.byTooltip('My calendar'));
+    await tester.tap(find.byTooltip('More destinations'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('My calendar'));
     await tester.pumpAndSettle();
     expect(calendarOpens, 1);
     await tester.tap(find.byTooltip('Browse requests'));

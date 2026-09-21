@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'auth_gateway.dart';
+import '../settings/appearance.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key, required this.authGateway});
@@ -56,6 +57,7 @@ class _SignInPageState extends State<SignInPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(actions: const [AppearanceButton()]),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

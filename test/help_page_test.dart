@@ -11,7 +11,8 @@ void main() {
           topic.roles.contains(HelpRole.manager) &&
           topic.who.startsWith('Manager only') &&
           topic.title != 'Edit the Schedule' &&
-          topic.title != 'Unannounced changes',
+          topic.title != 'Unannounced changes' &&
+          topic.who.contains('Manager only'),
     );
     expect(managerOnly, isNotEmpty);
     for (final topic in managerOnly) {
@@ -122,6 +123,11 @@ void main() {
     await openHelp(tester, HelpRole.nightScheduler);
     await tester.enterText(find.byType(TextField), 'shift code');
     await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('Edit the Schedule'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('Edit the Schedule'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'manage shift codes');
     await tester.pump();

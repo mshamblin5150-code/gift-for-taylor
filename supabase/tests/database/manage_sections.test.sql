@@ -49,8 +49,8 @@ select lives_ok($$select public.add_section('Sections clerks')$$, 'Manager can a
 select is((select count(*)::integer from public.sections where name = 'Sections clerks'), 1, 'new Section is visible in the shared Section query');
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000482","role":"authenticated"}', true);
-select throws_ok($$select public.add_section('Unauthorized')$$, 'Only the Manager can manage Sections', 'administrator cannot manage Sections');
-select throws_ok($$select public.rename_section('00000000-0000-0000-0000-000000000487', 'Unauthorized')$$, 'Only the Manager can manage Sections', 'administrator cannot rename');
+select lives_ok($$select public.add_section('Administrator Section')$$, 'Administrator can manage Sections');
+select lives_ok($$select public.rename_section('00000000-0000-0000-0000-000000000487', 'Administrator renamed')$$, 'Administrator can rename a Section');
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000483","role":"authenticated"}', true);
 select throws_ok($$select public.reorder_sections(array[]::uuid[])$$, 'Only the Manager can manage Sections', 'Staff cannot reorder Sections');

@@ -96,7 +96,9 @@ void main() {
       staffMemberId: 'rn-1',
       size: const Size(390, 844),
     );
-    await tester.tap(find.byTooltip('Help'));
+    await tester.tap(find.byTooltip('Schedule actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Help'));
     await tester.pumpAndSettle();
     expect(find.text('Help'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'release month');
@@ -244,9 +246,8 @@ void main() {
   testWidgets('a dated minimum leaves other days in its pool band blank', (
     tester,
   ) async {
-    await OpenShiftRules(
-      database.openShiftStoreFor('manager'),
-    ).setDateMinimum(RolePool.cna, CoverageWindow.day, september18, 1, 0);
+    await OpenShiftRules(database.openShiftStoreFor('manager'))
+        .setDateMinimum(RolePool.cna, CoverageWindow.day, september18, 1, 0);
     await pumpGrid(tester, withStaffing: true);
 
     expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsOneWidget);
@@ -1221,7 +1222,9 @@ void main() {
     expect(printed, hasLength(1));
   });
 
-  testWidgets('Manager changes print wording for every month', (tester) async {
+  testWidgets('Manager changes the print wording default for a draft month', (
+    tester,
+  ) async {
     final gateway = _TestPrintWordingGateway();
     final printed = <String>[];
     await pumpGrid(
@@ -1246,6 +1249,31 @@ void main() {
     await tester.tap(find.byTooltip('Print this Schedule'));
     await tester.pumpAndSettle();
     expect(printed.single, contains('ER Schedule - OCTOBER 2026</h1>'));
+  });
+
+  testWidgets('editing the Unit default keeps a released month’s wording', (
+    tester,
+  ) async {
+    final gateway = _TestMonthPrintWordingGateway();
+    await pumpGrid(
+      tester,
+      printWordingGateway: gateway,
+      printBookPage: (_) {},
+    );
+    expect(find.byTooltip('Historical print'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Change print wording'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).at(0)).controller!.text,
+      'Current default',
+    );
+    await tester.enterText(find.byType(TextField).at(0), 'New default');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.wording.tooltip, 'New default');
+    expect(find.byTooltip('Historical print'), findsOneWidget);
   });
 
   testWidgets('wording over 80 is retained for editing but refused on save', (
@@ -1356,4 +1384,25 @@ final class _TestPrintWordingGateway implements PrintWordingGateway {
   Future<void> save(PrintWording next) async {
     wording = next;
   }
+}
+
+final class _TestMonthPrintWordingGateway implements MonthPrintWordingGateway {
+  PrintWording wording = const PrintWording(tooltip: 'Current default');
+  final PrintWording historical = const PrintWording(
+    tooltip: 'Historical print',
+  );
+
+  @override
+  Future<PrintWording> read() async => wording;
+
+  @override
+  Future<PrintWording> readForMonth(DateTime month) async => historical;
+
+  @override
+  Future<void> save(PrintWording next) async {
+    wording = next;
+  }
+
+  @override
+  Future<void> correctMonth(DateTime month, PrintWording wording) async {}
 }

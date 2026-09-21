@@ -12,6 +12,7 @@ import 'staff/staff_gateway.dart';
 import 'staff/staff_list_page.dart';
 import 'staff/staff_details_page.dart';
 import 'schedule_theme.dart';
+import 'settings/appearance.dart';
 
 class ScheduleApp extends StatelessWidget {
   const ScheduleApp({
@@ -45,24 +46,27 @@ class ScheduleApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ER Schedule',
-      theme: ScheduleTheme.light,
-      darkTheme: ScheduleTheme.dark,
-      themeMode: ThemeMode.system,
-      home: _AuthGate(
-        authGateway: authGateway,
-        scheduleStore: scheduleStore,
-        staffGateway: staffGateway,
-        inviteComposer: inviteComposer,
-        messagesComposer: messagesComposer,
-        swapRules: swapRules,
-        openShiftRules: openShiftRules,
-        noticeGateway: noticeGateway,
-        inviteToken: inviteToken,
-        printBookPage: printBookPage,
-        printWordingGateway: printWordingGateway,
-        calendarFeedGateway: calendarFeedGateway,
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: appearanceMode,
+      builder: (context, mode, _) => MaterialApp(
+        title: 'ER Schedule',
+        theme: ScheduleTheme.light,
+        darkTheme: ScheduleTheme.dark,
+        themeMode: mode,
+        home: _AuthGate(
+          authGateway: authGateway,
+          scheduleStore: scheduleStore,
+          staffGateway: staffGateway,
+          inviteComposer: inviteComposer,
+          messagesComposer: messagesComposer,
+          swapRules: swapRules,
+          openShiftRules: openShiftRules,
+          noticeGateway: noticeGateway,
+          inviteToken: inviteToken,
+          printBookPage: printBookPage,
+          printWordingGateway: printWordingGateway,
+          calendarFeedGateway: calendarFeedGateway,
+        ),
       ),
     );
   }
@@ -204,6 +208,7 @@ class _InviteCellEntryState extends State<_InviteCellEntry> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(actions: const [AppearanceButton()]),
     body: SafeArea(
       child: Center(
         child: ConstrainedBox(
@@ -310,6 +315,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           return Scaffold(
             appBar: AppBar(
               actions: [
+                const AppearanceButton(),
                 IconButton(
                   tooltip: 'Sign out',
                   onPressed: widget.authGateway.signOut,
@@ -327,7 +333,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
         }
         if (snapshot.data != InviteAcceptanceResult.accepted) {
           return Scaffold(
-            appBar: AppBar(),
+            appBar: AppBar(actions: const [AppearanceButton()]),
             body: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
@@ -439,9 +445,8 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
     final canManageStaff = await widget.staffGateway?.canManageStaff() ?? false;
     final staffMemberId = await widget.staffGateway?.currentStaffMemberId();
     final editable = await widget.scheduleStore.editableSections();
-    final monthToCheck = await ScheduleRules(
-      widget.scheduleStore,
-    ).monthAwaitingConfirmation();
+    final monthToCheck = await ScheduleRules(widget.scheduleStore)
+        .monthAwaitingConfirmation();
     return _ScheduleData(
       sections,
       invitePending,

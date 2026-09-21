@@ -201,7 +201,9 @@ void main() {
     await tester.tap(find.text('Mark announced'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Change log'));
+    await tester.tap(find.byTooltip('More destinations'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Change log'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Reach: Notified'), findsOneWidget);
   });

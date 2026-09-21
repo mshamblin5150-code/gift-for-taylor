@@ -95,8 +95,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Sign out'), findsOneWidget);
-    await tester.tap(find.byTooltip('Sign out'));
+    await tester.tap(find.byTooltip('More destinations'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign out'));
     await tester.pump();
 
     expect(gateway.signOutCount, 1);
