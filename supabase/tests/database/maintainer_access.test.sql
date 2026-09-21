@@ -47,6 +47,13 @@ select is(public.current_staff_role()::text, 'manager',
   'Manager capability is available independently of Staff');
 select is(public.current_staff_member_id(), null::uuid,
   'Maintainer is never attributed to a Staff member');
+select ok(exists (select 1 from public.sections
+  where id = '00000000-0000-0000-0000-000000002196'),
+  'Maintainer can enter the app through the Sections read');
+select is((select count(*)::integer from public.staff_members), 2,
+  'Maintainer can read Staff members without a Staff account');
+select is((select count(*)::integer from public.staff_list_entries), 1,
+  'Maintainer can see an assigned successor in the handover picker');
 select ok(public.can_manage_staff(), 'Maintainer can use Staff management');
 select ok(public.can_edit_schedule(), 'Maintainer can edit the Schedule');
 select ok(public.can_manage_unit(), 'Maintainer can use Unit Settings');

@@ -73,6 +73,7 @@ class MonthGridPage extends StatefulWidget {
     this.onCalendarFeed,
     this.onManageStaff,
     this.onOpenStaffDetails,
+    this.onManagerTransferred,
     this.messagesComposer,
     this.swapRules,
     this.openShiftRules,
@@ -94,6 +95,7 @@ class MonthGridPage extends StatefulWidget {
   final VoidCallback? onCalendarFeed;
   final Future<void> Function()? onManageStaff;
   final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
+  final VoidCallback? onManagerTransferred;
   final MessagesComposer? messagesComposer;
   final SwapRules? swapRules;
   final OpenShiftRules? openShiftRules;
@@ -364,7 +366,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
     // rather than a wrapper.
     final required = await Future.wait<Object?>([gridRead, announcementRead]);
     final grid = required[0]! as MonthGrid;
-    final previousMonthStarted = isManager && grid.status == MonthStatus.notStarted
+    final previousMonthStarted =
+        isManager && grid.status == MonthStatus.notStarted
         ? (await widget.rules.monthGrid(DateTime(month.year, month.month - 1)))
                   .status !=
               MonthStatus.notStarted
@@ -955,6 +958,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
             printWordingGateway: widget.printWordingGateway,
             onCalendarFeed: widget.onCalendarFeed,
             onManageStaff: widget.onManageStaff,
+            staffGateway: widget.staffGateway,
+            onManagerTransferred: widget.onManagerTransferred,
             role: role,
             helpRole: helpRoleForAccess(
               _currentRole,
@@ -1035,9 +1040,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
         label: 'Notices',
         icon: Icons.notifications_outlined,
         secondary: true,
-        onPressed: () => _open(
-          (context) => NoticesPage(gateway: widget.noticeGateway!),
-        ),
+        onPressed: () =>
+            _open((context) => NoticesPage(gateway: widget.noticeGateway!)),
       ),
     if (_currentRole != 'maintainer' && widget.onCalendarFeed != null)
       _ScheduleAction(
