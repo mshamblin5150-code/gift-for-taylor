@@ -120,9 +120,9 @@ void main() {
       ]);
       final request = await alice.requestOff(RequestOffDraft(dates: [day]));
       await manager.decideRequestOff(
-      request.requestId,
-      RequestOffDecision.declined,
-      reason: 'No coverage',
+        request.requestId,
+        RequestOffDecision.declined,
+        reason: 'No coverage',
       );
       final work = create(alice, 'alice');
       await work.refresh();
@@ -203,24 +203,21 @@ void main() {
     },
   );
 
-  test(
-    'dispose cancels subscriptions and poll, including late reads',
-    () async {
-      final work = create(manager, 'manager');
-      await work.refresh();
-      var notifications = 0;
-      work.addListener(() => notifications++);
-      work.dispose();
-      expect(timer.isActive, isFalse);
-      expect(swaps.changes.hasListener, isFalse);
-      expect(openShifts.changes.hasListener, isFalse);
-      swaps.items.add(_swap('accepted', SwapStatus.accepted));
-      swaps.changes.add(null);
-      openShifts.changes.add(null);
-      timer.fire();
-      await work.refresh();
-      expect(notifications, 0);
-      expect(work.state, const PendingWorkState());
-    },
-  );
+  test('dispose cancels subscriptions and poll', () async {
+    final work = create(manager, 'manager');
+    await work.refresh();
+    var notifications = 0;
+    work.addListener(() => notifications++);
+    work.dispose();
+    expect(timer.isActive, isFalse);
+    expect(swaps.changes.hasListener, isFalse);
+    expect(openShifts.changes.hasListener, isFalse);
+    swaps.items.add(_swap('accepted', SwapStatus.accepted));
+    swaps.changes.add(null);
+    openShifts.changes.add(null);
+    timer.fire();
+    await work.refresh();
+    expect(notifications, 0);
+    expect(work.state, const PendingWorkState());
+  });
 }

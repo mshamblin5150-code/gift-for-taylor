@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import '../staff/staff_gateway.dart';
-import 'approval_queue_page.dart';
+import 'pending_approvals.dart';
 
 @immutable
 final class PendingWorkState {
