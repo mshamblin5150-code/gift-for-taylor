@@ -568,35 +568,23 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
         count > 100) {
       throw ArgumentError('Invalid Open shift');
     }
-    var rnCritical = 0;
     final config = (await coveragePoolsOn(date))
         .where((item) => item.id == pool.value && !item.retired)
         .firstOrNull;
     if (config == null || config.jobRoles.isEmpty) {
       throw ArgumentError('Invalid Coverage pool');
     }
-    if (fillGap) {
-      final staffing = (await staffingForMonth(date)).firstWhere(
-        (item) =>
-            item.pool == pool &&
-            item.coverageWindow == window &&
-            _sameDay(item.date, date),
-      );
-      count = count < (staffing.unpostedCount ?? 0)
-          ? count
-          : (staffing.unpostedCount ?? 0);
-      rnCritical = ((staffing.rnShortCount ?? 0) - staffing.rnOpenCount).clamp(
-        0,
-        count,
-      );
-    }
-    for (var i = 0; i < count; i++) {
+    final answer = database._nextPostOpenShiftsAnswer;
+    database._nextPostOpenShiftsAnswer = null;
+    final posted = answer?.posted ?? count;
+    final floorCritical = answer?.floorCritical ?? 0;
+    for (var i = 0; i < posted; i++) {
       database._shortShifts.add(
         ShortShift(
           date: date,
           shiftCode: code,
           staffMemberId: null,
-          jobRole: i < rnCritical
+          jobRole: i < floorCritical
               ? config.floorRole
               : config.jobRoles
                         .where((role) => role != config.floorRole)
@@ -608,9 +596,9 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
         ),
       );
       database._openShiftApprovalOverrides['short-${identityHashCode(database._shortShifts.last)}'] =
-          i < rnCritical ? true : database._openShiftApprovalDefault;
+          i < floorCritical ? true : database._openShiftApprovalDefault;
     }
-    return count;
+    return posted;
   }
 
   @override

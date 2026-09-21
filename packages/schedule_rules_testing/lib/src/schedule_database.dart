@@ -78,6 +78,15 @@ final class InMemoryScheduleDatabase {
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
   final List<ShortShift> _shortShifts = [];
+  ({int posted, int floorCritical})? _nextPostOpenShiftsAnswer;
+
+  /// Supplies SQL's result for the next Open shift posting call.
+  void seedNextPostOpenShifts({required int posted, int floorCritical = 0}) {
+    _nextPostOpenShiftsAnswer = (
+      posted: posted,
+      floorCritical: floorCritical,
+    );
+  }
   final Map<DateTime, List<SectionStaffing>> _staffingAnswers = {};
 
   /// Supplies SQL's answer for a month. A later seed replaces the earlier one.
