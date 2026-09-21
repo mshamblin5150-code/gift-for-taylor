@@ -113,7 +113,10 @@ abstract interface class ScheduleRules {
   /// The Manager has checked the loaded month against the printed Schedule
   /// page, and the month is released. Corrections made while checking it need
   /// no Change announcement.
-  Future<void> confirmLoadedMonth(DateTime month);
+  Future<void> confirmLoadedMonth(
+    DateTime month, {
+    bool acknowledgeShortfalls = false,
+  });
 
   /// The unannounced changes in [month] within the signed-in person's
   /// [editableSections]: who to tell, and what to say. Empty until the month
@@ -135,7 +138,10 @@ abstract interface class ScheduleRules {
 
   /// Makes an unpublished month the live Schedule. Edits made while building
   /// it were never seen by staff, so they need no Change announcement.
-  Future<void> releaseMonth(DateTime month);
+  Future<void> releaseMonth(
+    DateTime month, {
+    bool acknowledgeShortfalls = false,
+  });
 
   /// Submit a Request off as the signed-in Staff member. Returns the email
   /// draft destination and text; sending remains under the member's control.
@@ -196,7 +202,10 @@ abstract interface class ScheduleStore {
   /// Months loaded from the printed page and not yet confirmed, earliest first.
   Future<List<DateTime>> monthsAwaitingConfirmation();
 
-  Future<void> confirmLoadedMonth(DateTime month);
+  Future<void> confirmLoadedMonth(
+    DateTime month, {
+    bool acknowledgeShortfalls = false,
+  });
 
   /// Settles the selected change log entries using the database's net diff.
   /// [draftOpenedStaffMemberIds] is evidence from the Messages sheet.
@@ -210,7 +219,10 @@ abstract interface class ScheduleStore {
   /// Creates [month] unpublished holding [cells], without logging changes.
   Future<void> startMonth(DateTime month, List<ScheduleCell> cells);
 
-  Future<void> releaseMonth(DateTime month);
+  Future<void> releaseMonth(
+    DateTime month, {
+    bool acknowledgeShortfalls = false,
+  });
 
   /// Deactivates the person, clears their cells after [SetLastDay.lastDay]
   /// with a change log entry each, and records the short shifts, in one step.
@@ -395,19 +407,35 @@ enum JobRole {
       values.firstWhere((role) => role.value == value);
 }
 
-enum RolePool {
-  nurses('nurses', 'Nurses'),
-  cna('cna', 'CNAs'),
-  unitClerk('unit_clerk', 'Unit clerks');
-
-  const RolePool(this.value, this.label);
+/// Stable identity for a Coverage pool. Names and membership are read for the
+/// work date; the seed constants only preserve callers' initial defaults.
+final class CoveragePool {
+  const CoveragePool(this.value, this.label, {this.sortOrder = 0});
   final String value;
   final String label;
+  final int sortOrder;
 
-  static RolePool fromValue(String value) =>
-      values.firstWhere((pool) => pool.value == value);
+  static const nurses = CoveragePool('nurses', 'Nurses', sortOrder: 0);
+  static const cna = CoveragePool('cna', 'CNAs', sortOrder: 1);
+  static const unitClerk = CoveragePool(
+    'unit_clerk',
+    'Unit clerks',
+    sortOrder: 2,
+  );
+  static const values = [nurses, cna, unitClerk];
 
-  static RolePool forJobRole(JobRole role) => switch (role) {
+  static CoveragePool fromValue(String value) =>
+      values.where((pool) => pool.value == value).firstOrNull ??
+      CoveragePool(value, value);
+
+  @override
+  bool operator ==(Object other) =>
+      other is CoveragePool && other.value == value;
+
+  @override
+  int get hashCode => value.hashCode;
+
+  static CoveragePool forJobRole(JobRole role) => switch (role) {
     JobRole.rn || JobRole.lpn => nurses,
     JobRole.cna => cna,
     JobRole.unitClerk => unitClerk,
@@ -487,6 +515,7 @@ final class ShortShift {
     required this.staffMemberId,
     this.jobRole,
     this.coverageWindow,
+    this.coveragePool,
   });
 
   final String? sectionId;
@@ -499,6 +528,7 @@ final class ShortShift {
   final String? staffMemberId;
   final JobRole? jobRole;
   final CoverageWindow? coverageWindow;
+  final CoveragePool? coveragePool;
 }
 
 final class ScheduleSection {
@@ -605,6 +635,7 @@ final class LegendCode {
   /// Local 24-hour HH:mm values; null means an untimed Calendar event.
   final String? startTime;
   final String? endTime;
+
   /// Day or Night coverage; null means the code counts toward neither window.
   final String? coverageWindow;
   final bool active;
@@ -727,7 +758,7 @@ final class MonthGrid {
   }
 
   List<ShortShift> shortShiftsOn(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
   ) => shortShifts
@@ -735,7 +766,8 @@ final class MonthGrid {
         (short) =>
             _sameDay(short.date, date) &&
             short.jobRole != null &&
-            RolePool.forJobRole(short.jobRole!) == pool &&
+            (short.coveragePool ?? CoveragePool.forJobRole(short.jobRole!)) ==
+                pool &&
             short.coverageWindow == window,
       )
       .toList(growable: false);
@@ -1002,8 +1034,14 @@ final class _ScheduleRules implements ScheduleRules {
   }
 
   @override
-  Future<void> confirmLoadedMonth(DateTime month) {
-    return _store.confirmLoadedMonth(DateTime(month.year, month.month));
+  Future<void> confirmLoadedMonth(
+    DateTime month, {
+    bool acknowledgeShortfalls = false,
+  }) {
+    return _store.confirmLoadedMonth(
+      DateTime(month.year, month.month),
+      acknowledgeShortfalls: acknowledgeShortfalls,
+    );
   }
 
   @override
@@ -1132,8 +1170,14 @@ final class _ScheduleRules implements ScheduleRules {
   }
 
   @override
-  Future<void> releaseMonth(DateTime month) {
-    return _store.releaseMonth(DateTime(month.year, month.month));
+  Future<void> releaseMonth(
+    DateTime month, {
+    bool acknowledgeShortfalls = false,
+  }) {
+    return _store.releaseMonth(
+      DateTime(month.year, month.month),
+      acknowledgeShortfalls: acknowledgeShortfalls,
+    );
   }
 }
 
@@ -1222,6 +1266,14 @@ final class InMemoryScheduleDatabase {
   };
   final Map<String, int> _dateMinimums = {};
   final Map<String, int> _dateRnFloors = {};
+  final List<Map<String, dynamic>> _coverageRuleHistory = [];
+  final Map<String, List<({DateTime from, CoveragePoolConfig config})>>
+  _coveragePoolVersions = {};
+  final Map<
+    String,
+    List<({DateTime from, int minimum, JobRole? floorRole, int floor})>
+  >
+  _standingRuleVersions = {};
   final List<OpenShiftPickup> _openShiftPickups = [];
   bool _openShiftApprovalDefault = true;
   final Map<String, bool> _openShiftApprovalOverrides = {};
@@ -1498,18 +1550,17 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     }
     if (decision == RequestOffDecision.approved) {
       for (final date in request.dates) {
-        final row = (await rows(
-          DateTime(date.year, date.month),
-        )).where((r) => r.staffMemberId == request.staffMemberId).firstOrNull;
+        final row = (await rows(DateTime(date.year, date.month)))
+            .where((r) => r.staffMemberId == request.staffMemberId)
+            .firstOrNull;
         if (row == null ||
             (row.lastDay != null && date.isAfter(row.lastDay!))) {
           throw StateError('Staff member is not on the Schedule for that day');
         }
       }
       for (final date in request.dates) {
-        final row = (await rows(
-          DateTime(date.year, date.month),
-        )).firstWhere((r) => r.staffMemberId == request.staffMemberId);
+        final row = (await rows(DateTime(date.year, date.month)))
+            .firstWhere((r) => r.staffMemberId == request.staffMemberId);
         final old =
             _database
                 ._cells[_cellKey(request.staffMemberId, date)]
@@ -1626,9 +1677,34 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ShortShift>> shortShiftsForMonth(DateTime month) async {
-    return _database._shortShifts
-        .where((short) => _inMonth(short.date, month))
-        .toList(growable: false);
+    final openShifts = _InMemoryOpenShiftStore(_database, _actingAs);
+    final result = <ShortShift>[];
+    for (final short in _database._shortShifts.where(
+      (item) => _inMonth(item.date, month),
+    )) {
+      final role =
+          short.jobRole ??
+          openShifts._originalRole(short.staffMemberId, short.date);
+      final pool = role == null
+          ? null
+          : (await openShifts.coveragePoolsOn(short.date))
+                .where((config) => config.jobRoles.contains(role))
+                .firstOrNull;
+      result.add(
+        ShortShift(
+          sectionId: short.sectionId,
+          date: short.date,
+          shiftCode: short.shiftCode,
+          staffMemberId: short.staffMemberId,
+          jobRole: role,
+          coverageWindow: short.coverageWindow,
+          coveragePool: pool == null
+              ? null
+              : CoveragePool(pool.id, pool.name, sortOrder: pool.sortOrder),
+        ),
+      );
+    }
+    return result;
   }
 
   @override
@@ -1639,9 +1715,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           ? const ScheduleEditRefused()
           : const ScheduleEditRefused('Only the Manager can edit that Section');
     }
-    final row = (await rows(
-      DateTime(cell.date.year, cell.date.month),
-    )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
+    final row = (await rows(DateTime(cell.date.year, cell.date.month)))
+        .where((row) => row.staffMemberId == cell.staffMemberId)
+        .firstOrNull;
     if (row == null || row.sectionId != cell.sectionId) {
       throw StateError(
         'That Staff member is not on the Staff list in this Section',
@@ -1668,9 +1744,9 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     final editable = await editableSections();
     for (final cell in [first, second]) {
       if (!editable.contains(cell.sectionId)) throw const ScheduleEditRefused();
-      final row = (await rows(
-        DateTime(cell.date.year, cell.date.month),
-      )).where((row) => row.staffMemberId == cell.staffMemberId).firstOrNull;
+      final row = (await rows(DateTime(cell.date.year, cell.date.month)))
+          .where((row) => row.staffMemberId == cell.staffMemberId)
+          .firstOrNull;
       if (row == null ||
           row.sectionId != cell.sectionId ||
           (row.lastDay != null && cell.date.isAfter(row.lastDay!))) {
@@ -1787,7 +1863,10 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<void> confirmLoadedMonth(DateTime month) async {
+  Future<void> confirmLoadedMonth(
+    DateTime month, {
+    bool acknowledgeShortfalls = false,
+  }) async {
     if (!await canEditSchedule()) throw const ScheduleEditRefused();
     if (!_database._awaitingConfirmation.remove(month)) {
       throw StateError('There is no loaded month waiting to be confirmed');
@@ -2116,7 +2195,10 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<void> releaseMonth(DateTime month) async {
+  Future<void> releaseMonth(
+    DateTime month, {
+    bool acknowledgeShortfalls = false,
+  }) async {
     if (!await canEditSchedule()) throw const ScheduleEditRefused();
     if (_database._monthStatus[month] != MonthStatus.unpublished ||
         _database._awaitingConfirmation.contains(month)) {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -8,6 +7,7 @@ import '../notifications/notices_page.dart';
 import '../schedule/print_wording_dialog.dart';
 import '../schedule/print_wording_gateway.dart';
 import '../schedule/shift_codes_page.dart';
+import '../schedule/coverage_settings_page.dart';
 import 'appearance.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -66,8 +66,15 @@ class SettingsPage extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.people_outline),
                 title: const Text('Staffing minimums'),
-                subtitle: const Text('Standing weekday minimums and RN floors'),
-                onTap: () => open(WeekdayMinimumsPage(rules: openShiftRules!)),
+                subtitle: const Text(
+                  'Coverage pools and standing weekday rules',
+                ),
+                onTap: () => open(
+                  CoverageSettingsPage(
+                    rules: openShiftRules!,
+                    scheduleRules: scheduleRules,
+                  ),
+                ),
               ),
               ListTile(
                 leading: const Icon(Icons.fact_check_outlined),
@@ -215,152 +222,6 @@ class _PrintWordingPageState extends State<_PrintWordingPage> {
               }
             }
           },
-        );
-      },
-    ),
-  );
-}
-
-class WeekdayMinimumsPage extends StatefulWidget {
-  const WeekdayMinimumsPage({super.key, required this.rules});
-  final OpenShiftRules rules;
-  @override
-  State<WeekdayMinimumsPage> createState() => _WeekdayMinimumsPageState();
-}
-
-class _WeekdayMinimumsPageState extends State<WeekdayMinimumsPage> {
-  late Future<List<SectionStaffing>> _staffing = widget.rules.staffingForMonth(
-    DateTime.now(),
-  );
-
-  Future<void> _edit(SectionStaffing item) async {
-    final minimum = TextEditingController(
-      text: item.weekdayMinimum?.toString() ?? '',
-    );
-    final floor = TextEditingController(text: (item.rnFloor ?? 0).toString());
-    final save = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          '${item.pool.label} · ${item.coverageWindow.label} · ${DateFormat.EEEE().format(item.date)}',
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: minimum,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Minimum people'),
-            ),
-            if (item.pool == RolePool.nurses)
-              TextField(
-                controller: floor,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'RN floor'),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (save == true) {
-      final count = int.tryParse(minimum.text);
-      final rnFloor = item.pool == RolePool.nurses
-          ? int.tryParse(floor.text)
-          : 0;
-      if (count == null ||
-          count < 0 ||
-          count > 100 ||
-          rnFloor == null ||
-          rnFloor < 0 ||
-          rnFloor > count) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Enter a minimum from 0 to 100 and an RN floor no higher than it.',
-              ),
-            ),
-          );
-        }
-      } else {
-        try {
-          await widget.rules.setWeekdayMinimum(
-            item.pool,
-            item.coverageWindow,
-            item.date.weekday % 7,
-            count,
-            rnFloor,
-          );
-          if (mounted) {
-            setState(
-              () => _staffing = widget.rules.staffingForMonth(DateTime.now()),
-            );
-          }
-        } catch (_) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('The staffing minimum was not saved.'),
-              ),
-            );
-          }
-        }
-      }
-    }
-    minimum.dispose();
-    floor.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Standing staffing minimums')),
-    body: FutureBuilder<List<SectionStaffing>>(
-      future: _staffing,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const Center(child: Text('Could not load staffing minimums.'));
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final byWeekday = <String, SectionStaffing>{};
-        for (final item in snapshot.data!) {
-          final key =
-              '${item.pool.name}:${item.coverageWindow.name}:${item.date.weekday}';
-          final previous = byWeekday[key];
-          if (previous == null ||
-              (previous.dateMinimum != null && item.dateMinimum == null)) {
-            byWeekday[key] = item;
-          }
-        }
-        final items = byWeekday.values.toList();
-        return ListView(
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('One-date overrides stay on the Day staffing sheet.'),
-            ),
-            for (final item in items)
-              ListTile(
-                title: Text(
-                  '${item.pool.label} · ${item.coverageWindow.label} · ${DateFormat.EEEE().format(item.date)}',
-                ),
-                subtitle: Text(
-                  'Minimum ${item.weekdayMinimum?.toString() ?? 'not set'}${item.pool == RolePool.nurses ? ' · RN floor ${item.rnFloor ?? 0}' : ''}',
-                ),
-                onTap: () => _edit(item),
-              ),
-          ],
         );
       },
     ),

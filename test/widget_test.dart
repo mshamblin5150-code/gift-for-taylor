@@ -246,8 +246,9 @@ void main() {
   testWidgets('a dated minimum leaves other days in its pool band blank', (
     tester,
   ) async {
-    await OpenShiftRules(database.openShiftStoreFor('manager'))
-        .setDateMinimum(RolePool.cna, CoverageWindow.day, september18, 1, 0);
+    await OpenShiftRules(
+      database.openShiftStoreFor('manager'),
+    ).setDateMinimum(CoveragePool.cna, CoverageWindow.day, september18, 1, 0);
     await pumpGrid(tester, withStaffing: true);
 
     expect(find.byKey(const ValueKey('pool-cna-2026-09-18')), findsOneWidget);
@@ -266,12 +267,12 @@ void main() {
   testWidgets('Day view still identifies unset Staffing minimums', (
     tester,
   ) async {
-    await pumpGrid(tester);
+    await pumpGrid(tester, withStaffing: true);
     await tester.tap(find.text('Day'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Days: not set'), findsNWidgets(3));
-    expect(find.text('Nights: not set'), findsNWidgets(3));
+    expect(find.text('Days: not set'), findsNWidgets(2));
+    expect(find.text('Nights: not set'), findsNWidgets(2));
   });
 
   testWidgets('dragging across rows swaps Shift codes and Undo restores them', (
@@ -541,21 +542,21 @@ void main() {
   ) async {
     final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
     await shifts.setDateMinimum(
-      RolePool.cna,
+      CoveragePool.cna,
       CoverageWindow.day,
       DateTime(2026, 9, 18),
       1,
       0,
     );
     await shifts.setDateMinimum(
-      RolePool.cna,
+      CoveragePool.cna,
       CoverageWindow.day,
       DateTime(2026, 9, 19),
       4,
       0,
     );
     await shifts.setDateMinimum(
-      RolePool.cna,
+      CoveragePool.cna,
       CoverageWindow.day,
       DateTime(2026, 9, 20),
       0,
@@ -634,7 +635,7 @@ void main() {
       releasedMonths: {september},
     );
     final shifts = OpenShiftRules(database.openShiftStoreFor('manager'));
-    for (final pool in RolePool.values) {
+    for (final pool in CoveragePool.values) {
       await shifts.setDateMinimum(
         pool,
         CoverageWindow.day,
@@ -938,13 +939,13 @@ void main() {
   testWidgets('Day view separates coverage from the Schedule Sections', (
     tester,
   ) async {
-    await pumpGrid(tester);
+    await pumpGrid(tester, withStaffing: true);
 
     await tester.tap(find.text('Day'));
     await tester.pumpAndSettle();
 
     final coverageHeader = tester.widget<ListTile>(
-      find.widgetWithText(ListTile, 'Nursing pool'),
+      find.widgetWithText(ListTile, 'Nurses'),
     );
     final sectionHeader = tester.widget<ListTile>(
       find.widgetWithText(ListTile, 'State dayshift RN'),
@@ -1023,8 +1024,22 @@ void main() {
     await manager.setLastDay(
       SetLastDay(staffMemberId: 'rn-1', lastDay: september18),
     );
+    await OpenShiftRules(database.openShiftStoreFor('manager')).setDateMinimum(
+      CoveragePool.nurses,
+      CoverageWindow.day,
+      DateTime(2026, 9, 20),
+      1,
+      0,
+    );
+    await OpenShiftRules(database.openShiftStoreFor('manager')).setDateMinimum(
+      CoveragePool.nurses,
+      CoverageWindow.night,
+      DateTime(2026, 9, 20),
+      0,
+      0,
+    );
 
-    await pumpGrid(tester);
+    await pumpGrid(tester, withStaffing: true);
 
     expect(cell('rn-1', september18), findsOneWidget);
     expect(cell('rn-1', DateTime(2026, 9, 19)), findsNothing);

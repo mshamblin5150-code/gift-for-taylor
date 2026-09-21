@@ -28,7 +28,7 @@ select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
   '00000000-0000-0000-0000-000000000284', '2027-06-03', '7A');
 select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
   '00000000-0000-0000-0000-000000000284', '2027-06-05', '7P');
-select public.release_month('2027-06-01');
+select public.release_month_checked('2027-06-01', true);
 
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);

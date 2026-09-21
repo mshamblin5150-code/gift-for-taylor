@@ -234,7 +234,7 @@ select public.save_schedule_cell(
 select public.mark_changes_announced(
   array(select id from public.schedule_changes
     where work_date = '2027-04-15'), '{}'::uuid[]);
-select public.release_month('2027-04-01');
+select public.release_month_checked('2027-04-01', true);
 select is((select count(*)::integer from public.schedule_changes
   where work_date = '2027-04-15' and moot_at is not null
     and announced_at is null), 2,
@@ -441,7 +441,7 @@ set local role authenticated;
 select public.mark_changes_announced(
   array(select id from public.schedule_changes
     where work_date = '2027-05-01'), '{}'::uuid[]);
-select public.confirm_loaded_month('2027-05-01');
+select public.confirm_loaded_month_checked('2027-05-01', true);
 select is((select count(*)::integer from public.schedule_changes
   where work_date = '2027-05-01' and moot_at is not null
     and announced_at is null), 2,

@@ -77,7 +77,7 @@ select is(public.can_read_change_log(), true,
 select is((select count(*)::integer from public.schedule_months
   where month_start = '2031-05-01'), 1,
   'Administrator can read an unpublished Schedule');
-select throws_ok($$select public.release_month('2031-05-01')$$,
+select throws_ok($$select public.release_month_checked('2031-05-01', false)$$,
   'Only the Manager can release a month',
   'Administrator cannot release the month');
 select throws_ok($$select public.decide_request_off(

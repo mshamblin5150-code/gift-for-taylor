@@ -72,32 +72,57 @@ void main() {
       expect(oct.shiftCodeFor('rn-1', DateTime(2026, 10, 3)) ?? '', '');
     });
 
-    test('marks a cleared working shift short in its pool and window', () async {
-      await manager.changeJobRole(ChangeJobRole(
-          staffMemberId: 'rn-1', jobRole: JobRole.rn,
-          from: DateTime(2026, 1)));
-      await manager.setLastDay(
-        SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
-      );
+    test(
+      'marks a cleared working shift short in its pool and window',
+      () async {
+        await manager.changeJobRole(
+          ChangeJobRole(
+            staffMemberId: 'rn-1',
+            jobRole: JobRole.rn,
+            from: DateTime(2026, 1),
+          ),
+        );
+        await manager.setLastDay(
+          SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
+        );
 
-      final oct = await manager.monthGrid(october);
-      final short = oct.shortShiftsOn(RolePool.nurses, CoverageWindow.day, DateTime(2026, 10, 2));
-      expect(short.single.shiftCode, '16D');
-      expect(short.single.staffMemberId, 'rn-1');
-      // Days off and requested-off days leave no hole.
-      expect(oct.shortShiftsOn(RolePool.nurses, CoverageWindow.day, DateTime(2026, 10, 1)), isEmpty);
-      expect(oct.shortShiftsOn(RolePool.nurses, CoverageWindow.day, DateTime(2026, 10, 3)), isEmpty);
-      expect(oct.shortShifts, hasLength(1));
-    });
+        final oct = await manager.monthGrid(october);
+        final short = oct.shortShiftsOn(
+          CoveragePool.nurses,
+          CoverageWindow.day,
+          DateTime(2026, 10, 2),
+        );
+        expect(short.single.shiftCode, '16D');
+        expect(short.single.staffMemberId, 'rn-1');
+        // Days off and requested-off days leave no hole.
+        expect(
+          oct.shortShiftsOn(
+            CoveragePool.nurses,
+            CoverageWindow.day,
+            DateTime(2026, 10, 1),
+          ),
+          isEmpty,
+        );
+        expect(
+          oct.shortShiftsOn(
+            CoveragePool.nurses,
+            CoverageWindow.day,
+            DateTime(2026, 10, 3),
+          ),
+          isEmpty,
+        );
+        expect(oct.shortShifts, hasLength(1));
+      },
+    );
 
     test('every cleared cell is written to the change log', () async {
       await manager.setLastDay(
         SetLastDay(staffMemberId: 'rn-1', lastDay: DateTime(2026, 9, 30)),
       );
 
-      final cleared = (await manager.changeLog(
-        october,
-      )).where((change) => !change.announced).toList();
+      final cleared = (await manager.changeLog(october))
+          .where((change) => !change.announced)
+          .toList();
       expect(cleared.map((change) => change.oldShiftCode), ['X', '16D', 'R/O']);
       expect(cleared.every((change) => change.newShiftCode == ''), isTrue);
       expect(cleared.every((change) => change.changedBy == 'manager'), isTrue);
@@ -153,9 +178,8 @@ void main() {
       );
       await save('rn-1', DateTime(2026, 9, 30), 'S/L');
       expect(
-        (await manager.monthGrid(
-          september,
-        )).shiftCodeFor('rn-1', DateTime(2026, 9, 30)),
+        (await manager.monthGrid(september))
+            .shiftCodeFor('rn-1', DateTime(2026, 9, 30)),
         'S/L',
       );
     });
@@ -298,9 +322,8 @@ void main() {
           ),
         );
         expect(
-          (await manager.monthGrid(
-            october,
-          )).shiftCodeFor('rn-1', DateTime(2026, 10, 20)),
+          (await manager.monthGrid(october))
+              .shiftCodeFor('rn-1', DateTime(2026, 10, 20)),
           '7P',
         );
       },

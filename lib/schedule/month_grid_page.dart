@@ -19,6 +19,7 @@ import 'announce_sheet.dart';
 import 'approval_queue_page.dart';
 import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
+import 'coverage_settings_page.dart';
 import 'messages_composer.dart';
 import 'print_wording_dialog.dart';
 import 'print_wording_gateway.dart';
@@ -556,7 +557,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _managePoolDay(
-    RolePool pool,
+    CoveragePool pool,
     CoverageWindow window,
     DateTime date,
   ) async {
@@ -567,10 +568,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
     final changed = await showStaffingSheet(
       context,
       rules: rules,
+      shiftCodes: _shiftCodes,
       date: date,
       staffing: staffing,
-      onStandingMinimums: () =>
-          _open((context) => WeekdayMinimumsPage(rules: rules)),
+      onStandingMinimums: () => _open(
+        (context) =>
+            CoverageSettingsPage(rules: rules, scheduleRules: widget.rules),
+      ),
     );
     if (changed == true) await _reload();
   }
@@ -677,12 +681,39 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _confirmMonth() async {
+    List<SectionStaffing> staffing;
+    try {
+      staffing =
+          await widget.openShiftRules?.staffingForMonth(_month) ?? _staffing;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Staffing could not be checked. Try again.'),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    final shortDays =
+        staffing
+            .where((item) => (item.shortCount ?? 0) > 0)
+            .map((item) => _dateOnly(item.date))
+            .toSet()
+            .toList()
+          ..sort();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Confirm ${DateFormat.yMMMM().format(_month)}?'),
-        content: const Text(
-          'Confirming releases this month as the live Schedule.',
+        content: Text(
+          shortDays.isEmpty
+              ? 'Confirming releases this month as the live Schedule.'
+              : '${shortDays.length} days are below a Staffing minimum: '
+                    '${shortDays.map((day) => DateFormat.MMMd().format(day)).join(', ')}. '
+                    'Review these days on the Schedule. Confirming releases the '
+                    'month without posting Open shifts. I acknowledge these short days.',
         ),
         actions: [
           TextButton(
@@ -691,14 +722,19 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Confirm'),
+            child: Text(
+              shortDays.isEmpty ? 'Confirm' : 'Acknowledge and confirm',
+            ),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
     try {
-      await widget.rules.confirmLoadedMonth(_month);
+      await widget.rules.confirmLoadedMonth(
+        _month,
+        acknowledgeShortfalls: shortDays.isNotEmpty,
+      );
       await _reload();
     } catch (_) {
       if (!mounted) return;
@@ -747,12 +783,39 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _releaseMonth() async {
+    List<SectionStaffing> staffing;
+    try {
+      staffing =
+          await widget.openShiftRules?.staffingForMonth(_month) ?? _staffing;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Staffing could not be checked. Try again.'),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    final shortDays =
+        staffing
+            .where((item) => (item.shortCount ?? 0) > 0)
+            .map((item) => _dateOnly(item.date))
+            .toSet()
+            .toList()
+          ..sort();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Release ${DateFormat.yMMMM().format(_month)}?'),
-        content: const Text(
-          'This month then becomes the live Schedule that staff can see.',
+        content: Text(
+          shortDays.isEmpty
+              ? 'This month then becomes the live Schedule that staff can see.'
+              : '${shortDays.length} days are below a Staffing minimum: '
+                    '${shortDays.map((day) => DateFormat.MMMd().format(day)).join(', ')}. '
+                    'Review these days on the Schedule before releasing. Releasing '
+                    'does not post Open shifts. I acknowledge these short days.',
         ),
         actions: [
           TextButton(
@@ -761,14 +824,19 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Release'),
+            child: Text(
+              shortDays.isEmpty ? 'Release' : 'Acknowledge and release',
+            ),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
     try {
-      await widget.rules.releaseMonth(_month);
+      await widget.rules.releaseMonth(
+        _month,
+        acknowledgeShortfalls: shortDays.isNotEmpty,
+      );
       await _reload();
     } catch (_) {
       if (!mounted) return;
@@ -967,6 +1035,22 @@ class _MonthGridPageState extends State<MonthGridPage> {
               ),
             ),
         ],
+      ),
+    if (_canManageUnit && widget.openShiftRules != null)
+      _ScheduleAction(
+        label: 'Unit coverage settings',
+        icon: Icons.tune,
+        onPressed: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (context) => CoverageSettingsPage(
+                rules: widget.openShiftRules!,
+                scheduleRules: widget.rules,
+              ),
+            ),
+          );
+          if (mounted) await _load();
+        },
       ),
     if (_isManager)
       _ScheduleAction(
@@ -1409,14 +1493,14 @@ final class _DraggedCell {
 }
 
 typedef _OnManageDay = Future<void> Function(
-  RolePool pool,
+  CoveragePool pool,
   CoverageWindow window,
   DateTime date,
 );
 
 SectionStaffing? _staffingOn(
   List<SectionStaffing> staffing,
-  RolePool pool,
+  CoveragePool pool,
   CoverageWindow window,
   DateTime day,
 ) => staffing
@@ -1429,6 +1513,32 @@ SectionStaffing? _staffingOn(
           item.date.day == day.day,
     )
     .firstOrNull;
+
+List<CoveragePool> _poolsForDay(
+  List<SectionStaffing> staffing,
+  List<ShortShift> shortShifts,
+  DateTime day,
+) {
+  final pools = <String, CoveragePool>{};
+  for (final item in staffing) {
+    if (item.date.year == day.year &&
+        item.date.month == day.month &&
+        item.date.day == day.day) {
+      pools[item.pool.value] = item.pool;
+    }
+  }
+  for (final short in shortShifts) {
+    if (_dateOnly(short.date) != _dateOnly(day)) continue;
+    final pool =
+        short.coveragePool ??
+        (short.jobRole == null
+            ? null
+            : CoveragePool.forJobRole(short.jobRole!));
+    if (pool != null) pools.putIfAbsent(pool.value, () => pool);
+  }
+  return pools.values.toList()
+    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+}
 
 class _MonthView extends StatefulWidget {
   const _MonthView({
@@ -1640,10 +1750,24 @@ class _MonthViewState extends State<_MonthView> {
     );
   }
 
-  List<RolePool> get _visiblePools {
+  List<CoveragePool> get _visiblePools {
     final days = widget.grid.days;
+    final pools = <String, CoveragePool>{};
+    for (final item in widget.staffing) {
+      pools.putIfAbsent(item.pool.value, () => item.pool);
+    }
+    for (final short in widget.grid.shortShifts) {
+      final pool =
+          short.coveragePool ??
+          (short.jobRole == null
+              ? null
+              : CoveragePool.forJobRole(short.jobRole!));
+      if (pool != null) pools.putIfAbsent(pool.value, () => pool);
+    }
     return [
-      for (final pool in RolePool.values)
+      for (final pool
+          in (pools.values.toList()
+            ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder))))
         if (days.any(
           (day) => CoverageWindow.values.any(
             (window) =>
@@ -1769,7 +1893,7 @@ class _MonthViewState extends State<_MonthView> {
 class _PoolNames extends StatelessWidget {
   const _PoolNames({required this.visiblePools});
 
-  final List<RolePool> visiblePools;
+  final List<CoveragePool> visiblePools;
 
   @override
   Widget build(BuildContext context) {
@@ -1949,7 +2073,7 @@ class _PoolBand extends StatelessWidget {
   });
 
   final MonthGrid grid;
-  final RolePool pool;
+  final CoveragePool pool;
   final List<DateTime> days;
   final DateTime today;
   final List<SectionStaffing> staffing;
@@ -2370,10 +2494,14 @@ class _DayView extends StatelessWidget {
                         ),
                 ],
               ] else ...[
-                for (final pool in RolePool.values) ...[
+                for (final pool in _poolsForDay(
+                  staffing,
+                  grid.shortShifts,
+                  day,
+                )) ...[
                   _dayGroupHeader(
                     context,
-                    pool == RolePool.nurses ? 'Nursing pool' : pool.label,
+                    pool.label,
                     Theme.of(context).colorScheme.primary,
                   ),
                   for (final window in CoverageWindow.values)
@@ -2382,14 +2510,16 @@ class _DayView extends StatelessWidget {
                         final item = _staffingOn(staffing, pool, window, day);
                         final short = item?.shortCount ?? 0;
                         final rnShort = item?.rnShortCount ?? 0;
+                        final floorName = item?.floorRole?.label ?? '';
                         final summary = item?.minimum == null
                             ? 'not set'
                             : short == 0
                             ? 'Covered'
                             : rnShort == short
-                            ? 'Short $short RN'
+                            ? 'Short $short $floorName'
                             : rnShort > 0
-                            ? 'Short $short ${pool.label.toLowerCase()}, $rnShort an RN'
+                            ? 'Short $short ${pool.label.toLowerCase()}, '
+                                  '$rnShort ${floorName.toLowerCase()}'
                             : 'Short $short ${pool.label.toLowerCase()}';
                         return ListTile(
                           title: Text('${window.label}: $summary'),

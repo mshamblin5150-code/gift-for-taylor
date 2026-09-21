@@ -53,6 +53,63 @@ class _NoticesPageState extends State<NoticesPage> {
     }
   }
 
+  Future<void> _openBatch(StaffNotice notice) async {
+    try {
+      if (!notice.isRead) await widget.gateway.markRead(notice.id);
+      final details = await widget.gateway.ruleBatchDetails(
+        notice.ruleBatchId!,
+      );
+      if (!mounted) return;
+      setState(() => _notices = widget.gateway.notices());
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Open shift batch'),
+          content: SizedBox(
+            width: 420,
+            height: 420,
+            child: ListView(
+              children: [
+                for (final row in details.plan)
+                  ListTile(
+                    title: Text(
+                      '${row['work_date']} · ${row['pool']} '
+                      '· ${row['window']}',
+                    ),
+                    subtitle: Text(
+                      'Posted ${(row['post_floor'] as int) + (row['post_ordinary'] as int)}, withdrew '
+                      '${(row['withdraw_floor'] as int) + (row['withdraw_ordinary'] as int)}',
+                    ),
+                  ),
+                if (details.shifts.isNotEmpty) const Divider(),
+                for (final shift in details.shifts)
+                  ListTile(
+                    title: Text(
+                      '${shift['shift_code']} · '
+                      '${shift['work_date']}',
+                    ),
+                    subtitle: Text(
+                      '${shift['job_role']} · '
+                      '${shift['filled_at'] == null ? 'Open' : 'Filled'} · '
+                      '${shift['requires_approval'] == true ? 'Approval required' : 'Immediate pickup'}',
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (mounted) setState(() => _message = error.toString());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -129,7 +186,9 @@ class _NoticesPageState extends State<NoticesPage> {
                         '${notice.body}\n${DateFormat.yMMMd().add_jm().format(notice.createdAt.toLocal())}',
                       ),
                       isThreeLine: true,
-                      onTap: notice.isRead
+                      onTap: notice.ruleBatchId != null
+                          ? () => _openBatch(notice)
+                          : notice.isRead
                           ? null
                           : () => _act(
                               () => widget.gateway.markRead(notice.id),
