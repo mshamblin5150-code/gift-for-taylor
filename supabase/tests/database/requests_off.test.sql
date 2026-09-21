@@ -32,8 +32,9 @@ select lives_ok($$select public.submit_request_off(array['2027-02-10','2027-02-1
 select is((select count(*)::int from public.requests_off), 1, 'Staff sees own Request off');
 select is((select count(*)::int from public.request_off_dates), 2, 'both requested days kept');
 select throws_ok($$select public.decide_request_off((select id from public.requests_off limit 1), 'approved', null)$$, 'Only the Manager can decide Requests off', 'Staff cannot approve');
+select set_config('test.request_off_id', (select id::text from public.requests_off limit 1), true);
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000267","role":"authenticated"}', true);
-select throws_ok($$select public.confirm_request_off_email((select id from public.requests_off limit 1))$$, 'Request off not found', 'Another Staff member cannot confirm the email copy');
+select throws_ok($$select public.confirm_request_off_email(current_setting('test.request_off_id')::uuid)$$, 'Request off not found', 'Another Staff member cannot confirm the email copy');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000262","role":"authenticated"}', true);
 select is((select email_confirmed_at is null from public.requests_off limit 1), true, 'Another Staff member leaves the email copy unconfirmed');
 select lives_ok($$select public.confirm_request_off_email((select id from public.requests_off limit 1))$$, 'requester confirms email copy');
