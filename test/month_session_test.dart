@@ -481,6 +481,10 @@ void main() {
       await session.load();
       expect(await session.startMonth(empty: false), isA<Started>());
       expect(session.state.grid!.status, MonthStatus.unpublished);
+      database.failNext(
+        InMemoryStoreCall.startMonth,
+        const MonthAlreadyStarted(),
+      );
       expect(await session.startMonth(empty: false), isA<AlreadyStarted>());
       session.dispose();
       final november = create(viewingMonth: DateTime(2026, 11));
@@ -494,6 +498,10 @@ void main() {
       november.dispose();
       final january = create(viewingMonth: DateTime(2027, 1));
       await january.load();
+      database.failNext(
+        InMemoryStoreCall.startMonth,
+        PreviousMonthNotStarted(),
+      );
       expect(await january.startMonth(empty: false), isA<NoPreviousMonth>());
       january.dispose();
     },

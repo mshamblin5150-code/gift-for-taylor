@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(38);
 
 insert into auth.users (id, email)
 values
@@ -105,7 +105,7 @@ select throws_ok(
   $$select public.start_month('2027-03-01', jsonb_build_array(
       pg_temp.cell('00000000-0000-0000-0000-000000000323', '2027-03-01', '7A')
     ))$$,
-  'Only the Manager can start a month',
+  '42501', 'Only the Manager can start a month',
   'a Staff member cannot start a month'
 );
 
@@ -161,7 +161,7 @@ select is(
 
 select throws_ok(
   $$select public.start_month('2027-03-01', '[]'::jsonb)$$,
-  'That month has already been started',
+  'P2791', 'That month has already been started',
   'a month is started only once'
 );
 
@@ -404,7 +404,7 @@ select lives_ok(
 );
 select throws_ok(
   $$select public.start_month('2027-07-01', '[]'::jsonb)$$,
-  'That month has already been started',
+  'P2791', 'That month has already been started',
   'starting the empty month again is rejected'
 );
 select is(
@@ -432,6 +432,16 @@ select set_config(
 select lives_ok(
   $$select public.release_month_checked('2027-07-01', true)$$,
   'the Manager releases the manually entered month'
+);
+
+select throws_ok(
+  $$select public.start_month('2027-08-01', '[]'::jsonb, '2027-06-01')$$,
+  'P2792', 'There is no Schedule to start from',
+  'copying a missing source month has a distinct refusal code'
+);
+select lives_ok(
+  $$select public.start_month('2027-08-01', '[]'::jsonb, '2027-07-01')$$,
+  'copying an existing source month starts the target'
 );
 
 select * from finish();

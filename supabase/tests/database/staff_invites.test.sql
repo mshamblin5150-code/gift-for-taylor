@@ -202,13 +202,13 @@ select set_config(
 );
 select throws_ok(
   $$select public.accept_invite((select token from initial_invite), '555-0137')$$,
-  'P0001',
+  'P2794',
   'This Invite is invalid, expired, or has already been used',
   'a revoked Invite cannot be accepted'
 );
 select throws_ok(
   $$select public.accept_invite((select token from invite_tokens), '555-0137')$$,
-  'P0001',
+  'P2794',
   'This Invite is invalid, expired, or has already been used',
   'an expired Invite cannot be accepted'
 );
@@ -228,7 +228,7 @@ select set_config(
 );
 select throws_ok(
   $$select public.accept_invite('not-an-invite', '555-0000')$$,
-  'P0001',
+  'P2794',
   'This Invite is invalid, expired, or has already been used',
   'an invalid token gives no Cell number detail'
 );
@@ -289,7 +289,7 @@ select ok(public.my_invite_acceptance_pending(),
 
 select throws_ok(
   $$select public.accept_invite((select token from invite_tokens), '+15550137')$$,
-  'P0001',
+  'P2794',
   'This Invite is invalid, expired, or has already been used',
   'a used Invite cannot be accepted again'
 );

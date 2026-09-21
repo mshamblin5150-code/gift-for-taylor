@@ -228,6 +228,14 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
     try {
       await widget.rules.store.deleteShiftCode(code.code);
       _reload();
+    } on ShiftCodeInUse {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Codes used on the Schedule cannot be deleted.'),
+          ),
+        );
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)

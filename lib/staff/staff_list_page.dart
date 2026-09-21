@@ -367,12 +367,14 @@ class _StaffListPageState extends State<StaffListPage> {
     try {
       await widget.gateway.deleteEmptySection(section.id);
       await _load();
-    } catch (_) {
+    } on SectionInUseException {
       if (mounted) {
         _showError(
           'This Section has Staff members or Schedule history and cannot be deleted.',
         );
       }
+    } catch (_) {
+      if (mounted) _showError('Could not delete the Section. Try again.');
     }
   }
 

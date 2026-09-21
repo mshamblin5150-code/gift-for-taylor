@@ -43,7 +43,7 @@ select throws_ok($$select public.reorder_sections(array(
 ))$$, 'The reorder must include every Section exactly once', 'duplicate Section is rejected');
 select lives_ok($$select public.rename_section('00000000-0000-0000-0000-000000000488', ' Sections renamed ')$$, 'Manager renames a Section');
 select is((select name from public.sections where id = '00000000-0000-0000-0000-000000000488'), 'Sections renamed', 'Section name is trimmed and persists');
-select throws_ok($$select public.delete_empty_section('00000000-0000-0000-0000-000000000487')$$, 'A Section with Staff members cannot be deleted', 'occupied Section is protected');
+select throws_ok($$select public.delete_empty_section('00000000-0000-0000-0000-000000000487')$$, 'P2795', 'A Section with Staff members cannot be deleted', 'occupied Section is protected');
 select lives_ok($$select public.delete_empty_section('00000000-0000-0000-0000-000000000488')$$, 'empty Section can be deleted');
 select lives_ok($$select public.add_section('Sections clerks')$$, 'Manager can add a Section');
 select is((select count(*)::integer from public.sections where name = 'Sections clerks'), 1, 'new Section is visible in the shared Section query');

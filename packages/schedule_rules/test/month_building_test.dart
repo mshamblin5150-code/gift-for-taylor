@@ -168,6 +168,10 @@ void main() {
     test('refuses a month that is already started', () async {
       await save(dayNurse, DateTime(2026, 10, 5), '7A');
       await save(dayNurse, DateTime(2026, 11, 2), 'D');
+      database.failNext(
+        InMemoryStoreCall.startMonth,
+        const MonthAlreadyStarted(),
+      );
 
       await expectLater(
         manager.startNextMonth(DateTime(2026, 10)),
@@ -178,6 +182,10 @@ void main() {
     });
 
     test('needs a Schedule in the month to start from', () async {
+      database.failNext(
+        InMemoryStoreCall.startMonth,
+        PreviousMonthNotStarted(),
+      );
       await expectLater(
         manager.startNextMonth(DateTime(2026, 10)),
         throwsA(isA<PreviousMonthNotStarted>()),
@@ -191,10 +199,11 @@ void main() {
     test('only the Manager may start a month', () async {
       await save(dayNurse, DateTime(2026, 10, 5), '7A');
       final staffMember = scheduleRulesInMemory(database, actingAs: 'rn-1');
+      database.failNext(InMemoryStoreCall.startMonth, const AccessRejected());
 
       await expectLater(
         staffMember.startNextMonth(DateTime(2026, 10)),
-        throwsA(isA<ScheduleEditRefused>()),
+        throwsA(isA<AccessRejected>()),
       );
       expect(
         (await manager.monthGrid(DateTime(2026, 11))).status,
@@ -241,6 +250,10 @@ void main() {
       'refuses an already started month without changing its cells',
       () async {
         await save(dayNurse, DateTime(2026, 10, 16), 'D');
+        database.failNext(
+          InMemoryStoreCall.startMonth,
+          const MonthAlreadyStarted(),
+        );
         await expectLater(
           manager.startEmptyMonth(DateTime(2026, 10)),
           throwsA(isA<MonthAlreadyStarted>()),
@@ -255,9 +268,10 @@ void main() {
 
     test('only the Manager may start an empty month', () async {
       final staffMember = scheduleRulesInMemory(database, actingAs: 'rn-1');
+      database.failNext(InMemoryStoreCall.startMonth, const AccessRejected());
       await expectLater(
         staffMember.startEmptyMonth(DateTime(2026, 10)),
-        throwsA(isA<ScheduleEditRefused>()),
+        throwsA(isA<AccessRejected>()),
       );
       expect(
         (await manager.monthGrid(DateTime(2026, 10))).status,

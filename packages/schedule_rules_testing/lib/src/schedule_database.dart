@@ -635,12 +635,12 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           .contains(DateTime(month.year, month.month));
 
   @override
-  Future<void> startMonth(DateTime month, List<ScheduleCell> cells) async {
+  Future<void> startMonth(
+    DateTime month,
+    List<ScheduleCell> cells, {
+    DateTime? sourceMonth,
+  }) async {
     _database._throwNextFailure(InMemoryStoreCall.startMonth);
-    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
-    if (_database._monthStatus.containsKey(month)) {
-      throw const MonthAlreadyStarted();
-    }
     _database._monthStatus[month] = MonthStatus.unpublished;
     for (final cell in cells) {
       _database._cells[_cellKey(cell.staffMemberId, cell.date)] = cell;

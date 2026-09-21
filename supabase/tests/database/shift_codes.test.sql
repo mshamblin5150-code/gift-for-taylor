@@ -71,7 +71,7 @@ select ok((select cell.updated_at > previous.updated_at
   where cell.work_date = '2027-03-04'),
   'editing hours advances the calendar event modification time');
 select throws_ok($$select public.delete_shift_code('7A')$$,
-  'A Shift code in use cannot be deleted', 'used code cannot be deleted');
+  'P2796', 'A Shift code in use cannot be deleted', 'used code cannot be deleted');
 select lives_ok($$select public.save_shift_code('TRAIN', 'Training', null, null, false, null)$$,
   'Manager adds a code with a meaning and no hours');
 select lives_ok($$select public.save_shift_code('NEW', null, '19:00', '07:00', true, null)$$,
