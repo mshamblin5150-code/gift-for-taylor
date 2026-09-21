@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(27);
+select plan(23);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000271', 'open-manager@example.test'),
@@ -77,65 +77,28 @@ select is((select count(*)::int from public.staff_notices where kind = 'open_shi
 set local role authenticated;
 select public.save_schedule_cell('00000000-0000-0000-0000-000000000279'::uuid,
   '00000000-0000-0000-0000-000000000275'::uuid, '2027-02-11'::date, 'X');
+reset role;
+-- A later role history change must not move the already opened RN shift.
+insert into public.staff_job_roles(staff_member_id, job_role, effective_from)
+values ('00000000-0000-0000-0000-000000000278', 'cna', '2027-02-11');
+set local role authenticated;
 select is((select count(*)::int from public.visible_open_shifts() where work_date = '2027-02-11'),
   1, 'later RN shift remains open after original role ends');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000273","role":"authenticated"}', true);
 select is((select count(*)::int from public.visible_open_shifts() where work_date = '2027-02-11'),
-  0, 'LPN cannot see shift after original RN Last day ends role');
-
-reset role;
-update public.staff_job_roles set effective_through = '2027-02-13'
-where staff_member_id = '00000000-0000-0000-0000-000000000278';
-insert into public.short_shifts(schedule_month_id, section_id, work_date,
-  shift_code, staff_member_id, reason)
-values ('00000000-0000-0000-0000-00000000027b',
-  '00000000-0000-0000-0000-000000000275', '2027-02-13', '7A',
-  '00000000-0000-0000-0000-000000000278', 'last_day');
-set local role authenticated;
-select is((select count(*)::int from public.visible_open_shifts() where work_date = '2027-02-13'),
-  1, 'LPN sees shift while original RN role is active');
-
+  1, 'LPN sees RN shift after original RN Last day');
+select is((select job_role from public.visible_open_shifts() where work_date = '2027-02-11'),
+  'rn'::public.job_role, 'Last-day Open shift keeps the RN Job role');
 select lives_ok($$select public.request_open_shift_pickup(
-  (select id from public.short_shifts where work_date = '2027-02-13'))$$,
-  'LPN requests shift while original RN role is active');
-reset role;
-update public.staff_job_roles set effective_through = '2027-02-10'
-where staff_member_id = '00000000-0000-0000-0000-000000000278';
-insert into public.staff_job_roles(staff_member_id, job_role, effective_from)
-values ('00000000-0000-0000-0000-000000000278', 'cna', '2027-02-12');
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000271","role":"authenticated"}', true);
-insert into public.short_shifts(schedule_month_id, section_id, work_date,
-  shift_code, staff_member_id, reason)
-values ('00000000-0000-0000-0000-00000000027b',
-  '00000000-0000-0000-0000-000000000275', '2027-02-11', '7A',
-  '00000000-0000-0000-0000-000000000278', 'last_day');
-select is((select count(*)::int from public.staff_notices
-  where kind = 'open_shift_posted' and staff_member_id = '00000000-0000-0000-0000-000000000279'
-    and body like '%2027-02-11%'), 0,
-  'LPN is not notified about a shift after original RN role ends');
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000273","role":"authenticated"}', true);
-select is((select count(*)::int from public.visible_open_shifts() where work_date = '2027-02-11'),
-  0, 'LPN cannot see shift after original RN role ends');
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000271","role":"authenticated"}', true);
-select throws_ok($$select public.approve_open_shift_pickup(
-  (select id from public.open_shift_pickups where short_shift_id =
-    (select id from public.short_shifts where work_date = '2027-02-13')))$$,
-  'Staff member is no longer eligible', 'Manager cannot approve pickup after original RN role ends');
-reset role;
-delete from public.open_shift_pickups where short_shift_id =
-  (select id from public.short_shifts where work_date = '2027-02-13');
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000273","role":"authenticated"}', true);
-select throws_ok($$select public.request_open_shift_pickup(
-  (select id from public.short_shifts where work_date = '2027-02-13'))$$,
-  'This Open shift is outside your role', 'LPN cannot request shift after original RN role ends');
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000274","role":"authenticated"}', true);
-select is((select count(*)::int from public.visible_open_shifts() where work_date = '2027-02-13'),
-  1, 'CNA sees shift after original Staff member changes to CNA');
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000273","role":"authenticated"}', true);
-select is((select count(*)::int from public.visible_open_shifts() where work_date = '2027-02-13'),
-  0, 'LPN does not see shift after original Staff member changes to CNA');
+  (select id from public.short_shifts where work_date = '2027-02-11'))$$,
+  'LPN requests RN shift after original RN Last day');
+select is((select (pool, coverage_window, open_count)::text
+  from public.section_staffing_for_month('2027-02-01')
+  where pool = 'nurses' and coverage_window = 'night' and work_date = '2027-02-11'),
+  '(nurses,night,1)', 'Last-day Open shift counts in the nursing night window');
+select is((select open_count from public.section_staffing_for_month('2027-02-01')
+  where pool = 'cna' and coverage_window = 'night' and work_date = '2027-02-11'),
+  0, 'Last-day nursing shift does not count in the CNA pool');
 
 select * from finish();
 rollback;
