@@ -427,6 +427,14 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
           rnCount: row['rn_count'] as int,
           openCount: row['open_count'] as int,
           rnOpenCount: row['rn_open_count'] as int,
+          shortCount: row['shortfall'] as int?,
+          rnShortCount: row['rn_shortfall'] as int?,
+          unpostedCount: row['shortfall'] == null
+              ? null
+              : ((row['shortfall'] as int) - (row['open_count'] as int)).clamp(
+                  0,
+                  100,
+                ),
           weekdayMinimum: row['weekday_minimum'] as int?,
           dateMinimum: row['date_minimum'] as int?,
           floorRole: (() {

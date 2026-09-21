@@ -10,6 +10,7 @@ Future<bool?> showStaffingSheet(
   required List<LegendCode> shiftCodes,
   required DateTime date,
   required SectionStaffing staffing,
+  required WindowCoverage reading,
   VoidCallback? onStandingMinimums,
 }) async {
   final minimum = TextEditingController(
@@ -106,12 +107,9 @@ Future<bool?> showStaffingSheet(
                   Text(
                     '${staffing.workingCount} working • minimum ${staffing.minimum?.toString() ?? 'not set'} • ${staffing.openCount} Open',
                   ),
-                  if (staffing.shortCount case final short? when short > 0)
+                  if (reading.shortfall > 0)
                     Text(
-                      staffing.rnShortCount == short &&
-                              staffing.floorRole != null
-                          ? 'Short $short ${staffing.floorRole!.label}'
-                          : 'Short $short',
+                      reading.summary,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
