@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(17);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000002166', 'pool-manager@example.test'),
@@ -76,6 +76,10 @@ select is((select after_value->'memberships'->>'lpn'
   from public.coverage_rule_audit where action = 'coverage_pools'
   order by changed_at desc limit 1), 'lpn_team',
   'pool audit records new membership');
+select is((select after_value->'memberships'->>'lpn'
+  from public.unit_setting_audit where kind = 'Coverage pools'
+  order by changed_at desc limit 1), 'lpn_team',
+  'Settings history includes the Coverage pool role move');
 select is((public.coverage_pool_version_on('nurses', current_date)).name,
   'Nurses', 'past pool name is retained');
 select is((public.coverage_pool_version_on('nurses', current_date + 1)).name,

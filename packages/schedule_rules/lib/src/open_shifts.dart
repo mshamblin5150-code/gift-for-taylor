@@ -93,7 +93,6 @@ final class OpenShiftPickup {
 }
 
 abstract interface class OpenShiftStore {
-  Future<bool> canManageCoverageRules();
   Future<List<CoveragePoolConfig>> coveragePoolsOn(DateTime date);
   Future<List<Map<String, dynamic>>> coverageRuleHistory();
   Future<List<Map<String, dynamic>>> previewCoveragePools(
@@ -180,7 +179,6 @@ abstract interface class OpenShiftStore {
 final class OpenShiftRules {
   const OpenShiftRules(this.store);
   final OpenShiftStore store;
-  Future<bool> canManageCoverageRules() => store.canManageCoverageRules();
   Future<List<CoveragePoolConfig>> coveragePoolsOn(DateTime date) =>
       store.coveragePoolsOn(date);
   Future<List<Map<String, dynamic>>> coverageRuleHistory() =>
@@ -312,8 +310,6 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   _InMemoryOpenShiftStore(this.database, this.actor);
   final InMemoryScheduleDatabase database;
   final String actor;
-  @override
-  Future<bool> canManageCoverageRules() async => _manager;
   @override
   Future<List<CoveragePoolConfig>> coveragePoolsOn(DateTime date) async {
     final seeds = [

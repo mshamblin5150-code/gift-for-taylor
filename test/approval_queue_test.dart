@@ -23,8 +23,6 @@ class _Pickups extends Fake implements OpenShiftStore {
   final items = <OpenShiftPickup>[];
   final shifts = <OpenShift>[];
   @override
-  Future<bool> canManageCoverageRules() async => true;
-  @override
   Future<List<OpenShiftPickup>> pickups() async => items;
   @override
   Future<List<OpenShift>> openShifts() async => shifts;

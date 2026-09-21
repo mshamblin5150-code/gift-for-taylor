@@ -8,12 +8,6 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   final SupabaseClient client;
 
   @override
-  Future<bool> canManageCoverageRules() async {
-    final role = await client.rpc<String?>('current_staff_role');
-    return role == 'manager' || role == 'administrator';
-  }
-
-  @override
   Future<List<OpenShift>> openShifts() async {
     final rows = await client.rpc<List<dynamic>>('visible_open_shifts');
     final seen = <String>{};

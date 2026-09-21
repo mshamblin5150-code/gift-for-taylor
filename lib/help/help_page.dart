@@ -206,7 +206,7 @@ const helpTopics = <HelpTopic>[
     what: 'A Staffing minimum says how many people a Coverage pool needs in a Day or Night Coverage window, never for a Section. A pool can also require a floor for one member Job role. Standing weekday rules take effect from a chosen date; a single-date override belongs on that day’s staffing sheet.',
     how:
         'For a standing rule:\n'
-        '1. Open Unit coverage settings from the Schedule actions.\n'
+        '1. Open Settings, then Staffing minimums.\n'
         '2. Choose an effective date of today or later.\n'
         '3. On an active pool, tap Edit standing Staffing minimums.\n'
         '4. Choose a weekday and Coverage window, enter the minimum and any floor, then tap Preview.\n'
@@ -220,7 +220,7 @@ const helpTopics = <HelpTopic>[
     who: 'Manager and Administrator; Night schedulers can read this guidance',
     what: 'Coverage pools group Job roles for counting against Staffing minimums. The seeded pools are Nurses (RN and LPN), CNA, and Unit clerk. Moving a Job role changes coverage counting on the effective date; Open shift pickup eligibility stays based on Job role.',
     how:
-        '1. Open Unit coverage settings from the Schedule actions.\n'
+        '1. Open Settings, then Staffing minimums.\n'
         '2. Choose an effective date of today or later.\n'
         '3. Create or rename pools, use the arrows to reorder them, and move each Job role to one active pool.\n'
         '4. Choose a floor Job role only from that pool’s members. To retire a pool, move out its Job roles first.\n'
@@ -231,7 +231,7 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Post Open shifts',
-    who: 'Manager only; Night schedulers can read this guidance',
+    who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'The Manager can offer one Open shift or the unposted gap for a Coverage pool and Coverage window. Staff members then see the offer in Open shifts. A rule change on a released Schedule can also post a reviewed batch; an eligible Staff member gets one notice linking to that batch.',
     how:
         'Manager only:\n'
@@ -245,7 +245,7 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Month release',
-    who: 'Manager only; Night schedulers can read this guidance',
+    who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'Month release makes a prepared month visible to Staff members and announces it to everyone. Before release, Staff members cannot read that month.',
     how: 'Manager only: open the new month on the Schedule. Start it from the previous month if needed, then check and correct the Shift codes and short days. Tap Release month in the banner. If days are below a Staffing minimum, review the listed dates and tap Acknowledge and release. Release makes the month visible to Staff members and does not automatically post Open shifts for short days. Later edits need a Change announcement.',
     searchTerms: 'release month new schedule',
@@ -260,7 +260,7 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Load a printed Schedule',
-    who: 'Manager only; Night schedulers can read this guidance',
+    who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'The first month can be loaded from a printed Schedule outside the app. The Manager must proofread that loaded month before it becomes the live Schedule.',
     how: 'Manager only: ask the person setting up the app to load the printed page. Open that month, compare every Staff row and Shift code with the paper, and correct any mismatch. Review any listed short days and acknowledge them. Tap Confirm month only when the page agrees; confirmation releases that month to Staff members without automatically posting Open shifts.',
     searchTerms: 'first month paper import confirm',

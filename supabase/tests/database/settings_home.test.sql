@@ -21,7 +21,7 @@ select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000001760","role":"authenticated"}', true);
 select lives_ok($$select public.set_print_wording('Print page', 'Released title', 'Released notice')$$,
   'Manager sets the Unit print default');
-select lives_ok($$select public.release_month('2031-01-01')$$,
+select lives_ok($$select public.release_month_checked('2031-01-01', true)$$,
   'Manager releases the month');
 select is((select print_title from public.schedule_months where month_start = '2031-01-01'),
   'Released title', 'release captures the title');

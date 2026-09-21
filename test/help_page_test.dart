@@ -155,6 +155,11 @@ void main() {
       expect(find.text('Administrator access'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'staff list');
       await tester.pump();
+      await tester.scrollUntilVisible(
+        find.text('Staff list'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
       expect(find.text('Staff list'), findsOneWidget);
       await tester.tap(find.text('Staff list'));
       await tester.pumpAndSettle();

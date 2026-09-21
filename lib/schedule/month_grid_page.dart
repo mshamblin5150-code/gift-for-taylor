@@ -571,8 +571,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
       shiftCodes: _shiftCodes,
       date: date,
       staffing: staffing,
-      onStandingMinimums: () =>
-          _open((context) => WeekdayMinimumsPage(rules: rules)),
+      onStandingMinimums: () => _open(
+        (context) =>
+            CoverageSettingsPage(rules: rules, scheduleRules: widget.rules),
+      ),
     );
     if (changed == true) await _reload();
   }
