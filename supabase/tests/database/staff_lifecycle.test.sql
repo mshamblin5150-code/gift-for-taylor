@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(67);
+select plan(73);
 
 insert into auth.users (id, email)
 values
@@ -162,10 +162,21 @@ select throws_ok(
   'the Manager cannot set her own Last day'
 );
 
+select public.change_staff_section(
+  '00000000-0000-0000-0000-000000000197',
+  '00000000-0000-0000-0000-000000000195',
+  '2027-02-01'
+);
+
 select lives_ok(
   $$select public.set_staff_last_day('00000000-0000-0000-0000-000000000197', '2027-01-10')$$,
   'the Manager sets a Last day'
 );
+
+select is((select count(*)::integer from public.staff_section_assignments
+  where staff_member_id = '00000000-0000-0000-0000-000000000197'
+    and effective_from = '2027-02-01'), 0,
+  'a Last day before a planned Section move drops the move');
 
 select results_eq(
   $$
@@ -196,6 +207,20 @@ select results_eq(
 );
 
 select results_eq(
+  $$select work_date::text, job_role::text
+    from public.short_shifts
+    where staff_member_id = '00000000-0000-0000-0000-000000000197'
+    order by work_date$$,
+  $$values ('2027-01-11', 'rn'), ('2027-01-13', 'rn')$$,
+  'Last-day Open shifts retain the Job role held on the Last day'
+);
+
+select is((select (pool, coverage_window, open_count)::text
+  from public.section_staffing_for_month('2027-01-01')
+  where pool = 'nurses' and coverage_window = 'day' and work_date = '2027-01-11'),
+  '(nurses,day,1)', 'the Last-day Open shift retains its nursing Day window');
+
+select results_eq(
   $$
     select old_shift_code, new_shift_code, changed_by_staff_member_id
     from public.schedule_changes
@@ -214,6 +239,7 @@ select results_eq(
     select kind, new_value, effective_from::text
     from public.staff_changes
     where staff_member_id = '00000000-0000-0000-0000-000000000197'
+      and kind = 'last_day'
   $$,
   $$values ('last_day', '2027-01-10', '2027-01-10')$$,
   'the Last day is in the Staff list change log'
@@ -388,6 +414,15 @@ select results_eq(
   'the same person is back on the Staff list, waiting for a fresh Invite'
 );
 
+select throws_ok(
+  $$select public.reactivate_staff_member(
+    '00000000-0000-0000-0000-000000000197',
+    '00000000-0000-0000-0000-000000000194',
+    '2027-04-01')$$,
+  'That person is already on the Staff list',
+  'reactivation refuses someone still on the Staff list'
+);
+
 -- A returning person whose imported contact lacked a Cell number needs one
 -- before the Manager can send the fresh Invite.
 select public.update_staff_contact(
@@ -511,6 +546,15 @@ select results_eq(
   'the row moves to the new Section from that date'
 );
 
+select throws_ok(
+  $$select public.change_staff_section(
+    '00000000-0000-0000-0000-000000000198',
+    '00000000-0000-0000-0000-000000000194',
+    '2027-01-10')$$,
+  'The move must start on or after their current Section did',
+  'a Section change cannot start before the current Section'
+);
+
 select lives_ok(
   $$select public.change_staff_job_role(
     '00000000-0000-0000-0000-000000000198',
@@ -518,6 +562,14 @@ select lives_ok(
     '2027-01-15'
   )$$,
   'the Manager changes a role from a chosen date'
+);
+
+select throws_ok(
+  $$select public.change_staff_job_role(
+    '00000000-0000-0000-0000-000000000198',
+    'rn', '2027-02-01')$$,
+  'They already have that role',
+  'a Job role change refuses the role already held'
 );
 
 select results_eq(

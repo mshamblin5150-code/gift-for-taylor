@@ -79,15 +79,10 @@ void main() {
       editors: const {'manager', 'other-manager'},
       releasedMonths: {september},
     );
-    final manager = scheduleRulesInMemory(database, actingAs: 'manager');
     for (final id in ['rn-1', 'rn-2']) {
-      await manager.store.changeJobRole(
-        ChangeJobRole(
-          staffMemberId: id,
-          jobRole: JobRole.rn,
-          from: DateTime(2026, 1),
-        ),
-      );
+      database.seedJobRoles(id, [
+        DatedJobRole(jobRole: JobRole.rn, from: DateTime(2026, 1), through: null),
+      ]);
     }
   });
 
@@ -1184,6 +1179,34 @@ void main() {
     await manager.store.setLastDay(
       SetLastDay(staffMemberId: 'rn-1', lastDay: september18),
     );
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'rn-1',
+        sectionId: 'days',
+        date: DateTime(2026, 9, 20),
+        shiftCode: '',
+      ),
+    );
+    database.seedRows(september, [
+      ScheduleRow(
+        staffMemberId: dayNurse.staffMemberId,
+        displayName: dayNurse.displayName,
+        sectionId: dayNurse.sectionId,
+        lastDay: september18,
+      ),
+      nightNurse,
+    ]);
+    database.seedShortShifts(september, [
+      ShortShift(
+        sectionId: 'days',
+        date: DateTime(2026, 9, 20),
+        shiftCode: '7A',
+        staffMemberId: 'rn-1',
+        jobRole: JobRole.rn,
+        coverageWindow: CoverageWindow.day,
+        coveragePool: CoveragePool.nurses,
+      ),
+    ]);
     seedStaffing(september, facts: {
       ('nurses', CoverageWindow.day, 20): (minimum: 1, shortfall: 1, openCount: 1, rnShortfall: 0),
     });

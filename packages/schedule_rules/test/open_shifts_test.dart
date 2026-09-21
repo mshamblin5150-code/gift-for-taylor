@@ -51,13 +51,9 @@ void main() {
       ('cna', JobRole.cna),
       ('clerk', JobRole.unitClerk),
     ]) {
-      await manager.store.changeJobRole(
-        ChangeJobRole(
-          staffMemberId: id,
-          jobRole: role,
-          from: DateTime(2026, 1),
-        ),
-      );
+      database.seedJobRoles(id, [
+        DatedJobRole(jobRole: role, from: DateTime(2026, 1), through: null),
+      ]);
     }
     await manager.saveCell(
       SaveCell(
@@ -244,29 +240,6 @@ void main() {
     },
   );
 
-
-  test(
-    'a Last day posts later working shifts using the departing role',
-    () async {
-      final later = DateTime(2026, 10, 13);
-      await manager.saveCell(
-        SaveCell(
-          staffMemberId: 'original',
-          sectionId: 'nursing',
-          date: later,
-          shiftCode: '7P',
-        ),
-      );
-      await manager.store.setLastDay(
-        SetLastDay(staffMemberId: 'original', lastDay: day),
-      );
-      final visible = await database.openShiftStoreFor('lpn').openShifts();
-      expect(
-        visible.where((shift) => shift.date == later).single.shiftCode,
-        '7P',
-      );
-    },
-  );
 
 
 

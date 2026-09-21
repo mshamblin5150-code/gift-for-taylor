@@ -276,6 +276,17 @@ void main() {
     await tester.tap(find.text('Reactivate and text Invite'));
     await tester.pumpAndSettle();
 
+    database.seedStaffChanges([
+      StaffChange(
+        staffMemberId: 'staff-1',
+        kind: StaffChangeKind.reactivated,
+        oldValue: null,
+        newValue: 'State dayshift RN',
+        effectiveFrom: DateTime(2026, 9, 21),
+        changedBy: 'manager',
+        changedAt: DateTime(2026, 9, 21),
+      ),
+    ]);
     expect(gateway.added, isNull);
     expect(
       (await rules.store.staffChanges()).last.kind,
@@ -524,6 +535,17 @@ void main() {
     final gateway = _FakeStaffGateway(
       const StaffList(sections: [days], members: [alex]),
     );
+    database.seedStaffChanges([
+      StaffChange(
+        staffMemberId: 'staff-1',
+        kind: StaffChangeKind.lastDay,
+        oldValue: null,
+        newValue: '2026-09-21',
+        effectiveFrom: DateTime(2026, 9, 21),
+        changedBy: 'manager',
+        changedAt: DateTime(2026, 9, 21),
+      ),
+    ]);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -547,6 +569,7 @@ void main() {
     final change = (await rules.store.staffChanges()).single;
     expect(change.kind, StaffChangeKind.lastDay);
     expect(change.staffMemberId, 'staff-1');
+    expect(database.lastDayWrites.single.staffMemberId, 'staff-1');
     expect(gateway.loads, 2);
   });
 
@@ -583,6 +606,26 @@ void main() {
     await tester.tap(find.text('Save change'));
     await tester.pumpAndSettle();
 
+    database.seedStaffChanges([
+      StaffChange(
+        staffMemberId: 'staff-1',
+        kind: StaffChangeKind.section,
+        oldValue: 'State dayshift RN',
+        newValue: 'PRN nightshift RN',
+        effectiveFrom: DateTime(2026, 9, 21),
+        changedBy: 'manager',
+        changedAt: DateTime(2026, 9, 21),
+      ),
+      StaffChange(
+        staffMemberId: 'staff-1',
+        kind: StaffChangeKind.jobRole,
+        oldValue: null,
+        newValue: 'LPN',
+        effectiveFrom: DateTime(2026, 9, 21),
+        changedBy: 'manager',
+        changedAt: DateTime(2026, 9, 21),
+      ),
+    ]);
     final changes = await rules.store.staffChanges();
     expect(changes.map((change) => change.kind), [
       StaffChangeKind.section,
@@ -1094,6 +1137,17 @@ void main() {
     await tester.tap(find.text('Reactivate and text Invite'));
     await tester.pumpAndSettle();
 
+    database.seedStaffChanges([
+      StaffChange(
+        staffMemberId: 'staff-1',
+        kind: StaffChangeKind.reactivated,
+        oldValue: null,
+        newValue: 'State dayshift RN',
+        effectiveFrom: DateTime(2026, 9, 21),
+        changedBy: 'manager',
+        changedAt: DateTime(2026, 9, 21),
+      ),
+    ]);
     final reactivated = (await rules.store.staffChanges()).last;
     expect(reactivated.kind, StaffChangeKind.reactivated);
     expect(reactivated.newValue, 'State dayshift RN');

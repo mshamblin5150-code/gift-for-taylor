@@ -277,7 +277,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
   Future<JobRole?> _role(String id, DateTime date) =>
       scheduleRulesInMemory(database, actingAs: actor).jobRoleOn(id, date);
 
-  JobRole? _originalRole(String? id, DateTime date) => database._jobRoles[id]
+  JobRole? _originalRole(String? id, DateTime date) => database._seededJobRoles[id]
       ?.where((role) => !role.from.isAfter(date))
       .lastOrNull
       ?.jobRole;
