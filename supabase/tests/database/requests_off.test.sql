@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(20);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000261', 'request-manager@example.test'),
@@ -50,6 +50,7 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000
 select lives_ok($$select public.submit_request_off(array['2027-02-12']::date[], 'Appointment')$$, 'Staff submits a second Request off');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000261","role":"authenticated"}', true);
 select lives_ok($$select public.decide_request_off((select id from public.requests_off where decision = 'pending'), 'declined', 'Coverage')$$, 'Manager declines the second Request off');
+select throws_ok($$select public.decide_request_off((select id from public.requests_off where decision = 'declined'), 'approved', null)$$, 'Already decided', 'A declined Request off cannot be decided again');
 select is((select shift_code from public.schedule_cells where work_date = '2027-02-12' and staff_member_id = '00000000-0000-0000-0000-000000000265'), '7A', 'decline preserves the Schedule');
 select is((select decision_reason from public.requests_off where decision = 'declined'), 'Coverage', 'decline records the reason');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000262","role":"authenticated"}', true);
