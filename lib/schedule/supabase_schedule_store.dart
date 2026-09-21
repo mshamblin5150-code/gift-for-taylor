@@ -409,14 +409,22 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<bool> canEditSchedule() async {
-    return await _client.rpc('can_edit_schedule') as bool? ?? false;
-  }
-
-  @override
-  Future<EditableSections> editableSections() async {
-    final ids = await _client.rpc<List<dynamic>>('editable_section_ids');
-    return EditableSections.only({for (final id in ids) id as String});
+  Future<Access> currentAccess() async {
+    final rows = await _client.rpc<List<dynamic>>('current_access');
+    final values = rows.single as Map<String, dynamic>;
+    return Access(
+      grants: Grants(
+        manager: values['manager'] as bool,
+        administrator: values['administrator'] as bool,
+        nightSchedulerSectionIds: {
+          for (final id
+              in values['night_scheduler_section_ids'] as List<dynamic>)
+            id as String,
+        },
+      ),
+      maintainer: values['maintainer'] as bool,
+      ownStaffMemberId: values['staff_member_id'] as String?,
+    );
   }
 
   @override

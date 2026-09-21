@@ -701,11 +701,11 @@ void main() {
   });
 
   testWidgets(
-    'Staff details keeps Night scheduler Sections when Administrator is removed',
+    'Staff details keeps Night scheduler Sections when Administrator changes',
     (tester) async {
       final gateway = _FakeStaffGateway(
         const StaffList(sections: [days, nights], members: [alex]),
-      );
+      )..nightSections = {'nights'};
       await tester.pumpWidget(
         MaterialApp(
           home: StaffListPage(
@@ -724,8 +724,6 @@ void main() {
       await tester.tap(find.text('Change access'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Administrator').last);
-      await tester.ensureVisible(find.text('PRN nightshift RN').last);
-      await tester.tap(find.text('PRN nightshift RN').last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Save access'));
       await tester.pumpAndSettle();
@@ -786,6 +784,32 @@ void main() {
     expect(gateway.accessRole, 'manager');
     expect(gateway.actorRole, 'staff_member');
     expect(find.text('Change access'), findsNothing);
+  });
+
+  testWidgets('Maintainer can transfer Manager from Staff details', (
+    tester,
+  ) async {
+    final gateway = _FakeStaffGateway(
+      const StaffList(sections: [days], members: [alex]),
+    )..actorRole = 'maintainer';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alex Tech'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Change access'));
+    await tester.tap(find.text('Change access'));
+    await tester.pumpAndSettle();
+    expect(find.text('Transfer Manager'), findsOneWidget);
   });
 
   testWidgets('handover waits for the Staff member to accept the Invite', (
@@ -1123,7 +1147,7 @@ void main() {
   testWidgets('Section controls are hidden from a non-Manager', (tester) async {
     final gateway = _FakeStaffGateway(
       const StaffList(sections: [days], members: [alex]),
-    )..manager = false;
+    )..actorRole = 'staff_member';
     await tester.pumpWidget(
       MaterialApp(
         home: StaffListPage(
@@ -1207,7 +1231,10 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           scheduleRules: rules,
-          role: 'manager',
+          access: Access(
+            grants: Grants(manager: true),
+            ownStaffMemberId: 'current-manager',
+          ),
           staffGateway: gateway,
         ),
       ),
@@ -1244,7 +1271,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           scheduleRules: rules,
-          role: 'maintainer',
+          access: Access(grants: Grants(), maintainer: true),
           staffGateway: gateway,
         ),
       ),
@@ -1259,7 +1286,15 @@ void main() {
 
 final class _FakeStaffGateway implements StaffGateway {
   @override
-  Future<Access> currentAccess() async => Access(grants: Grants());
+  Future<Access> currentAccess() async => Access(
+    grants: Grants(
+      manager: actorRole == 'manager',
+      administrator: actorRole == 'administrator',
+      nightSchedulerSectionIds: currentId == null ? {} : nightSections,
+    ),
+    maintainer: actorRole == 'maintainer',
+    ownStaffMemberId: currentId,
+  );
   bool transferEligible = true;
 
   @override
@@ -1276,21 +1311,20 @@ final class _FakeStaffGateway implements StaffGateway {
           ),
         ];
   @override
-  Future<String?> currentStaffRole() async => actorRole;
+  Future<Grants> loadAccessGrants(String id) async => Grants(
+    manager: accessRole == 'manager',
+    administrator: accessRole == 'administrator',
+    nightSchedulerSectionIds: nightSections,
+  );
 
   @override
-  Future<Set<String>> loadNightSchedulerSections(String id) async =>
-      nightSections;
-
-  @override
-  Future<void> setAccessRole(
-    String id,
-    String role,
-    Set<String> sections,
-  ) async {
-    accessRole = role;
-    nightSections = {...sections};
-    if (role == 'manager') actorRole = 'staff_member';
+  Future<void> setAccessGrants(String id, Grants grants) async {
+    accessRole = grants.administrator
+        ? 'administrator'
+        : grants.nightSchedulerSectionIds.isNotEmpty
+        ? 'night_scheduler'
+        : 'staff_member';
+    nightSections = {...grants.nightSchedulerSectionIds};
   }
 
   Set<String> nightSections = {};
@@ -1341,7 +1375,10 @@ final class _FakeStaffGateway implements StaffGateway {
       sectionId: member?.sectionId ?? past?.sectionId,
       personalEmail: member?.personalEmail,
       jobRole: member?.jobRole,
-      role: accessRole ?? 'staff_member',
+      grants: Grants(
+        manager: accessRole == 'manager',
+        administrator: accessRole == 'administrator',
+      ),
       lastDay: accessLastDay ?? past?.lastDay,
     );
   }
@@ -1368,8 +1405,6 @@ final class _FakeStaffGateway implements StaffGateway {
     );
   }
 
-  @override
-  Future<String?> currentStaffMemberId() async => currentId;
   _FakeStaffGateway(this._list, {this.pastStaff = const []});
 
   StaffList _list;
@@ -1378,7 +1413,6 @@ final class _FakeStaffGateway implements StaffGateway {
   bool allowedRecycledCell = false;
   String? resentStaffMemberId;
   int loads = 0;
-  bool manager = true;
   List<String>? orderedSections;
   Completer<void>? orderGate;
   String? deletedSection;
@@ -1440,11 +1474,6 @@ final class _FakeStaffGateway implements StaffGateway {
   Future<void> rejectInviteAcceptance(String inviteId) async {}
 
   @override
-  Future<bool> canManageStaff() async => true;
-
-  @override
-  Future<bool> canManageSections() async => manager;
-
   @override
   Future<void> addSection(String name) async {
     _list = _list.withSections([

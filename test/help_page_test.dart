@@ -1,6 +1,7 @@
 import 'package:er_schedule/help/help_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:schedule_rules/schedule_rules.dart';
 
 void main() {
   test('every manager action visible to Night schedulers is labeled', () {
@@ -30,46 +31,35 @@ void main() {
     }
   });
 
-  test('access roles select their own Help catalog', () {
-    expect(
-      helpRoleForAccess(
-        'maintainer',
-        canEditSchedule: true,
-        hasEditableSections: false,
-      ),
+  test('independent Access grants select every Help catalog held', () {
+    expect(helpRolesFor(Access(grants: Grants(), maintainer: true)), {
       HelpRole.maintainer,
-    );
+    });
     expect(
-      helpRoleForAccess(
-        'administrator',
-        canEditSchedule: false,
-        hasEditableSections: false,
+      helpRolesFor(
+        Access(
+          grants: Grants(
+            administrator: true,
+            nightSchedulerSectionIds: {'nights'},
+          ),
+          ownStaffMemberId: 'alex',
+        ),
       ),
-      HelpRole.administrator,
+      {HelpRole.administrator, HelpRole.nightScheduler},
     );
-    expect(
-      helpRoleForAccess(
-        'night_scheduler',
-        canEditSchedule: false,
-        hasEditableSections: true,
-      ),
-      HelpRole.nightScheduler,
-    );
-    expect(
-      helpRoleForAccess(
-        'manager',
-        canEditSchedule: true,
-        hasEditableSections: true,
-      ),
+    expect(helpRolesFor(Access(grants: Grants(), ownStaffMemberId: 'alex')), {
+      HelpRole.staffMember,
+    });
+    expect(helpRolesFor(Access(grants: Grants(manager: true))), {
       HelpRole.manager,
-    );
+    });
   });
 
   testWidgets('Night scheduler finds how to check a Manager override', (
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: HelpPage(role: HelpRole.nightScheduler)),
+      const MaterialApp(home: HelpPage(roles: {HelpRole.nightScheduler})),
     );
     await tester.enterText(find.byType(TextField), 'manager overrode');
     await tester.pump();
@@ -83,7 +73,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: HelpPage(role: HelpRole.maintainer)),
+      const MaterialApp(home: HelpPage(roles: {HelpRole.maintainer})),
     );
     await tester.enterText(find.byType(TextField), 'release month');
     await tester.pump();
@@ -94,7 +84,7 @@ void main() {
   });
 
   Future<void> openHelp(WidgetTester tester, HelpRole role) async {
-    await tester.pumpWidget(MaterialApp(home: HelpPage(role: role)));
+    await tester.pumpWidget(MaterialApp(home: HelpPage(roles: {role})));
   }
 
   testWidgets('a Staff member finds capabilities in everyday language', (
@@ -214,8 +204,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: HelpPage(
-          role: HelpRole.administrator,
-          hasNightSchedulerGrant: true,
+          roles: {HelpRole.administrator, HelpRole.nightScheduler},
         ),
       ),
     );

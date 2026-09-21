@@ -29,7 +29,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: AppSetupPage(helpRole: HelpRole.maintainer)),
+      const MaterialApp(home: AppSetupPage(helpRoles: {HelpRole.maintainer})),
     );
     await tester.scrollUntilVisible(find.text('Setup Help'), 250);
     await tester.tap(find.text('Setup Help'));

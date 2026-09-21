@@ -38,9 +38,7 @@ class _StaffListPageState extends State<StaffListPage> {
   StaffList? _staffList;
   List<PendingInviteAcceptance> _pendingInvites = const [];
   Object? _loadError;
-  bool _canManageSections = false;
-  bool _hasNightSchedulerGrant = false;
-  String? _currentRole;
+  Access _access = Access(grants: Grants());
   bool _savingSectionOrder = false;
 
   @override
@@ -51,30 +49,16 @@ class _StaffListPageState extends State<StaffListPage> {
 
   Future<void> _load() async {
     try {
-      final (
-        staffList,
-        canManageSections,
-        currentRole,
-        pendingInvites,
-        currentId,
-      ) = await (
+      final (staffList, access, pendingInvites) = await (
         widget.gateway.loadStaffList(),
-        widget.gateway.canManageSections(),
-        widget.gateway.currentStaffRole(),
+        widget.gateway.currentAccess(),
         widget.gateway.pendingInviteAcceptances(),
-        widget.gateway.currentStaffMemberId(),
       ).wait;
-      final hasNightSchedulerGrant =
-          currentId != null &&
-          (await widget.gateway.loadNightSchedulerSections(currentId))
-              .isNotEmpty;
       if (mounted) {
         setState(() {
           _staffList = staffList;
           _pendingInvites = pendingInvites;
-          _canManageSections = canManageSections;
-          _currentRole = currentRole;
-          _hasNightSchedulerGrant = hasNightSchedulerGrant;
+          _access = access;
           _loadError = null;
         });
       }
@@ -421,17 +405,7 @@ class _StaffListPageState extends State<StaffListPage> {
             tooltip: 'Help',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (context) => HelpPage(
-                  hasNightSchedulerGrant: _hasNightSchedulerGrant,
-                  role: helpRoleForAccess(
-                    _currentRole,
-                    canEditSchedule:
-                        _currentRole == null ||
-                        _currentRole == 'manager' ||
-                        _currentRole == 'maintainer',
-                    hasEditableSections: _hasNightSchedulerGrant,
-                  ),
-                ),
+                builder: (context) => HelpPage(roles: helpRolesFor(_access)),
               ),
             ),
             icon: const Icon(Icons.help_outline),
@@ -442,7 +416,7 @@ class _StaffListPageState extends State<StaffListPage> {
               onPressed: _openPastStaff,
               icon: const Icon(Icons.history),
             ),
-          if (staffList != null && _canManageSections)
+          if (staffList != null && _access.canManageUnit)
             IconButton(
               tooltip: 'Add Section',
               onPressed: _addSection,
@@ -510,7 +484,7 @@ class _StaffListPageState extends State<StaffListPage> {
     return _SectionStaffList(
       section: section,
       members: members,
-      canManageSection: _canManageSections,
+      canManageSection: _access.canManageUnit,
       onMoveUp: index == 0 || _savingSectionOrder
           ? null
           : () => _moveSection(index, -1),

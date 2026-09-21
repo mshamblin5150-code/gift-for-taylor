@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:schedule_rules/schedule_rules.dart';
 
 /// Help is shipped as source with the PWA: searching and reading never needs
 /// a network request. Update the corresponding topic when a capability changes.
@@ -10,18 +11,17 @@ enum HelpRole {
   maintainer,
 }
 
-HelpRole helpRoleForAccess(
-  String? role, {
-  required bool canEditSchedule,
-  required bool hasEditableSections,
-}) => switch (role) {
-  'manager' => HelpRole.manager,
-  'maintainer' => HelpRole.maintainer,
-  'administrator' => HelpRole.administrator,
-  'night_scheduler' => HelpRole.nightScheduler,
-  _ when canEditSchedule => HelpRole.manager,
-  _ when hasEditableSections => HelpRole.nightScheduler,
-  _ => HelpRole.staffMember,
+Set<HelpRole> helpRolesFor(Access access) => {
+  if (access.isRepairAccess) HelpRole.maintainer,
+  if (access.grants.manager) HelpRole.manager,
+  if (access.grants.administrator) HelpRole.administrator,
+  if (access.grants.nightSchedulerSectionIds.isNotEmpty)
+    HelpRole.nightScheduler,
+  if (!access.isRepairAccess &&
+      !access.grants.manager &&
+      !access.grants.administrator &&
+      access.grants.nightSchedulerSectionIds.isEmpty)
+    HelpRole.staffMember,
 };
 
 class HelpTopic {
@@ -383,7 +383,8 @@ const helpTopics = <HelpTopic>[
     who: 'Manager, Maintainer, Administrator, or Night scheduler',
     what: 'The Change log shows who changed a shift, when they changed it, and the old and new Shift codes. Night schedulers can see when the Manager changed one of their edits.',
     how: 'Open Change log from the Schedule. Find the Staff member and shift date you edited, then look for a later entry for that shift with the Manager’s name. The old and new codes show what the Manager replaced and entered. Use Everyone to filter by editor or Any day to filter by when the edit was made.',
-    searchTerms: 'history audit override overrode night scheduler shift changes',
+    searchTerms:
+        'history audit override overrode night scheduler shift changes',
     roles: _manager,
   ),
   HelpTopic(
@@ -504,13 +505,8 @@ const helpTopics = <HelpTopic>[
 ];
 
 class HelpPage extends StatefulWidget {
-  const HelpPage({
-    super.key,
-    required this.role,
-    this.hasNightSchedulerGrant = false,
-  });
-  final HelpRole role;
-  final bool hasNightSchedulerGrant;
+  const HelpPage({super.key, required this.roles});
+  final Set<HelpRole> roles;
 
   @override
   State<HelpPage> createState() => _HelpPageState();
@@ -524,10 +520,7 @@ class _HelpPageState extends State<HelpPage> {
     final topics = helpTopics
         .where(
           (topic) =>
-              (topic.roles.contains(widget.role) ||
-                  widget.role == HelpRole.administrator &&
-                      widget.hasNightSchedulerGrant &&
-                      topic.roles.contains(HelpRole.nightScheduler)) &&
+              topic.roles.intersection(widget.roles).isNotEmpty &&
               topic.matches(_query),
         )
         .toList();

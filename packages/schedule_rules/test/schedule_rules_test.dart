@@ -206,20 +206,8 @@ void main() {
     );
     expect(await staffMember.changeLog(september), isEmpty);
 
-    expect(
-      await ScheduleRules.inMemory(
-        restricted,
-        actingAs: 'manager',
-      ).canEditSchedule(),
-      isTrue,
-    );
-    expect(
-      await ScheduleRules.inMemory(
-        restricted,
-        actingAs: 'rn-1',
-      ).canEditSchedule(),
-      isFalse,
-    );
+    expect(restricted.accessFor('manager').canRunSchedule, isTrue);
+    expect(restricted.accessFor('rn-1').canRunSchedule, isFalse);
   });
 
   test('the legend lists every common Shift code with its hours', () {

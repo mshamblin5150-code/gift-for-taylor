@@ -29,10 +29,10 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
   Future<(StaffList, List<StaffListMember>)> _load() async {
     final (list, currentId) = await (
       widget.gateway.loadStaffList(),
-      widget.gateway.currentStaffMemberId(),
+      widget.gateway.currentAccess(),
     ).wait;
     final others = list.members
-        .where((member) => member.id != currentId)
+        .where((member) => member.id != currentId.ownStaffMemberId)
         .toList();
     final eligible = await Future.wait(
       others.map((member) => widget.gateway.canTransferManagerTo(member.id)),
@@ -48,7 +48,7 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
       list,
       [
         for (var i = 0; i < others.length; i++)
-          if (eligible[i] && (roles == null || roles[i].role != 'manager'))
+          if (eligible[i] && (roles == null || !roles[i].grants.manager))
             others[i],
       ],
     );

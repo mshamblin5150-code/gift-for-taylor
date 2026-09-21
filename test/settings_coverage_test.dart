@@ -14,7 +14,7 @@ void main() {
         home: SettingsPage(
           scheduleRules: ScheduleRules.inMemory(database, actingAs: 'manager'),
           openShiftRules: OpenShiftRules(database.openShiftStoreFor('manager')),
-          role: 'administrator',
+          access: Access(grants: Grants(administrator: true)),
         ),
       ),
     );

@@ -53,8 +53,8 @@ Future<void> main() async {
       openShiftRules: OpenShiftRules(SupabaseOpenShiftStore(client)),
       staffGateway: SupabaseStaffGateway(
         client,
-        onAccessRoleLoaded: (role) =>
-            repairClient.isMaintainer = role == 'maintainer',
+        onAccessLoaded: (access) =>
+            repairClient.isMaintainer = access.isRepairAccess,
       ),
       navigatorKey: navigatorKey,
       inviteComposer: SmsInviteComposer(Uri.base),
