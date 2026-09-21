@@ -37,8 +37,9 @@ void main() {
   void seedStaffing(
     DateTime month, {
     Map<(String, CoverageWindow, int), _StaffingFact> facts = const {},
+    bool afterNextCellWrite = false,
   }) {
-    database.seedStaffingForMonth(month, [
+    final answer = [
       for (var day = 1; day <= DateTime(month.year, month.month + 1, 0).day; day++)
         for (final pool in CoveragePool.values)
           for (final window in CoverageWindow.values)
@@ -63,7 +64,12 @@ void main() {
                   : null,
               floorRole: pool == CoveragePool.nurses ? JobRole.rn : null,
             ),
-    ]);
+    ];
+    if (afterNextCellWrite) {
+      database.seedStaffingAfterNextCellWrite(month, answer);
+    } else {
+      database.seedStaffingForMonth(month, answer);
+    }
   }
 
   setUp(() async {
@@ -453,7 +459,7 @@ void main() {
     );
     expect(nameCell.color, isNull);
     expect((dayCell.decoration! as BoxDecoration).color, isNotNull);
-    expect(find.text('− = short by'), findsOneWidget);
+    expect(find.text('− = short by'), findsWidgets);
 
     final before = tester.getRect(label);
     await tester.drag(
@@ -1307,11 +1313,11 @@ void main() {
 
       await tester.tap(cell('rn-1', day));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
       seedStaffing(DateTime(2026, 10), facts: {
         ('nurses', CoverageWindow.day, 16): (minimum: 3, shortfall: 2, openCount: 0, rnShortfall: 0),
         ('nurses', CoverageWindow.night, 16): (minimum: 3, shortfall: 3, openCount: 0, rnShortfall: 0),
-      });
+      }, afterNextCellWrite: true);
+      await tester.tap(find.widgetWithText(OutlinedButton, '7A'));
       await tester.pumpAndSettle();
 
       expect(
