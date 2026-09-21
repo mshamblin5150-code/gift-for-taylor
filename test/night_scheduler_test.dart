@@ -147,7 +147,9 @@ void main() {
     );
     await pumpGrid(tester, actingAs: 'manager');
 
-    await tester.tap(find.byTooltip('Change log'));
+    await tester.tap(find.byTooltip('More destinations'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Change log'));
     await tester.pumpAndSettle();
 
     expect(find.text('Day RN · Fri 18: blank → 7A'), findsOneWidget);

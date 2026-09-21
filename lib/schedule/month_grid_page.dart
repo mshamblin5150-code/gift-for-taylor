@@ -6,12 +6,14 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../help/help_page.dart';
 import '../notifications/notice_gateway.dart';
 import '../notifications/notices_page.dart';
 import '../schedule_theme.dart';
 import '../staff/staff_gateway.dart';
+import '../settings/settings_page.dart';
 
 import 'announce_sheet.dart';
 import 'approval_queue_page.dart';
@@ -123,6 +125,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   /// The Manager: may confirm the month and manage the Night scheduler.
   bool _isManager = false;
   String? _currentRole;
+  bool _canManageUnit = false;
   EditableSections _editable = const EditableSections.only({});
   Object? _loadError;
   int _unreadRequests = 0;
@@ -222,6 +225,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       var editable = _editable;
       var isManager = _isManager;
       var currentRole = _currentRole;
+      var canManageUnit = _canManageUnit;
       if (initial) {
         (isManager, editable, currentRole) = await (
           widget.rules.canEditSchedule(),
@@ -229,12 +233,14 @@ class _MonthGridPageState extends State<MonthGridPage> {
           widget.staffGateway?.currentStaffRole() ??
               Future<String?>.value(null),
         ).wait;
+        canManageUnit = isManager || currentRole == 'administrator';
       }
       final read = await _read(month, editable, isManager);
       if (!mounted || month != _month) return;
       setState(() {
         if (initial) {
           _isManager = isManager;
+          _canManageUnit = canManageUnit;
           _editable = editable;
           _currentRole = currentRole;
           _loadError = null;
@@ -561,6 +567,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
       rules: rules,
       date: date,
       staffing: staffing,
+      onStandingMinimums: () =>
+          _open((context) => WeekdayMinimumsPage(rules: rules)),
     );
     if (changed == true) await _reload();
   }
@@ -568,7 +576,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _print(ValueChanged<String> printBookPage) async {
     try {
       final wording =
-          await widget.printWordingGateway?.read() ?? const PrintWording();
+          await (widget.printWordingGateway is MonthPrintWordingGateway
+              ? (widget.printWordingGateway! as MonthPrintWordingGateway)
+                    .readForMonth(_month)
+              : widget.printWordingGateway?.read()) ??
+          const PrintWording();
       if (mounted) setState(() => _wording = wording);
       final grid = await widget.rules.monthGrid(_month);
       final codes = await widget.rules.shiftCodes();
@@ -610,7 +622,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _loadWording() async {
     try {
       final wording =
-          await widget.printWordingGateway?.read() ?? const PrintWording();
+          await (widget.printWordingGateway is MonthPrintWordingGateway
+              ? (widget.printWordingGateway! as MonthPrintWordingGateway)
+                    .readForMonth(_month)
+              : widget.printWordingGateway?.read()) ??
+          const PrintWording();
       if (mounted) setState(() => _wording = wording);
     } catch (_) {
       if (mounted) setState(() => _wording = null);
@@ -633,6 +649,29 @@ class _MonthGridPageState extends State<MonthGridPage> {
           content: Text("The print wording wasn't saved. Try again."),
         ),
       );
+    }
+  }
+
+  Future<void> _correctMonthPrintWording() async {
+    final gateway = widget.printWordingGateway;
+    if (gateway is! MonthPrintWordingGateway) return;
+    final current = await gateway.readForMonth(_month);
+    if (!mounted) return;
+    final next = await showPrintWordingDialog(
+      context,
+      current,
+      forReleasedMonth: true,
+    );
+    if (next == null) return;
+    try {
+      await gateway.correctMonth(_month, next);
+      if (mounted) setState(() => _wording = next);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('The month wording was not saved.')),
+        );
+      }
     }
   }
 
@@ -771,6 +810,30 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   List<_ScheduleAction> _appBarActions(BuildContext context) => [
     _ScheduleAction(
+      label: 'Settings',
+      icon: Icons.settings_outlined,
+      onPressed: () async {
+        final role =
+            await widget.staffGateway?.currentStaffRole() ??
+            (_isManager ? 'manager' : 'staff_member');
+        if (!context.mounted) return;
+        _open(
+          (context) => SettingsPage(
+            scheduleRules: widget.rules,
+            openShiftRules: widget.openShiftRules,
+            noticeGateway: widget.noticeGateway,
+            printWordingGateway: widget.printWordingGateway,
+            onCalendarFeed: widget.onCalendarFeed,
+            onManageStaff: widget.onManageStaff,
+            role: role,
+            auditClient: widget.staffGateway is SupabaseStaffGateway
+                ? Supabase.instance.client
+                : null,
+          ),
+        );
+      },
+    ),
+    _ScheduleAction(
       label: 'Help',
       icon: Icons.help_outline,
       onPressed: () => Navigator.of(context).push(
@@ -890,6 +953,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
                   month: _month,
                   staffMemberId: widget.swapStaffMemberId,
                   isManager: true,
+                  onApprovalSettings: () => _open(
+                    (context) =>
+                        ApprovalDefaultPage(rules: widget.openShiftRules!),
+                  ),
                 ),
               ),
             ),
@@ -922,11 +989,19 @@ class _MonthGridPageState extends State<MonthGridPage> {
         icon: Icons.print_outlined,
         onPressed: _wording == null ? null : () => _print(printBookPage),
       ),
-    if (_isManager && widget.printWordingGateway != null)
+    if (_canManageUnit && widget.printWordingGateway != null)
       _ScheduleAction(
         label: 'Change print wording',
         icon: Icons.text_fields_outlined,
         onPressed: _wording == null ? null : _changePrintWording,
+      ),
+    if (_canManageUnit &&
+        _grid?.status == MonthStatus.released &&
+        widget.printWordingGateway is MonthPrintWordingGateway)
+      _ScheduleAction(
+        label: 'Correct this month’s print wording',
+        icon: Icons.edit_note_outlined,
+        onPressed: _correctMonthPrintWording,
       ),
     if (widget.onManageStaff != null)
       _ScheduleAction(
@@ -996,11 +1071,40 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ],
       );
 
+  Widget _desktopActionsMenu(List<_ScheduleAction> actions) =>
+      PopupMenuButton<_ScheduleAction>(
+        tooltip: 'More destinations',
+        icon: const Icon(Icons.more_vert),
+        onSelected: (selected) => selected.onPressed?.call(),
+        itemBuilder: (context) => [
+          for (final action in actions) _actionMenuItem(action),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     final appBarActions = _appBarActions(context);
+    final secondaryActions = appBarActions
+        .where(
+          (action) => const {
+            'Settings',
+            'Help',
+            'Notices',
+            'My calendar',
+            'Manage Shift codes',
+            'Change log',
+            'Manage Staff list',
+            'Sign out',
+            'Correct this month’s print wording',
+          }.contains(action.label),
+        )
+        .toList();
+    final immediateActions = appBarActions
+        .where((action) => !secondaryActions.contains(action))
+        .toList();
     final compactActions =
-        MediaQuery.sizeOf(context).width < 240 + appBarActions.length * 48;
+        MediaQuery.sizeOf(context).width < 600 ||
+        MediaQuery.sizeOf(context).width < 288 + immediateActions.length * 48;
     final grid = _grid;
     final announcement = _announcement;
     final unreached = _unreached;
@@ -1030,7 +1134,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ),
         actions: compactActions
             ? [_compactActions(appBarActions)]
-            : [for (final action in appBarActions) _desktopAction(action)],
+            : [
+                for (final action in immediateActions) _desktopAction(action),
+                _desktopActionsMenu(secondaryActions),
+              ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(

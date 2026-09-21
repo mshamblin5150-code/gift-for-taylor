@@ -12,12 +12,14 @@ class OpenShiftsPage extends StatefulWidget {
     required this.month,
     required this.staffMemberId,
     required this.isManager,
+    this.onApprovalSettings,
   });
   final OpenShiftRules rules;
   final ScheduleRules scheduleRules;
   final DateTime month;
   final String? staffMemberId;
   final bool isManager;
+  final VoidCallback? onApprovalSettings;
 
   @override
   State<OpenShiftsPage> createState() => _OpenShiftsPageState();
@@ -56,40 +58,12 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
       if (mounted) _refresh();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<void> _approvalSettings() async {
-    final current = await widget.rules.approvalDefault();
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Open shift approval'),
-        content: Text(current
-            ? 'New Open shifts currently require Manager approval.'
-            : 'Staff currently take new Open shifts immediately unless a shift requires approval.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              await _run(() => widget.rules.setApprovalDefault(!current));
-              if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-            },
-            child: Text(current ? 'Allow immediate pickup' : 'Require approval'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -97,10 +71,10 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
     appBar: AppBar(
       title: const Text('Open shifts'),
       actions: [
-        if (widget.isManager)
+        if (widget.isManager && widget.onApprovalSettings != null)
           IconButton(
             tooltip: 'Open shift approval default',
-            onPressed: _approvalSettings,
+            onPressed: widget.onApprovalSettings,
             icon: const Icon(Icons.tune),
           ),
         IconButton(
@@ -148,8 +122,12 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
                           value: shift.requiresApproval,
                           onChanged: _busy
                               ? null
-                              : (value) => _run(() => widget.rules
-                                  .setShiftApproval(shift.id, value)),
+                              : (value) => _run(
+                                  () => widget.rules.setShiftApproval(
+                                    shift.id,
+                                    value,
+                                  ),
+                                ),
                         )
                       : widget.staffMemberId == null || _busy
                       ? null

@@ -59,6 +59,14 @@ const _editors = {HelpRole.manager, HelpRole.nightScheduler};
 /// views and the pages linked from the Schedule and Staff list.
 const helpTopics = <HelpTopic>[
   HelpTopic(
+    title: 'Settings',
+    who: 'Everyone; Unit choices require Manager or Administrator access',
+    what: 'Settings is the directory for choices that affect future behavior. Personal choices belong to you or this device. Unit choices govern the department.',
+    how: 'Open Schedule actions, then Settings. On a wide screen use More destinations. Choose Appearance, My calendar, or Notifications under Personal. Managers and Administrators can also open Staffing minimums, Open shift pickup approval, Print wording, Shift codes, Sections, Permission assignments, and Unit audit history.',
+    searchTerms:
+        'appearance dark light theme calendar notifications unit audit history',
+  ),
+  HelpTopic(
     title: 'Month view',
     who: 'Everyone',
     what:
@@ -346,12 +354,9 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Change print wording',
-    who:
-        'Manager only; Night schedulers and Administrators can read this guidance',
-    what:
-        'The Manager can change the title, notice, and print button wording used for the Schedule book page.',
-    how:
-        'Manager only: open Change print wording from the Schedule, edit the text, and save. Print a page afterward to check how the wording reads on paper.',
+    who: 'Manager or Administrator; Night schedulers can read this guidance',
+    what: 'Unit print wording sets the title, notice, and print button wording for draft and future Schedule book pages. Released months keep their wording.',
+    how: 'Open Settings, then Print wording to change the default. To correct one released month, open that month on the Schedule and choose Correct this month’s print wording. Check the print preview afterward.',
     searchTerms: 'print wording paper',
     roles: _manager,
   ),
@@ -405,12 +410,9 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Manage Sections',
-    who:
-        'Manager only; Night schedulers and Administrators can read this guidance',
-    what:
-        'Sections group Staff rows on the Schedule. Their order in the Staff list also sets the printed and on-screen Schedule order; a Section does not set Staffing minimums.',
-    how:
-        'Manager only: open Staff list and use the controls beside a Section to add, rename, or move it. Remove a Section only after it is empty. Keep a Section name within 32 characters, then save and check its position on the Schedule.',
+    who: 'Manager or Administrator; Night schedulers can read this guidance',
+    what: 'Sections group Staff rows on the Schedule. Their order in the Staff list also sets the printed and on-screen Schedule order; a Section does not set Staffing minimums.',
+    how: 'Open Settings, then Sections to reach Staff list. Use the controls beside a Section to add, rename, or move it. Remove a Section only after it is empty. Keep a Section name within 32 characters, then save and check its position on the Schedule.',
     searchTerms: 'section name rename character limit too long',
     roles: _manager,
   ),

@@ -7,9 +7,14 @@ Future<bool?> showStaffingSheet(
   required OpenShiftRules rules,
   required DateTime date,
   required SectionStaffing staffing,
+  VoidCallback? onStandingMinimums,
 }) async {
-  final minimum = TextEditingController(text: staffing.minimum?.toString() ?? '');
-  final rnFloor = TextEditingController(text: (staffing.rnFloor ?? 0).toString());
+  final minimum = TextEditingController(
+    text: staffing.minimum?.toString() ?? '',
+  );
+  final rnFloor = TextEditingController(
+    text: (staffing.rnFloor ?? 0).toString(),
+  );
   final code = TextEditingController();
   var saving = false;
   String? error;
@@ -37,8 +42,12 @@ Future<bool?> showStaffingSheet(
           final floor = staffing.pool == RolePool.nurses
               ? int.tryParse(rnFloor.text.trim())
               : 0;
-          if (value == null || value < 0 || value > 100 || floor == null ||
-              floor < 0 || floor > value) {
+          if (value == null ||
+              value < 0 ||
+              value > 100 ||
+              floor == null ||
+              floor < 0 ||
+              floor > value) {
             throw const FormatException(
               'Enter a minimum from 0 to 100 and an RN floor no higher than the minimum.',
             );
@@ -47,7 +56,9 @@ Future<bool?> showStaffingSheet(
         }
 
         return AlertDialog(
-          title: Text('${staffing.pool.label} • ${staffing.coverageWindow.label} • ${DateFormat.MMMd().format(date)}'),
+          title: Text(
+            '${staffing.pool.label} • ${staffing.coverageWindow.label} • ${DateFormat.MMMd().format(date)}',
+          ),
           content: SizedBox(
             width: 360,
             child: SingleChildScrollView(
@@ -55,19 +66,25 @@ Future<bool?> showStaffingSheet(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('${staffing.workingCount} working • minimum ${staffing.minimum?.toString() ?? 'not set'} • ${staffing.openCount} Open'),
+                  Text(
+                    '${staffing.workingCount} working • minimum ${staffing.minimum?.toString() ?? 'not set'} • ${staffing.openCount} Open',
+                  ),
                   if (staffing.shortCount case final short? when short > 0)
                     Text(
                       staffing.rnShortCount == short
                           ? 'Short $short RN'
                           : 'Short $short',
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: minimum,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Minimum people'),
+                    decoration: const InputDecoration(
+                      labelText: 'Minimum people',
+                    ),
                   ),
                   if (staffing.pool == RolePool.nurses) ...[
                     const SizedBox(height: 8),
@@ -81,27 +98,44 @@ Future<bool?> showStaffingSheet(
                   Wrap(
                     spacing: 8,
                     children: [
+                      if (onStandingMinimums != null)
+                        TextButton(
+                          onPressed: saving
+                              ? null
+                              : () {
+                                  Navigator.of(dialogContext).pop(false);
+                                  onStandingMinimums();
+                                },
+                          child: const Text('Standing minimums in Settings'),
+                        ),
                       OutlinedButton(
-                        onPressed: saving ? null : () => run(() {
-                          final (count, floor) = parseMinimum();
-                          return rules.setWeekdayMinimum(staffing.pool,
-                              staffing.coverageWindow, date.weekday % 7, count, floor);
-                        }),
-                        child: Text('Save every ${DateFormat.EEEE().format(date)}'),
-                      ),
-                      OutlinedButton(
-                        onPressed: saving ? null : () => run(() {
-                          final (count, floor) = parseMinimum();
-                          return rules.setDateMinimum(staffing.pool,
-                              staffing.coverageWindow, date, count, floor);
-                        }),
+                        onPressed: saving
+                            ? null
+                            : () => run(() {
+                                final (count, floor) = parseMinimum();
+                                return rules.setDateMinimum(
+                                  staffing.pool,
+                                  staffing.coverageWindow,
+                                  date,
+                                  count,
+                                  floor,
+                                );
+                              }),
                         child: const Text('Save this date'),
                       ),
                       if (staffing.dateMinimum != null)
                         TextButton(
-                          onPressed: saving ? null : () => run(() =>
-                              rules.setDateMinimum(staffing.pool,
-                                  staffing.coverageWindow, date, null, null)),
+                          onPressed: saving
+                              ? null
+                              : () => run(
+                                  () => rules.setDateMinimum(
+                                    staffing.pool,
+                                    staffing.coverageWindow,
+                                    date,
+                                    null,
+                                    null,
+                                  ),
+                                ),
                           child: const Text('Remove date override'),
                         ),
                     ],
@@ -110,33 +144,55 @@ Future<bool?> showStaffingSheet(
                   TextField(
                     controller: code,
                     textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(labelText: 'Open shift Shift code'),
+                    decoration: const InputDecoration(
+                      labelText: 'Open shift Shift code',
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     children: [
                       OutlinedButton(
-                        onPressed: saving ? null : () => run(() async {
-                          await rules.postOpenShifts(date, code.text, staffing.pool, 1);
-                        }),
+                        onPressed: saving
+                            ? null
+                            : () => run(() async {
+                                await rules.postOpenShifts(
+                                  date,
+                                  code.text,
+                                  staffing.pool,
+                                  1,
+                                );
+                              }),
                         child: const Text('Post one'),
                       ),
                       if ((staffing.unpostedCount ?? 0) > 0)
                         FilledButton(
-                          onPressed: saving ? null : () => run(() async {
-                            await rules.postOpenShifts(date, code.text,
-                                staffing.pool, staffing.unpostedCount!, fillGap: true);
-                          }),
-                          child: Text('Post ${staffing.unpostedCount} Open shifts'),
+                          onPressed: saving
+                              ? null
+                              : () => run(() async {
+                                  await rules.postOpenShifts(
+                                    date,
+                                    code.text,
+                                    staffing.pool,
+                                    staffing.unpostedCount!,
+                                    fillGap: true,
+                                  );
+                                }),
+                          child: Text(
+                            'Post ${staffing.unpostedCount} Open shifts',
+                          ),
                         ),
                     ],
                   ),
                   if (error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
-                      child: Text(error!,
-                          style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                      child: Text(
+                        error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -144,7 +200,9 @@ Future<bool?> showStaffingSheet(
           ),
           actions: [
             TextButton(
-              onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+              onPressed: saving
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(false),
               child: const Text('Close'),
             ),
           ],
