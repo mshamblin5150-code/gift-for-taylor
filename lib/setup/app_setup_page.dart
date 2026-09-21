@@ -126,17 +126,19 @@ class _AppSetupPageState extends State<AppSetupPage> {
         const Text(
           'If your browser does not offer installation, bookmark the ordinary app link instead.',
         ),
-        const SizedBox(height: 20),
-        Text(
-          'Notifications on each device',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          widget.awaitingConfirmation
-              ? 'After the Manager confirms your Invite, open Settings > Notifications > Allow notifications on each device. Nothing is enabled while you wait.'
-              : 'Open Settings > Notifications > Allow notifications on each device. Choose Allow in the browser or device prompt. If blocked, change permission in that device’s browser or app settings. On iPhone or iPad, notifications require the Home Screen web app on iOS or iPadOS 16.4 or later.',
-        ),
+        if (widget.helpRole != HelpRole.maintainer) ...[
+          const SizedBox(height: 20),
+          Text(
+            'Notifications on each device',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.awaitingConfirmation
+                ? 'After the Manager confirms your Invite, open Settings > Notifications > Allow notifications on each device. Nothing is enabled while you wait.'
+                : 'Open Settings > Notifications > Allow notifications on each device. Choose Allow in the browser or device prompt. If blocked, change permission in that device’s browser or app settings. On iPhone or iPad, notifications require the Home Screen web app on iOS or iPadOS 16.4 or later.',
+          ),
+        ],
         const SizedBox(height: 16),
         TextButton.icon(
           onPressed: () => Navigator.of(context).push(

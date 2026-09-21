@@ -1,4 +1,5 @@
 import 'package:er_schedule/setup/app_setup_page.dart';
+import 'package:er_schedule/help/help_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,4 +24,18 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets('setup Help keeps Maintainer guidance for a Maintainer', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: AppSetupPage(helpRole: HelpRole.maintainer)),
+    );
+    await tester.scrollUntilVisible(find.text('Setup Help'), 250);
+    await tester.tap(find.text('Setup Help'));
+    await tester.pumpAndSettle();
+    expect(find.text('Maintainer repairs'), findsOneWidget);
+    expect(find.text('Accept your Invite'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
 }
