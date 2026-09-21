@@ -17,6 +17,7 @@ import '../settings/settings_page.dart';
 
 import 'announce_sheet.dart';
 import 'approval_queue_page.dart';
+import 'book_page_printer.dart' show needsPrintPageGesture;
 import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
 import 'coverage_settings_page.dart';
@@ -619,7 +620,45 @@ class _MonthGridPageState extends State<MonthGridPage> {
         );
         if (proceed != true || !mounted) return;
       }
-      printBookPage(bookPageHtml(grid, wording: wording, codes: codes));
+      final html = bookPageHtml(grid, wording: wording, codes: codes);
+      if (needsPrintPageGesture) {
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Print the book page'),
+            content: const Text(
+              'Open the printable page, then tap Print this page or use your browser’s Print option.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  try {
+                    printBookPage(html);
+                  } catch (_) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          "The page couldn't be opened. Allow pop-ups and try again.",
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Open printable page'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        printBookPage(html);
+      }
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
