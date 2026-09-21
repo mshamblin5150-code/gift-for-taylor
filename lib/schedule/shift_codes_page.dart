@@ -16,9 +16,37 @@ class ShiftCodesPage extends StatefulWidget {
 }
 
 class _ShiftCodesPageState extends State<ShiftCodesPage> {
+  static final _validTime = RegExp(r'^([01][0-9]|2[0-3]):[0-5][0-9]$');
   late Future<List<LegendCode>> _codes = widget.rules.shiftCodes();
 
-  void _reload() => setState(() => _codes = widget.rules.shiftCodes());
+  void _reload() => setState(() {
+    _codes = widget.rules.shiftCodes();
+  });
+
+  Future<void> _pickTime(
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
+    final value = controller.text.trim();
+    final initialTime = _validTime.hasMatch(value)
+        ? TimeOfDay(
+            hour: int.parse(value.substring(0, 2)),
+            minute: int.parse(value.substring(3, 5)),
+          )
+        : TimeOfDay.now();
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (picked == null) return;
+    controller.text =
+        '${picked.hour.toString().padLeft(2, '0')}:'
+        '${picked.minute.toString().padLeft(2, '0')}';
+  }
 
   Future<void> _edit([LegendCode? original]) async {
     final code = TextEditingController(text: original?.code);
@@ -28,7 +56,7 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
     var working = original?.isWorking ?? true;
     var coverageSelection = original?.coverageWindow ?? 'auto';
     String? lengthError;
-    final result = await showDialog<LegendCode>(
+    final route = DialogRoute<LegendCode>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => AlertDialog(
@@ -63,14 +91,24 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
                   ),
                 TextField(
                   controller: start,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Starts (HH:mm, optional)',
+                    suffixIcon: IconButton(
+                      tooltip: 'Pick Starts time',
+                      icon: const Icon(Icons.access_time),
+                      onPressed: () => _pickTime(context, start),
+                    ),
                   ),
                 ),
                 TextField(
                   controller: end,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Ends (HH:mm, optional)',
+                    suffixIcon: IconButton(
+                      tooltip: 'Pick Ends time',
+                      icon: const Icon(Icons.access_time),
+                      onPressed: () => _pickTime(context, end),
+                    ),
                   ),
                 ),
                 DropdownButtonFormField<String>(
@@ -113,12 +151,11 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
                 }
                 final first = start.text.trim();
                 final last = end.text.trim();
-                final validTime = RegExp(r'^([01][0-9]|2[0-3]):[0-5][0-9]$');
                 if (name.isEmpty ||
                     (first.isEmpty != last.isEmpty) ||
                     (first.isNotEmpty &&
-                        (!validTime.hasMatch(first) ||
-                            !validTime.hasMatch(last)))) {
+                        (!_validTime.hasMatch(first) ||
+                            !_validTime.hasMatch(last)))) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
@@ -148,7 +185,8 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
         ),
       ),
     );
-    // Controllers outlive the dialog transition; dispose after its route exits.
+    final result = await Navigator.of(context).push(route);
+    await route.completed;
     code.dispose();
     meaning.dispose();
     start.dispose();
