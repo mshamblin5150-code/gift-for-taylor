@@ -842,6 +842,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) => HelpPage(
+            hasNightSchedulerGrant: !_editable.isEmpty && !_isManager,
             role: helpRoleForAccess(
               _currentRole,
               canEditSchedule: _isManager,
@@ -1224,7 +1225,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
       (null, null) => const Center(child: CircularProgressIndicator()),
       (null, final error?) => _LoadFailure(error: error, onRetry: _retry),
       (final MonthGrid grid, _)
-          when _editable.isEmpty && grid.status != MonthStatus.released =>
+          when _editable.isEmpty &&
+              _currentRole != 'administrator' &&
+              grid.status != MonthStatus.released =>
         Center(
           child: Text(
             "${DateFormat.yMMMM().format(_month)} hasn't been released yet.",

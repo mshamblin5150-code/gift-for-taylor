@@ -153,6 +153,33 @@ void main() {
     expect(find.text('Month release'), findsOneWidget);
   });
 
+  testWidgets('combined grants show Night scheduler Help from Staff list', (
+    tester,
+  ) async {
+    final gateway =
+        _FakeStaffGateway(
+            const StaffList(sections: [days, nights], members: []),
+          )
+          ..actorRole = 'administrator'
+          ..currentId = 'staff-1'
+          ..nightSections = {'nights'};
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Help'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'edit the schedule');
+    await tester.pump();
+    expect(find.text('Edit the Schedule'), findsOneWidget);
+  });
+
   testWidgets('Manager adds a Staff member and opens their Invite text', (
     tester,
   ) async {
@@ -622,26 +649,96 @@ void main() {
       await tester.pumpAndSettle();
       await tester.drag(find.byType(ListView).last, const Offset(0, -450));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Change access role'));
-      await tester.tap(find.text('Change access role'));
+      await tester.ensureVisible(find.text('Change access'));
+      await tester.tap(find.text('Change access'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.text('Administrator').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('administrator').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Save access role'));
+      await tester.tap(find.text('Save access'));
       await tester.pumpAndSettle();
       expect(gateway.accessRole, 'administrator');
-      await tester.ensureVisible(find.text('Change access role'));
-      await tester.tap(find.text('Change access role'));
+      await tester.ensureVisible(find.text('Change access'));
+      await tester.tap(find.text('Change access'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.text('Administrator').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('staff member').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Save access role'));
+      await tester.tap(find.text('Save access'));
       await tester.pumpAndSettle();
       expect(gateway.accessRole, 'staff_member');
+    },
+  );
+
+  testWidgets('Administrator confirms an Invite from Staff list', (
+    tester,
+  ) async {
+    final gateway =
+        _FakeStaffGateway(const StaffList(sections: [days], members: [alex]))
+          ..actorRole = 'administrator'
+          ..invites = [
+            PendingInviteAcceptance(
+              inviteId: 'invite-1',
+              staffMemberName: 'Alex Tech',
+              personalEmail: 'alex@example.test',
+              acceptedAt: DateTime(2026, 9, 20),
+            ),
+          ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Invite acceptances'), findsOneWidget);
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+    expect(gateway.confirmedInviteId, 'invite-1');
+    expect(find.text('Invite acceptances'), findsNothing);
+  });
+
+  testWidgets(
+    'Staff details keeps Night scheduler Sections when Administrator is removed',
+    (tester) async {
+      final gateway = _FakeStaffGateway(
+        const StaffList(sections: [days, nights], members: [alex]),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StaffListPage(
+            gateway: gateway,
+            rules: rules,
+            inviteComposer: _FakeInviteComposer(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Alex Tech'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Change access'));
+      await tester.tap(find.text('Change access'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Administrator').last);
+      await tester.ensureVisible(find.text('PRN nightshift RN').last);
+      await tester.tap(find.text('PRN nightshift RN').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save access'));
+      await tester.pumpAndSettle();
+      expect(gateway.accessRole, 'administrator');
+      expect(gateway.nightSections, {'nights'});
+      await tester.ensureVisible(find.text('Change access'));
+      await tester.tap(find.text('Change access'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Administrator').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save access'));
+      await tester.pumpAndSettle();
+      expect(gateway.accessRole, 'night_scheduler');
+      expect(gateway.nightSections, {'nights'});
     },
   );
 
@@ -677,22 +774,17 @@ void main() {
     await tester.pumpAndSettle();
     await tester.drag(find.byType(ListView).last, const Offset(0, -450));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Change access role'));
-    await tester.tap(find.text('Change access role'));
+    await tester.ensureVisible(find.text('Change access'));
+    await tester.tap(find.text('Change access'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.text('Transfer Manager').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('manager').last);
-    await tester.pumpAndSettle();
-    expect(
-      find.textContaining('you will become an administrator'),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Save access role'));
+    expect(find.textContaining('Staff member by default'), findsOneWidget);
+    await tester.tap(find.text('Transfer Manager').last);
     await tester.pumpAndSettle();
     expect(gateway.accessRole, 'manager');
-    expect(gateway.actorRole, 'administrator');
-    expect(find.text('Change access role'), findsNothing);
+    expect(gateway.actorRole, 'staff_member');
+    expect(find.text('Change access'), findsNothing);
   });
 
   testWidgets('handover waits for the Staff member to accept the Invite', (
@@ -727,11 +819,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.drag(find.byType(ListView).last, const Offset(0, -450));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Change access role'));
+    await tester.tap(find.text('Change access'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    expect(find.text('manager'), findsNothing);
+    expect(find.text('Transfer Manager'), findsNothing);
   });
 
   testWidgets('Manager assigns Night scheduler Sections from Staff details', (
@@ -754,26 +844,22 @@ void main() {
     await tester.pumpAndSettle();
     await tester.drag(find.byType(ListView).last, const Offset(0, -450));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Change access role'));
-    await tester.tap(find.text('Change access role'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('night scheduler').last);
+    await tester.ensureVisible(find.text('Change access'));
+    await tester.tap(find.text('Change access'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('PRN nightshift RN').last);
     await tester.tap(find.text('PRN nightshift RN').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save access role'));
+    await tester.tap(find.text('Save access'));
     await tester.pumpAndSettle();
     expect(gateway.accessRole, 'night_scheduler');
     expect(gateway.nightSections, {'nights'});
     await tester.scrollUntilVisible(
-      find.text('Access role history'),
+      find.text('Access history'),
       200,
       scrollable: find.byType(Scrollable).last,
     );
-    expect(find.text('Access role history'), findsOneWidget);
+    expect(find.text('Access history'), findsOneWidget);
   });
 
   testWidgets('Manager revokes access from Past staff details', (tester) async {
@@ -804,14 +890,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.drag(find.byType(ListView).last, const Offset(0, -450));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Change access role'));
-    await tester.tap(find.text('Change access role'));
+    await tester.ensureVisible(find.text('Change access'));
+    await tester.tap(find.text('Change access'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.text('Administrator').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('staff member').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Save access role'));
+    await tester.tap(find.text('Save access'));
     await tester.pumpAndSettle();
     expect(gateway.accessRole, 'staff_member');
   });
@@ -1150,6 +1234,9 @@ final class _FakeStaffGateway implements StaffGateway {
   Set<String> nightSections = {};
 
   String actorRole = 'manager';
+  String? currentId;
+  List<PendingInviteAcceptance> invites = [];
+  String? confirmedInviteId;
 
   @override
   Future<void> assignAdministrator(String id) async =>
@@ -1162,7 +1249,21 @@ final class _FakeStaffGateway implements StaffGateway {
   @override
   Future<void> transferManager(String id) async {
     accessRole = 'manager';
-    actorRole = 'administrator';
+    actorRole = 'staff_member';
+  }
+
+  @override
+  Future<void> transferManagerWithAccess(
+    String id,
+    bool formerAdministrator,
+    Set<String> formerSections,
+  ) async {
+    accessRole = 'manager';
+    actorRole = formerAdministrator
+        ? 'administrator'
+        : formerSections.isNotEmpty
+        ? 'night_scheduler'
+        : 'staff_member';
   }
 
   String? accessRole;
@@ -1206,7 +1307,7 @@ final class _FakeStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<String?> currentStaffMemberId() async => null;
+  Future<String?> currentStaffMemberId() async => currentId;
   _FakeStaffGateway(this._list, {this.pastStaff = const []});
 
   StaffList _list;
@@ -1264,10 +1365,14 @@ final class _FakeStaffGateway implements StaffGateway {
   Future<bool> isInviteAcceptancePending() async => false;
 
   @override
-  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async => [];
+  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async =>
+      invites;
 
   @override
-  Future<void> confirmInviteAcceptance(String inviteId) async {}
+  Future<void> confirmInviteAcceptance(String inviteId) async {
+    confirmedInviteId = inviteId;
+    invites = [];
+  }
 
   @override
   Future<void> rejectInviteAcceptance(String inviteId) async {}

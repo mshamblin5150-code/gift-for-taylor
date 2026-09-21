@@ -509,6 +509,12 @@ final class _FakeStaffGateway implements StaffGateway {
 
   @override
   Future<void> transferManager(String id) async {}
+  @override
+  Future<void> transferManagerWithAccess(
+    String id,
+    bool formerAdministrator,
+    Set<String> formerSections,
+  ) async {}
   _FakeStaffGateway([this.staffMemberId]);
 
   final String? staffMemberId;

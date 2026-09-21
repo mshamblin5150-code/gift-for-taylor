@@ -546,7 +546,7 @@ select is(
 -- Access roles and Manager handover.
 select throws_ok(
   $$select public.assign_administrator('00000000-0000-0000-0000-000000000198')$$,
-  'Only the Manager can assign an administrator',
+  'Only the Manager or Administrator can change Staff access',
   'a Staff member cannot grant administrator access'
 );
 
@@ -613,27 +613,32 @@ select is((select role::text from public.staff_members
   where id = '00000000-0000-0000-0000-000000000198'), 'manager',
   'the recipient is Manager');
 select is((select role::text from public.staff_members
-  where id = '00000000-0000-0000-0000-000000000196'), 'administrator',
-  'the former Manager is administrator');
+  where id = '00000000-0000-0000-0000-000000000196'), 'staff_member',
+  'the former Manager defaults to Staff member');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000193","role":"authenticated"}', true);
 select results_eq(
   $$select staff_member_id, old_value, new_value from public.staff_changes
-    where kind = 'access_role' and new_value in ('manager', 'administrator')
+    where kind = 'access_role' and new_value in ('manager', 'staff_member')
     order by changed_at desc limit 2$$,
   $$values
-    ('00000000-0000-0000-0000-000000000196'::uuid, 'manager', 'administrator'),
+    ('00000000-0000-0000-0000-000000000196'::uuid, 'manager', 'staff_member'),
     ('00000000-0000-0000-0000-000000000198'::uuid, 'staff_member', 'manager')$$,
   'both sides of the handover are logged'
 );
-select lives_ok(
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000191","role":"authenticated"}', true);
+select throws_ok(
   $$select public.assign_administrator('00000000-0000-0000-0000-000000000197')$$,
-  'former Manager as Administrator can grant administrator access'
+  'Only the Manager or Administrator can change Staff access',
+  'former Manager has no Administrator authority by default'
 );
 
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000193","role":"authenticated"}', true);
 select lives_ok(
-  $$select public.remove_administrator('00000000-0000-0000-0000-000000000196')$$,
-  'new Manager can revoke former Manager administrator access'
+  $$select public.assign_administrator('00000000-0000-0000-0000-000000000196')$$,
+  'new Manager can explicitly give former Manager Administrator access'
 );
 select is((select count(*)::integer from public.staff_members
   where active and role = 'manager'), 1, 'one active Manager remains');

@@ -36,8 +36,10 @@ class StaffListPage extends StatefulWidget {
 
 class _StaffListPageState extends State<StaffListPage> {
   StaffList? _staffList;
+  List<PendingInviteAcceptance> _pendingInvites = const [];
   Object? _loadError;
   bool _canManageSections = false;
+  bool _hasNightSchedulerGrant = false;
   String? _currentRole;
   bool _savingSectionOrder = false;
 
@@ -49,16 +51,30 @@ class _StaffListPageState extends State<StaffListPage> {
 
   Future<void> _load() async {
     try {
-      final (staffList, canManageSections, currentRole) = await (
+      final (
+        staffList,
+        canManageSections,
+        currentRole,
+        pendingInvites,
+        currentId,
+      ) = await (
         widget.gateway.loadStaffList(),
         widget.gateway.canManageSections(),
         widget.gateway.currentStaffRole(),
+        widget.gateway.pendingInviteAcceptances(),
+        widget.gateway.currentStaffMemberId(),
       ).wait;
+      final hasNightSchedulerGrant =
+          currentId != null &&
+          (await widget.gateway.loadNightSchedulerSections(currentId))
+              .isNotEmpty;
       if (mounted) {
         setState(() {
           _staffList = staffList;
+          _pendingInvites = pendingInvites;
           _canManageSections = canManageSections;
           _currentRole = currentRole;
+          _hasNightSchedulerGrant = hasNightSchedulerGrant;
           _loadError = null;
         });
       }
@@ -381,6 +397,19 @@ class _StaffListPageState extends State<StaffListPage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _decideInvite(String inviteId, {required bool confirm}) async {
+    try {
+      if (confirm) {
+        await widget.gateway.confirmInviteAcceptance(inviteId);
+      } else {
+        await widget.gateway.rejectInviteAcceptance(inviteId);
+      }
+      await _load();
+    } catch (_) {
+      if (mounted) _showError('Could not update the Invite acceptance.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final staffList = _staffList;
@@ -393,11 +422,12 @@ class _StaffListPageState extends State<StaffListPage> {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (context) => HelpPage(
+                  hasNightSchedulerGrant: _hasNightSchedulerGrant,
                   role: helpRoleForAccess(
                     _currentRole,
                     canEditSchedule:
                         _currentRole == null || _currentRole == 'manager',
-                    hasEditableSections: false,
+                    hasEditableSections: _hasNightSchedulerGrant,
                   ),
                 ),
               ),
@@ -433,6 +463,38 @@ class _StaffListPageState extends State<StaffListPage> {
         (final StaffList list, _) => ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
           children: [
+            if (_pendingInvites.isNotEmpty) ...[
+              Text(
+                'Invite acceptances',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              for (final invite in _pendingInvites)
+                Card(
+                  child: Column(
+                    children: [
+                      ListTile(
+                        title: Text(invite.staffMemberName),
+                        subtitle: Text(invite.personalEmail),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () =>
+                                _decideInvite(invite.inviteId, confirm: false),
+                            child: const Text('Reject'),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                _decideInvite(invite.inviteId, confirm: true),
+                            child: const Text('Confirm'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+            ],
             for (final (index, section) in list.sections.indexed)
               _buildSection(list, section, index),
           ],

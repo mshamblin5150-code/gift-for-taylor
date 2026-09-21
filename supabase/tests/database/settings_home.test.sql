@@ -74,7 +74,7 @@ select is((select role::text from public.staff_members
   'permission assignment persists');
 select throws_ok($$select public.set_staff_access_role(
   '00000000-0000-0000-0000-000000001765', 'manager')$$,
-  'Only the current Manager can transfer the Manager role',
+  'Only the Manager can transfer the Manager role',
   'Administrator cannot transfer the Manager role');
 
 select * from finish();

@@ -120,9 +120,9 @@ const helpTopics = <HelpTopic>[
     who:
         'Manager only; Night schedulers and Administrators can read this guidance',
     what:
-        'The Approval queue is where the Manager makes pending decisions. It includes Requests off, accepted Swaps, Open shift pickups needing approval, and accepted Invites waiting for identity confirmation.',
+        'The Approval queue is where the Manager makes pending decisions. It includes Requests off, accepted Swaps, Open shift pickups needing approval, and accepted Invites waiting for identity confirmation. Managers and Administrators can also confirm Invites from the Staff list.',
     how:
-        'Manager only: open Approval queue from the Schedule. Read the person, dates, and details for each item before choosing Approve or Decline. An Invite uses Confirm or Reject. Add a reason when offered. The item leaves the queue after the decision; use Browse requests to find earlier Request off, Swap, or pickup decisions.',
+        'Manager only: open Approval queue from the Schedule. Read the person, dates, and details before choosing Approve or Decline. An Invite uses Confirm or Reject; an Administrator can do that from Staff list. Add a reason when offered. The item leaves the queue after the decision; use Browse requests to find earlier Request off, Swap, or pickup decisions.',
     searchTerms:
         'pending approval requests off swaps pickups decisions invite confirmation',
     roles: _manager,
@@ -320,21 +320,20 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Night scheduler role',
-    who:
-        'Manager only; Night schedulers and Administrators can read this guidance',
+    who: 'Manager or Administrator; Night schedulers can read this guidance',
     what:
-        'A Night scheduler is a Staff member allowed to edit selected Sections. The Manager chooses those Sections and can override their edits.',
+        'A Night scheduler is a Staff member allowed to edit selected Sections. This grant can be combined with Administrator access. The Manager can override their edits.',
     how:
-        'Manager only: open the person in the Staff list, tap Change access role, choose Night scheduler, then select the editable Sections and save. That person can edit only those Sections; ask the Manager to change access if a Section is missing.',
+        'Open the person in the Staff list, tap Change access, select the editable Sections, and save. Removing Administrator access keeps those Sections; clearing the Sections keeps Administrator access.',
     roles: _manager,
   ),
   HelpTopic(
     title: 'Administrator access',
-    who: 'Administrator; Manager grants access',
+    who: 'Administrator; Manager or Administrator grants access',
     what:
-        'An Administrator manages the Staff list and Invites and can read unpublished Schedules. Administrator access alone does not allow Schedule edits or Manager approval decisions.',
+        'An Administrator manages the Staff list, Invites, access grants, and Unit settings. They can read unpublished Schedules and the Change log. Administrator access alone does not allow Schedule edits, Manager approvals, Month release, or Change announcements. A working Administrator can record a Call-in.',
     how:
-        'Open Staff list to add or update a person, send an Invite, or set a Last day. To edit assigned Schedule Sections, ask the Manager for Night scheduler access. The Manager changes access from a person’s Staff details.',
+        'Open Staff list to add or update a person, send an Invite, confirm an acceptance, set a Last day, or change access. Night scheduler Sections may be selected alongside Administrator access. A Manager transfer is Manager only; the former Manager chooses their access during handover, with Staff member selected by default.',
     searchTerms: 'admin permissions staff invites draft schedule',
     roles: _manager,
   ),
@@ -376,9 +375,9 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Invite',
-    who: 'Manager or Administrator can send; Manager confirms acceptance',
+    who: 'Manager or Administrator can send and confirm',
     what:
-        'An Invite gets a Staff member into the app only after the Manager confirms who accepted it. The link alone does not grant access.',
+        'An Invite gets a Staff member into the app only after a Manager or Administrator confirms who accepted it. The link alone does not grant access.',
     how:
         'Manager or Administrator:\n'
         '1. Add the person and their Cell number in Staff list.\n'
@@ -386,8 +385,8 @@ const helpTopics = <HelpTopic>[
         '3. Send the text your phone opens.\n'
         '4. They open the link and enter the same Cell number.\n'
         '5. They verify their personal email.\n'
-        '6. The Manager checks the person and email when their acceptance appears in Approval queue.\n'
-        '7. The Manager taps Confirm only if they are right; otherwise Reject.\n'
+        '6. A Manager or Administrator checks the person and email in Staff list when their acceptance appears.\n'
+        '7. Tap Confirm only if they are right; otherwise Reject.\n'
         'Their account can work after confirmation. If the Invite expires or is lost, open their details and tap Resend Invite.',
     searchTerms:
         'cell number text sign in email accept confirmation approve account access',
@@ -461,8 +460,13 @@ const helpTopics = <HelpTopic>[
 ];
 
 class HelpPage extends StatefulWidget {
-  const HelpPage({super.key, required this.role});
+  const HelpPage({
+    super.key,
+    required this.role,
+    this.hasNightSchedulerGrant = false,
+  });
   final HelpRole role;
+  final bool hasNightSchedulerGrant;
 
   @override
   State<HelpPage> createState() => _HelpPageState();
@@ -475,7 +479,12 @@ class _HelpPageState extends State<HelpPage> {
   Widget build(BuildContext context) {
     final topics = helpTopics
         .where(
-          (topic) => topic.roles.contains(widget.role) && topic.matches(_query),
+          (topic) =>
+              (topic.roles.contains(widget.role) ||
+                  widget.role == HelpRole.administrator &&
+                      widget.hasNightSchedulerGrant &&
+                      topic.roles.contains(HelpRole.nightScheduler)) &&
+              topic.matches(_query),
         )
         .toList();
     return Scaffold(

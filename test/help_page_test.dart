@@ -153,6 +153,25 @@ void main() {
     },
   );
 
+  testWidgets('combined grants include Night scheduler tasks in Help', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HelpPage(
+          role: HelpRole.administrator,
+          hasNightSchedulerGrant: true,
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), 'edit the schedule');
+    await tester.pump();
+    expect(find.text('Edit the Schedule'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'administrator access');
+    await tester.pump();
+    expect(find.text('Administrator access'), findsOneWidget);
+  });
+
   testWidgets('Staff cannot find Manager guidance through search', (
     tester,
   ) async {
