@@ -18,13 +18,13 @@ void main() {
 
     expect(uri.toString(), startsWith('sms:+15550100100&body='));
     expect(uri.toString(), isNot(contains('You+have')));
-    expect(Uri.decodeComponent(uri.toString().split('&body=').single), body);
+    expect(Uri.decodeComponent(uri.toString().split('&body=').last), body);
   });
 
   test('other phones receive the same Invite text and link', () {
     final uri = inviteSmsUri(appUri, invite, isIos: false);
 
     expect(uri.toString(), startsWith('sms:+15550100100?body='));
-    expect(Uri.decodeComponent(uri.toString().split('?body=').single), body);
+    expect(Uri.decodeComponent(uri.toString().split('?body=').last), body);
   });
 }
