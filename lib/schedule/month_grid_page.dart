@@ -122,6 +122,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
 
   /// The Manager: may confirm the month and manage the Night scheduler.
   bool _isManager = false;
+  String? _currentRole;
   EditableSections _editable = const EditableSections.only({});
   Object? _loadError;
   int _unreadRequests = 0;
@@ -220,10 +221,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
       final month = _month;
       var editable = _editable;
       var isManager = _isManager;
+      var currentRole = _currentRole;
       if (initial) {
-        (isManager, editable) = await (
+        (isManager, editable, currentRole) = await (
           widget.rules.canEditSchedule(),
           widget.rules.editableSections(),
+          widget.staffGateway?.currentStaffRole() ??
+              Future<String?>.value(null),
         ).wait;
       }
       final read = await _read(month, editable, isManager);
@@ -232,6 +236,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         if (initial) {
           _isManager = isManager;
           _editable = editable;
+          _currentRole = currentRole;
           _loadError = null;
         }
         _grid = read.grid;
@@ -771,11 +776,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) => HelpPage(
-            role: _isManager
-                ? HelpRole.manager
-                : _editable.isEmpty
-                ? HelpRole.staffMember
-                : HelpRole.nightScheduler,
+            role: helpRoleForAccess(
+              _currentRole,
+              canEditSchedule: _isManager,
+              hasEditableSections: _editable.isNotEmpty,
+            ),
           ),
         ),
       ),
@@ -890,7 +895,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             ),
         ],
       ),
-    if (_isManager) ...[
+    if (_isManager)
       _ScheduleAction(
         label: 'Manage Shift codes',
         icon: Icons.schedule_outlined,
@@ -903,6 +908,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
           if (mounted) await _load();
         },
       ),
+    if (_isManager ||
+        _currentRole == 'administrator' ||
+        _currentRole == 'night_scheduler' ||
+        _editable.isNotEmpty)
       _ScheduleAction(
         label: 'Change log',
         icon: Icons.history,
@@ -910,7 +919,6 @@ class _MonthGridPageState extends State<MonthGridPage> {
           (context) => ChangeLogPage(rules: widget.rules, month: _month),
         ),
       ),
-    ],
     if (widget.printBookPage case final printBookPage?)
       _ScheduleAction(
         label: _wording?.tooltip ?? 'Loading print wording',

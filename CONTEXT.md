@@ -10,8 +10,16 @@ The working vocabulary of the ED manager's non-clinical job, as she describes it
 The ED manager: the one person who builds and changes the Schedule, approves Requests off, and sends Change announcements.
 _Avoid_: Admin, owner
 
+**Administrator**:
+A Staff member trusted to manage the Staff list, Invites and Unit settings, including Administrator and Night scheduler access. They can read unpublished Schedules, may separately receive Night scheduler access to edit assigned Sections, and retain ordinary Staff actions such as recording a Call-in when working.
+_Avoid_: Manager, Admin, assistant manager
+
+**Maintainer**:
+The system's designer, with a separate account and permanent access to every Manager view and action for investigating and repairing the app under their own identity, while the Manager remains responsible for ED decisions. This access belongs to that person alone, continues after Manager handover, and does not place them on the Staff list or Schedule.
+_Avoid_: Administrator, Manager, owner
+
 **Night scheduler**:
-A Staff member the Manager has allowed to edit specific Sections (today, the night sections). Their edits take effect at once; the Manager can override them.
+A Staff member granted permission to edit specific Sections (today, the night sections). Their edits take effect at once; the Manager can override them.
 _Avoid_: Co-scheduler, assistant manager
 
 **Staff member**:

@@ -1,0 +1,15 @@
+---
+status: accepted
+---
+
+# Administrator and Maintainer have different authority
+
+The app had an Administrator access role but no domain definition for it. The role also carried the former Manager's access after a handover. That conflated a Staff delegate with the system's designer, who needs permanent direct access to investigate and repair the app after Taylor becomes Manager. This decision from #183 separates those responsibilities.
+
+Taylor is the **Manager** and makes the ED's Schedule and staffing decisions. An **Administrator** is a Staff member who may do the Manager's Staff-list work, including adding and changing people, handling Invites, setting Last days, changing Section and Job role placements, and managing access grants other than Manager transfer. Administrators may grant or remove Administrator access and assign Night scheduler Sections. In accordance with ADR-0012, they may change Unit settings and read their audit history. They may read unpublished Schedules and the Change log. Administrator access alone does not authorize Schedule edits, Manager approvals, Month release, or Change announcements. An Administrator working a shift retains ordinary Staff actions, including recording a Call-in.
+
+Administrator and Night scheduler are independent grants: one Staff member may hold both, with Schedule edits limited to assigned Sections. Granting or removing either must preserve the other. Only the Manager may make ED decisions reserved to that role or transfer the Manager role. On an ordinary Manager handover, the former Manager's Staff access is chosen explicitly and defaults to ordinary Staff member; it does not silently retain Administrator access.
+
+The **Maintainer** is the system's designer, not an ED Staff member. Their unique account is provisioned and recovered outside Staff management, has no Staff-list or Schedule row, and cannot be granted, removed, or replaced by the Manager in the app. It keeps permanent, direct access to every Manager view and action after handover. This is technical capability for investigation and repair, not responsibility for ED decisions; Taylor makes those decisions, and the Maintainer does not exercise that power in ordinary work. Maintainer actions are attributed to their own identity, never Taylor's, and their personal settings remain separate. A Maintainer change to Unit data requires a short repair reason in the audit record.
+
+This adds a narrow exception to ADR-0012's Manager-only transfer rule: the Maintainer can use any Manager control for repair, including transfer, while Administrators cannot. It also supersedes the earlier automatic Manager-to-Administrator handover. A separate actor identity and audit path are required because today's database ties access and many change records to `staff_members`; hiding a synthetic Staff row would misrepresent the decision. #219 tracks Maintainer identity and audit; #220 tracks independent Staff grants and authorization. Until those land, this ADR describes the intended model rather than claiming the current app enforces it.
