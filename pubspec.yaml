@@ -44,6 +44,8 @@ dependencies:
   pdf: ^3.13.1
 
 dev_dependencies:
+  schedule_book:
+    path: packages/schedule_book
   flutter_test:
     sdk: flutter
 

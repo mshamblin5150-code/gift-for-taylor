@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:er_schedule/schedule/book_page_pdf.dart';
+import 'package:schedule_book/schedule_book.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 Future<void> main(List<String> args) async {
@@ -9,7 +9,7 @@ Future<void> main(List<String> args) async {
     for (var i = 0; i < (args[0] == 'dense' ? 42 : 2); i++)
       ScheduleRow(
         staffMemberId: 'rn-$i',
-        displayName: i == 0 ? 'Alexandria Montgomery-Williams' : 'RN ${i + 1}',
+        displayName: i == 0 ? 'Nguyễn Montgomery-Williams' : 'RN ${i + 1}',
         sectionId: 'days',
       ),
   ];
@@ -29,7 +29,9 @@ Future<void> main(List<String> args) async {
       );
     }
   }
-  await File(
-    args[1],
-  ).writeAsBytes(await bookPagePdf(await rules.monthGrid(DateTime(2026, 9))));
+  final layout = await prepareBookPage(
+    await rules.monthGrid(DateTime(2026, 9)),
+    codes: [...shiftLegend, const LegendCode('LONG', meaning: 'A long Shift code meaning that stays searchable in the printed Schedule book')],
+  );
+  await File(args[1]).writeAsBytes(await layout.renderPdf());
 }

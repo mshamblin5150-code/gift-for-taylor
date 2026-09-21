@@ -1,4 +1,4 @@
-"""Check the generated phone PDF rather than HTML print styling.
+"""Check the measured Schedule book PDF rather than HTML print styling.
 
 Requires Dart and pdfplumber. Run: python tool/check_book_page_pdf.py
 """
@@ -41,7 +41,8 @@ def check(kind, staff_count, directory):
         text = page.extract_text()
         assert "SEPTEMBER 2026" in text
         assert "StatedayshiftRN" in text.replace(" ", "")
-        assert "AlexandriaMontgomery-Williams" in text.replace(" ", "")
+        assert "NguyễnMontgomery-Williams" in text.replace(" ", "")
+        assert "AlongShiftcodemeaningthatstayssearchable" in "".join(text.split())
         assert f"RN{staff_count}" in text.replace(" ", "")
         assert "16D" in text
         print(f"{kind}: one landscape page, thick cell rules and weekend fill")
