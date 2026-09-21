@@ -34,6 +34,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          access: database.accessFor('manager'),
           rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
           month: september,
           openShiftRules: openShiftRules,

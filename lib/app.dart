@@ -450,8 +450,34 @@ class _ScheduleAccess extends StatefulWidget {
   State<_ScheduleAccess> createState() => _ScheduleAccessState();
 }
 
-class _ScheduleAccessState extends State<_ScheduleAccess> {
+class _ScheduleAccessState extends State<_ScheduleAccess>
+    with WidgetsBindingObserver {
   late Future<_ScheduleData> _data = _loadData();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshAccess();
+  }
+
+  void _refreshAccess() {
+    if (mounted) {
+      setState(() {
+        _data = _loadData();
+      });
+    }
+  }
 
   Future<void> _signOut() async {
     try {
@@ -466,19 +492,21 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
     final invitePending = sections.isEmpty && widget.staffGateway != null
         ? await widget.staffGateway!.isInviteAcceptancePending()
         : false;
-    final canManageStaff = await widget.staffGateway?.canManageStaff() ?? false;
-    final currentRole = await widget.staffGateway?.currentStaffRole();
-    final staffMemberId = await widget.staffGateway?.currentStaffMemberId();
-    final editable = await widget.scheduleStore.editableSections();
+    final access =
+        await widget.staffGateway?.currentAccess() ?? Access(grants: Grants());
     final monthToCheck = await ScheduleRules(widget.scheduleStore)
         .monthAwaitingConfirmation();
     return _ScheduleData(
       sections,
       invitePending,
-      canManageStaff,
+      access,
       monthToCheck,
-      !canManageStaff && editable.isEmpty ? staffMemberId : null,
-      currentRole == 'manager' ? null : staffMemberId,
+      !access.canRunSchedule &&
+              access.editableSections.isEmpty &&
+              !access.canManageStaff
+          ? access.ownStaffMemberId
+          : null,
+      access.canRunSchedule ? null : access.ownStaffMemberId,
     );
   }
 
@@ -502,7 +530,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
                 if (data?.invitePending == true)
                   IconButton(
                     tooltip: 'Check confirmation',
-                    onPressed: () => setState(() => _data = _loadData()),
+                    onPressed: _refreshAccess,
                     icon: const Icon(Icons.refresh),
                   ),
                 IconButton(
@@ -544,19 +572,25 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
         // A month loaded from the printed page opens first until it is checked.
         final now = DateTime.now();
         return MonthGridPage(
-          key: ValueKey('${data?.staffMemberId}-${data?.swapStaffMemberId}'),
+          key: ValueKey((
+            data?.access,
+            data?.staffMemberId,
+            data?.swapStaffMemberId,
+          )),
           rules: ScheduleRules(widget.scheduleStore),
+          access: data!.access,
+          onAccessRejected: _refreshAccess,
           viewerId: widget.authGateway.currentUserId,
           month:
-              data?.monthToCheck ??
+              data.monthToCheck ??
               DateTime.tryParse(Uri.base.queryParameters['month'] ?? '') ??
               DateTime(now.year, now.month),
-          staffMemberId: data?.staffMemberId,
-          swapStaffMemberId: data?.swapStaffMemberId,
+          staffMemberId: data.staffMemberId,
+          swapStaffMemberId: data.swapStaffMemberId,
           swapRules: widget.swapRules,
           openShiftRules: widget.openShiftRules,
           onSignOut: _signOut,
-          onManagerTransferred: () => setState(() => _data = _loadData()),
+          onManagerTransferred: _refreshAccess,
           messagesComposer: widget.messagesComposer,
           noticeGateway: widget.noticeGateway,
           staffGateway: widget.staffGateway,
@@ -571,7 +605,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
                   ),
                 ),
           onManageStaff:
-              data?.canManageStaff == true &&
+              data.access.canManageStaff &&
                   widget.staffGateway != null &&
                   widget.inviteComposer != null
               ? () async => Navigator.of(context).push(
@@ -585,7 +619,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess> {
                 )
               : null,
           onOpenStaffDetails:
-              data?.canManageStaff == true &&
+              data.access.canManageStaff &&
                   widget.staffGateway != null &&
                   widget.inviteComposer != null
               ? (staffMemberId) async {
@@ -611,7 +645,7 @@ final class _ScheduleData {
   const _ScheduleData(
     this.sections,
     this.invitePending,
-    this.canManageStaff,
+    this.access,
     this.monthToCheck,
     this.staffMemberId,
     this.swapStaffMemberId,
@@ -619,7 +653,7 @@ final class _ScheduleData {
 
   final List<ScheduleSection> sections;
   final bool invitePending;
-  final bool canManageStaff;
+  final Access access;
   final DateTime? monthToCheck;
   final String? staffMemberId;
   final String? swapStaffMemberId;

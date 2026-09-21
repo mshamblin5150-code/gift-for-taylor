@@ -52,6 +52,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          access: database.accessFor(actingAs),
           rules: ScheduleRules.inMemory(database, actingAs: actingAs),
           month: month ?? september,
         ),
@@ -82,7 +83,13 @@ void main() {
     await pumpGrid(tester, actingAs: 'rn-3');
 
     expect(find.byTooltip('Night scheduler'), findsNothing);
-    expect(find.byTooltip('Change log'), findsNothing);
+    await tester.tap(find.byTooltip('More destinations'));
+    await tester.pumpAndSettle();
+    expect(find.text('Change log'), findsOneWidget);
+    await tester.tap(find.text('Change log'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
 
     await tester.tap(cell('rn-1', september18));
     await tester.pumpAndSettle();
@@ -99,44 +106,45 @@ void main() {
     );
   });
 
-  testWidgets('the Night scheduler drafts assigned Sections before Month release', (
-    tester,
-  ) async {
-    await manager.assignNightScheduler('rn-3', {'nights'});
-    final october = DateTime(2026, 10);
-    await manager.startEmptyMonth(october);
-    final october16 = DateTime(2026, 10, 16);
-    await pumpGrid(tester, actingAs: 'rn-3', month: october);
+  testWidgets(
+    'the Night scheduler drafts assigned Sections before Month release',
+    (tester) async {
+      await manager.assignNightScheduler('rn-3', {'nights'});
+      final october = DateTime(2026, 10);
+      await manager.startEmptyMonth(october);
+      final october16 = DateTime(2026, 10, 16);
+      await pumpGrid(tester, actingAs: 'rn-3', month: october);
 
-    expect(find.textContaining("hasn't been released"), findsNothing);
-    expect(cell('rn-2', october16), findsOneWidget);
-    expect(find.text('Release month'), findsNothing);
-    expect(find.text('Start from September'), findsNothing);
-    expect(find.text('Start empty month'), findsNothing);
+      expect(find.textContaining("hasn't been released"), findsNothing);
+      expect(cell('rn-2', october16), findsOneWidget);
+      expect(find.text('Release month'), findsNothing);
+      expect(find.text('Start from September'), findsNothing);
+      expect(find.text('Start empty month'), findsNothing);
 
-    await tester.tap(cell('rn-1', october16));
-    await tester.pumpAndSettle();
-    expect(find.text('Other Shift code'), findsNothing);
+      await tester.tap(cell('rn-1', october16));
+      await tester.pumpAndSettle();
+      expect(find.text('Other Shift code'), findsNothing);
 
-    await tester.tap(cell('rn-2', october16));
-    await tester.pumpAndSettle();
-    expect(find.text('Other Shift code'), findsOneWidget);
-    await tester.enterText(find.byType(TextField), '7P');
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle();
-    expect(
-      find.descendant(of: cell('rn-2', october16), matching: find.text('7P')),
-      findsOneWidget,
-    );
+      await tester.tap(cell('rn-2', october16));
+      await tester.pumpAndSettle();
+      expect(find.text('Other Shift code'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '7P');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: cell('rn-2', october16), matching: find.text('7P')),
+        findsOneWidget,
+      );
 
-    await tester.tap(find.text('Person'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Night RN').last);
-    await tester.pumpAndSettle();
-    expect(find.text('Sat 17'), findsOneWidget);
-  });
+      await tester.tap(find.text('Person'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Night RN').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Sat 17'), findsOneWidget);
+    },
+  );
 
   testWidgets('the Manager filters the change log by person', (tester) async {
     await manager.assignNightScheduler('rn-3', {'nights'});

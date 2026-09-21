@@ -66,7 +66,9 @@ class MonthGridPage extends StatefulWidget {
   const MonthGridPage({
     super.key,
     required this.rules,
+    required this.access,
     required this.month,
+    this.onAccessRejected,
     this.viewerId,
     this.staffMemberId,
     this.swapStaffMemberId,
@@ -86,7 +88,9 @@ class MonthGridPage extends StatefulWidget {
   });
 
   final ScheduleRules rules;
+  final Access access;
   final DateTime month;
+  final VoidCallback? onAccessRejected;
 
   /// Stable signed-in account identity for device-local Schedule layout.
   final String? viewerId;
@@ -132,11 +136,24 @@ class _MonthGridPageState extends State<MonthGridPage> {
   PrintWording? _wording;
   bool _savingDrop = false;
 
-  /// The Manager: may confirm the month and manage the Night scheduler.
-  bool _isManager = false;
-  String? _currentRole;
-  bool _canManageUnit = false;
-  EditableSections _editable = const EditableSections.only({});
+  Access get _access => widget.access;
+  String get _settingsRole => _access.maintainer
+      ? 'maintainer'
+      : _access.grants.manager
+      ? 'manager'
+      : _access.grants.administrator
+      ? 'administrator'
+      : _access.grants.nightSchedulerSectionIds.isNotEmpty
+      ? 'night_scheduler'
+      : 'staff_member';
+
+  void _refreshIfUnauthorized(Object error) {
+    if (error is PostgrestException &&
+        (error.code == '42501' || error.code == '401' || error.code == '403')) {
+      widget.onAccessRejected?.call();
+    }
+  }
+
   Object? _loadError;
   int _unreadRequests = 0;
   late ScheduleView _view = widget.staffMemberId == null
@@ -233,27 +250,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _readMonth({required bool initial}) async {
     try {
       final month = _month;
-      var editable = _editable;
-      var isManager = _isManager;
-      var currentRole = _currentRole;
-      var canManageUnit = _canManageUnit;
-      if (initial) {
-        (isManager, editable, currentRole) = await (
-          widget.rules.canEditSchedule(),
-          widget.rules.editableSections(),
-          widget.staffGateway?.currentStaffRole() ??
-              Future<String?>.value(null),
-        ).wait;
-        canManageUnit = isManager || currentRole == 'administrator';
-      }
-      final read = await _read(month, editable, isManager);
+      final read = await _read(month);
       if (!mounted || month != _month) return;
       setState(() {
         if (initial) {
-          _isManager = isManager;
-          _canManageUnit = canManageUnit;
-          _editable = editable;
-          _currentRole = currentRole;
           _loadError = null;
         }
         _grid = read.grid;
@@ -298,7 +298,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _refreshApprovals() async {
-    if (!_isManager ||
+    if (!_access.canRunSchedule ||
         widget.swapRules == null ||
         widget.openShiftRules == null) {
       return;
@@ -345,14 +345,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
   /// of. An older database missing either must not take the month down with
   /// it. The tray is deliberately not among them: no tray reads as "everyone
   /// has been told", which is a claim, not an absence.
-  Future<_MonthRead> _read(
-    DateTime month,
-    EditableSections editable,
-    bool isManager,
-  ) async {
+  Future<_MonthRead> _read(DateTime month) async {
     // Started together so nothing here costs an extra round trip.
     final gridRead = widget.rules.monthGrid(month);
-    final announcementRead = editable.isEmpty
+    final announcementRead = _access.editableSections.isEmpty
         ? Future<ChangeAnnouncement?>.value()
         : widget.rules.changeAnnouncement(month);
     final codesRead = _adjunct(widget.rules.shiftCodes, const <LegendCode>[]);
@@ -362,7 +358,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           const <SectionStaffing>[],
       const <SectionStaffing>[],
     );
-    final unreachedRead = isManager
+    final unreachedRead = _access.canRunSchedule
         ? _readUnreachedThisWeek()
         : Future<({int count, DateTime month})?>.value();
     // Waits for both required reads whichever fails, so a failure on one side
@@ -371,7 +367,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     final required = await Future.wait<Object?>([gridRead, announcementRead]);
     final grid = required[0]! as MonthGrid;
     final previousMonthStarted =
-        isManager && grid.status == MonthStatus.notStarted
+        _access.canRunSchedule && grid.status == MonthStatus.notStarted
         ? (await widget.rules.monthGrid(DateTime(month.year, month.month - 1)))
                   .status !=
               MonthStatus.notStarted
@@ -423,19 +419,20 @@ class _MonthGridPageState extends State<MonthGridPage> {
         draftOpenedStaffMemberIds: draftOpenedStaffMemberIds,
       );
       await _reload();
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("The changes weren't marked announced. Try again."),
         ),
       );
+      _refreshIfUnauthorized(error);
     }
   }
 
   Future<void> _edit(ScheduleRow row, DateTime date) async {
     final grid = _grid;
-    if (!_editable.contains(row.sectionId) || grid == null) return;
+    if (!_access.canEditSection(row.sectionId) || grid == null) return;
     if (!grid.isOnSchedule(row, date)) return;
     if (grid.status == MonthStatus.notStarted) {
       // An edit would create the month empty, and it could then no longer be
@@ -479,11 +476,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
           );
       }
       await _reload();
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("That change wasn't saved. Try again.")),
       );
+      _refreshIfUnauthorized(error);
     }
   }
 
@@ -496,8 +494,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
     if (_savingDrop ||
         grid == null ||
         grid.status == MonthStatus.notStarted ||
-        !_editable.contains(source.row.sectionId) ||
-        !_editable.contains(target.row.sectionId) ||
+        !_access.canEditSection(source.row.sectionId) ||
+        !_access.canEditSection(target.row.sectionId) ||
         !grid.isOnSchedule(source.row, source.date) ||
         !grid.isOnSchedule(target.row, target.date)) {
       return;
@@ -572,6 +570,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('The drop was not saved: $error')));
+    _refreshIfUnauthorized(error);
   }
 
   Future<void> _managePoolDay(
@@ -580,7 +579,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     DateTime date,
   ) async {
     final rules = widget.openShiftRules;
-    if (!_isManager || rules == null) return;
+    if (!_access.canRunSchedule || rules == null) return;
     final staffing = _staffingOn(_staffing, pool, window, date);
     if (staffing == null) return;
     final changed = await showStaffingSheet(
@@ -702,13 +701,14 @@ class _MonthGridPageState extends State<MonthGridPage> {
       if (next == null) return;
       await gateway.save(next);
       await _loadWording();
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("The print wording wasn't saved. Try again."),
         ),
       );
+      _refreshIfUnauthorized(error);
     }
   }
 
@@ -726,11 +726,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
     try {
       await gateway.correctMonth(_month, next);
       if (mounted) setState(() => _wording = next);
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('The month wording was not saved.')),
         );
+        _refreshIfUnauthorized(error);
       }
     }
   }
@@ -771,11 +772,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("The month wasn't started. Try again.")),
       );
+      _refreshIfUnauthorized(error);
     }
   }
 
@@ -852,7 +854,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         );
       }
       await _reload();
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -861,13 +863,14 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
         ),
       );
+      _refreshIfUnauthorized(error);
     }
   }
 
   DateTime get _previousMonth => DateTime(_month.year, _month.month - 1);
 
   Widget? _banner(MonthGrid grid) {
-    if (!_isManager) return null;
+    if (!_access.canRunSchedule) return null;
     final startInstructions = _previousMonthStarted
         ? 'Start empty or copy last month, lined up by weekday.'
         : 'Start an empty month to enter Shift codes.';
@@ -908,9 +911,6 @@ class _MonthGridPageState extends State<MonthGridPage> {
       icon: Icons.settings_outlined,
       secondary: true,
       onPressed: () async {
-        final role =
-            await widget.staffGateway?.currentStaffRole() ??
-            (_isManager ? 'manager' : 'staff_member');
         if (!context.mounted) return;
         _open(
           (context) => SettingsPage(
@@ -922,13 +922,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
             onManageStaff: widget.onManageStaff,
             staffGateway: widget.staffGateway,
             onManagerTransferred: widget.onManagerTransferred,
-            role: role,
+            role: _settingsRole,
             helpRole: helpRoleForAccess(
-              _currentRole,
-              canEditSchedule: _isManager,
-              hasEditableSections: !_editable.isEmpty,
+              _settingsRole,
+              canEditSchedule: _access.canRunSchedule,
+              hasEditableSections:
+                  _access.grants.nightSchedulerSectionIds.isNotEmpty,
             ),
-            hasNightSchedulerGrant: !_editable.isEmpty && !_isManager,
+            hasNightSchedulerGrant:
+                _access.grants.nightSchedulerSectionIds.isNotEmpty,
             auditClient: widget.staffGateway is SupabaseStaffGateway
                 ? Supabase.instance.client
                 : null,
@@ -943,17 +945,21 @@ class _MonthGridPageState extends State<MonthGridPage> {
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) => HelpPage(
-            hasNightSchedulerGrant: !_editable.isEmpty && !_isManager,
+            hasNightSchedulerGrant:
+                _access.grants.nightSchedulerSectionIds.isNotEmpty,
             role: helpRoleForAccess(
-              _currentRole,
-              canEditSchedule: _isManager,
-              hasEditableSections: !_editable.isEmpty,
+              _settingsRole,
+              canEditSchedule: _access.canRunSchedule,
+              hasEditableSections:
+                  _access.grants.nightSchedulerSectionIds.isNotEmpty,
             ),
           ),
         ),
       ),
     ),
-    if (_isManager && widget.swapRules != null && widget.openShiftRules != null)
+    if (_access.canRunSchedule &&
+        widget.swapRules != null &&
+        widget.openShiftRules != null)
       _ScheduleAction(
         label: 'Approval queue',
         icon: Icons.fact_check_outlined,
@@ -967,7 +973,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
         ),
       ),
-    if (!_isManager && widget.openShiftRules != null)
+    if (!_access.canRunSchedule &&
+        _access.ownStaffMemberId != null &&
+        widget.openShiftRules != null)
       _ScheduleAction(
         label: 'Open shifts',
         icon: Icons.add_circle_outline,
@@ -977,11 +985,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
             scheduleRules: widget.rules,
             month: _month,
             staffMemberId: widget.swapStaffMemberId,
-            isManager: _isManager,
+            isManager: _access.canRunSchedule,
           ),
         ),
       ),
-    if (!_isManager && widget.swapRules != null)
+    if (!_access.canRunSchedule &&
+        _access.ownStaffMemberId != null &&
+        widget.swapRules != null)
       _ScheduleAction(
         label: 'Swaps',
         icon: Icons.swap_horiz,
@@ -992,12 +1002,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
             swapRules: widget.swapRules!,
             month: _month,
             staffMemberId: widget.swapStaffMemberId,
-            isManager: _isManager,
+            isManager: _access.canRunSchedule,
             messagesComposer: widget.messagesComposer,
           ),
         ),
       ),
-    if (_currentRole != 'maintainer' && widget.noticeGateway != null)
+    if (_access.ownStaffMemberId != null && widget.noticeGateway != null)
       _ScheduleAction(
         label: 'Notices',
         icon: Icons.notifications_outlined,
@@ -1005,24 +1015,26 @@ class _MonthGridPageState extends State<MonthGridPage> {
         onPressed: () =>
             _open((context) => NoticesPage(gateway: widget.noticeGateway!)),
       ),
-    if (_currentRole != 'maintainer' && widget.onCalendarFeed != null)
+    if (_access.ownStaffMemberId != null && widget.onCalendarFeed != null)
       _ScheduleAction(
         label: 'My calendar',
         icon: Icons.calendar_month_outlined,
         secondary: true,
         onPressed: widget.onCalendarFeed,
       ),
-    if (!_isManager)
+    if (!_access.canRunSchedule && _access.ownStaffMemberId != null)
       _ScheduleAction(
         label: 'My Requests off',
         icon: Icons.event_busy_outlined,
         badgeCount: _unreadRequests,
         onPressed: () => _open(
-          (context) =>
-              RequestsOffPage(rules: widget.rules, isManager: _isManager),
+          (context) => RequestsOffPage(
+            rules: widget.rules,
+            isManager: _access.canRunSchedule,
+          ),
         ),
       ),
-    if (_isManager)
+    if (_access.canRunSchedule)
       _ScheduleAction(
         label: 'Browse requests',
         icon: Icons.more_horiz,
@@ -1070,7 +1082,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             ),
         ],
       ),
-    if (_canManageUnit && widget.openShiftRules != null)
+    if (_access.canManageUnit && widget.openShiftRules != null)
       _ScheduleAction(
         label: 'Unit coverage settings',
         icon: Icons.tune,
@@ -1086,7 +1098,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           if (mounted) await _load();
         },
       ),
-    if (_isManager)
+    if (_access.canRunSchedule)
       _ScheduleAction(
         label: 'Manage Shift codes',
         icon: Icons.schedule_outlined,
@@ -1100,7 +1112,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           if (mounted) await _load();
         },
       ),
-    if (_isManager || _currentRole == 'administrator')
+    if (_access.canReadChangeLog)
       _ScheduleAction(
         label: 'Change log',
         icon: Icons.history,
@@ -1115,13 +1127,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
         icon: Icons.print_outlined,
         onPressed: _wording == null ? null : () => _print(printBookPage),
       ),
-    if (_canManageUnit && widget.printWordingGateway != null)
+    if (_access.canManageUnit && widget.printWordingGateway != null)
       _ScheduleAction(
         label: 'Change print wording',
         icon: Icons.text_fields_outlined,
         onPressed: _wording == null ? null : _changePrintWording,
       ),
-    if (_canManageUnit &&
+    if (_access.canManageUnit &&
         _grid?.status == MonthStatus.released &&
         widget.printWordingGateway is MonthPrintWordingGateway)
       _ScheduleAction(
@@ -1297,7 +1309,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 onlyReverted: announcement.people.isEmpty,
                 onAnnounce: () => _announce(announcement),
               ),
-            if (_isManager && unreached != null)
+            if (_access.canRunSchedule && unreached != null)
               ListTile(
                 title: Text(
                   unreached.count == 1
@@ -1314,7 +1326,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                   ),
                 ),
               ),
-            if (!_isManager)
+            if (!_access.canRunSchedule)
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
@@ -1343,8 +1355,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       (null, null) => const Center(child: CircularProgressIndicator()),
       (null, final error?) => _LoadFailure(error: error, onRetry: _retry),
       (final MonthGrid grid, _)
-          when _editable.isEmpty &&
-              _currentRole != 'administrator' &&
+          when !_access.canReadUnreleased &&
               grid.status != MonthStatus.released =>
         Center(
           child: Text(
@@ -1363,7 +1374,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           }),
           onEdit: _edit,
           onDrop: _drop,
-          editable: _editable,
+          access: _access,
           dragEnabled: grid.status != MonthStatus.notStarted && !_savingDrop,
           onOpenStaffDetails: widget.onOpenStaffDetails == null
               ? null
@@ -1374,7 +1385,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           grid: grid,
           coverage: _coverage!,
           today: _today,
-          canEdit: !_editable.isEmpty,
+          canEdit: !_access.editableSections.isEmpty,
           staffMemberId: _signedInStaffMemberId,
           shiftCodes: _shiftCodes,
           onManageDay: _managePoolDay,
@@ -1386,7 +1397,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ScheduleView.person => _PersonView(
           grid: grid,
           today: _today,
-          canEdit: !_editable.isEmpty,
+          canEdit: !_access.editableSections.isEmpty,
           shiftCodes: _shiftCodes,
           staffMemberId: _personId ?? grid.rows.firstOrNull?.staffMemberId,
           onPersonChanged: (id) => setState(() => _personId = id),
@@ -1577,7 +1588,7 @@ class _MonthView extends StatefulWidget {
     required this.onOpenDay,
     required this.onEdit,
     required this.onDrop,
-    required this.editable,
+    required this.access,
     required this.dragEnabled,
     required this.onOpenStaffDetails,
     required this.staffMemberId,
@@ -1590,7 +1601,7 @@ class _MonthView extends StatefulWidget {
   final ValueChanged<DateTime> onOpenDay;
   final _OnEdit onEdit;
   final _OnDrop onDrop;
-  final EditableSections editable;
+  final Access access;
   final bool dragEnabled;
   final Future<void> Function(String)? onOpenStaffDetails;
   final String? staffMemberId;
@@ -1871,7 +1882,7 @@ class _MonthViewState extends State<_MonthView> {
                                 onDrop: widget.onDrop,
                                 onDragUpdate: _scrollDuringDrag,
                                 onDragStop: _stopDragScroll,
-                                editable: widget.editable,
+                                access: widget.access,
                                 dragEnabled: widget.dragEnabled,
                                 staffMemberId: widget.staffMemberId,
                               ),
@@ -2135,7 +2146,7 @@ class _StaffRow extends StatelessWidget {
     required this.onDrop,
     required this.onDragUpdate,
     required this.onDragStop,
-    required this.editable,
+    required this.access,
     required this.dragEnabled,
     required this.staffMemberId,
   });
@@ -2148,7 +2159,7 @@ class _StaffRow extends StatelessWidget {
   final _OnDrop onDrop;
   final ValueChanged<Offset> onDragUpdate;
   final VoidCallback onDragStop;
-  final EditableSections editable;
+  final Access access;
   final bool dragEnabled;
   final String? staffMemberId;
 
@@ -2175,9 +2186,9 @@ class _StaffRow extends StatelessWidget {
               dragCell: _DraggedCell(row, day),
               canDrag:
                   dragEnabled &&
-                  editable.contains(row.sectionId) &&
+                  access.canEditSection(row.sectionId) &&
                   (grid.shiftCodeFor(row.staffMemberId, day) ?? '').isNotEmpty,
-              canReceive: dragEnabled && editable.contains(row.sectionId),
+              canReceive: dragEnabled && access.canEditSection(row.sectionId),
               onDrop: onDrop,
               onDragUpdate: onDragUpdate,
               onDragStop: onDragStop,

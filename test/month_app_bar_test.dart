@@ -31,15 +31,15 @@ void main() {
     tester.view.physicalSize = const Size(320, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    var calendarOpens = 0;
     var signOuts = 0;
 
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          access: database.accessFor('manager'),
           rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
           month: DateTime(2026, 9),
-          onCalendarFeed: () => calendarOpens++,
+          onCalendarFeed: () {},
           onManageStaff: () async {},
           onSignOut: () => signOuts++,
         ),
@@ -57,12 +57,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Schedule actions'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('My calendar'));
-    await tester.pumpAndSettle();
-    expect(calendarOpens, 1);
-
-    await tester.tap(find.byTooltip('Schedule actions'));
-    await tester.pumpAndSettle();
+    expect(find.text('My calendar'), findsNothing);
     await tester.tap(find.text('Sign out'));
     await tester.pumpAndSettle();
     expect(signOuts, 1);
@@ -79,6 +74,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: MonthGridPage(
+            access: database.accessFor('manager'),
             rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
             month: DateTime(2026, 9),
             onCalendarFeed: () {},
@@ -130,6 +126,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: MonthGridPage(
+            access: database.accessFor('rn-1'),
             rules: ScheduleRules.inMemory(database, actingAs: 'rn-1'),
             month: DateTime(2026, 9),
             staffMemberId: 'rn-1',
@@ -169,14 +166,13 @@ void main() {
     tester.view.physicalSize = const Size(900, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    var calendarOpens = 0;
-
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          access: database.accessFor('manager'),
           rules: ScheduleRules.inMemory(database, actingAs: 'manager'),
           month: DateTime(2026, 9),
-          onCalendarFeed: () => calendarOpens++,
+          onCalendarFeed: () {},
           onManageStaff: () async {},
           onSignOut: () {},
         ),
@@ -188,9 +184,9 @@ void main() {
 
     await tester.tap(find.byTooltip('More destinations'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('My calendar'));
+    expect(find.text('My calendar'), findsNothing);
+    await tester.tapAt(const Offset(20, 400));
     await tester.pumpAndSettle();
-    expect(calendarOpens, 1);
     await tester.tap(find.byTooltip('Browse requests'));
     await tester.pumpAndSettle();
     expect(find.text('Requests off'), findsOneWidget);

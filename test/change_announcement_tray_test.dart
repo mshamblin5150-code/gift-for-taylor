@@ -56,6 +56,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          access: database.accessFor(actingAs),
           rules: ScheduleRules.inMemory(database, actingAs: actingAs),
           month: september,
           messagesComposer: messages,
