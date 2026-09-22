@@ -16,6 +16,7 @@ import 'schedule/supabase_open_shift_store.dart';
 import 'staff/invite_composer.dart';
 import 'staff/staff_gateway.dart';
 import 'settings/appearance.dart';
+import 'settings/settings_history.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,6 +65,7 @@ Future<void> main() async {
       inviteToken: Uri.base.queryParameters['invite'],
       bookPagePresenter: const BrowserBookPagePresenter(),
       printWordingGateway: SupabasePrintWordingGateway(client),
+      settingsHistory: SupabaseSettingsHistory(client),
       calendarFeedGateway: SupabaseCalendarFeedGateway(client, supabaseUrl),
     ),
   );

@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../help/help_page.dart';
 import '../notifications/notice_gateway.dart';
@@ -14,6 +13,7 @@ import '../notifications/notices_page.dart';
 import '../schedule_theme.dart';
 import '../staff/staff_gateway.dart';
 import '../settings/settings_page.dart';
+import '../settings/settings_history.dart';
 
 import 'announce_sheet.dart';
 import 'approval_queue_page.dart';
@@ -76,6 +76,7 @@ class MonthGridPage extends StatefulWidget {
     this.staffGateway,
     this.bookPagePresenter,
     this.printWordingGateway,
+    this.settingsHistory,
     this.now,
   });
 
@@ -101,6 +102,7 @@ class MonthGridPage extends StatefulWidget {
 
   final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;
+  final SettingsHistory? settingsHistory;
   final DateTime Function()? now;
 
   @override
@@ -624,9 +626,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             staffGateway: widget.staffGateway,
             onManagerTransferred: widget.onManagerTransferred,
             access: _access,
-            auditClient: widget.staffGateway is SupabaseStaffGateway
-                ? Supabase.instance.client
-                : null,
+            settingsHistory: widget.settingsHistory,
           ),
         );
       },

@@ -83,6 +83,18 @@ void main() {
     expect(find.text('Maintainer repairs'), findsOneWidget);
   });
 
+  testWidgets('Administrator finds who changed Unit settings', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: HelpPage(roles: {HelpRole.administrator})),
+    );
+    await tester.enterText(find.byType(TextField), 'who changed settings');
+    await tester.pump();
+    expect(find.text('Settings history'), findsOneWidget);
+    await tester.tap(find.text('Settings history'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('before and after values'), findsWidgets);
+  });
+
   Future<void> openHelp(WidgetTester tester, HelpRole role) async {
     await tester.pumpWidget(MaterialApp(home: HelpPage(roles: {role})));
   }
