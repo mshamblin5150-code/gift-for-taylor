@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
+import 'app_dependencies.dart';
 import 'auth/auth_gateway.dart';
 import 'auth/repair_reason_client.dart';
 import 'calendar/calendar_feed_page.dart';
@@ -43,30 +44,32 @@ Future<void> main() async {
   final client = Supabase.instance.client;
   runApp(
     ScheduleApp(
-      authGateway: SupabaseAuthGateway(
-        client,
-        onSignedOut: () => repairClient.isMaintainer = false,
-      ),
-      scheduleStore: SupabaseScheduleStore(client),
-      swapStore: SupabaseSwapStore(client),
-      openShiftStore: SupabaseOpenShiftStore(client),
-      staffGateway: SupabaseStaffGateway(
-        client,
-        onAccessLoaded: (access) =>
-            repairClient.isMaintainer = access.isRepairAccess,
+      dependencies: AppDependencies(
+        authGateway: SupabaseAuthGateway(
+          client,
+          onSignedOut: () => repairClient.isMaintainer = false,
+        ),
+        scheduleStore: SupabaseScheduleStore(client),
+        swapStore: SupabaseSwapStore(client),
+        openShiftStore: SupabaseOpenShiftStore(client),
+        staffGateway: SupabaseStaffGateway(
+          client,
+          onAccessLoaded: (access) =>
+              repairClient.isMaintainer = access.isRepairAccess,
+        ),
+        inviteComposer: SmsInviteComposer(Uri.base),
+        messagesComposer: const SmsMessagesComposer(),
+        noticeGateway: SupabaseNoticeGateway(
+          client,
+          const String.fromEnvironment('VAPID_PUBLIC_KEY'),
+        ),
+        bookPagePresenter: const BrowserBookPagePresenter(),
+        printWordingGateway: SupabasePrintWordingGateway(client),
+        calendarFeedGateway: SupabaseCalendarFeedGateway(client, supabaseUrl),
+        settingsHistory: SupabaseSettingsHistory(client),
       ),
       navigatorKey: navigatorKey,
-      inviteComposer: SmsInviteComposer(Uri.base),
-      messagesComposer: const SmsMessagesComposer(),
-      noticeGateway: SupabaseNoticeGateway(
-        client,
-        const String.fromEnvironment('VAPID_PUBLIC_KEY'),
-      ),
       inviteToken: Uri.base.queryParameters['invite'],
-      bookPagePresenter: const BrowserBookPagePresenter(),
-      printWordingGateway: SupabasePrintWordingGateway(client),
-      settingsHistory: SupabaseSettingsHistory(client),
-      calendarFeedGateway: SupabaseCalendarFeedGateway(client, supabaseUrl),
     ),
   );
 }

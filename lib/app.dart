@@ -1,20 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
-import 'auth/auth_gateway.dart';
+import 'app_dependencies.dart';
 import 'auth/sign_in_page.dart';
 import 'calendar/calendar_feed_page.dart';
-import 'notifications/notice_gateway.dart';
-import 'schedule/messages_composer.dart';
 import 'schedule/month_grid_page.dart';
-import 'schedule/book_page_printing.dart';
-import 'schedule/print_wording_gateway.dart';
 import 'staff/staff_gateway.dart';
 import 'staff/staff_list_page.dart';
 import 'staff/staff_details_page.dart';
 import 'schedule_theme.dart';
 import 'settings/appearance.dart';
-import 'settings/settings_history.dart';
 import 'setup/app_setup_page.dart';
 
 void _openSetup(BuildContext context, {bool awaitingConfirmation = false}) {
@@ -28,35 +23,13 @@ void _openSetup(BuildContext context, {bool awaitingConfirmation = false}) {
 class ScheduleApp extends StatelessWidget {
   const ScheduleApp({
     super.key,
-    required this.authGateway,
-    required this.scheduleStore,
-    this.staffGateway,
-    this.inviteComposer,
-    this.messagesComposer,
-    this.swapStore,
-    this.openShiftStore,
-    this.noticeGateway,
+    required this.dependencies,
     this.inviteToken,
-    this.bookPagePresenter,
-    this.printWordingGateway,
-    this.settingsHistory,
-    this.calendarFeedGateway,
     this.navigatorKey,
   });
 
-  final AuthGateway authGateway;
-  final ScheduleStore scheduleStore;
-  final StaffGateway? staffGateway;
-  final InviteComposer? inviteComposer;
-  final MessagesComposer? messagesComposer;
-  final SwapStore? swapStore;
-  final OpenShiftStore? openShiftStore;
-  final NoticeGateway? noticeGateway;
+  final AppDependencies dependencies;
   final String? inviteToken;
-  final BookPagePresenter? bookPagePresenter;
-  final PrintWordingGateway? printWordingGateway;
-  final SettingsHistory? settingsHistory;
-  final CalendarFeedGateway? calendarFeedGateway;
   final GlobalKey<NavigatorState>? navigatorKey;
 
   @override
@@ -69,56 +42,17 @@ class ScheduleApp extends StatelessWidget {
         theme: ScheduleTheme.light,
         darkTheme: ScheduleTheme.dark,
         themeMode: mode,
-        home: _AuthGate(
-          authGateway: authGateway,
-          scheduleStore: scheduleStore,
-          staffGateway: staffGateway,
-          inviteComposer: inviteComposer,
-          messagesComposer: messagesComposer,
-          swapStore: swapStore,
-          openShiftStore: openShiftStore,
-          noticeGateway: noticeGateway,
-          inviteToken: inviteToken,
-          bookPagePresenter: bookPagePresenter,
-          printWordingGateway: printWordingGateway,
-          settingsHistory: settingsHistory,
-          calendarFeedGateway: calendarFeedGateway,
-        ),
+        home: _AuthGate(dependencies: dependencies, inviteToken: inviteToken),
       ),
     );
   }
 }
 
 class _AuthGate extends StatefulWidget {
-  const _AuthGate({
-    required this.authGateway,
-    required this.scheduleStore,
-    required this.staffGateway,
-    required this.inviteComposer,
-    required this.messagesComposer,
-    required this.swapStore,
-    required this.openShiftStore,
-    required this.noticeGateway,
-    required this.inviteToken,
-    required this.bookPagePresenter,
-    required this.printWordingGateway,
-    required this.settingsHistory,
-    required this.calendarFeedGateway,
-  });
+  const _AuthGate({required this.dependencies, required this.inviteToken});
 
-  final AuthGateway authGateway;
-  final ScheduleStore scheduleStore;
-  final StaffGateway? staffGateway;
-  final InviteComposer? inviteComposer;
-  final MessagesComposer? messagesComposer;
-  final SwapStore? swapStore;
-  final OpenShiftStore? openShiftStore;
-  final NoticeGateway? noticeGateway;
+  final AppDependencies dependencies;
   final String? inviteToken;
-  final BookPagePresenter? bookPagePresenter;
-  final PrintWordingGateway? printWordingGateway;
-  final SettingsHistory? settingsHistory;
-  final CalendarFeedGateway? calendarFeedGateway;
 
   @override
   State<_AuthGate> createState() => _AuthGateState();
@@ -129,8 +63,9 @@ class _AuthGateState extends State<_AuthGate> {
   String? _inviteCellNumber;
 
   Future<void> _prepareInvite() async {
-    if (widget.inviteToken != null && widget.authGateway.isSignedIn) {
-      await widget.authGateway.signOut();
+    if (widget.inviteToken != null &&
+        widget.dependencies.authGateway.isSignedIn) {
+      await widget.dependencies.authGateway.signOut();
     }
   }
 
@@ -158,8 +93,8 @@ class _AuthGateState extends State<_AuthGate> {
           );
         }
         return StreamBuilder<bool>(
-          stream: widget.authGateway.signedInChanges,
-          initialData: widget.authGateway.isSignedIn,
+          stream: widget.dependencies.authGateway.signedInChanges,
+          initialData: widget.dependencies.authGateway.isSignedIn,
           builder: (context, snapshot) {
             if (snapshot.data != true) {
               if (widget.inviteToken != null && _inviteCellNumber == null) {
@@ -169,42 +104,18 @@ class _AuthGateState extends State<_AuthGate> {
                 );
               }
               return SignInPage(
-                authGateway: widget.authGateway,
+                authGateway: widget.dependencies.authGateway,
                 awaitingConfirmation: widget.inviteToken != null,
               );
             }
-            if (widget.inviteToken != null && widget.staffGateway != null) {
+            if (widget.inviteToken != null) {
               return _InviteAcceptance(
-                authGateway: widget.authGateway,
-                scheduleStore: widget.scheduleStore,
-                staffGateway: widget.staffGateway!,
-                inviteComposer: widget.inviteComposer,
-                messagesComposer: widget.messagesComposer,
-                swapStore: widget.swapStore,
-                openShiftStore: widget.openShiftStore,
-                noticeGateway: widget.noticeGateway,
+                dependencies: widget.dependencies,
                 inviteToken: widget.inviteToken!,
                 cellNumber: _inviteCellNumber!,
-                bookPagePresenter: widget.bookPagePresenter,
-                printWordingGateway: widget.printWordingGateway,
-                settingsHistory: widget.settingsHistory,
-                calendarFeedGateway: widget.calendarFeedGateway,
               );
             }
-            return _ScheduleAccess(
-              authGateway: widget.authGateway,
-              scheduleStore: widget.scheduleStore,
-              staffGateway: widget.staffGateway,
-              inviteComposer: widget.inviteComposer,
-              messagesComposer: widget.messagesComposer,
-              swapStore: widget.swapStore,
-              openShiftStore: widget.openShiftStore,
-              noticeGateway: widget.noticeGateway,
-              bookPagePresenter: widget.bookPagePresenter,
-              printWordingGateway: widget.printWordingGateway,
-              settingsHistory: widget.settingsHistory,
-              calendarFeedGateway: widget.calendarFeedGateway,
-            );
+            return _ScheduleAccess(dependencies: widget.dependencies);
           },
         );
       },
@@ -286,43 +197,23 @@ class _InviteCellEntryState extends State<_InviteCellEntry> {
 
 class _InviteAcceptance extends StatefulWidget {
   const _InviteAcceptance({
-    required this.authGateway,
-    required this.scheduleStore,
-    required this.staffGateway,
-    required this.inviteComposer,
-    required this.messagesComposer,
-    required this.swapStore,
-    required this.openShiftStore,
-    required this.noticeGateway,
+    required this.dependencies,
     required this.inviteToken,
     required this.cellNumber,
-    required this.bookPagePresenter,
-    required this.printWordingGateway,
-    required this.settingsHistory,
-    required this.calendarFeedGateway,
   });
 
-  final AuthGateway authGateway;
-  final ScheduleStore scheduleStore;
-  final StaffGateway staffGateway;
-  final InviteComposer? inviteComposer;
-  final MessagesComposer? messagesComposer;
-  final SwapStore? swapStore;
-  final OpenShiftStore? openShiftStore;
-  final NoticeGateway? noticeGateway;
+  final AppDependencies dependencies;
   final String inviteToken;
   final String cellNumber;
-  final BookPagePresenter? bookPagePresenter;
-  final PrintWordingGateway? printWordingGateway;
-  final SettingsHistory? settingsHistory;
-  final CalendarFeedGateway? calendarFeedGateway;
 
   @override
   State<_InviteAcceptance> createState() => _InviteAcceptanceState();
 }
 
 class _InviteAcceptanceState extends State<_InviteAcceptance> {
-  late Future<InviteAcceptanceResult> _acceptance = widget.staffGateway
+  late Future<InviteAcceptanceResult> _acceptance = widget
+      .dependencies
+      .staffGateway
       .acceptInvite(widget.inviteToken, widget.cellNumber);
   final _retryNumber = TextEditingController();
 
@@ -357,7 +248,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
                 const AppearanceButton(),
                 IconButton(
                   tooltip: 'Sign out',
-                  onPressed: widget.authGateway.signOut,
+                  onPressed: widget.dependencies.authGateway.signOut,
                   icon: const Icon(Icons.logout),
                 ),
               ],
@@ -400,10 +291,11 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
                         onPressed: () {
                           if (_retryNumber.text.trim().isNotEmpty) {
                             setState(() {
-                              _acceptance = widget.staffGateway.acceptInvite(
-                                widget.inviteToken,
-                                _retryNumber.text.trim(),
-                              );
+                              _acceptance = widget.dependencies.staffGateway
+                                  .acceptInvite(
+                                    widget.inviteToken,
+                                    _retryNumber.text.trim(),
+                                  );
                             });
                           }
                         },
@@ -416,53 +308,16 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
             ),
           );
         }
-        return _ScheduleAccess(
-          authGateway: widget.authGateway,
-          scheduleStore: widget.scheduleStore,
-          staffGateway: widget.staffGateway,
-          inviteComposer: widget.inviteComposer,
-          messagesComposer: widget.messagesComposer,
-          swapStore: widget.swapStore,
-          openShiftStore: widget.openShiftStore,
-          noticeGateway: widget.noticeGateway,
-          bookPagePresenter: widget.bookPagePresenter,
-          printWordingGateway: widget.printWordingGateway,
-          settingsHistory: widget.settingsHistory,
-          calendarFeedGateway: widget.calendarFeedGateway,
-        );
+        return _ScheduleAccess(dependencies: widget.dependencies);
       },
     );
   }
 }
 
 class _ScheduleAccess extends StatefulWidget {
-  const _ScheduleAccess({
-    required this.authGateway,
-    required this.scheduleStore,
-    required this.staffGateway,
-    required this.inviteComposer,
-    required this.messagesComposer,
-    required this.swapStore,
-    required this.openShiftStore,
-    required this.noticeGateway,
-    required this.bookPagePresenter,
-    required this.printWordingGateway,
-    required this.settingsHistory,
-    required this.calendarFeedGateway,
-  });
+  const _ScheduleAccess({required this.dependencies});
 
-  final AuthGateway authGateway;
-  final ScheduleStore scheduleStore;
-  final StaffGateway? staffGateway;
-  final InviteComposer? inviteComposer;
-  final MessagesComposer? messagesComposer;
-  final SwapStore? swapStore;
-  final OpenShiftStore? openShiftStore;
-  final NoticeGateway? noticeGateway;
-  final BookPagePresenter? bookPagePresenter;
-  final PrintWordingGateway? printWordingGateway;
-  final SettingsHistory? settingsHistory;
-  final CalendarFeedGateway? calendarFeedGateway;
+  final AppDependencies dependencies;
 
   @override
   State<_ScheduleAccess> createState() => _ScheduleAccessState();
@@ -499,21 +354,21 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
 
   Future<void> _signOut() async {
     try {
-      await widget.noticeGateway?.disablePush();
+      await widget.dependencies.noticeGateway.disablePush();
     } finally {
-      await widget.authGateway.signOut();
+      await widget.dependencies.authGateway.signOut();
     }
   }
 
   Future<_ScheduleData> _loadData() async {
-    final sections = await widget.scheduleStore.sections();
-    final invitePending = sections.isEmpty && widget.staffGateway != null
-        ? await widget.staffGateway!.isInviteAcceptancePending()
+    final sections = await widget.dependencies.scheduleStore.sections();
+    final invitePending = sections.isEmpty
+        ? await widget.dependencies.staffGateway.isInviteAcceptancePending()
         : false;
-    final access =
-        await widget.staffGateway?.currentAccess() ?? Access(grants: Grants());
+    final access = await widget.dependencies.staffGateway.currentAccess();
     final monthToCheck =
-        (await widget.scheduleStore.monthsAwaitingConfirmation()).firstOrNull;
+        (await widget.dependencies.scheduleStore.monthsAwaitingConfirmation())
+            .firstOrNull;
     return _ScheduleData(
       sections,
       invitePending,
@@ -595,60 +450,53 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
             data?.staffMemberId,
             data?.swapStaffMemberId,
           )),
-          rules: ScheduleRules(widget.scheduleStore),
+          rules: widget.dependencies.rules,
           access: data!.access,
           onAccessRejected: _refreshAccess,
-          viewerId: widget.authGateway.currentUserId,
+          viewerId: widget.dependencies.authGateway.currentUserId,
           month:
               data.monthToCheck ??
               DateTime.tryParse(Uri.base.queryParameters['month'] ?? '') ??
               DateTime(now.year, now.month),
           staffMemberId: data.staffMemberId,
           swapStaffMemberId: data.swapStaffMemberId,
-          swapStore: widget.swapStore,
-          openShiftStore: widget.openShiftStore,
+          swapStore: widget.dependencies.swapStore,
+          openShiftStore: widget.dependencies.openShiftStore,
           onSignOut: _signOut,
           onManagerTransferred: _refreshAccess,
-          messagesComposer: widget.messagesComposer,
-          noticeGateway: widget.noticeGateway,
-          staffGateway: widget.staffGateway,
-          bookPagePresenter: widget.bookPagePresenter,
-          printWordingGateway: widget.printWordingGateway,
-          settingsHistory: widget.settingsHistory,
-          onCalendarFeed: widget.calendarFeedGateway == null
-              ? null
-              : () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (context) =>
-                        CalendarFeedPage(gateway: widget.calendarFeedGateway!),
-                  ),
-                ),
-          onManageStaff:
-              data.access.canManageStaff &&
-                  widget.staffGateway != null &&
-                  widget.inviteComposer != null
+          messagesComposer: widget.dependencies.messagesComposer,
+          noticeGateway: widget.dependencies.noticeGateway,
+          staffGateway: widget.dependencies.staffGateway,
+          bookPagePresenter: widget.dependencies.bookPagePresenter,
+          printWordingGateway: widget.dependencies.printWordingGateway,
+          settingsHistory: widget.dependencies.settingsHistory,
+          onCalendarFeed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (context) => CalendarFeedPage(
+                gateway: widget.dependencies.calendarFeedGateway,
+              ),
+            ),
+          ),
+          onManageStaff: data.access.canManageStaff
               ? () async => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (context) => StaffListPage(
-                      gateway: widget.staffGateway!,
-                      rules: ScheduleRules(widget.scheduleStore),
-                      inviteComposer: widget.inviteComposer!,
+                      gateway: widget.dependencies.staffGateway,
+                      rules: widget.dependencies.rules,
+                      inviteComposer: widget.dependencies.inviteComposer,
                     ),
                   ),
                 )
               : null,
-          onOpenStaffDetails:
-              data.access.canManageStaff &&
-                  widget.staffGateway != null &&
-                  widget.inviteComposer != null
+          onOpenStaffDetails: data.access.canManageStaff
               ? (staffMemberId) async {
                   await Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (context) => StaffDetailsPage(
                         staffMemberId: staffMemberId,
-                        gateway: widget.staffGateway!,
-                        rules: ScheduleRules(widget.scheduleStore),
-                        inviteComposer: widget.inviteComposer!,
+                        gateway: widget.dependencies.staffGateway,
+                        rules: widget.dependencies.rules,
+                        inviteComposer: widget.dependencies.inviteComposer,
                       ),
                     ),
                   );
