@@ -1,3 +1,5 @@
+import 'support/in_memory_staff_gateway.dart';
+
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 
 import 'dart:async';
@@ -50,7 +52,7 @@ void main() {
       ScheduleApp(
         authGateway: _FakeAuthGateway(),
         scheduleStore: _scheduleStore(const []),
-        staffGateway: _FakeStaffGateway(),
+        staffGateway: InMemoryStaffGateway(),
         inviteToken: 'fresh-token',
       ),
     );
@@ -187,7 +189,7 @@ void main() {
       ScheduleApp(
         authGateway: gateway,
         scheduleStore: _scheduleStore(const []),
-        staffGateway: _FakeStaffGateway(),
+        staffGateway: InMemoryStaffGateway(),
         inviteToken: 'fresh-token',
       ),
     );
@@ -269,7 +271,7 @@ void main() {
       ScheduleApp(
         authGateway: _FakeAuthGateway(true),
         scheduleStore: database.storeFor('staff-1'),
-        staffGateway: _FakeStaffGateway('staff-1'),
+        staffGateway: InMemoryStaffGateway(currentId: 'staff-1'),
       ),
     );
     await tester.pumpAndSettle();
@@ -296,7 +298,7 @@ void main() {
   testWidgets(
     'invitee gives their Cell number and waits for Manager confirmation',
     (tester) async {
-      final staffGateway = _FakeStaffGateway();
+      final staffGateway = InMemoryStaffGateway();
       await tester.pumpWidget(
         ScheduleApp(
           authGateway: _FakeAuthGateway(),
@@ -348,7 +350,7 @@ void main() {
     tester,
   ) async {
     final authGateway = _FakeAuthGateway(true);
-    final staffGateway = _FakeStaffGateway();
+    final staffGateway = InMemoryStaffGateway();
 
     await tester.pumpWidget(
       ScheduleApp(
@@ -368,7 +370,7 @@ void main() {
   testWidgets('wrong Cell number shows a specific error and can be retried', (
     tester,
   ) async {
-    final staffGateway = _FakeStaffGateway()
+    final staffGateway = InMemoryStaffGateway()
       ..acceptanceResult = InviteAcceptanceResult.cellMismatch;
     await tester.pumpWidget(
       ScheduleApp(
@@ -415,7 +417,7 @@ void main() {
   testWidgets('duplicate sign-in explains why the Invite cannot be accepted', (
     tester,
   ) async {
-    final staffGateway = _FakeStaffGateway()
+    final staffGateway = InMemoryStaffGateway()
       ..acceptanceError = const StaffInviteAlreadyLinkedException();
     await tester.pumpWidget(
       ScheduleApp(
@@ -455,7 +457,7 @@ void main() {
   testWidgets(
     'returning to the foreground rebuilds the Schedule when Access changes',
     (tester) async {
-      final staffGateway = _FakeStaffGateway('staff-1');
+      final staffGateway = InMemoryStaffGateway(currentId: 'staff-1');
       final database = InMemoryScheduleDatabase(
         sections: const [ScheduleSection(id: 'days', name: 'Days')],
         rows: const [
@@ -477,10 +479,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining("hasn't been released"), findsOneWidget);
 
-      staffGateway.access = Access(
-        grants: Grants(manager: true),
-        ownStaffMemberId: 'staff-1',
-      );
+      staffGateway.actorRole = 'manager';
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
       expect(find.text('Start empty month'), findsOneWidget);
@@ -532,118 +531,5 @@ final class _FakeAuthGateway implements AuthGateway {
     signOutCount += 1;
     _signedIn = false;
     _controller.add(false);
-  }
-}
-
-final class _FakeStaffGateway implements StaffGateway {
-  @override
-  Future<Access> currentAccess() async => access;
-  late Access access;
-  Object? acceptanceError;
-  @override
-  Future<bool> canTransferManagerTo(String id) async => false;
-  @override
-  Future<List<StaffAccessChange>> loadStaffAccessChanges(String id) async => [];
-  @override
-  Future<Grants> loadAccessGrants(String id) async => Grants();
-  @override
-  Future<void> setAccessGrants(String id, Grants grants) async {}
-
-  @override
-  Future<void> assignAdministrator(String id) async {}
-
-  @override
-  Future<void> removeAdministrator(String id) async {}
-
-  @override
-  Future<void> transferManager(String id) async {}
-  @override
-  Future<void> transferManagerWithAccess(
-    String id,
-    bool formerAdministrator,
-    Set<String> formerSections,
-  ) async {}
-  _FakeStaffGateway([this.staffMemberId]) {
-    access = Access(grants: Grants(), ownStaffMemberId: staffMemberId);
-  }
-
-  final String? staffMemberId;
-  @override
-  Future<StaffMemberDetails> loadStaffMemberDetails(String id) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> updateStaffContact(String id, String name, String? cell) =>
-      throw UnimplementedError();
-  String? acceptedToken;
-  String? acceptedCellNumber;
-  InviteAcceptanceResult acceptanceResult = InviteAcceptanceResult.accepted;
-
-  @override
-  Future<InviteAcceptanceResult> acceptInvite(
-    String token,
-    String cellNumber,
-  ) async {
-    if (acceptanceError case final error?) throw error;
-    acceptedToken = token;
-    acceptedCellNumber = cellNumber;
-    return acceptanceResult;
-  }
-
-  @override
-  Future<bool> isInviteAcceptancePending() async => acceptedToken != null;
-
-  @override
-  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async => [];
-
-  @override
-  Future<void> confirmInviteAcceptance(String inviteId) async {}
-
-  @override
-  Future<void> rejectInviteAcceptance(String inviteId) async {}
-
-  @override
-  Future<StaffInvite> addStaffMember(
-    StaffMemberDraft draft, {
-    bool allowRecycledCell = false,
-  }) {
-    throw UnimplementedError();
-  }
-
-  @override
-  @override
-  Future<void> addSection(String name) => throw UnimplementedError();
-
-  @override
-  Future<void> renameSection(String sectionId, String name) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> deleteEmptySection(String sectionId) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> reorderSections(List<String> sectionIds) =>
-      throw UnimplementedError();
-
-  @override
-  @override
-  Future<StaffList> loadStaffList() {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<List<PastStaffMember>> loadPastStaff() {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> reorderSection(String sectionId, List<String> memberIds) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<StaffInvite> resendInvite(String staffMemberId) {
-    throw UnimplementedError();
   }
 }

@@ -203,9 +203,6 @@ abstract interface class StaffGateway {
     String displayName,
     String? cellNumber,
   );
-  Future<void> assignAdministrator(String staffMemberId);
-  Future<void> removeAdministrator(String staffMemberId);
-  Future<void> transferManager(String newManagerId);
 
   /// Everyone who has left, most recent Last day first.
   Future<List<PastStaffMember>> loadPastStaff();
@@ -251,24 +248,6 @@ final class SupabaseStaffGateway implements StaffGateway {
         account['accepted_invite_at'] != null &&
         account['revoked_at'] == null;
   }
-
-  @override
-  Future<void> assignAdministrator(String staffMemberId) => _client.rpc<void>(
-    'assign_administrator',
-    params: {'p_staff_member_id': staffMemberId},
-  );
-
-  @override
-  Future<void> removeAdministrator(String staffMemberId) => _client.rpc<void>(
-    'remove_administrator',
-    params: {'p_staff_member_id': staffMemberId},
-  );
-
-  @override
-  Future<void> transferManager(String newManagerId) => _client.rpc<void>(
-    'transfer_manager',
-    params: {'p_new_manager_id': newManagerId},
-  );
 
   @override
   Future<void> transferManagerWithAccess(

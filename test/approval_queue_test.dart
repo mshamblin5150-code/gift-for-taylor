@@ -1,3 +1,5 @@
+import 'support/in_memory_staff_gateway.dart';
+
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/approval_queue_page.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
@@ -37,35 +39,6 @@ class _Pickups extends Fake implements OpenShiftStore {
   Stream<void> updates() => const Stream.empty();
 }
 
-class _Invites extends Fake implements StaffGateway {
-  final items = <PendingInviteAcceptance>[
-    PendingInviteAcceptance(
-      inviteId: 'invite',
-      staffMemberName: 'Jane Kemp',
-      personalEmail: 'bsmith88@gmail.com',
-      acceptedAt: DateTime(2026, 9, 18),
-    ),
-  ];
-  String? confirmed;
-  String? rejected;
-
-  @override
-  Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async =>
-      items;
-
-  @override
-  Future<void> confirmInviteAcceptance(String inviteId) async {
-    confirmed = inviteId;
-    items.clear();
-  }
-
-  @override
-  Future<void> rejectInviteAcceptance(String inviteId) async {
-    rejected = inviteId;
-    items.clear();
-  }
-}
-
 void main() {
   final month = DateTime(2026, 9);
   final requestDay = DateTime(2026, 9, 20);
@@ -75,7 +48,15 @@ void main() {
   testWidgets('Manager confirms a pending Invite in the approval queue', (
     tester,
   ) async {
-    final invites = _Invites();
+    final invites = InMemoryStaffGateway()
+      ..invites = [
+        PendingInviteAcceptance(
+          inviteId: 'invite',
+          staffMemberName: 'Jane Kemp',
+          personalEmail: 'bsmith88@gmail.com',
+          acceptedAt: DateTime(2026, 9, 18),
+        ),
+      ];
     final db = InMemoryScheduleDatabase(
       sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],
       grants: {'manager': Grants(manager: true)},
@@ -99,7 +80,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Confirm').last);
     await tester.pumpAndSettle();
-    expect(invites.confirmed, 'invite');
+    expect(invites.confirmedInviteId, 'invite');
     expect(find.text('Nothing awaiting approval.'), findsOneWidget);
   });
 
