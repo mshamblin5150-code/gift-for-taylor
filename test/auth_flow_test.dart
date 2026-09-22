@@ -1,13 +1,11 @@
+import 'support/app_dependencies.dart';
 import 'support/in_memory_staff_gateway.dart';
 
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:er_schedule/app.dart';
-import 'package:er_schedule/auth/auth_gateway.dart';
 import 'package:er_schedule/auth/sign_in_page.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:er_schedule/schedule_theme.dart';
@@ -32,8 +30,10 @@ void main() {
 
     await tester.pumpWidget(
       ScheduleApp(
-        authGateway: _FakeAuthGateway(),
-        scheduleStore: _scheduleStore(const []),
+        dependencies: appDependencies(
+          authGateway: FakeAuthGateway(),
+          scheduleStore: _scheduleStore(const []),
+        ),
       ),
     );
     expect(
@@ -50,9 +50,11 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpWidget(
       ScheduleApp(
-        authGateway: _FakeAuthGateway(),
-        scheduleStore: _scheduleStore(const []),
-        staffGateway: InMemoryStaffGateway(),
+        dependencies: appDependencies(
+          authGateway: FakeAuthGateway(),
+          scheduleStore: _scheduleStore(const []),
+          staffGateway: InMemoryStaffGateway(),
+        ),
         inviteToken: 'fresh-token',
       ),
     );
@@ -93,7 +95,7 @@ void main() {
   ) async {
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
     addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
-    final gateway = _FakeAuthGateway();
+    final gateway = FakeAuthGateway();
     final store = _scheduleStore(const []);
 
     for (final (label, expected) in [
@@ -102,7 +104,12 @@ void main() {
       ('System', Brightness.dark),
     ]) {
       await tester.pumpWidget(
-        ScheduleApp(authGateway: gateway, scheduleStore: store),
+        ScheduleApp(
+          dependencies: appDependencies(
+            authGateway: gateway,
+            scheduleStore: store,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Appearance'));
@@ -118,7 +125,12 @@ void main() {
       appearanceMode.value = ThemeMode.system;
       await loadAppearance();
       await tester.pumpWidget(
-        ScheduleApp(authGateway: gateway, scheduleStore: store),
+        ScheduleApp(
+          dependencies: appDependencies(
+            authGateway: gateway,
+            scheduleStore: store,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       expect(
@@ -131,10 +143,15 @@ void main() {
   testWidgets('appearance choice stays in one browser storage', (tester) async {
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
     addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
-    final gateway = _FakeAuthGateway();
+    final gateway = FakeAuthGateway();
     final store = _scheduleStore(const []);
     await tester.pumpWidget(
-      ScheduleApp(authGateway: gateway, scheduleStore: store),
+      ScheduleApp(
+        dependencies: appDependencies(
+          authGateway: gateway,
+          scheduleStore: store,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Appearance'));
@@ -151,7 +168,12 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await loadAppearance();
     await tester.pumpWidget(
-      ScheduleApp(authGateway: gateway, scheduleStore: store),
+      ScheduleApp(
+        dependencies: appDependencies(
+          authGateway: gateway,
+          scheduleStore: store,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     expect(
@@ -164,11 +186,13 @@ void main() {
   ) async {
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
     addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
-    final gateway = _FakeAuthGateway();
+    final gateway = FakeAuthGateway();
     await tester.pumpWidget(
       ScheduleApp(
-        authGateway: gateway,
-        scheduleStore: _scheduleStore(const []),
+        dependencies: appDependencies(
+          authGateway: gateway,
+          scheduleStore: _scheduleStore(const []),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -187,9 +211,11 @@ void main() {
 
     await tester.pumpWidget(
       ScheduleApp(
-        authGateway: gateway,
-        scheduleStore: _scheduleStore(const []),
-        staffGateway: InMemoryStaffGateway(),
+        dependencies: appDependencies(
+          authGateway: gateway,
+          scheduleStore: _scheduleStore(const []),
+          staffGateway: InMemoryStaffGateway(),
+        ),
         inviteToken: 'fresh-token',
       ),
     );
@@ -204,7 +230,7 @@ void main() {
   testWidgets('Manager requests and verifies an emailed one-time code', (
     tester,
   ) async {
-    final gateway = _FakeAuthGateway();
+    final gateway = FakeAuthGateway();
     await tester.pumpWidget(
       MaterialApp(home: SignInPage(authGateway: gateway)),
     );
@@ -231,13 +257,15 @@ void main() {
   });
 
   testWidgets('signed-in Manager can sign out', (tester) async {
-    final gateway = _FakeAuthGateway(true);
+    final gateway = FakeAuthGateway(true);
     await tester.pumpWidget(
       ScheduleApp(
-        authGateway: gateway,
-        scheduleStore: _scheduleStore(const [
-          ScheduleSection(id: 'days', name: 'State dayshift RN'),
-        ]),
+        dependencies: appDependencies(
+          authGateway: gateway,
+          scheduleStore: _scheduleStore(const [
+            ScheduleSection(id: 'days', name: 'State dayshift RN'),
+          ]),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -249,6 +277,44 @@ void main() {
 
     expect(gateway.signOutCount, 1);
     expect(find.text('Email me a code'), findsOneWidget);
+  });
+
+  testWidgets('Access controls the Staff list with every gateway wired', (
+    tester,
+  ) async {
+    final store = _scheduleStore(const [
+      ScheduleSection(id: 'days', name: 'State dayshift RN'),
+    ]);
+    final staffGateway = InMemoryStaffGateway();
+    await tester.pumpWidget(
+      ScheduleApp(
+        dependencies: appDependencies(
+          authGateway: FakeAuthGateway(true),
+          scheduleStore: store,
+          staffGateway: staffGateway,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More destinations'));
+    await tester.pumpAndSettle();
+    expect(find.text('Manage Staff list'), findsNothing);
+
+    staffGateway.actorRole = 'manager';
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      ScheduleApp(
+        dependencies: appDependencies(
+          authGateway: FakeAuthGateway(true),
+          scheduleStore: store,
+          staffGateway: staffGateway,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More destinations'));
+    await tester.pumpAndSettle();
+    expect(find.text('Manage Staff list'), findsOneWidget);
   });
 
   testWidgets('signed-in Staff member opens their own month first', (
@@ -269,9 +335,11 @@ void main() {
     );
     await tester.pumpWidget(
       ScheduleApp(
-        authGateway: _FakeAuthGateway(true),
-        scheduleStore: database.storeFor('staff-1'),
-        staffGateway: InMemoryStaffGateway(currentId: 'staff-1'),
+        dependencies: appDependencies(
+          authGateway: FakeAuthGateway(true),
+          scheduleStore: database.storeFor('staff-1'),
+          staffGateway: InMemoryStaffGateway(currentId: 'staff-1'),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -285,8 +353,10 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ScheduleApp(
-        authGateway: _FakeAuthGateway(true),
-        scheduleStore: _scheduleStore(const []),
+        dependencies: appDependencies(
+          authGateway: FakeAuthGateway(true),
+          scheduleStore: _scheduleStore(const []),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -301,9 +371,11 @@ void main() {
       final staffGateway = InMemoryStaffGateway();
       await tester.pumpWidget(
         ScheduleApp(
-          authGateway: _FakeAuthGateway(),
-          scheduleStore: _scheduleStore(const []),
-          staffGateway: staffGateway,
+          dependencies: appDependencies(
+            authGateway: FakeAuthGateway(),
+            scheduleStore: _scheduleStore(const []),
+            staffGateway: staffGateway,
+          ),
           inviteToken: 'fresh-token',
         ),
       );
@@ -349,14 +421,16 @@ void main() {
   testWidgets('Invite signs out an existing account before asking for email', (
     tester,
   ) async {
-    final authGateway = _FakeAuthGateway(true);
+    final authGateway = FakeAuthGateway(true);
     final staffGateway = InMemoryStaffGateway();
 
     await tester.pumpWidget(
       ScheduleApp(
-        authGateway: authGateway,
-        scheduleStore: _scheduleStore(const []),
-        staffGateway: staffGateway,
+        dependencies: appDependencies(
+          authGateway: authGateway,
+          scheduleStore: _scheduleStore(const []),
+          staffGateway: staffGateway,
+        ),
         inviteToken: 'fresh-token',
       ),
     );
@@ -374,9 +448,11 @@ void main() {
       ..acceptanceResult = InviteAcceptanceResult.cellMismatch;
     await tester.pumpWidget(
       ScheduleApp(
-        authGateway: _FakeAuthGateway(),
-        scheduleStore: _scheduleStore(const []),
-        staffGateway: staffGateway,
+        dependencies: appDependencies(
+          authGateway: FakeAuthGateway(),
+          scheduleStore: _scheduleStore(const []),
+          staffGateway: staffGateway,
+        ),
         inviteToken: 'fresh-token',
       ),
     );
@@ -421,9 +497,11 @@ void main() {
       ..acceptanceError = const StaffInviteAlreadyLinkedException();
     await tester.pumpWidget(
       ScheduleApp(
-        authGateway: _FakeAuthGateway(),
-        scheduleStore: _scheduleStore(const []),
-        staffGateway: staffGateway,
+        dependencies: appDependencies(
+          authGateway: FakeAuthGateway(),
+          scheduleStore: _scheduleStore(const []),
+          staffGateway: staffGateway,
+        ),
         inviteToken: 'fresh-token',
       ),
     );
@@ -471,9 +549,11 @@ void main() {
       );
       await tester.pumpWidget(
         ScheduleApp(
-          authGateway: _FakeAuthGateway(true),
-          scheduleStore: database.storeFor('manager'),
-          staffGateway: staffGateway,
+          dependencies: appDependencies(
+            authGateway: FakeAuthGateway(true),
+            scheduleStore: database.storeFor('manager'),
+            staffGateway: staffGateway,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -492,44 +572,4 @@ ScheduleStore _scheduleStore(List<ScheduleSection> sections) {
     grants: {'manager': Grants(manager: true)},
     sections: sections,
   ).storeFor('manager');
-}
-
-final class _FakeAuthGateway implements AuthGateway {
-  _FakeAuthGateway([this._signedIn = false]);
-
-  final _controller = StreamController<bool>.broadcast();
-  bool _signedIn;
-  String? requestedEmail;
-  String? verifiedEmail;
-  String? verifiedCode;
-  int signOutCount = 0;
-
-  @override
-  bool get isSignedIn => _signedIn;
-
-  @override
-  String? get currentUserId => _signedIn ? 'test-account' : null;
-
-  @override
-  Stream<bool> get signedInChanges => _controller.stream;
-
-  @override
-  Future<void> requestCode(String email) async {
-    requestedEmail = email;
-  }
-
-  @override
-  Future<void> verifyCode({required String email, required String code}) async {
-    verifiedEmail = email;
-    verifiedCode = code;
-    _signedIn = true;
-    _controller.add(true);
-  }
-
-  @override
-  Future<void> signOut() async {
-    signOutCount += 1;
-    _signedIn = false;
-    _controller.add(false);
-  }
 }
