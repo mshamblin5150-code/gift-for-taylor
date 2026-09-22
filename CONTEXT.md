@@ -214,6 +214,19 @@ department it also says on its face that it is no longer updated, because a
 calendar app gives no sign of its own when a subscription stops working.
 _Avoid_: Dead feed, tombstone, expired link, broken subscription
 
+**Unit settings**:
+What an Administrator or the Manager configures for the unit rather than for one
+month: Staffing minimums, Coverage rules, Shift codes, Sections, Print wording,
+whether Open shift pickup needs approval, and Access grants.
+_Avoid_: Preferences, configuration, admin settings
+
+**Settings history**:
+The record of each change to a Unit setting: who made it, when, what it was
+before and after, and the Maintainer's reason when the change was a repair.
+Only those who can manage Unit settings read it. It is separate from the Change
+log, which records Schedule edits and is read by Night schedulers.
+_Avoid_: Audit, audit history, Change log
+
 ### Checks and supplies
 
 **Check log**:
