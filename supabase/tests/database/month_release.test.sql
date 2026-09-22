@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(39);
 
 insert into auth.users (id, email)
 values
@@ -233,6 +233,12 @@ select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000301","role":"authenticated"}',
   true
+);
+
+select throws_ok(
+  $$select public.release_month_checked('2027-06-01', true)$$,
+  'There is no unpublished month to release',
+  'a month that was never started cannot be released'
 );
 
 select throws_ok(

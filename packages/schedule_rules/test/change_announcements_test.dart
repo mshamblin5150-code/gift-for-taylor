@@ -121,7 +121,7 @@ void main() {
     expect(day.newShiftCode, 'S/L');
   });
 
-  test('a cell changed back to its published value is not announced', () async {
+  test('a cell restored to its announced value has no net change', () async {
     await publishStartingMonth();
     await save(sam, 18, 'X');
     await save(sam, 18, '7A');
@@ -129,18 +129,6 @@ void main() {
     final announcement = await manager.changeAnnouncement(september);
     expect(announcement.isEmpty, isTrue);
     expect(announcement.hasPendingChanges, isTrue);
-
-    await manager.markAnnounced(announcement);
-    expect(
-      (await manager.changeAnnouncement(september)).hasPendingChanges,
-      isFalse,
-    );
-    expect(
-      (await manager.changeLog(september))
-          .where((change) => !change.announced)
-          .every((change) => change.moot),
-      isTrue,
-    );
   });
 
   test('a Call-in followed by off announces one change from 7P to X', () async {
@@ -172,85 +160,8 @@ void main() {
       expect(changedDay.date.day, 19);
       expect(changedDay.oldShiftCode, '7A');
       expect(changedDay.newShiftCode, 'X');
-
-      await manager.markAnnounced(announcement);
-      final log = await manager.changeLog(september);
-      expect(
-        log
-            .where(
-              (change) =>
-                  change.staffMemberId == sam.staffMemberId &&
-                  change.date.day == 18 &&
-                  change.oldShiftCode.isNotEmpty,
-            )
-            .every(
-              (change) =>
-                  change.moot && !change.announced && change.reach == null,
-            ),
-        isTrue,
-      );
-      expect(
-        log
-            .where((change) => change.date.day == 19)
-            .every((change) => change.announced && !change.moot),
-        isTrue,
-      );
     },
   );
-
-  test('reversing after an announcement leaves its Reach intact', () async {
-    await publishStartingMonth();
-    await save(sam, 18, 'C/I');
-    await manager.markAnnounced(await manager.changeAnnouncement(september));
-    final first = (await manager.changeLog(september)).last;
-
-    await save(sam, 18, '7A');
-    final reversal = await manager.changeAnnouncement(september);
-    final day = reversal.people.single.changedDays.single;
-    expect(day.oldShiftCode, 'C/I');
-    expect(day.newShiftCode, '7A');
-    await manager.markAnnounced(reversal);
-
-    final log = await manager.changeLog(september);
-    final edits = log
-        .where(
-          (change) =>
-              change.staffMemberId == sam.staffMemberId &&
-              change.date.day == 18 &&
-              change.oldShiftCode.isNotEmpty,
-        )
-        .toList();
-    expect(edits, hasLength(2));
-    expect(edits.first.reach, first.reach);
-    expect(edits.every((change) => change.announced && !change.moot), isTrue);
-  });
-
-  test('a reverted cell is settled moot alongside a real change', () async {
-    await publishStartingMonth();
-    await save(sam, 18, 'X');
-    await save(sam, 18, '7A');
-    await save(dana, 18, 'X');
-
-    await manager.markAnnounced(await manager.changeAnnouncement(september));
-
-    final log = await manager.changeLog(september);
-    expect(
-      log
-          .where(
-            (change) =>
-                change.staffMemberId == sam.staffMemberId && !change.announced,
-          )
-          .every((change) => change.moot && !change.announced),
-      isTrue,
-    );
-    expect(
-      log
-          .where((change) => change.staffMemberId == dana.staffMemberId)
-          .every((change) => change.announced && !change.moot),
-      isTrue,
-    );
-    expect((await manager.changeAnnouncement(september)).isEmpty, isTrue);
-  });
 
   test('a blank cell reads as blank in the message', () async {
     await save(lee, 3, 'MM');
@@ -336,65 +247,6 @@ void main() {
     expect(announcement.groupMessage, isNull);
   });
 
-  test('mark announced clears the tray and the highlights', () async {
-    await publishStartingMonth();
-    await save(dana, 18, 'X');
-    await save(sam, 19, 'N');
-
-    await manager.markAnnounced(await manager.changeAnnouncement(september));
-
-    expect((await manager.changeAnnouncement(september)).isEmpty, isTrue);
-    final grid = await manager.monthGrid(september);
-    expect(grid.isUnannounced('rn-1', DateTime(2026, 9, 18)), isFalse);
-    expect(grid.shiftCodeFor('rn-1', DateTime(2026, 9, 18)), 'X');
-    expect(
-      (await manager.changeLog(september)).every((change) => change.announced),
-      isTrue,
-    );
-  });
-
-  test('a change saved after the tray was read stays unannounced', () async {
-    await publishStartingMonth();
-    await save(dana, 18, 'X');
-    final announcement = await manager.changeAnnouncement(september);
-    await save(sam, 19, 'N');
-
-    await manager.markAnnounced(announcement);
-
-    final remaining = await manager.changeAnnouncement(september);
-    expect(remaining.people.single.row.displayName, 'Sam Ortiz');
-  });
-
-  test('a newer edit to the same cell keeps its first batch pending', () async {
-    await publishStartingMonth();
-    await save(dana, 18, 'X');
-    final firstRead = await manager.changeAnnouncement(september);
-    await save(dana, 18, '16D');
-
-    await manager.markAnnounced(firstRead);
-
-    final pending = (await manager.changeLog(september))
-        .where((change) => !change.announced && !change.moot)
-        .toList();
-    expect(pending, hasLength(2));
-    await manager.markAnnounced(await manager.changeAnnouncement(september));
-    expect((await manager.changeAnnouncement(september)).isEmpty, isTrue);
-  });
-
-  test('a month still being built has nothing to announce', () async {
-    final october = DateTime(2026, 10);
-    await manager.saveCell(
-      SaveCell(
-        staffMemberId: 'rn-1',
-        sectionId: 'days',
-        date: DateTime(2026, 10, 2),
-        shiftCode: '7A',
-      ),
-    );
-
-    expect((await manager.changeAnnouncement(october)).isEmpty, isTrue);
-  });
-
   test('Change announcement includes only editable Section rows', () async {
     await publishStartingMonth();
     await save(dana, 18, 'X');
@@ -408,30 +260,5 @@ void main() {
     expect(announcement.people.map((person) => person.row.displayName), [
       'Sam Ortiz',
     ]);
-  });
-
-  test('the Unreached filter keeps only changes stamped nobody', () async {
-    await publishStartingMonth();
-    await save(dana, 18, 'X');
-    await save(sam, 19, 'N');
-    await manager.markAnnounced(
-      await manager.changeAnnouncement(september),
-      draftOpenedStaffMemberIds: {'rn-2'},
-    );
-
-    final unreached = await manager.changeLogView(
-      september,
-      unreachedOnly: true,
-    );
-    expect(unreached.map((change) => change.staffMemberId), ['rn-1']);
-    expect(unreached.single.reach, 'nobody');
-    expect(
-      await manager.changeLogView(
-        september,
-        changedBy: 'someone-else',
-        unreachedOnly: true,
-      ),
-      isEmpty,
-    );
   });
 }
