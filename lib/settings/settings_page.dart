@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../notifications/notice_gateway.dart';
 import '../notifications/notices_page.dart';
@@ -13,6 +12,7 @@ import 'appearance.dart';
 import '../setup/app_setup_page.dart';
 import '../staff/staff_gateway.dart';
 import 'manager_handover_page.dart';
+import 'settings_history.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -24,7 +24,7 @@ class SettingsPage extends StatelessWidget {
     this.onCalendarFeed,
     this.onManageStaff,
     required this.access,
-    this.auditClient,
+    this.settingsHistory,
     this.staffGateway,
     this.onManagerTransferred,
   });
@@ -36,7 +36,7 @@ class SettingsPage extends StatelessWidget {
   final VoidCallback? onCalendarFeed;
   final Future<void> Function()? onManageStaff;
   final Access access;
-  final SupabaseClient? auditClient;
+  final SettingsHistory? settingsHistory;
   final StaffGateway? staffGateway;
   final VoidCallback? onManagerTransferred;
 
@@ -147,11 +147,12 @@ class SettingsPage extends StatelessWidget {
                 onTap: onManageStaff,
               ),
             ],
-            if (auditClient != null)
+            if (settingsHistory != null)
               ListTile(
                 leading: const Icon(Icons.history),
-                title: const Text('Unit audit history'),
-                onTap: () => open(_UnitAuditPage(client: auditClient!)),
+                title: const Text('Settings history'),
+                onTap: () =>
+                    open(_SettingsHistoryPage(history: settingsHistory!)),
               ),
           ],
         ],
@@ -265,36 +266,42 @@ class _PrintWordingPageState extends State<_PrintWordingPage> {
   );
 }
 
-class _UnitAuditPage extends StatelessWidget {
-  const _UnitAuditPage({required this.client});
-  final SupabaseClient client;
+class _SettingsHistoryPage extends StatefulWidget {
+  const _SettingsHistoryPage({required this.history});
+  final SettingsHistory history;
+
+  @override
+  State<_SettingsHistoryPage> createState() => _SettingsHistoryPageState();
+}
+
+class _SettingsHistoryPageState extends State<_SettingsHistoryPage> {
+  late final Future<List<SettingsHistoryEntry>> _entries = widget.history
+      .read();
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Unit audit history')),
-    body: FutureBuilder<List<Map<String, dynamic>>>(
-      future: client
-          .from('unit_setting_audit')
-          .select(
-            'kind, actor_name, changed_at, repair_reason, before_value, after_value',
-          )
-          .order('changed_at', ascending: false)
-          .limit(200),
+    appBar: AppBar(title: const Text('Settings history')),
+    body: FutureBuilder<List<SettingsHistoryEntry>>(
+      future: _entries,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return const Center(child: Text('Could not load audit history.'));
+          return const Center(child: Text('Could not load settings history.'));
         }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.data!.isEmpty) {
+          return const Center(child: Text('No settings history yet.'));
         }
         return ListView(
           children: [
             for (final entry in snapshot.data!)
               ListTile(
-                title: Text(entry['kind'] as String),
+                title: Text(entry.kind),
                 subtitle: Text(
-                  '${entry['actor_name']} · ${entry['changed_at']}'
-                  '${entry['repair_reason'] == null ? '' : '\nRepair reason: ${entry['repair_reason']}'}'
-                  '\nBefore: ${entry['before_value']}\nAfter: ${entry['after_value']}',
+                  '${entry.actor} · ${entry.changedAt}'
+                  '${entry.repairReason == null ? '' : '\nRepair reason: ${entry.repairReason}'}'
+                  '\nBefore: ${entry.before}\nAfter: ${entry.after}',
                 ),
                 isThreeLine: true,
               ),

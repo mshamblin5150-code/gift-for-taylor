@@ -14,6 +14,7 @@ import 'staff/staff_list_page.dart';
 import 'staff/staff_details_page.dart';
 import 'schedule_theme.dart';
 import 'settings/appearance.dart';
+import 'settings/settings_history.dart';
 import 'setup/app_setup_page.dart';
 
 void _openSetup(BuildContext context, {bool awaitingConfirmation = false}) {
@@ -38,6 +39,7 @@ class ScheduleApp extends StatelessWidget {
     this.inviteToken,
     this.bookPagePresenter,
     this.printWordingGateway,
+    this.settingsHistory,
     this.calendarFeedGateway,
     this.navigatorKey,
   });
@@ -53,6 +55,7 @@ class ScheduleApp extends StatelessWidget {
   final String? inviteToken;
   final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;
+  final SettingsHistory? settingsHistory;
   final CalendarFeedGateway? calendarFeedGateway;
   final GlobalKey<NavigatorState>? navigatorKey;
 
@@ -78,6 +81,7 @@ class ScheduleApp extends StatelessWidget {
           inviteToken: inviteToken,
           bookPagePresenter: bookPagePresenter,
           printWordingGateway: printWordingGateway,
+          settingsHistory: settingsHistory,
           calendarFeedGateway: calendarFeedGateway,
         ),
       ),
@@ -98,6 +102,7 @@ class _AuthGate extends StatefulWidget {
     required this.inviteToken,
     required this.bookPagePresenter,
     required this.printWordingGateway,
+    required this.settingsHistory,
     required this.calendarFeedGateway,
   });
 
@@ -112,6 +117,7 @@ class _AuthGate extends StatefulWidget {
   final String? inviteToken;
   final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;
+  final SettingsHistory? settingsHistory;
   final CalendarFeedGateway? calendarFeedGateway;
 
   @override
@@ -181,6 +187,7 @@ class _AuthGateState extends State<_AuthGate> {
                 cellNumber: _inviteCellNumber!,
                 bookPagePresenter: widget.bookPagePresenter,
                 printWordingGateway: widget.printWordingGateway,
+                settingsHistory: widget.settingsHistory,
                 calendarFeedGateway: widget.calendarFeedGateway,
               );
             }
@@ -195,6 +202,7 @@ class _AuthGateState extends State<_AuthGate> {
               noticeGateway: widget.noticeGateway,
               bookPagePresenter: widget.bookPagePresenter,
               printWordingGateway: widget.printWordingGateway,
+              settingsHistory: widget.settingsHistory,
               calendarFeedGateway: widget.calendarFeedGateway,
             );
           },
@@ -290,6 +298,7 @@ class _InviteAcceptance extends StatefulWidget {
     required this.cellNumber,
     required this.bookPagePresenter,
     required this.printWordingGateway,
+    required this.settingsHistory,
     required this.calendarFeedGateway,
   });
 
@@ -305,6 +314,7 @@ class _InviteAcceptance extends StatefulWidget {
   final String cellNumber;
   final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;
+  final SettingsHistory? settingsHistory;
   final CalendarFeedGateway? calendarFeedGateway;
 
   @override
@@ -417,6 +427,7 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           noticeGateway: widget.noticeGateway,
           bookPagePresenter: widget.bookPagePresenter,
           printWordingGateway: widget.printWordingGateway,
+          settingsHistory: widget.settingsHistory,
           calendarFeedGateway: widget.calendarFeedGateway,
         );
       },
@@ -436,6 +447,7 @@ class _ScheduleAccess extends StatefulWidget {
     required this.noticeGateway,
     required this.bookPagePresenter,
     required this.printWordingGateway,
+    required this.settingsHistory,
     required this.calendarFeedGateway,
   });
 
@@ -449,6 +461,7 @@ class _ScheduleAccess extends StatefulWidget {
   final NoticeGateway? noticeGateway;
   final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;
+  final SettingsHistory? settingsHistory;
   final CalendarFeedGateway? calendarFeedGateway;
 
   @override
@@ -601,6 +614,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
           staffGateway: widget.staffGateway,
           bookPagePresenter: widget.bookPagePresenter,
           printWordingGateway: widget.printWordingGateway,
+          settingsHistory: widget.settingsHistory,
           onCalendarFeed: widget.calendarFeedGateway == null
               ? null
               : () => Navigator.of(context).push(

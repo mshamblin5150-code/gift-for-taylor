@@ -81,7 +81,7 @@ const helpTopics = <HelpTopic>[
     title: 'Maintainer repairs',
     who: 'Maintainer only',
     what: 'The Maintainer can use Manager controls to investigate and repair the app under their own account. The Staff Manager still makes ED decisions.',
-    how: 'Sign in with the separately provisioned Maintainer account. For a Unit change, enter a short reason when asked. The change and reason appear in Unit audit history. The Maintainer has no Staff list or Schedule row.',
+    how: 'Sign in with the separately provisioned Maintainer account. For a Unit change, enter a short reason when asked. The change and reason appear in Settings history. The Maintainer has no Staff list or Schedule row.',
     searchTerms: 'repair reason manager access',
     roles: {HelpRole.maintainer},
   ),
@@ -89,8 +89,20 @@ const helpTopics = <HelpTopic>[
     title: 'Settings',
     who: 'Everyone; Unit choices require Manager, Administrator, or Maintainer access',
     what: 'Settings is the directory for choices that affect future behavior. Personal choices belong to you or this device. Unit choices govern the department.',
-    how: 'Open Schedule actions, then Settings. On a wide screen use More destinations. Everyone can choose Appearance and Add ER Schedule on this device. Staff can also open My calendar and Notifications under Personal. Managers, Administrators, and the Maintainer can open Staffing minimums, Open shift pickup approval, Print wording, Shift codes, Sections, Permission assignments, and Unit audit history.',
-    searchTerms: 'appearance dark light theme install app calendar notifications unit audit history',
+    how: 'Open Schedule actions, then Settings. On a wide screen use More destinations. Everyone can choose Appearance and Add ER Schedule on this device. Staff can also open My calendar and Notifications under Personal. Managers, Administrators, and the Maintainer can open Staffing minimums, Open shift pickup approval, Print wording, Shift codes, Sections, Permission assignments, and Settings history.',
+    searchTerms:
+        'appearance dark light theme install app calendar notifications',
+  ),
+  HelpTopic(
+    title: 'Settings history',
+    who: 'Manager, Administrator, or Maintainer',
+    what: 'Settings history shows who changed a Unit setting, when, and what it was before and after.',
+    how:
+        '1. Open Schedule actions, then Settings.\n'
+        '2. Under Unit, open Settings history. The newest changes appear first.\n'
+        '3. Find the setting you are checking. Its entry shows the name and time, the before and after values, and a repair reason if the Maintainer made a repair.',
+    searchTerms: 'who changed settings settings changes unit audit history repair reason before after',
+    roles: {HelpRole.manager, HelpRole.administrator, HelpRole.maintainer},
   ),
   HelpTopic(
     title: 'Accept your Invite',
