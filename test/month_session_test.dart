@@ -324,6 +324,9 @@ void main() {
         shiftCode: '7A',
       ),
     );
+    database.seedAnnouncementSettlements({
+      'change-1': (announced: true, moot: false, reach: 'nobody'),
+    });
     await manager.markAnnounced(await manager.changeAnnouncement(month));
     final session = create(now: () => DateTime(2026, 9, 17));
     await session.load();
@@ -356,6 +359,9 @@ void main() {
         shiftCode: '7A',
       ),
     );
+    database.seedAnnouncementSettlements({
+      'change-1': (announced: true, moot: false, reach: 'nobody'),
+    });
     await manager.markAnnounced(await manager.changeAnnouncement(october));
     final session = create(now: () => DateTime(2026, 9, 30));
     await session.load();
@@ -467,6 +473,9 @@ void main() {
         StateError('write failed'),
       );
       expect(await session.announce(announcement, {}), isA<AnnounceFailed>());
+      database.seedAnnouncementSettlements({
+        'change-1': (announced: true, moot: false, reach: 'nobody'),
+      });
       expect(await session.announce(announcement, {}), isA<Announced>());
       expect(session.state.announcement!.hasPendingChanges, isFalse);
       session.dispose();

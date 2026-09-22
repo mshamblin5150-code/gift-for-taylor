@@ -160,6 +160,10 @@ void main() {
       find.text('Changes reverted to their announced values'),
       findsOneWidget,
     );
+    database.seedAnnouncementSettlements({
+      'change-1': (announced: false, moot: true, reach: null),
+      'change-2': (announced: false, moot: true, reach: null),
+    });
     await tester.tap(find.text('Clear reverted changes'));
     await tester.pumpAndSettle();
 
@@ -198,6 +202,9 @@ void main() {
     expect(find.text('Will be notified · no text needed'), findsOneWidget);
     expect(find.textContaining('Nobody will be told'), findsNothing);
     expect(find.textContaining('Text Robin Hall'), findsNothing);
+    database.seedAnnouncementSettlements({
+      'change-1': (announced: true, moot: false, reach: 'notified'),
+    });
     await tester.tap(find.text('Mark announced'));
     await tester.pumpAndSettle();
 
@@ -231,6 +238,9 @@ void main() {
       find.text('Nobody will be told · no notification or cell number'),
       findsOneWidget,
     );
+    database.seedAnnouncementSettlements({
+      'change-1': (announced: true, moot: false, reach: 'nobody'),
+    });
     await tester.tap(find.text('Mark announced'));
     await tester.pumpAndSettle();
 
@@ -269,6 +279,9 @@ void main() {
         shiftCode: '7A',
       ),
     );
+    database.seedAnnouncementSettlements({
+      'change-1': (announced: true, moot: false, reach: 'nobody'),
+    });
     await manager.markAnnounced(await manager.changeAnnouncement(october));
     await pumpGrid(tester, now: () => DateTime(2026, 9, 30));
 

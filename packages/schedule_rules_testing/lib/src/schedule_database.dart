@@ -67,6 +67,13 @@ final class InMemoryScheduleDatabase {
 
   final Map<String, ScheduleCell> _cells = {};
   final List<ScheduleChange> _changes = [];
+  Map<String, ({bool announced, bool moot, String? reach})>?
+  _settlementsAfterNextAnnouncement;
+  final List<({Set<String> changeIds, Set<String> draftOpenedStaffMemberIds})>
+  announcementWrites = [];
+  final List<({DateTime month, bool acknowledgeShortfalls})> releaseWrites = [];
+  final List<({DateTime month, bool acknowledgeShortfalls})>
+  confirmationWrites = [];
   final List<ShortShift> _shortShifts = [];
   final Map<DateTime, List<SectionStaffing>> _staffingAnswers = {};
   final Map<DateTime, List<SectionStaffing>> _staffingAfterNextCellWrite = {};
@@ -166,6 +173,11 @@ final class InMemoryScheduleDatabase {
 
   void seedStaffChanges(List<StaffChange> changes) =>
       _seededStaffChanges = List.of(changes);
+
+  /// Supplies SQL's verdict for change IDs after the next announcement write.
+  void seedAnnouncementSettlements(
+    Map<String, ({bool announced, bool moot, String? reach})> settlements,
+  ) => _settlementsAfterNextAnnouncement = Map.of(settlements);
 
   /// Supplies the Manager's pending Request off read without deriving a queue.
   void seedPendingRequestsOff(List<RequestOff> requests) {
@@ -535,12 +547,12 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     bool acknowledgeShortfalls = false,
   }) async {
     _database._throwNextFailure(InMemoryStoreCall.confirmLoadedMonth);
-    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
-    if (!_database._awaitingConfirmation.remove(month)) {
-      throw StateError('There is no loaded month waiting to be confirmed');
-    }
+    _database.confirmationWrites.add((
+      month: month,
+      acknowledgeShortfalls: acknowledgeShortfalls,
+    ));
+    _database._awaitingConfirmation.remove(month);
     _database._monthStatus[month] = MonthStatus.released;
-    _database._markAnnounced((change) => _inMonth(change.date, month));
   }
 
   @override
@@ -577,48 +589,30 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     Set<String> draftOpenedStaffMemberIds,
   ) async {
     _database._throwNextFailure(InMemoryStoreCall.markChangesAnnounced);
-    final movedByCell = <String, bool>{};
-    for (final change in _database._changes) {
-      if (change.announced || change.moot) continue;
-      final key = _cellKey(change.staffMemberId, change.date);
-      movedByCell.putIfAbsent(
-        key,
-        () => (_database._cells[key]?.shiftCode ?? '') != change.oldShiftCode,
-      );
-    }
-    final unselectedPendingCells = {
-      for (final change in _database._changes)
-        if (!change.announced && !change.moot && !changeIds.contains(change.id))
-          _cellKey(change.staffMemberId, change.date),
-    };
-    for (final (index, change) in _database._changes.indexed) {
-      final key = _cellKey(change.staffMemberId, change.date);
-      if (!changeIds.contains(change.id) ||
-          change.announced ||
-          change.moot ||
-          unselectedPendingCells.contains(key)) {
-        continue;
+    _database.announcementWrites.add((
+      changeIds: Set.of(changeIds),
+      draftOpenedStaffMemberIds: Set.of(draftOpenedStaffMemberIds),
+    ));
+    final answer = _database._settlementsAfterNextAnnouncement;
+    if (answer != null) {
+      for (final (index, change) in _database._changes.indexed) {
+        final settlement = answer[change.id];
+        if (settlement == null) continue;
+        _database._changes[index] = ScheduleChange(
+          id: change.id,
+          staffMemberId: change.staffMemberId,
+          date: change.date,
+          oldShiftCode: change.oldShiftCode,
+          newShiftCode: change.newShiftCode,
+          changedBy: change.changedBy,
+          changedByName: change.changedByName,
+          changedAt: change.changedAt,
+          announced: settlement.announced,
+          moot: settlement.moot,
+          reach: settlement.reach,
+        );
       }
-      final moved = movedByCell[key]!;
-      _database._changes[index] = ScheduleChange(
-        id: change.id,
-        staffMemberId: change.staffMemberId,
-        date: change.date,
-        oldShiftCode: change.oldShiftCode,
-        newShiftCode: change.newShiftCode,
-        changedBy: change.changedBy,
-        changedByName: change.changedByName,
-        changedAt: change.changedAt,
-        announced: moved,
-        moot: !moved,
-        reach: !moved
-            ? null
-            : _database._pushSubscriptions.contains(change.staffMemberId)
-            ? 'notified'
-            : draftOpenedStaffMemberIds.contains(change.staffMemberId)
-            ? 'draft_opened'
-            : 'nobody',
-      );
+      _database._settlementsAfterNextAnnouncement = null;
     }
   }
 
@@ -654,13 +648,11 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     bool acknowledgeShortfalls = false,
   }) async {
     _database._throwNextFailure(InMemoryStoreCall.releaseMonth);
-    if (!_access.canRunSchedule) throw const ScheduleEditRefused();
-    if (_database._monthStatus[month] != MonthStatus.unpublished ||
-        _database._awaitingConfirmation.contains(month)) {
-      throw StateError('There is no unpublished month to release');
-    }
+    _database.releaseWrites.add((
+      month: month,
+      acknowledgeShortfalls: acknowledgeShortfalls,
+    ));
     _database._monthStatus[month] = MonthStatus.released;
-    _database._markAnnounced((change) => _inMonth(change.date, month));
     _database._updates.add(month);
   }
 }
