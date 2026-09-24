@@ -1,6 +1,7 @@
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../schedule/access_rejected_write.dart';
 import 'staff_contacts.dart';
 import 'access_row.dart';
 
@@ -185,9 +186,42 @@ final class StaffAccessChange {
   final DateTime changedAt;
 }
 
+enum ManagerHandoverBlocker {
+  noStaffAccount,
+  inviteAcceptancePending,
+  accountRevoked,
+  inactive,
+  alreadyManager,
+  noCurrentSection;
+
+  static ManagerHandoverBlocker fromValue(String value) => switch (value) {
+    'no_staff_account' => noStaffAccount,
+    'invite_acceptance_pending' => inviteAcceptancePending,
+    'account_revoked' => accountRevoked,
+    'inactive' => inactive,
+    'already_manager' => alreadyManager,
+    'no_current_section' => noCurrentSection,
+    _ => throw StateError('Unknown Manager handover blocker: $value'),
+  };
+}
+
+final class ManagerHandoverCandidate {
+  const ManagerHandoverCandidate({
+    required this.id,
+    required this.displayName,
+    this.blocker,
+  });
+
+  final String id;
+  final String displayName;
+  final ManagerHandoverBlocker? blocker;
+
+  bool get isEligible => blocker == null;
+}
+
 abstract interface class StaffGateway {
   Future<Access> currentAccess();
-  Future<bool> canTransferManagerTo(String staffMemberId);
+  Future<List<ManagerHandoverCandidate>> loadManagerHandoverCandidates();
   Future<StaffList> loadStaffList();
   Future<StaffMemberDetails> loadStaffMemberDetails(String staffMemberId);
   Future<List<StaffAccessChange>> loadStaffAccessChanges(String staffMemberId);
@@ -238,15 +272,21 @@ final class SupabaseStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<bool> canTransferManagerTo(String staffMemberId) async {
-    final account = await _client
-        .from('staff_accounts')
-        .select('accepted_invite_at, revoked_at')
-        .eq('staff_member_id', staffMemberId)
-        .maybeSingle();
-    return account != null &&
-        account['accepted_invite_at'] != null &&
-        account['revoked_at'] == null;
+  Future<List<ManagerHandoverCandidate>> loadManagerHandoverCandidates() async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'manager_handover_candidates',
+    );
+    return [
+      for (final row in rows)
+        ManagerHandoverCandidate(
+          id: row['staff_member_id'] as String,
+          displayName: row['display_name'] as String,
+          blocker: switch (row['eligibility_code']) {
+            final String value => ManagerHandoverBlocker.fromValue(value),
+            _ => null,
+          },
+        ),
+    ];
   }
 
   @override
@@ -254,13 +294,15 @@ final class SupabaseStaffGateway implements StaffGateway {
     String newManagerId,
     bool formerAdministrator,
     Set<String> formerSectionIds,
-  ) => _client.rpc<void>(
-    'transfer_manager_with_access',
-    params: {
-      'p_new_manager_id': newManagerId,
-      'p_former_administrator': formerAdministrator,
-      'p_former_section_ids': formerSectionIds.toList(),
-    },
+  ) => mapAccessRejected(
+    () => _client.rpc<void>(
+      'transfer_manager_with_access',
+      params: {
+        'p_new_manager_id': newManagerId,
+        'p_former_administrator': formerAdministrator,
+        'p_former_section_ids': formerSectionIds.toList(),
+      },
+    ),
   );
 
   @override
@@ -279,13 +321,15 @@ final class SupabaseStaffGateway implements StaffGateway {
 
   @override
   Future<void> setAccessGrants(String staffMemberId, Grants grants) =>
-      _client.rpc<void>(
-        'set_staff_access_grants',
-        params: {
-          'p_staff_member_id': staffMemberId,
-          'p_administrator': grants.administrator,
-          'p_section_ids': grants.nightSchedulerSectionIds.toList(),
-        },
+      mapAccessRejected(
+        () => _client.rpc<void>(
+          'set_staff_access_grants',
+          params: {
+            'p_staff_member_id': staffMemberId,
+            'p_administrator': grants.administrator,
+            'p_section_ids': grants.nightSchedulerSectionIds.toList(),
+          },
+        ),
       );
 
   @override
@@ -392,15 +436,17 @@ final class SupabaseStaffGateway implements StaffGateway {
     String staffMemberId,
     String displayName,
     String? cellNumber,
-  ) => _client.rpc<void>(
-    'update_staff_contact',
-    params: {
-      'p_staff_member_id': staffMemberId,
-      'p_display_name': displayName,
-      'p_cell_number': cellNumber == null
-          ? ''
-          : normalizeCellNumber(cellNumber),
-    },
+  ) => mapAccessRejected(
+    () => _client.rpc<void>(
+      'update_staff_contact',
+      params: {
+        'p_staff_member_id': staffMemberId,
+        'p_display_name': displayName,
+        'p_cell_number': cellNumber == null
+            ? ''
+            : normalizeCellNumber(cellNumber),
+      },
+    ),
   );
 
   @override
@@ -482,9 +528,11 @@ final class SupabaseStaffGateway implements StaffGateway {
 
   @override
   Future<StaffInvite> resendInvite(String staffMemberId) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'resend_staff_invite',
-      params: {'p_staff_member_id': staffMemberId},
+    final rows = await mapAccessRejected(
+      () => _client.rpc<List<dynamic>>(
+        'resend_staff_invite',
+        params: {'p_staff_member_id': staffMemberId},
+      ),
     );
     return _inviteFromRow(rows.single as Map<String, dynamic>);
   }

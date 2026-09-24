@@ -71,7 +71,7 @@ class ChangeSectionOrRoleDialog extends StatefulWidget {
 
   final String displayName;
   final List<StaffSection> sections;
-  final String sectionId;
+  final String? sectionId;
   final JobRole? jobRole;
 
   @override
@@ -80,11 +80,13 @@ class ChangeSectionOrRoleDialog extends StatefulWidget {
 }
 
 class _ChangeSectionOrRoleDialogState extends State<ChangeSectionOrRoleDialog> {
-  late String _sectionId = widget.sectionId;
+  late String? _sectionId = widget.sectionId;
   late JobRole? _jobRole = widget.jobRole;
   DateTime _from = _today();
 
   void _submit() {
+    final sectionId = _sectionId;
+    if (sectionId == null) return;
     final sectionChanged = _sectionId != widget.sectionId;
     final roleChanged = _jobRole != widget.jobRole;
     if (!sectionChanged && !roleChanged) {
@@ -94,7 +96,7 @@ class _ChangeSectionOrRoleDialogState extends State<ChangeSectionOrRoleDialog> {
     Navigator.of(context).pop(
       SectionOrRoleChange(
         from: _from,
-        sectionId: sectionChanged ? _sectionId : null,
+        sectionId: sectionChanged ? sectionId : null,
         jobRole: roleChanged ? _jobRole : null,
       ),
     );
@@ -154,7 +156,10 @@ class _ChangeSectionOrRoleDialogState extends State<ChangeSectionOrRoleDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Save change')),
+        FilledButton(
+          onPressed: _sectionId == null ? null : _submit,
+          child: const Text('Save change'),
+        ),
       ],
     );
   }
@@ -237,9 +242,8 @@ class _ReactivateDialogState extends State<ReactivateDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () => Navigator.of(
-            context,
-          ).pop(Reactivation(sectionId: _sectionId, firstDay: _firstDay)),
+          onPressed: () => Navigator.of(context)
+              .pop(Reactivation(sectionId: _sectionId, firstDay: _firstDay)),
           child: const Text('Reactivate and text Invite'),
         ),
       ],

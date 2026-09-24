@@ -1,62 +1,97 @@
 import 'package:flutter/material.dart';
 
+import '../staff/manager_handover_wording.dart';
 import '../staff/staff_gateway.dart';
+import 'manager_handover_session.dart';
 
-/// Transfers Manager in one database transaction. Maintainer access uses a
-/// separate provisioned login.
+/// Transfers Manager in one database transaction without changing the
+/// database-bound Maintainer hat.
 class ManagerHandoverPage extends StatefulWidget {
   const ManagerHandoverPage({
     super.key,
     required this.gateway,
     this.isMaintainer = false,
+    this.onManageStaff,
+    this.onOpenStaffDetails,
+    this.onAccessRejected,
   });
 
   final StaffGateway gateway;
   final bool isMaintainer;
+  final Future<void> Function()? onManageStaff;
+  final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
+  final VoidCallback? onAccessRejected;
 
   @override
   State<ManagerHandoverPage> createState() => _ManagerHandoverPageState();
 }
 
 class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
-  late final Future<(StaffList, List<StaffListMember>)> _choices = _load();
+  late final ManagerHandoverSession _session;
   String? _successorId;
   bool _formerAdministrator = false;
   final Set<String> _formerSections = {};
-  bool _saving = false;
   String? _error;
 
-  Future<(StaffList, List<StaffListMember>)> _load() async {
-    final (list, currentId) = await (
-      widget.gateway.loadStaffList(),
-      widget.gateway.currentAccess(),
-    ).wait;
-    final others = list.members
-        .where((member) => member.id != currentId.ownStaffMemberId)
-        .toList();
-    final eligible = await Future.wait(
-      others.map((member) => widget.gateway.canTransferManagerTo(member.id)),
-    );
-    final roles = widget.isMaintainer
-        ? await Future.wait(
-            others.map(
-              (member) => widget.gateway.loadStaffMemberDetails(member.id),
-            ),
-          )
-        : null;
-    return (
-      list,
-      [
-        for (var i = 0; i < others.length; i++)
-          if (eligible[i] && (roles == null || !roles[i].grants.manager))
-            others[i],
-      ],
-    );
+  @override
+  void initState() {
+    super.initState();
+    _session = ManagerHandoverSession(widget.gateway, widget.onAccessRejected)
+      ..load();
   }
 
-  Future<void> _transfer(List<StaffListMember> candidates) async {
+  @override
+  void dispose() {
+    _session.dispose();
+    super.dispose();
+  }
+
+  Future<void> _resolve(ManagerHandoverCandidate candidate) async {
+    if (managerHandoverPresentation(candidate.blocker).opensStaffDetails) {
+      await widget.onOpenStaffDetails?.call(candidate.id);
+    } else {
+      await widget.onManageStaff?.call();
+    }
+    await _session.load();
+  }
+
+  bool _canResolve(ManagerHandoverCandidate candidate) {
+    final presentation = managerHandoverPresentation(candidate.blocker);
+    if (presentation.resolution == ManagerHandoverResolution.none) return false;
+    return presentation.opensStaffDetails
+        ? widget.onOpenStaffDetails != null
+        : widget.onManageStaff != null;
+  }
+
+  Widget _candidateTile(ManagerHandoverCandidate candidate) => ListTile(
+    title: Text(candidate.displayName),
+    subtitle: candidate.isEligible
+        ? null
+        : Text(managerHandoverNextStep(candidate)),
+    leading: candidate.isEligible
+        ? Icon(
+            _successorId == candidate.id
+                ? Icons.radio_button_checked
+                : Icons.radio_button_unchecked,
+          )
+        : null,
+    trailing: _canResolve(candidate)
+        ? TextButton(
+            onPressed: () => _resolve(candidate),
+            child: Text(
+              managerHandoverPresentation(candidate.blocker).managerPageLabel,
+            ),
+          )
+        : null,
+    selected: _successorId == candidate.id,
+    onTap: _session.state.saving || !candidate.isEligible
+        ? null
+        : () => setState(() => _successorId = candidate.id),
+  );
+
+  Future<void> _transfer(List<ManagerHandoverCandidate> candidates) async {
     final successorId = _successorId;
-    if (successorId == null || _saving) return;
+    if (successorId == null || _session.state.saving) return;
     final successor = candidates.firstWhere(
       (member) => member.id == successorId,
     );
@@ -85,63 +120,46 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await widget.gateway.transferManagerWithAccess(
-        successorId,
-        _formerAdministrator,
-        _formerSections,
-      );
-      if (mounted) Navigator.pop(context, true);
-    } catch (_) {
-      if (mounted) {
+    setState(() => _error = null);
+    final outcome = await _session.transfer(
+      successorId: successorId,
+      formerAdministrator: _formerAdministrator,
+      formerSections: _formerSections,
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case ManagerTransferred():
+        Navigator.pop(context, true);
+      case ManagerTransferFailed():
         setState(() => _error = 'Could not transfer Manager. Try again.');
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Transfer Manager')),
-    body: FutureBuilder<(StaffList, List<StaffListMember>)>(
-      future: _choices,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
+    body: ListenableBuilder(
+      listenable: _session,
+      builder: (context, _) {
+        final state = _session.state;
+        if (state.loadError != null) {
           return const Center(
             child: Text('Could not load eligible Staff members.'),
           );
         }
-        if (!snapshot.hasData) {
+        if (state.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
-        final (list, candidates) = snapshot.data!;
+        final list = state.list!;
+        final candidates = state.candidates!;
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
             const Text('Choose the next Manager'),
             const SizedBox(height: 8),
             if (candidates.isEmpty)
-              const Text(
-                'No eligible Staff member has accepted an Invite yet.',
-              ),
-            for (final member in candidates)
-              ListTile(
-                title: Text(member.displayName),
-                leading: Icon(
-                  _successorId == member.id
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                ),
-                selected: _successorId == member.id,
-                onTap: _saving
-                    ? null
-                    : () => setState(() => _successorId = member.id),
-              ),
+              const Text('No Staff members are available for handover yet.'),
+            for (final member in candidates) _candidateTile(member),
             const Divider(),
             if (!widget.isMaintainer) ...[
               const Text('Your Staff access after handover'),
@@ -151,7 +169,7 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
               CheckboxListTile(
                 title: const Text('Administrator'),
                 value: _formerAdministrator,
-                onChanged: _saving
+                onChanged: state.saving
                     ? null
                     : (value) =>
                           setState(() => _formerAdministrator = value ?? false),
@@ -161,7 +179,7 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
                 CheckboxListTile(
                   title: Text(section.name),
                   value: _formerSections.contains(section.id),
-                  onChanged: _saving
+                  onChanged: state.saving
                       ? null
                       : (value) => setState(() {
                           if (value == true) {
@@ -185,12 +203,13 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
               ),
             ],
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _successorId == null || _saving
-                  ? null
-                  : () => _transfer(candidates),
-              child: Text(_saving ? 'Transferring…' : 'Transfer Manager'),
-            ),
+            if (_successorId != null)
+              FilledButton(
+                onPressed: state.saving ? null : () => _transfer(candidates),
+                child: Text(
+                  state.saving ? 'Transferring…' : 'Transfer Manager',
+                ),
+              ),
           ],
         );
       },
