@@ -189,8 +189,20 @@ A Staff member's request for specific days off. The Manager approves or declines
 _Avoid_: Days-off request, PTO request, time-off slip
 
 **Swap**:
-An exchange of shifts two Staff members agree to, which takes effect only when the Manager approves it.
-_Avoid_: Trade
+An exchange two Staff members agree to, of a set of shifts each, which takes
+effect only when the Manager approves it. Both sides offer the same number of
+shifts, and the whole set moves together or not at all, so nobody is left half
+swapped. Its days need not be consecutive and need not share a Schedule month.
+A stretch no single colleague can cover is two Swaps, and either can be declined
+on its own; the app says so before she proposes.
+_Avoid_: Trade, partial swap
+
+**Voided Swap**:
+A Swap that ended without anyone deciding it, because a Shift code it depended
+on changed before the Manager approved it. It is not an answer and nobody
+refused anything: the day that moved is named, so a new Swap can be proposed
+knowing whether it is worth it. It is what a Swap applying all at once costs.
+_Avoid_: Cancelled, expired, declined, withdrawn
 
 **Open shift**:
 A scheduled shift left uncovered, by an approved Request off, a Last day or a Call-in, or posted by the Manager, and offered for pickup until someone fills it. Any nurse, RN or LPN, may pick up a nursing shift; other roles pick up within their own role. Each shift records whether pickup needs Manager approval; otherwise an eligible Staff member takes it immediately. The day reads short for its Coverage pool while one is open, even when there is no Shortfall because the Staffing minimum is still met or none is set. Releasing a month with one needs no acknowledgement, but she is shown it.
