@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../setup/install_guidance.dart';
 import 'notice_gateway.dart';
 
 class NoticesPage extends StatefulWidget {
@@ -125,9 +126,7 @@ class _NoticesPageState extends State<NoticesPage> {
                   'Allow notifications to hear about Schedule changes, Requests off, Swaps, and Open shifts.',
                 ),
                 if (_pushState == PushState.unsupported)
-                  const Text(
-                    'Install this app to your Home Screen on iPhone (iOS 16.4 or later), then open it there to allow notifications.',
-                  ),
+                  const Text(iphoneNotificationInstallHint),
                 if (_pushState == PushState.denied)
                   const Text(
                     'Notifications are blocked in this device’s settings.',
