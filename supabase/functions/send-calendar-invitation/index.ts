@@ -4,14 +4,12 @@ import { invitationMessage } from "./calendar.ts";
 import {
   type ClaimedInvitation,
   createCalendarInvitationHandler,
+  isCalendarInvitationRequestAuthorized,
 } from "./delivery.ts";
 
 Deno.serve(async (request) => {
   const secret = Deno.env.get("CALENDAR_WEBHOOK_SECRET");
-  if (
-    !secret || request.method !== "POST" ||
-    request.headers.get("x-calendar-secret") !== secret
-  ) {
+  if (!isCalendarInvitationRequestAuthorized(request, secret)) {
     return new Response("Unauthorized", { status: 401 });
   }
   const password = Deno.env.get("RESEND_SMTP_PASSWORD");

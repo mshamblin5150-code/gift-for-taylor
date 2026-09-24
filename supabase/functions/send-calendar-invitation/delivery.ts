@@ -15,14 +15,42 @@ function json(body: Record<string, unknown>, status = 200): Response {
   return Response.json(body, { status });
 }
 
+export function isCalendarInvitationRequestAuthorized(
+  request: Request,
+  secret: string | null | undefined,
+): secret is string {
+  return Boolean(secret) && request.method === "POST" &&
+    request.headers.get("x-calendar-secret") === secret;
+}
+
+function isDefinitiveSmtpRejection(error: unknown): boolean {
+  if (
+    typeof error !== "object" || error === null || !("responseCode" in error)
+  ) {
+    return false;
+  }
+  const responseCode = (error as { responseCode?: unknown }).responseCode;
+  return typeof responseCode === "number" && responseCode >= 400 &&
+    responseCode <= 599;
+}
+
 export function createCalendarInvitationHandler(
   dependencies: DeliveryDependencies,
 ): (request: Request) => Promise<Response> {
+  async function releaseForRetry(invitation: ClaimedInvitation): Promise<void> {
+    try {
+      await dependencies.release(invitation);
+    } catch (releaseError) {
+      console.error(
+        "Calendar invitation claim release failed",
+        invitation.id,
+        releaseError,
+      );
+    }
+  }
+
   return async (request) => {
-    if (
-      request.method !== "POST" ||
-      request.headers.get("x-calendar-secret") !== dependencies.secret
-    ) {
+    if (!isCalendarInvitationRequestAuthorized(request, dependencies.secret)) {
       return new Response("Unauthorized", { status: 401 });
     }
 
@@ -47,18 +75,17 @@ export function createCalendarInvitationHandler(
 
     try {
       await dependencies.beginSend(invitation);
+    } catch (error) {
+      console.error("Calendar invitation send start failed", id, error);
+      await releaseForRetry(invitation);
+      return json({ sent: 0, failures: 1 }, 503);
+    }
+
+    try {
       await dependencies.send(invitation);
     } catch (error) {
       console.error("Calendar invitation delivery failed", id, error);
-      try {
-        await dependencies.release(invitation);
-      } catch (releaseError) {
-        console.error(
-          "Calendar invitation claim release failed",
-          id,
-          releaseError,
-        );
-      }
+      if (isDefinitiveSmtpRejection(error)) await releaseForRetry(invitation);
       return json({ sent: 0, failures: 1 }, 502);
     }
 

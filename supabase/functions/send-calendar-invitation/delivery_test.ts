@@ -38,14 +38,14 @@ Deno.test("a burst sends each queued invitation exactly once", async () => {
   const dependencies: DeliveryDependencies = {
     secret: "secret",
     claim: (id) => {
-      const event = queued.get(id);
-      if (!event || claimed.has(id)) return Promise.resolve(null);
+      const queuedInvitation = queued.get(id);
+      if (!queuedInvitation || claimed.has(id)) return Promise.resolve(null);
       claimed.add(id);
-      return Promise.resolve(event);
+      return Promise.resolve(queuedInvitation);
     },
     beginSend: () => Promise.resolve(),
-    send: (event) => {
-      sends.push(event.id);
+    send: (queuedInvitation) => {
+      sends.push(queuedInvitation.id);
       return Promise.resolve();
     },
     markSent: () => Promise.resolve(),
@@ -104,7 +104,10 @@ Deno.test("a failed send releases only its claimed invitation for retry", async 
     secret: "secret",
     claim: () => Promise.resolve(claimedInvitation),
     beginSend: () => Promise.resolve(),
-    send: () => Promise.reject(new Error("provider unavailable")),
+    send: () =>
+      Promise.reject(Object.assign(new Error("quota reached"), {
+        responseCode: 550,
+      })),
     markSent: () => Promise.resolve(),
     release: (invitation) => {
       releases.push([invitation.id, invitation.delivery_claim]);
@@ -122,6 +125,31 @@ Deno.test("a failed send releases only its claimed invitation for retry", async 
       JSON.stringify([[claimedInvitation.id, claimedInvitation.delivery_claim]])
   ) {
     throw new Error(`Unexpected claim releases: ${JSON.stringify(releases)}`);
+  }
+});
+
+Deno.test("an ambiguous SMTP failure is held instead of released", async () => {
+  const claimedInvitation = invitation("ambiguous-row");
+  let released = false;
+  const handler = createCalendarInvitationHandler({
+    secret: "secret",
+    claim: () => Promise.resolve(claimedInvitation),
+    beginSend: () => Promise.resolve(),
+    send: () => Promise.reject(new Error("connection lost after DATA")),
+    markSent: () => Promise.resolve(),
+    release: () => {
+      released = true;
+      return Promise.resolve();
+    },
+  });
+
+  const response = await handler(request(claimedInvitation.id));
+
+  if (response.status !== 502) {
+    throw new Error(`Expected SMTP failure, got ${response.status}`);
+  }
+  if (released) {
+    throw new Error("Ambiguous SMTP outcome was released for retry");
   }
 });
 
