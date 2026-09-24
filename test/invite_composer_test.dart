@@ -9,23 +9,33 @@ void main() {
     token: 'sample-token',
   );
   final appUri = Uri.parse('https://example.invalid/schedule?old=1#section');
+  const inviteUrl = 'https://example.invalid/schedule?invite=sample-token';
   const body =
-      'You have an Invite to the ER Schedule: '
-      'https://example.invalid/schedule?invite=sample-token '
-      'After confirmation, you can use ER Schedule on a computer too.';
+      'You have an Invite to the ER Schedule. Open this link, give your cell '
+      'number and your email, and Taylor will confirm it is you. You can use '
+      'ER Schedule on a computer afterwards too.\n\n'
+      '$inviteUrl';
 
   test('iPhone Invite draft has readable text and a complete link', () {
     final uri = inviteSmsUri(appUri, invite, isIos: true);
 
     expect(uri.toString(), startsWith('sms:+15550100100&body='));
     expect(uri.toString(), isNot(contains('You+have')));
-    expect(Uri.decodeComponent(uri.toString().split('&body=').last), body);
+    expect(uri.toString(), contains('%0A%0A'));
+    final decodedBody = smsBody(uri);
+    expect(decodedBody, body);
+    expect(decodedBody, endsWith(inviteUrl));
   });
 
   test('other phones receive the same Invite text and link', () {
     final uri = inviteSmsUri(appUri, invite, isIos: false);
 
     expect(uri.toString(), startsWith('sms:+15550100100?body='));
-    expect(Uri.decodeComponent(uri.toString().split('?body=').last), body);
+    final decodedBody = smsBody(uri);
+    expect(decodedBody, body);
+    expect(decodedBody, endsWith(inviteUrl));
   });
 }
+
+String smsBody(Uri uri) =>
+    Uri.decodeComponent(uri.toString().split('body=').last);
