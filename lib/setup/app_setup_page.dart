@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../help/help_page.dart';
+import '../notifications/notice_gateway.dart';
 import 'install_browser.dart' as browser;
 
 /// The shareable app address never contains an Invite token or other URL state.
@@ -17,11 +18,15 @@ Uri ordinaryAppUri(Uri current) => Uri(
 class AppSetupPage extends StatefulWidget {
   const AppSetupPage({
     super.key,
+    required this.noticeGateway,
     this.awaitingConfirmation = false,
+    this.canAllowNotifications = false,
     this.helpRoles = const {HelpRole.staffMember},
   });
 
+  final NoticeGateway noticeGateway;
   final bool awaitingConfirmation;
+  final bool canAllowNotifications;
   final Set<HelpRole> helpRoles;
 
   @override
@@ -31,6 +36,9 @@ class AppSetupPage extends StatefulWidget {
 class _AppSetupPageState extends State<AppSetupPage> {
   Timer? _refresh;
   browser.InstallState _installState = browser.installState();
+  late Future<PushState> _pushState = _readPushState();
+  bool _busy = false;
+  String? _message;
 
   @override
   void initState() {
@@ -54,6 +62,38 @@ class _AppSetupPageState extends State<AppSetupPage> {
     if (mounted) setState(() => _installState = browser.installState());
   }
 
+  Future<PushState> _readPushState() async {
+    try {
+      return await widget.noticeGateway.pushState();
+    } catch (_) {
+      return PushState.unsupported;
+    }
+  }
+
+  Future<void> _allowNotifications() async {
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await widget.noticeGateway.allowPush();
+      if (mounted) {
+        setState(() {
+          _message = 'Notifications allowed in this place.';
+          _pushState = _readPushState();
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _message = 'Notifications were not allowed. Check the browser or app settings and try again.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _copyLink() async {
     await Clipboard.setData(
       ClipboardData(text: ordinaryAppUri(Uri.base).toString()),
@@ -64,25 +104,60 @@ class _AppSetupPageState extends State<AppSetupPage> {
     }
   }
 
+  Widget _notificationStep(PushState state) {
+    if (!widget.canAllowNotifications) {
+      if (widget.helpRoles.contains(HelpRole.maintainer)) {
+        return const Text(
+          'Notification setup is available after signing in as a confirmed Staff member.',
+        );
+      }
+      return Text(
+        widget.awaitingConfirmation
+            ? 'After the Manager confirms your Invite, sign in and open this page in each place where you use ER Schedule.'
+            : 'After you sign in, open this page in each place where you use ER Schedule.',
+      );
+    }
+    return switch (state) {
+      PushState.unsupported => const Text(
+        'Notifications are unavailable in this browser. On iPhone or iPad, complete the Home Screen steps below first; notifications require iOS or iPadOS 16.4 or later.',
+      ),
+      PushState.available => FilledButton.icon(
+        onPressed: _busy ? null : _allowNotifications,
+        icon: const Icon(Icons.notifications_active_outlined),
+        label: const Text('Allow notifications'),
+      ),
+      PushState.denied => const Text(
+        'Notifications are blocked in this place’s browser or app settings.',
+      ),
+      PushState.enabled => const Text('Notifications can reach this place.'),
+    };
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Add ER Schedule')),
+    appBar: AppBar(title: const Text('Notifications')),
     body: ListView(
       padding: const EdgeInsets.all(24),
       children: [
         Text(
-          'Use ER Schedule on your phone and computer',
+          'Hear about Schedule changes',
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 12),
         const Text(
-          'Add it separately on each device to get an ER Schedule icon. Your browser will ask you to confirm installation.',
+          'Notifications deliver Change announcements in each place where you allow them.',
         ),
+        const SizedBox(height: 16),
+        FutureBuilder<PushState>(
+          future: _pushState,
+          builder: (context, snapshot) => snapshot.hasData
+              ? _notificationStep(snapshot.data!)
+              : const Center(child: CircularProgressIndicator()),
+        ),
+        if (_message != null) ...[const SizedBox(height: 8), Text(_message!)],
         if (_installState == browser.InstallState.installed) ...[
           const SizedBox(height: 16),
-          const Text(
-            'ER Schedule is already open as an installed app on this device.',
-          ),
+          const Text('ER Schedule is open as an installed app in this place.'),
         ] else if (_installState == browser.InstallState.available) ...[
           const SizedBox(height: 16),
           FilledButton.icon(
@@ -109,7 +184,7 @@ class _AppSetupPageState extends State<AppSetupPage> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'iPhone or iPad: tap Copy app link and paste it into Safari’s address bar. Tap Share > Add to Home Screen, choose Open as Web App, then tap Add. Open ER Schedule from its Home Screen icon.\n\nAndroid Chrome: tap Install if Chrome offers it, or open Chrome’s menu and choose Install app. Then open the new icon.',
+          'iPhone or iPad: in Safari, tap Share > Add to Home Screen, choose Open as Web App, then tap Add. Open the new icon and sign in again with the same personal email.\n\nAndroid Chrome: tap Install if Chrome offers it, or open Chrome’s menu and choose Install app. Then open the new icon.',
         ),
         const SizedBox(height: 20),
         Text(
@@ -124,19 +199,6 @@ class _AppSetupPageState extends State<AppSetupPage> {
         const Text(
           'If your browser does not offer installation, bookmark the ordinary app link instead.',
         ),
-        if (!widget.helpRoles.contains(HelpRole.maintainer)) ...[
-          const SizedBox(height: 20),
-          Text(
-            'Notifications on each device',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.awaitingConfirmation
-                ? 'After the Manager confirms your Invite, open Settings > Notifications > Allow notifications on each device. Nothing is enabled while you wait.'
-                : 'Open Settings > Notifications > Allow notifications on each device. Choose Allow in the browser or device prompt. If blocked, change permission in that device’s browser or app settings. On iPhone or iPad, notifications require the Home Screen web app on iOS or iPadOS 16.4 or later.',
-          ),
-        ],
         const SizedBox(height: 16),
         TextButton.icon(
           onPressed: () => Navigator.of(context).push(

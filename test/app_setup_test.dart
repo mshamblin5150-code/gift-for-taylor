@@ -1,5 +1,6 @@
 import 'package:er_schedule/setup/app_setup_page.dart';
 import 'package:er_schedule/help/help_page.dart';
+import 'package:er_schedule/notifications/notice_gateway.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -17,9 +18,16 @@ void main() {
     'pending setup explains later notifications without asking permission',
     (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(home: AppSetupPage(awaitingConfirmation: true)),
+        MaterialApp(
+          home: AppSetupPage(
+            noticeGateway: _NoticeGateway(PushState.available),
+            awaitingConfirmation: true,
+          ),
+        ),
       );
-      expect(find.textContaining('After the Manager confirms'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('After the Manager confirms'), findsWidgets);
+      expect(find.text('Allow notifications'), findsNothing);
       expect(find.text('Copy app link'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
@@ -29,7 +37,12 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: AppSetupPage(helpRoles: {HelpRole.maintainer})),
+      MaterialApp(
+        home: AppSetupPage(
+          noticeGateway: _NoticeGateway(PushState.unsupported),
+          helpRoles: const {HelpRole.maintainer},
+        ),
+      ),
     );
     await tester.scrollUntilVisible(find.text('Setup Help'), 250);
     await tester.tap(find.text('Setup Help'));
@@ -38,4 +51,78 @@ void main() {
     expect(find.text('Accept your Invite'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('unsupported push gives iPhone install and sign-in steps', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppSetupPage(
+          noticeGateway: _NoticeGateway(PushState.unsupported),
+          canAllowNotifications: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Share > Add to Home Screen'), findsWidgets);
+    expect(
+      find.textContaining('sign in again with the same personal email'),
+      findsWidgets,
+    );
+    expect(find.text('Allow notifications'), findsNothing);
+  });
+
+  testWidgets('available push can be allowed on the setup page', (
+    tester,
+  ) async {
+    final gateway = _NoticeGateway(PushState.available);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppSetupPage(noticeGateway: gateway, canAllowNotifications: true),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Allow notifications'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.state, PushState.enabled);
+    expect(find.text('Notifications can reach this place.'), findsOneWidget);
+  });
+
+  testWidgets('denied push points to settings', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppSetupPage(
+          noticeGateway: _NoticeGateway(PushState.denied),
+          canAllowNotifications: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('blocked in this place'), findsOneWidget);
+    expect(find.text('Allow notifications'), findsNothing);
+  });
+}
+
+final class _NoticeGateway implements NoticeGateway {
+  _NoticeGateway(this.state);
+
+  PushState state;
+
+  @override
+  Future<PushState> pushState() async => state;
+  @override
+  Future<void> allowPush() async => state = PushState.enabled;
+  @override
+  Future<void> disablePush() async => state = PushState.available;
+  @override
+  Future<List<StaffNotice>> notices() async => [];
+  @override
+  Future<void> markRead(String id) async {}
+  @override
+  Future<RuleBatchDetails> ruleBatchDetails(String id) async =>
+      const RuleBatchDetails(plan: [], shifts: []);
 }

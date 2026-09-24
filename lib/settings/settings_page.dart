@@ -18,8 +18,8 @@ class SettingsPage extends StatelessWidget {
   const SettingsPage({
     super.key,
     required this.scheduleRules,
+    required this.noticeGateway,
     this.openShiftStore,
-    this.noticeGateway,
     this.printWordingGateway,
     this.onCalendarFeed,
     this.onManageStaff,
@@ -31,7 +31,7 @@ class SettingsPage extends StatelessWidget {
 
   final ScheduleRules scheduleRules;
   final OpenShiftStore? openShiftStore;
-  final NoticeGateway? noticeGateway;
+  final NoticeGateway noticeGateway;
   final PrintWordingGateway? printWordingGateway;
   final VoidCallback? onCalendarFeed;
   final Future<void> Function()? onManageStaff;
@@ -56,7 +56,13 @@ class SettingsPage extends StatelessWidget {
             leading: const Icon(Icons.install_mobile_outlined),
             title: const Text('Add ER Schedule'),
             subtitle: const Text('Install on a phone or computer'),
-            onTap: () => open(AppSetupPage(helpRoles: helpRolesFor(access))),
+            onTap: () => open(
+              AppSetupPage(
+                noticeGateway: noticeGateway,
+                canAllowNotifications: access.ownStaffMemberId != null,
+                helpRoles: helpRolesFor(access),
+              ),
+            ),
           ),
           if (access.canUseOwnSettings && onCalendarFeed != null)
             ListTile(
@@ -65,12 +71,12 @@ class SettingsPage extends StatelessWidget {
               subtitle: const Text('Choose calendar invitations or a feed'),
               onTap: onCalendarFeed,
             ),
-          if (access.canUseOwnSettings && noticeGateway != null)
+          if (access.canUseOwnSettings)
             ListTile(
               leading: const Icon(Icons.notifications_outlined),
               title: const Text('Notifications'),
-              subtitle: const Text('Allow notices on this device'),
-              onTap: () => open(NoticesPage(gateway: noticeGateway!)),
+              subtitle: const Text('Allow notices in this place'),
+              onTap: () => open(NoticesPage(gateway: noticeGateway)),
             ),
           if (access.canTransferManager && staffGateway != null)
             ListTile(

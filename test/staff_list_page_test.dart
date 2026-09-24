@@ -1,4 +1,5 @@
 import 'support/in_memory_staff_gateway.dart';
+import 'support/app_dependencies.dart';
 
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 
@@ -1328,6 +1329,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           scheduleRules: rules,
+          noticeGateway: const NoopNoticeGateway(),
           access: Access(
             grants: Grants(manager: true),
             ownStaffMemberId: 'current-manager',
@@ -1369,6 +1371,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           scheduleRules: rules,
+          noticeGateway: const NoopNoticeGateway(),
           access: Access(grants: Grants(), maintainer: true),
           staffGateway: gateway,
         ),

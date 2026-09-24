@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_dependencies.dart';
 import 'auth/sign_in_page.dart';
 import 'calendar/calendar_feed_page.dart';
+import 'notifications/notice_gateway.dart';
 import 'schedule/month_grid_page.dart';
 import 'staff/staff_gateway.dart';
 import 'staff/staff_list_page.dart';
@@ -12,10 +14,21 @@ import 'schedule_theme.dart';
 import 'settings/appearance.dart';
 import 'setup/app_setup_page.dart';
 
-void _openSetup(BuildContext context, {bool awaitingConfirmation = false}) {
+const notificationSetupShownPreferenceKey = 'notification_setup_shown';
+
+void _openSetup(
+  BuildContext context,
+  NoticeGateway noticeGateway, {
+  bool awaitingConfirmation = false,
+  bool canAllowNotifications = false,
+}) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => AppSetupPage(awaitingConfirmation: awaitingConfirmation),
+      builder: (_) => AppSetupPage(
+        noticeGateway: noticeGateway,
+        awaitingConfirmation: awaitingConfirmation,
+        canAllowNotifications: canAllowNotifications,
+      ),
     ),
   );
 }
@@ -101,10 +114,12 @@ class _AuthGateState extends State<_AuthGate> {
                 return _InviteCellEntry(
                   onContinue: (number) =>
                       setState(() => _inviteCellNumber = number),
+                  noticeGateway: widget.dependencies.noticeGateway,
                 );
               }
               return SignInPage(
                 authGateway: widget.dependencies.authGateway,
+                noticeGateway: widget.dependencies.noticeGateway,
                 awaitingConfirmation: widget.inviteToken != null,
               );
             }
@@ -124,9 +139,13 @@ class _AuthGateState extends State<_AuthGate> {
 }
 
 class _InviteCellEntry extends StatefulWidget {
-  const _InviteCellEntry({required this.onContinue});
+  const _InviteCellEntry({
+    required this.onContinue,
+    required this.noticeGateway,
+  });
 
   final ValueChanged<String> onContinue;
+  final NoticeGateway noticeGateway;
 
   @override
   State<_InviteCellEntry> createState() => _InviteCellEntryState();
@@ -182,8 +201,11 @@ class _InviteCellEntryState extends State<_InviteCellEntry> {
                   child: const Text('Continue to email'),
                 ),
                 TextButton(
-                  onPressed: () =>
-                      _openSetup(context, awaitingConfirmation: true),
+                  onPressed: () => _openSetup(
+                    context,
+                    widget.noticeGateway,
+                    awaitingConfirmation: true,
+                  ),
                   child: const Text('Add ER Schedule'),
                 ),
               ],
@@ -326,6 +348,7 @@ class _ScheduleAccess extends StatefulWidget {
 class _ScheduleAccessState extends State<_ScheduleAccess>
     with WidgetsBindingObserver {
   late Future<_ScheduleData> _data = _loadData();
+  bool _setupScheduled = false;
 
   @override
   void initState() {
@@ -366,6 +389,10 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
         ? await widget.dependencies.staffGateway.isInviteAcceptancePending()
         : false;
     final access = await widget.dependencies.staffGateway.currentAccess();
+    final showNotificationSetup =
+        sections.isNotEmpty &&
+        access.ownStaffMemberId != null &&
+        await _shouldShowNotificationSetup();
     final monthToCheck =
         (await widget.dependencies.scheduleStore.monthsAwaitingConfirmation())
             .firstOrNull;
@@ -380,7 +407,37 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
           ? access.ownStaffMemberId
           : null,
       access.canRunSchedule ? null : access.ownStaffMemberId,
+      showNotificationSetup,
     );
+  }
+
+  Future<bool> _shouldShowNotificationSetup() async {
+    final preferences = await SharedPreferences.getInstance();
+    if (preferences.getBool(notificationSetupShownPreferenceKey) == true) {
+      return false;
+    }
+    try {
+      return await widget.dependencies.noticeGateway.pushState() !=
+          PushState.enabled;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  void _offerNotificationSetupIfNeeded(_ScheduleData data) {
+    if (_setupScheduled || !data.showNotificationSetup) return;
+    _setupScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool(notificationSetupShownPreferenceKey, true);
+      if (mounted) {
+        _openSetup(
+          context,
+          widget.dependencies.noticeGateway,
+          canAllowNotifications: true,
+        );
+      }
+    });
   }
 
   @override
@@ -429,8 +486,11 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
                       if (data?.invitePending == true) ...[
                         const SizedBox(height: 16),
                         OutlinedButton(
-                          onPressed: () =>
-                              _openSetup(context, awaitingConfirmation: true),
+                          onPressed: () => _openSetup(
+                            context,
+                            widget.dependencies.noticeGateway,
+                            awaitingConfirmation: true,
+                          ),
                           child: const Text('Add ER Schedule'),
                         ),
                       ],
@@ -442,16 +502,18 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
           );
         }
 
+        _offerNotificationSetupIfNeeded(data!);
+
         // A month loaded from the printed page opens first until it is checked.
         final now = DateTime.now();
         return MonthGridPage(
           key: ValueKey((
-            data?.access,
-            data?.staffMemberId,
-            data?.swapStaffMemberId,
+            data.access,
+            data.staffMemberId,
+            data.swapStaffMemberId,
           )),
           rules: widget.dependencies.rules,
-          access: data!.access,
+          access: data.access,
           onAccessRejected: _refreshAccess,
           viewerId: widget.dependencies.authGateway.currentUserId,
           month:
@@ -516,6 +578,7 @@ final class _ScheduleData {
     this.monthToCheck,
     this.staffMemberId,
     this.swapStaffMemberId,
+    this.showNotificationSetup,
   );
 
   final List<ScheduleSection> sections;
@@ -524,4 +587,5 @@ final class _ScheduleData {
   final DateTime? monthToCheck;
   final String? staffMemberId;
   final String? swapStaffMemberId;
+  final bool showNotificationSetup;
 }

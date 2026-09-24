@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'auth_gateway.dart';
+import '../notifications/notice_gateway.dart';
 import '../settings/appearance.dart';
 import '../setup/app_setup_page.dart';
 
@@ -8,10 +9,12 @@ class SignInPage extends StatefulWidget {
   const SignInPage({
     super.key,
     required this.authGateway,
+    required this.noticeGateway,
     this.awaitingConfirmation = false,
   });
 
   final AuthGateway authGateway;
+  final NoticeGateway noticeGateway;
   final bool awaitingConfirmation;
 
   @override
@@ -131,6 +134,7 @@ class _SignInPageState extends State<SignInPage> {
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => AppSetupPage(
+                              noticeGateway: widget.noticeGateway,
                               awaitingConfirmation: widget.awaitingConfirmation,
                             ),
                           ),

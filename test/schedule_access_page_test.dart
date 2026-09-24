@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'support/app_dependencies.dart';
+
 void main() {
   const section = ScheduleSection(id: 'nights', name: 'Night RN');
   const row = ScheduleRow(
@@ -156,6 +158,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          noticeGateway: const NoopNoticeGateway(),
           rules: rules,
           access: Access(
             grants: Grants(administrator: true),
@@ -198,6 +201,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: MonthGridPage(
+            noticeGateway: const NoopNoticeGateway(),
             rules: scheduleRulesInMemory(database, actingAs: 'manager'),
             access: Access(
               grants: Grants(

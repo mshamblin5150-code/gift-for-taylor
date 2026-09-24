@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'support/app_dependencies.dart';
+
 void main() {
   late InMemoryScheduleDatabase database;
 
@@ -37,6 +39,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          noticeGateway: const NoopNoticeGateway(),
           access: database.accessFor('manager'),
           rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: DateTime(2026, 9),
@@ -75,6 +78,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: MonthGridPage(
+            noticeGateway: const NoopNoticeGateway(),
             access: database.accessFor('manager'),
             rules: scheduleRulesInMemory(database, actingAs: 'manager'),
             month: DateTime(2026, 9),
@@ -127,6 +131,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: MonthGridPage(
+            noticeGateway: const NoopNoticeGateway(),
             access: database.accessFor('rn-1'),
             rules: scheduleRulesInMemory(database, actingAs: 'rn-1'),
             month: DateTime(2026, 9),
@@ -170,6 +175,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          noticeGateway: const NoopNoticeGateway(),
           access: database.accessFor('manager'),
           rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: DateTime(2026, 9),

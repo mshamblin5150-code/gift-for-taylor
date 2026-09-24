@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/app_dependencies.dart';
+
 void main() {
   const days = ScheduleSection(id: 'days', name: 'State dayshift RN');
   const nights = ScheduleSection(id: 'nights', name: 'PRN nightshift RN');
@@ -46,6 +48,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          noticeGateway: const NoopNoticeGateway(),
           access: database.accessFor(person),
           key: ValueKey('$person-${month ?? september}'),
           rules: scheduleRulesInMemory(database, actingAs: person),

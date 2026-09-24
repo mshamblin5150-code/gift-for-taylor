@@ -1,4 +1,5 @@
 import 'support/in_memory_staff_gateway.dart';
+import 'support/app_dependencies.dart';
 
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/approval_queue_page.dart';
@@ -152,6 +153,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          noticeGateway: const NoopNoticeGateway(),
           access: db.accessFor('manager'),
           rules: manager,
           month: month,
@@ -225,6 +227,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          noticeGateway: const NoopNoticeGateway(),
           access: db.accessFor('alice'),
           rules: scheduleRulesInMemory(db, actingAs: 'alice'),
           month: month,

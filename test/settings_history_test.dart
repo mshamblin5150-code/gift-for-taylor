@@ -6,6 +6,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 
 import 'support/in_memory_settings_history.dart';
+import 'support/app_dependencies.dart';
 
 void main() {
   final rules = scheduleRulesInMemory(
@@ -28,6 +29,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           scheduleRules: rules,
+          noticeGateway: const NoopNoticeGateway(),
           access: access,
           settingsHistory: history,
         ),

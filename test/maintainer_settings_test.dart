@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'support/app_dependencies.dart';
+
 void main() {
   testWidgets('Maintainer sees Unit controls without Staff calendar settings', (
     tester,
@@ -19,6 +21,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           scheduleRules: rules,
+          noticeGateway: const NoopNoticeGateway(),
           access: Access(grants: Grants(), maintainer: true),
           onCalendarFeed: () {},
           onManageStaff: () async {},
