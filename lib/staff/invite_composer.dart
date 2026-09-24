@@ -31,8 +31,10 @@ Uri inviteSmsUri(Uri appUri, StaffInvite invite, {required bool isIos}) {
       .removeFragment();
   return messagesUri(
     [invite.cellNumber],
-    'You have an Invite to the ER Schedule: $inviteUri '
-    'After confirmation, you can use ER Schedule on a computer too.',
+    'You have an Invite to the ER Schedule. Open this link, give your cell '
+    'number and your email, and Taylor will confirm it is you. You can use '
+    'ER Schedule on a computer afterwards too.\n\n'
+    '$inviteUri',
     isIos: isIos,
   );
 }
