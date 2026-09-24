@@ -197,12 +197,15 @@ A scheduled shift left uncovered, by an approved Request off, a Last day or a Ca
 _Avoid_: Short shift, hole, gap, vacancy
 
 **Calendar invitation**:
-The way a Staff member's working shifts reach their calendar: one invitation
-per shift, emailed to the personal email they gave when accepting their Invite,
-replaced in place when the shift changes and withdrawn when it goes away. It
-asks for no reply; a shift is not an offer, and declining one would mean
-nothing. It is the default, and a Staff member has it or a Calendar feed, never
-both.
+The way a Staff member's working shifts reach their calendar, emailed to the
+personal email they gave when accepting their Invite, replaced in place when a
+shift changes and withdrawn when it goes away. A Month release publishes a
+Staff member's shifts for that month together, in one message; a change to a
+shift in a Month already released announces on its own. It covers work still to
+come and never a shift already worked, though withdrawing one reaches anything
+ever sent. It asks for no reply; a shift is not an offer, and declining one
+would mean nothing. It is the default, and a Staff member has it or a Calendar
+feed, never both.
 _Avoid_: Calendar invite, meeting request, RSVP
 
 **Calendar feed**:
@@ -229,6 +232,14 @@ feeds can never come to show a shift she might not work. Unless she has left the
 department it also says on its face that it is no longer updated, because a
 calendar app gives no sign of its own when a subscription stops working.
 _Avoid_: Dead feed, tombstone, expired link, broken subscription
+
+**Undelivered invitation**:
+A Calendar invitation that was queued and could not be sent, kept with what went
+wrong and how many times it has been tried. Only the Maintainer sees them: a
+calendar that lags behind is an inconvenience rather than an ED decision, and
+one is a Repair rather than a Schedule problem. Before, nobody could see them at
+all, and mail running out looked to a nurse like her own address being wrong.
+_Avoid_: Bounce, failed email, error queue, dead letter
 
 **Unit settings**:
 What an Administrator or the Manager configures for the unit rather than for one
