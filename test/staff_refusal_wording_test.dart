@@ -9,7 +9,7 @@ void main() {
           'Ask the Maintainer to restore your Manager access before '
           'transferring Manager.',
       ManagerHandoverRefusal.noActiveManager:
-          'Ask the Maintainer to restore the active Manager account before '
+          'Ask the Maintainer to restore an active Manager before '
           'transferring Manager.',
       ManagerHandoverRefusal.sameStaffMember:
           'Choose another Staff member before transferring Manager.',

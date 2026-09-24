@@ -137,12 +137,6 @@ select throws_ok($$select public.transfer_manager_with_access(
   '00000000-0000-0000-0000-000000003084', false, '{}'::uuid[])$$,
   'P2804', 'Manager successor is not eligible: inactive',
   'an inactive successor receives a distinct refusal code');
-select ok(
-  pg_get_functiondef(
-    'public.transfer_manager_with_access(uuid,boolean,uuid[])'::regprocedure)
-      like '%P2805%',
-  'the defensive already-Manager refusal keeps its stable code');
-
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000003062","role":"authenticated"}', true);
 select throws_ok($$select public.transfer_manager_with_access(
@@ -166,6 +160,25 @@ select results_eq($$select role::text,
   where member.id = '00000000-0000-0000-0000-000000003080'$$,
   $$values ('administrator', true)$$,
   'the outgoing Manager keeps both selected grants');
+
+-- The one-active-Manager rule makes this defensive eligibility answer
+-- impossible to construct from rows, so inject the private answer long enough
+-- to execute and pin its public refusal code. The transaction rollback restores
+-- the helper after this test file.
+set local role postgres;
+create or replace function private.manager_handover_eligibility(
+  p_staff_member_id uuid)
+returns public.manager_handover_eligibility_code
+language sql stable security definer set search_path = '' as $$
+  select 'already_manager'::public.manager_handover_eligibility_code
+$$;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000003062","role":"authenticated"}', true);
+select throws_ok($$select public.transfer_manager_with_access(
+  '00000000-0000-0000-0000-000000003080', false, '{}'::uuid[])$$,
+  'P2805', 'Manager successor is not eligible: already_manager',
+  'the defensive already-Manager refusal keeps its stable code');
 
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000003067","role":"authenticated"}', true);
