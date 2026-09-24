@@ -123,6 +123,14 @@ task: there is nothing to clear, and it stops being shown once the day it
 affects has passed.
 _Avoid_: Missed announcement, failed notification, untold change
 
+**Notice subscription**:
+One place ER Schedule can deliver a Change announcement to a Staff member. A
+place, not a device: on iPhone and iPad only the Home Screen app can hold one,
+so the same phone's browser holds none. A Staff member may have several, each
+allowed and turned off on its own, and one who has none hears nothing however
+many devices she owns.
+_Avoid_: Device, push, notification setting
+
 **Month release**:
 The moment the Manager makes a newly built month's Schedule visible to staff. Until then the month is unpublished. It is announced to everyone, unlike a Change announcement.
 _Avoid_: Publish, go-live
