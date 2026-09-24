@@ -43,6 +43,7 @@ Deno.test("a burst sends each queued invitation exactly once", async () => {
       claimed.add(id);
       return Promise.resolve(event);
     },
+    beginSend: () => Promise.resolve(),
     send: (event) => {
       sends.push(event.id);
       return Promise.resolve();
@@ -65,7 +66,7 @@ Deno.test("a burst sends each queued invitation exactly once", async () => {
 });
 
 Deno.test("concurrent invocations cannot send the same invitation twice", async () => {
-  const event = invitation("same-row");
+  const claimedInvitation = invitation("same-row");
   let claimed = false;
   let sends = 0;
   const dependencies: DeliveryDependencies = {
@@ -73,8 +74,9 @@ Deno.test("concurrent invocations cannot send the same invitation twice", async 
     claim: () => {
       if (claimed) return Promise.resolve(null);
       claimed = true;
-      return Promise.resolve(event);
+      return Promise.resolve(claimedInvitation);
     },
+    beginSend: () => Promise.resolve(),
     send: async () => {
       sends++;
       await Promise.resolve();
@@ -85,8 +87,8 @@ Deno.test("concurrent invocations cannot send the same invitation twice", async 
   const handler = createCalendarInvitationHandler(dependencies);
 
   const responses = await Promise.all([
-    handler(request(event.id)),
-    handler(request(event.id)),
+    handler(request(claimedInvitation.id)),
+    handler(request(claimedInvitation.id)),
   ]);
 
   if (sends !== 1) throw new Error(`Expected one send, got ${sends}`);
@@ -96,11 +98,12 @@ Deno.test("concurrent invocations cannot send the same invitation twice", async 
 });
 
 Deno.test("a failed send releases only its claimed invitation for retry", async () => {
-  const event = invitation("failed-row");
+  const claimedInvitation = invitation("failed-row");
   const releases: Array<[string, string]> = [];
   const handler = createCalendarInvitationHandler({
     secret: "secret",
-    claim: () => Promise.resolve(event),
+    claim: () => Promise.resolve(claimedInvitation),
+    beginSend: () => Promise.resolve(),
     send: () => Promise.reject(new Error("provider unavailable")),
     markSent: () => Promise.resolve(),
     release: (invitation) => {
@@ -109,15 +112,49 @@ Deno.test("a failed send releases only its claimed invitation for retry", async 
     },
   });
 
-  const response = await handler(request(event.id));
+  const response = await handler(request(claimedInvitation.id));
 
   if (response.status !== 502) {
     throw new Error(`Expected provider failure, got ${response.status}`);
   }
   if (
     JSON.stringify(releases) !==
-      JSON.stringify([[event.id, event.delivery_claim]])
+      JSON.stringify([[claimedInvitation.id, claimedInvitation.delivery_claim]])
   ) {
     throw new Error(`Unexpected claim releases: ${JSON.stringify(releases)}`);
+  }
+});
+
+Deno.test("an uncertain completed send is held instead of released", async () => {
+  const claimedInvitation = invitation("uncertain-row");
+  const steps: string[] = [];
+  const handler = createCalendarInvitationHandler({
+    secret: "secret",
+    claim: () => Promise.resolve(claimedInvitation),
+    beginSend: () => {
+      steps.push("begin");
+      return Promise.resolve();
+    },
+    send: () => {
+      steps.push("send");
+      return Promise.resolve();
+    },
+    markSent: () => {
+      steps.push("mark");
+      return Promise.reject(new Error("database unavailable"));
+    },
+    release: () => {
+      steps.push("release");
+      return Promise.resolve();
+    },
+  });
+
+  const response = await handler(request(claimedInvitation.id));
+
+  if (response.status !== 503) {
+    throw new Error(`Expected completion failure, got ${response.status}`);
+  }
+  if (steps.join(",") !== "begin,send,mark") {
+    throw new Error(`Uncertain send was released: ${steps.join(",")}`);
   }
 });

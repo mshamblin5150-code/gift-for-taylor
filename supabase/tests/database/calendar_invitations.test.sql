@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(36);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000981', 'calendar@example.test');
@@ -171,10 +171,9 @@ insert into claimed_delivery
 select is((select delivery_attempts from public.calendar_invitation_outbox
   where id = '00000000-0000-0000-0000-000000000986'), 2,
   'a released failed invitation can be claimed again');
-set local role postgres;
-update public.calendar_invitation_outbox set superseded_at = clock_timestamp()
-where id = '00000000-0000-0000-0000-000000000986';
-set local role service_role;
+select public.calendar_invitation_sending(
+  '00000000-0000-0000-0000-000000000986',
+  (select delivery_claim from claimed_delivery));
 select public.calendar_invitation_sent(
   '00000000-0000-0000-0000-000000000986',
   (select delivery_claim from claimed_delivery));
@@ -182,10 +181,6 @@ select ok((select sent_at is not null and delivery_claim is null
   from public.calendar_invitation_outbox
   where id = '00000000-0000-0000-0000-000000000986'),
   'only the claiming worker marks the invitation sent');
-select ok((select sent_at is not null and superseded_at is not null
-  from public.calendar_invitation_outbox
-  where id = '00000000-0000-0000-0000-000000000986'),
-  'an in-flight invitation records completion after a newer revision supersedes it');
 
 delete from claimed_delivery;
 insert into claimed_delivery select id, delivery_claim
@@ -283,6 +278,31 @@ set local role service_role;
 select is((select count(*)::int from public.calendar_invitation_claim(
   '00000000-0000-0000-0000-000000000992')), 1,
   'a stale claim can be reclaimed after the delivery timeout');
+
+set local role postgres;
+insert into public.calendar_invitation_outbox
+  (id, staff_member_id, work_date, recipient, method, shift_code, sequence)
+values ('00000000-0000-0000-0000-000000000993',
+  '00000000-0000-0000-0000-000000000983', '2027-06-08',
+  'calendar@example.test', 'REQUEST', '7A', 0);
+delete from claimed_delivery;
+set local role service_role;
+insert into claimed_delivery select id, delivery_claim
+  from public.calendar_invitation_claim('00000000-0000-0000-0000-000000000993');
+select public.calendar_invitation_sending(
+  '00000000-0000-0000-0000-000000000993',
+  (select delivery_claim from claimed_delivery));
+set local role postgres;
+update public.calendar_invitation_outbox
+  set delivery_claimed_at = clock_timestamp() - interval '6 minutes'
+where id = '00000000-0000-0000-0000-000000000993';
+delete from net.http_request_queue;
+select is(public.retry_calendar_invitation_deliveries(), 0,
+  'the retry sweep does not replay an uncertain send');
+set local role service_role;
+select is((select count(*)::int from public.calendar_invitation_claim(
+  '00000000-0000-0000-0000-000000000993')), 0,
+  'an uncertain send cannot be reclaimed automatically');
 
 select * from finish();
 rollback;

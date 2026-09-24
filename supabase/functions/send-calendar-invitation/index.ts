@@ -39,15 +39,22 @@ Deno.serve(async (request) => {
       if (error) throw error;
       return (data?.[0] as ClaimedInvitation | undefined) ?? null;
     },
+    beginSend: async (invitation) => {
+      const { data, error } = await client.rpc("calendar_invitation_sending", {
+        p_id: invitation.id,
+        p_claim: invitation.delivery_claim,
+      });
+      if (error || data !== true) throw error ?? new Error("Claim was lost");
+    },
     send: async (invitation) => {
       await transport.sendMail(invitationMessage(invitation));
     },
     markSent: async (invitation) => {
-      const { error } = await client.rpc("calendar_invitation_sent", {
+      const { data, error } = await client.rpc("calendar_invitation_sent", {
         p_id: invitation.id,
         p_claim: invitation.delivery_claim,
       });
-      if (error) throw error;
+      if (error || data !== true) throw error ?? new Error("Claim was lost");
     },
     release: async (invitation) => {
       const { error } = await client.rpc("calendar_invitation_failed", {

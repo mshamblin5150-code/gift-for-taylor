@@ -2,13 +2,30 @@ alter table public.calendar_invitation_outbox
   add column delivery_attempts integer not null default 0,
   add column delivery_claim uuid,
   add column delivery_claimed_at timestamptz,
+  add column delivery_started_at timestamptz,
   add constraint calendar_invitation_delivery_attempts_bounded
     check (delivery_attempts between 0 and 3),
   add constraint calendar_invitation_delivery_claim_complete
-    check ((delivery_claim is null) = (delivery_claimed_at is null));
+    check ((delivery_claim is null) = (delivery_claimed_at is null)),
+  add constraint calendar_invitation_delivery_start_has_claim
+    check (delivery_started_at is null or delivery_claim is not null);
 
 drop function public.calendar_invitation_to_send(uuid);
 drop function public.calendar_invitation_sent(uuid);
+
+create function public.calendar_invitation_is_claimable(
+  event public.calendar_invitation_outbox
+) returns boolean language sql volatile set search_path = '' as $$
+  select event.sent_at is null
+    and event.superseded_at is null
+    and event.delivery_attempts < 3
+    and (event.delivery_claim is null
+      or (event.delivery_started_at is null
+        and event.delivery_claimed_at < clock_timestamp() - interval '5 minutes'))
+$$;
+revoke all on function public.calendar_invitation_is_claimable(
+  public.calendar_invitation_outbox
+) from public, anon, authenticated, service_role;
 
 -- Claiming is the concurrency boundary: PostgreSQL rechecks the update
 -- predicate after a concurrent updater releases the row lock, so only one
@@ -19,23 +36,37 @@ language sql volatile security definer set search_path = '' as $$
   update public.calendar_invitation_outbox event
   set delivery_attempts = event.delivery_attempts + 1,
       delivery_claim = gen_random_uuid(),
-      delivery_claimed_at = clock_timestamp()
+      delivery_claimed_at = clock_timestamp(),
+      delivery_started_at = null
   where event.id = p_id
-    and event.sent_at is null
-    and event.superseded_at is null
-    and (event.delivery_claim is null
-      or event.delivery_claimed_at < clock_timestamp() - interval '5 minutes')
-    and event.delivery_attempts < 3
+    and public.calendar_invitation_is_claimable(event)
   returning event.*
 $$;
 revoke all on function public.calendar_invitation_claim(uuid)
   from public, anon, authenticated;
 grant execute on function public.calendar_invitation_claim(uuid) to service_role;
 
+create function public.calendar_invitation_sending(p_id uuid, p_claim uuid)
+returns boolean language sql volatile security definer set search_path = '' as $$
+  with started as (
+    update public.calendar_invitation_outbox
+    set delivery_started_at = clock_timestamp()
+    where id = p_id and delivery_claim = p_claim and sent_at is null
+      and superseded_at is null and delivery_started_at is null
+    returning true
+  )
+  select coalesce((select true from started), false)
+$$;
+revoke all on function public.calendar_invitation_sending(uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.calendar_invitation_sending(uuid, uuid)
+  to service_role;
+
 create function public.calendar_invitation_failed(p_id uuid, p_claim uuid)
 returns void language sql volatile security definer set search_path = '' as $$
   update public.calendar_invitation_outbox
-  set delivery_claim = null, delivery_claimed_at = null
+  set delivery_claim = null, delivery_claimed_at = null,
+      delivery_started_at = null
   where id = p_id and delivery_claim = p_claim and sent_at is null
 $$;
 revoke all on function public.calendar_invitation_failed(uuid, uuid)
@@ -44,11 +75,16 @@ grant execute on function public.calendar_invitation_failed(uuid, uuid)
   to service_role;
 
 create function public.calendar_invitation_sent(p_id uuid, p_claim uuid)
-returns void language sql volatile security definer set search_path = '' as $$
-  update public.calendar_invitation_outbox
-  set sent_at = clock_timestamp(), delivery_claim = null,
-      delivery_claimed_at = null
-  where id = p_id and delivery_claim = p_claim and sent_at is null
+returns boolean language sql volatile security definer set search_path = '' as $$
+  with completed as (
+    update public.calendar_invitation_outbox
+    set sent_at = clock_timestamp(), delivery_claim = null,
+        delivery_claimed_at = null, delivery_started_at = null
+    where id = p_id and delivery_claim = p_claim and sent_at is null
+      and superseded_at is null and delivery_started_at is not null
+    returning true
+  )
+  select coalesce((select true from completed), false)
 $$;
 revoke all on function public.calendar_invitation_sent(uuid, uuid)
   from public, anon, authenticated;
@@ -93,10 +129,7 @@ declare
 begin
   for v_id in
     select event.id from public.calendar_invitation_outbox event
-    where event.sent_at is null and event.superseded_at is null
-      and event.delivery_attempts < 3
-      and (event.delivery_claim is null
-        or event.delivery_claimed_at < clock_timestamp() - interval '5 minutes')
+    where public.calendar_invitation_is_claimable(event)
     order by event.last_modified
     limit 50
   loop

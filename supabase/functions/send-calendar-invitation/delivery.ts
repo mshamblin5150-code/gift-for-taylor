@@ -5,6 +5,7 @@ export type ClaimedInvitation = Invitation & { delivery_claim: string };
 export type DeliveryDependencies = {
   secret: string;
   claim: (id: string) => Promise<ClaimedInvitation | null>;
+  beginSend: (invitation: ClaimedInvitation) => Promise<void>;
   send: (invitation: ClaimedInvitation) => Promise<void>;
   markSent: (invitation: ClaimedInvitation) => Promise<void>;
   release: (invitation: ClaimedInvitation) => Promise<void>;
@@ -45,6 +46,7 @@ export function createCalendarInvitationHandler(
     if (!invitation) return json({ sent: 0, failures: 0 });
 
     try {
+      await dependencies.beginSend(invitation);
       await dependencies.send(invitation);
     } catch (error) {
       console.error("Calendar invitation delivery failed", id, error);
