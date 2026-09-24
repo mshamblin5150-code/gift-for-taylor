@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(35);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000981', 'calendar@example.test');
@@ -208,6 +208,81 @@ select public.calendar_invitation_failed(
 select is((select count(*)::int from public.calendar_invitation_claim(
   '00000000-0000-0000-0000-000000000987')), 0,
   'a failed invitation stops after three delivery attempts');
+
+set local role postgres;
+select vault.create_secret('test-calendar-secret', 'calendar_webhook_secret');
+delete from net.http_request_queue;
+update public.calendar_invitation_outbox set superseded_at = clock_timestamp()
+where sent_at is null and superseded_at is null;
+insert into public.calendar_invitation_outbox
+  (id, staff_member_id, work_date, recipient, method, shift_code, sequence)
+values
+  ('00000000-0000-0000-0000-000000000988',
+   '00000000-0000-0000-0000-000000000983', '2027-06-03',
+   'calendar@example.test', 'REQUEST', '7A', 0),
+  ('00000000-0000-0000-0000-000000000989',
+   '00000000-0000-0000-0000-000000000983', '2027-06-04',
+   'calendar@example.test', 'REQUEST', '7A', 0),
+  ('00000000-0000-0000-0000-000000000990',
+   '00000000-0000-0000-0000-000000000983', '2027-06-05',
+   'calendar@example.test', 'REQUEST', '7A', 0);
+select is((select count(*)::int from net.http_request_queue), 3,
+  'three invitations queued together post three webhook requests');
+select is((select count(distinct convert_from(body, 'UTF8')::jsonb ->> 'id')::int
+  from net.http_request_queue), 3,
+  'each burst webhook names one different invitation');
+
+update public.calendar_invitation_outbox set superseded_at = clock_timestamp()
+where id in ('00000000-0000-0000-0000-000000000988',
+  '00000000-0000-0000-0000-000000000989',
+  '00000000-0000-0000-0000-000000000990');
+insert into public.calendar_invitation_outbox
+  (id, staff_member_id, work_date, recipient, method, shift_code, sequence)
+values ('00000000-0000-0000-0000-000000000991',
+  '00000000-0000-0000-0000-000000000983', '2027-06-06',
+  'calendar@example.test', 'REQUEST', '7A', 0);
+delete from claimed_delivery;
+set local role service_role;
+insert into claimed_delivery select id, delivery_claim
+  from public.calendar_invitation_claim('00000000-0000-0000-0000-000000000991');
+select public.calendar_invitation_failed(
+  '00000000-0000-0000-0000-000000000991',
+  (select delivery_claim from claimed_delivery));
+set local role postgres;
+delete from net.http_request_queue;
+select is(public.retry_calendar_invitation_deliveries(), 1,
+  'the retry sweep posts one failed invitation');
+select is((select count(*)::int from net.http_request_queue
+  where convert_from(body, 'UTF8')::jsonb ->> 'id' =
+    '00000000-0000-0000-0000-000000000991'), 1,
+  'the retry sweep posts only that invitation id');
+
+update public.calendar_invitation_outbox set superseded_at = clock_timestamp()
+where id = '00000000-0000-0000-0000-000000000991';
+insert into public.calendar_invitation_outbox
+  (id, staff_member_id, work_date, recipient, method, shift_code, sequence)
+values ('00000000-0000-0000-0000-000000000992',
+  '00000000-0000-0000-0000-000000000983', '2027-06-07',
+  'calendar@example.test', 'REQUEST', '7A', 0);
+delete from claimed_delivery;
+set local role service_role;
+insert into claimed_delivery select id, delivery_claim
+  from public.calendar_invitation_claim('00000000-0000-0000-0000-000000000992');
+set local role postgres;
+update public.calendar_invitation_outbox
+  set delivery_claimed_at = clock_timestamp() - interval '6 minutes'
+where id = '00000000-0000-0000-0000-000000000992';
+delete from net.http_request_queue;
+select is(public.retry_calendar_invitation_deliveries(), 1,
+  'the retry sweep recovers one stale claim');
+select is((select count(*)::int from net.http_request_queue
+  where convert_from(body, 'UTF8')::jsonb ->> 'id' =
+    '00000000-0000-0000-0000-000000000992'), 1,
+  'the stale claim retry posts only that invitation id');
+set local role service_role;
+select is((select count(*)::int from public.calendar_invitation_claim(
+  '00000000-0000-0000-0000-000000000992')), 1,
+  'a stale claim can be reclaimed after the delivery timeout');
 
 select * from finish();
 rollback;

@@ -26,6 +26,9 @@ Deno.serve(async (request) => {
     port: 465,
     secure: true,
     auth: { user: "resend", pass: password },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 120000,
   });
   const handler = createCalendarInvitationHandler({
     secret,
@@ -36,20 +39,20 @@ Deno.serve(async (request) => {
       if (error) throw error;
       return (data?.[0] as ClaimedInvitation | undefined) ?? null;
     },
-    send: async (event) => {
-      await transport.sendMail(invitationMessage(event));
+    send: async (invitation) => {
+      await transport.sendMail(invitationMessage(invitation));
     },
-    markSent: async (id, claim) => {
+    markSent: async (invitation) => {
       const { error } = await client.rpc("calendar_invitation_sent", {
-        p_id: id,
-        p_claim: claim,
+        p_id: invitation.id,
+        p_claim: invitation.delivery_claim,
       });
       if (error) throw error;
     },
-    release: async (id, claim) => {
+    release: async (invitation) => {
       const { error } = await client.rpc("calendar_invitation_failed", {
-        p_id: id,
-        p_claim: claim,
+        p_id: invitation.id,
+        p_claim: invitation.delivery_claim,
       });
       if (error) throw error;
     },

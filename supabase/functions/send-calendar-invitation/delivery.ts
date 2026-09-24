@@ -5,9 +5,9 @@ export type ClaimedInvitation = Invitation & { delivery_claim: string };
 export type DeliveryDependencies = {
   secret: string;
   claim: (id: string) => Promise<ClaimedInvitation | null>;
-  send: (event: ClaimedInvitation) => Promise<void>;
-  markSent: (id: string, claim: string) => Promise<void>;
-  release: (id: string, claim: string) => Promise<void>;
+  send: (invitation: ClaimedInvitation) => Promise<void>;
+  markSent: (invitation: ClaimedInvitation) => Promise<void>;
+  release: (invitation: ClaimedInvitation) => Promise<void>;
 };
 
 function json(body: Record<string, unknown>, status = 200): Response {
@@ -35,21 +35,21 @@ export function createCalendarInvitationHandler(
       return new Response("Invalid invitation id", { status: 400 });
     }
 
-    let event: ClaimedInvitation | null;
+    let invitation: ClaimedInvitation | null;
     try {
-      event = await dependencies.claim(id);
+      invitation = await dependencies.claim(id);
     } catch (error) {
       console.error("Calendar invitation claim failed", id, error);
       return json({ sent: 0, failures: 1 }, 503);
     }
-    if (!event) return json({ sent: 0, failures: 0 });
+    if (!invitation) return json({ sent: 0, failures: 0 });
 
     try {
-      await dependencies.send(event);
+      await dependencies.send(invitation);
     } catch (error) {
       console.error("Calendar invitation delivery failed", id, error);
       try {
-        await dependencies.release(id, event.delivery_claim);
+        await dependencies.release(invitation);
       } catch (releaseError) {
         console.error(
           "Calendar invitation claim release failed",
@@ -61,7 +61,7 @@ export function createCalendarInvitationHandler(
     }
 
     try {
-      await dependencies.markSent(id, event.delivery_claim);
+      await dependencies.markSent(invitation);
     } catch (error) {
       console.error("Calendar invitation completion failed", id, error);
       return json({ sent: 0, failures: 1 }, 503);

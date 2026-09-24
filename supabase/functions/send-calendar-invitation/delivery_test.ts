@@ -103,8 +103,8 @@ Deno.test("a failed send releases only its claimed invitation for retry", async 
     claim: () => Promise.resolve(event),
     send: () => Promise.reject(new Error("provider unavailable")),
     markSent: () => Promise.resolve(),
-    release: (id, claim) => {
-      releases.push([id, claim]);
+    release: (invitation) => {
+      releases.push([invitation.id, invitation.delivery_claim]);
       return Promise.resolve();
     },
   });
