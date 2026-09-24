@@ -98,9 +98,12 @@ final class NoopMessagesComposer implements MessagesComposer {
 }
 
 final class NoopNoticeGateway implements NoticeGateway {
-  const NoopNoticeGateway();
+  const NoopNoticeGateway([this.state = PushState.unsupported]);
+
+  final PushState state;
+
   @override
-  Future<PushState> pushState() async => PushState.unsupported;
+  Future<PushState> pushState() async => state;
   @override
   Future<void> allowPush() async {}
   @override

@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'support/app_dependencies.dart';
+
 typedef _StaffingFact = ({
   int? minimum,
   int shortfall,
@@ -134,6 +136,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          noticeGateway: const NoopNoticeGateway(),
           access: database.accessFor(actingAs),
           key: ValueKey(month ?? september),
           rules: rules,
@@ -204,6 +207,7 @@ void main() {
       MaterialApp(
         theme: ThemeData.dark(),
         home: MonthGridPage(
+          noticeGateway: const NoopNoticeGateway(),
           access: database.accessFor('manager'),
           rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: september,

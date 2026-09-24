@@ -72,7 +72,7 @@ class MonthGridPage extends StatefulWidget {
     this.messagesComposer,
     this.swapStore,
     this.openShiftStore,
-    this.noticeGateway,
+    required this.noticeGateway,
     this.staffGateway,
     this.bookPagePresenter,
     this.printWordingGateway,
@@ -97,7 +97,7 @@ class MonthGridPage extends StatefulWidget {
   final MessagesComposer? messagesComposer;
   final SwapStore? swapStore;
   final OpenShiftStore? openShiftStore;
-  final NoticeGateway? noticeGateway;
+  final NoticeGateway noticeGateway;
   final StaffGateway? staffGateway;
 
   final BookPagePresenter? bookPagePresenter;
@@ -691,13 +691,13 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
         ),
       ),
-    if (_access.ownStaffMemberId != null && widget.noticeGateway != null)
+    if (_access.ownStaffMemberId != null)
       _ScheduleAction(
         label: 'Notices',
         icon: Icons.notifications_outlined,
         secondary: true,
         onPressed: () =>
-            _open((context) => NoticesPage(gateway: widget.noticeGateway!)),
+            _open((context) => NoticesPage(gateway: widget.noticeGateway)),
       ),
     if (_access.ownStaffMemberId != null && widget.onCalendarFeed != null)
       _ScheduleAction(

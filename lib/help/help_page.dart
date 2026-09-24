@@ -158,14 +158,14 @@ const helpTopics = <HelpTopic>[
   ),
   HelpTopic(
     title: 'Allow notifications',
-    who: 'A confirmed Staff member on each device',
-    what: 'Notifications can tell you about Schedule changes and other notices. Permission is separate on every device.',
+    who: 'A confirmed Staff member in each place',
+    what: 'Notifications can tell you about Schedule changes and other notices. Permission is separate in every browser or installed app.',
     how:
         '1. Wait for the Manager to confirm your Invite.\n'
-        '2. On each device, open Settings > Notifications.\n'
+        '2. In each place, open Settings > Notifications.\n'
         '3. Tap Allow notifications.\n'
-        '4. Choose Allow when the browser or device asks. Notices can now reach that device.\n'
-        'If you denied permission earlier, change it in that device’s browser or app settings. On iPhone or iPad, first add the web app to the Home Screen and open its icon; Web Push requires iOS or iPadOS 16.4 or later.',
+        '4. Choose Allow when the browser or app asks. Notices can now reach that place.\n'
+        'If you denied permission earlier, change it in that place’s browser or app settings. On iPhone or iPad, first add the web app to the Home Screen and open its icon; Web Push requires iOS or iPadOS 16.4 or later.',
     searchTerms: 'notifications alerts push permission allow home screen device denied blocked',
     roles: _staffReaders,
   ),

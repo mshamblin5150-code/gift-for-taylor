@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:er_schedule/app.dart';
 import 'package:er_schedule/auth/sign_in_page.dart';
+import 'package:er_schedule/notifications/notice_gateway.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:er_schedule/schedule_theme.dart';
 import 'package:er_schedule/settings/appearance.dart';
@@ -75,6 +76,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           scheduleRules: ScheduleRules(_scheduleStore(const [])),
+          noticeGateway: const NoopNoticeGateway(),
           access: Access(grants: Grants()),
         ),
       ),
@@ -232,7 +234,12 @@ void main() {
   ) async {
     final gateway = FakeAuthGateway();
     await tester.pumpWidget(
-      MaterialApp(home: SignInPage(authGateway: gateway)),
+      MaterialApp(
+        home: SignInPage(
+          authGateway: gateway,
+          noticeGateway: const NoopNoticeGateway(),
+        ),
+      ),
     );
 
     await tester.enterText(
@@ -339,6 +346,7 @@ void main() {
           authGateway: FakeAuthGateway(true),
           scheduleStore: database.storeFor('staff-1'),
           staffGateway: InMemoryStaffGateway(currentId: 'staff-1'),
+          noticeGateway: const NoopNoticeGateway(PushState.enabled),
         ),
       ),
     );
@@ -346,6 +354,62 @@ void main() {
 
     expect(find.text('Day RN'), findsOneWidget);
     expect(find.byType(DropdownButton<String>), findsOneWidget);
+  });
+
+  testWidgets(
+    'confirmed Staff member is offered notification setup once per place',
+    (tester) async {
+      final dependencies = appDependencies(
+        authGateway: FakeAuthGateway(true),
+        scheduleStore: _confirmedStaffSchedule(),
+        staffGateway: InMemoryStaffGateway(currentId: 'staff-1'),
+        noticeGateway: const NoopNoticeGateway(),
+      );
+
+      await tester.pumpWidget(ScheduleApp(dependencies: dependencies));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hear about Schedule changes'), findsOneWidget);
+      expect(find.text('Day RN'), findsNothing);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Day RN'), findsOneWidget);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.text('Hear about Schedule changes'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(ScheduleApp(dependencies: dependencies));
+      await tester.pumpAndSettle();
+      expect(find.text('Hear about Schedule changes'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      SharedPreferences.setMockInitialValues({});
+      await tester.pumpWidget(ScheduleApp(dependencies: dependencies));
+      await tester.pumpAndSettle();
+      expect(find.text('Hear about Schedule changes'), findsOneWidget);
+    },
+  );
+
+  testWidgets('push-enabled confirmed Staff member opens Schedule directly', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ScheduleApp(
+        dependencies: appDependencies(
+          authGateway: FakeAuthGateway(true),
+          scheduleStore: _confirmedStaffSchedule(),
+          staffGateway: InMemoryStaffGateway(currentId: 'staff-1'),
+          noticeGateway: const NoopNoticeGateway(PushState.enabled),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Day RN'), findsOneWidget);
+    expect(find.text('Hear about Schedule changes'), findsNothing);
   });
 
   testWidgets('account without an accepted Invite sees no Schedule data', (
@@ -553,6 +617,7 @@ void main() {
             authGateway: FakeAuthGateway(true),
             scheduleStore: database.storeFor('manager'),
             staffGateway: staffGateway,
+            noticeGateway: const NoopNoticeGateway(PushState.enabled),
           ),
         ),
       );
@@ -572,4 +637,20 @@ ScheduleStore _scheduleStore(List<ScheduleSection> sections) {
     grants: {'manager': Grants(manager: true)},
     sections: sections,
   ).storeFor('manager');
+}
+
+ScheduleStore _confirmedStaffSchedule() {
+  final now = DateTime.now();
+  return InMemoryScheduleDatabase(
+    sections: const [ScheduleSection(id: 'days', name: 'State dayshift RN')],
+    rows: const [
+      ScheduleRow(
+        staffMemberId: 'staff-1',
+        displayName: 'Day RN',
+        sectionId: 'days',
+      ),
+    ],
+    releasedMonths: {DateTime(now.year, now.month)},
+    grants: {'manager': Grants(manager: true)},
+  ).storeFor('staff-1');
 }
