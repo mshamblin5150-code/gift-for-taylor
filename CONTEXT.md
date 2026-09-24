@@ -15,8 +15,16 @@ A Staff member trusted to manage the Staff list, Invites and Unit settings, incl
 _Avoid_: Manager, Admin, assistant manager
 
 **Maintainer**:
-The system's designer, with a separate account and permanent access to every Manager view and action for investigating and repairing the app under their own identity, while the Manager remains responsible for ED decisions. This access belongs to that person alone, continues after Manager handover, and does not place them on the Staff list or Schedule.
+The hat the system's designer wears to investigate and repair the app under their own identity, while the Manager stays responsible for ED decisions. It belongs to that person alone and continues after Manager handover. It is not a Staff role and puts nobody on the Staff list or Schedule, but the person wearing it may also be a Staff member, and here is one.
 _Avoid_: Administrator, Manager, owner
+
+**Repair**:
+One recorded stretch of Maintainer work: why it was needed, what changed, and who did it. Maintainer authority lasts only while a Repair is open, so closing it ends that authority and the Manager is told what was done and why.
+_Avoid_: Fix, maintenance, admin session
+
+**Break the glass**:
+To open a Repair, naming the reason from a short list of the things the Maintainer hat is for. Outside a Repair the designer uses the app as an ordinary Staff member.
+_Avoid_: Elevate, sudo, admin mode
 
 **Night scheduler**:
 A Staff member granted permission to edit specific Sections (today, the night sections). Their edits take effect at once; the Manager can override them. They can read unpublished Schedules and the Change log, so they can see when an edit of theirs was overridden.
@@ -222,7 +230,7 @@ _Avoid_: Preferences, configuration, admin settings
 
 **Settings history**:
 The record of each change to a Unit setting: who made it, when, what it was
-before and after, and the Maintainer's reason when the change was a repair.
+before and after, and the Repair it belonged to when the Maintainer made it.
 Only those who can manage Unit settings read it. It is separate from the Change
 log, which records Schedule edits and is read by Night schedulers.
 _Avoid_: Audit, audit history, Change log
