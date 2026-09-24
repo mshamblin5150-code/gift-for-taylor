@@ -149,9 +149,10 @@ class _RequestsOffPageState extends State<RequestsOffPage> {
                     if (combined.length > _maximumRequestOffDays) {
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text(
-                            'A Request off can include up to 31 days. '
+                            'That would select ${combined.length} days. '
+                            'A Request off can include up to 31 days; '
                             'Choose a shorter range.',
                           ),
                         ),

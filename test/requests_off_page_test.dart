@@ -8,38 +8,7 @@ void main() {
   testWidgets(
     'Request off accepts a range, another day, and removal from the range',
     (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-
-      final database = InMemoryScheduleDatabase(
-        sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],
-        rows: const [
-          ScheduleRow(
-            staffMemberId: 'alice',
-            displayName: 'Alice',
-            sectionId: 'nurses',
-          ),
-        ],
-        grants: {'manager': Grants(manager: true)},
-        releasedMonths: {DateTime(2026, 9), DateTime(2026, 10)},
-      );
-      final rules = scheduleRulesInMemory(database, actingAs: 'alice');
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: RequestsOffPage(
-            rules: rules,
-            isManager: false,
-            now: () => DateTime(2026, 9, 15),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.widgetWithText(FloatingActionButton, 'Request off'),
-      );
-      await tester.pumpAndSettle();
+      final rules = await _openRequestDialog(tester);
 
       expect(
         find.text(
@@ -95,35 +64,7 @@ void main() {
   );
 
   testWidgets('Request off caps the selection at 31 days', (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    final database = InMemoryScheduleDatabase(
-      sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],
-      rows: const [
-        ScheduleRow(
-          staffMemberId: 'alice',
-          displayName: 'Alice',
-          sectionId: 'nurses',
-        ),
-      ],
-      grants: {'manager': Grants(manager: true)},
-    );
-    final rules = scheduleRulesInMemory(database, actingAs: 'alice');
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: RequestsOffPage(
-          rules: rules,
-          isManager: false,
-          now: () => DateTime(2026, 9, 15),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FloatingActionButton, 'Request off'));
-    await tester.pumpAndSettle();
+    await _openRequestDialog(tester);
 
     await tester.tap(find.text('Add a range'));
     await tester.pumpAndSettle();
@@ -147,9 +88,43 @@ void main() {
     expect(find.text('31 days selected'), findsOneWidget);
     expect(
       find.text(
-        'A Request off can include up to 31 days. Choose a shorter range.',
+        'That would select 32 days. A Request off can include up to 31 days; '
+        'Choose a shorter range.',
       ),
       findsOneWidget,
     );
   });
+}
+
+Future<ScheduleRules> _openRequestDialog(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(390, 844);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+
+  final database = InMemoryScheduleDatabase(
+    sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],
+    rows: const [
+      ScheduleRow(
+        staffMemberId: 'alice',
+        displayName: 'Alice',
+        sectionId: 'nurses',
+      ),
+    ],
+    grants: {'manager': Grants(manager: true)},
+    releasedMonths: {DateTime(2026, 9), DateTime(2026, 10)},
+  );
+  final rules = scheduleRulesInMemory(database, actingAs: 'alice');
+  await tester.pumpWidget(
+    MaterialApp(
+      home: RequestsOffPage(
+        rules: rules,
+        isManager: false,
+        now: () => DateTime(2026, 9, 15),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(FloatingActionButton, 'Request off'));
+  await tester.pumpAndSettle();
+  return rules;
 }
