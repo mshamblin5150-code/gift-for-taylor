@@ -1,11 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2.57.0";
 import nodemailer from "npm:nodemailer@7.0.6";
-import { invitationMessage, type Invitation } from "./calendar.ts";
+import { invitationMessage } from "./calendar.ts";
+import {
+  type ClaimedInvitation,
+  createCalendarInvitationHandler,
+  isCalendarInvitationRequestAuthorized,
+} from "./delivery.ts";
 
 Deno.serve(async (request) => {
   const secret = Deno.env.get("CALENDAR_WEBHOOK_SECRET");
-  if (!secret || request.method !== "POST" ||
-    request.headers.get("x-calendar-secret") !== secret) {
+  if (!isCalendarInvitationRequestAuthorized(request, secret)) {
     return new Response("Unauthorized", { status: 401 });
   }
   const password = Deno.env.get("RESEND_SMTP_PASSWORD");
@@ -15,42 +19,52 @@ Deno.serve(async (request) => {
     return new Response("Calendar delivery is not configured", { status: 503 });
   }
   const client = createClient(url, key);
-  const { data: pending, error } = await client
-    .from("calendar_invitation_outbox")
-    .select("*")
-    .is("sent_at", null)
-    .is("superseded_at", null)
-    .order("last_modified")
-    .limit(50);
-  if (error) return new Response("Outbox lookup failed", { status: 503 });
-
   const transport = nodemailer.createTransport({
     host: "smtp.resend.com",
     port: 465,
     secure: true,
     auth: { user: "resend", pass: password },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 120000,
   });
-  let sent = 0;
-  let failures = 0;
-  for (const queued of pending ?? []) {
-    const event = queued as Invitation;
-    // Recheck each row because another edit may have superseded the snapshot.
-    const { data: current } = await client.rpc("calendar_invitation_to_send", {
-      p_id: event.id,
-    });
-    if (!current?.length) continue;
-    try {
-      await transport.sendMail(invitationMessage(event));
-      const { error: markError } = await client.rpc("calendar_invitation_sent", {
-        p_id: event.id,
+  const handler = createCalendarInvitationHandler({
+    secret,
+    claim: async (id) => {
+      const { data, error } = await client.rpc("calendar_invitation_claim", {
+        p_id: id,
       });
-      if (markError) throw markError;
-      sent++;
-    } catch (sendError) {
-      failures++;
-      console.error("Calendar invitation delivery failed", event.id, sendError);
-    }
+      if (error) throw error;
+      return (data?.[0] as ClaimedInvitation | undefined) ?? null;
+    },
+    beginSend: async (invitation) => {
+      const { data, error } = await client.rpc("calendar_invitation_sending", {
+        p_id: invitation.id,
+        p_claim: invitation.delivery_claim,
+      });
+      if (error || data !== true) throw error ?? new Error("Claim was lost");
+    },
+    send: async (invitation) => {
+      await transport.sendMail(invitationMessage(invitation));
+    },
+    markSent: async (invitation) => {
+      const { data, error } = await client.rpc("calendar_invitation_sent", {
+        p_id: invitation.id,
+        p_claim: invitation.delivery_claim,
+      });
+      if (error || data !== true) throw error ?? new Error("Claim was lost");
+    },
+    release: async (invitation) => {
+      const { error } = await client.rpc("calendar_invitation_failed", {
+        p_id: invitation.id,
+        p_claim: invitation.delivery_claim,
+      });
+      if (error) throw error;
+    },
+  });
+  try {
+    return await handler(request);
+  } finally {
+    transport.close();
   }
-  transport.close();
-  return Response.json({ sent, failures }, { status: failures ? 502 : 200 });
 });
