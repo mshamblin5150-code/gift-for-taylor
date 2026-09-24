@@ -83,7 +83,7 @@ const helpTopics = <HelpTopic>[
     title: 'Maintainer repairs',
     who: 'Maintainer only',
     what: 'The Maintainer hat can temporarily use Manager controls to investigate and repair the app. The Staff Manager still makes ED decisions.',
-    how: '1. Open Maintainer repairs from Schedule actions or Settings.\n2. Choose the reason category that matches the work. Add 3-240 characters of detail when useful; Something else requires it.\n3. Choose Break the glass, then use the marked Manager controls.\n4. In the full-width Repairing banner, choose Close this repair when the work is done.\nResult: Manager controls close, ordinary Staff authority returns, and the Repair also ends automatically within one hour. The person wearing the hat remains on the Staff list and Schedule through their ordinary Staff row.',
+    how: '1. Open Maintainer repairs from Schedule actions or Settings.\n2. Choose the reason category that matches the work. Add 3-240 characters of detail when useful; Something else requires it.\n3. Choose Break the glass, then use the marked Manager controls.\n4. Choose the red wrench in the header, then Close this repair when the work is done.\nResult: Manager controls close, ordinary Staff authority returns, and the Repair also ends automatically within one hour. The person wearing the hat remains on the Staff list and Schedule through their ordinary Staff row.',
     searchTerms: 'repair reason manager access break glass close one hour',
     roles: {HelpRole.maintainer},
   ),

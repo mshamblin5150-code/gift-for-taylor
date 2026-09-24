@@ -66,7 +66,10 @@ class SettingsPage extends StatelessWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        actions: [RepairAction(controller: maintainerRepairController)],
+      ),
       body: ListView(
         children: [
           const _SectionHeading('Personal'),
