@@ -20,6 +20,7 @@ final class InMemoryScheduleDatabase {
     List<ScheduleRow> rows = const [],
     Map<String, Grants> grants = const {},
     this.maintainerId,
+    this.maintainerRepair,
     Map<String, String> names = const {},
     List<LegendCode> shiftCodes = shiftLegend,
     this.managerEmail = 'manager@example.test',
@@ -54,6 +55,7 @@ final class InMemoryScheduleDatabase {
   final List<ScheduleRow> _rows;
 
   final String? maintainerId;
+  final MaintainerRepair? maintainerRepair;
   final Map<String, Grants> _grants;
   final Map<String, Set<String>> _nightSchedulerSections;
   final Map<String, Set<DateTime>> _hiddenMonthsByActor = {};
@@ -263,7 +265,8 @@ final class InMemoryScheduleDatabase {
   Access accessFor(String actor) => Access(
     grants: _grants[actor] ?? Grants(),
     maintainer: actor == maintainerId,
-    ownStaffMemberId: actor == maintainerId || !_isActive(actor) ? null : actor,
+    ownStaffMemberId: _isActive(actor) ? actor : null,
+    activeRepair: actor == maintainerId ? maintainerRepair : null,
   );
 
   bool _isActive(String staffMemberId) => _names.containsKey(staffMemberId);

@@ -126,28 +126,28 @@ select ok((select staff_member_id is not distinct from '00000000-0000-0000-0000-
 select ok((select night_scheduler_section_ids is not distinct from array['00000000-0000-0000-0000-000000000a04']::uuid[] from public.current_access()), 'Administrator plus Night scheduler: current_access.night_scheduler_section_ids');
 select is((select count(*)::integer from public.current_access()), 1, 'Administrator plus Night scheduler: one Access row');
 reset role;
--- Maintainer
+-- Maintainer without a Repair
 select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('00000000-0000-0000-0000-000000000b05', 'access-scenario-5@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('00000000-0000-0000-0000-000000000c05', 'Access scenario 5', 'staff_member', true);
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
-  values ('00000000-0000-0000-0000-000000000c05', '00000000-0000-0000-0000-000000000b05', 'access-scenario-5@example.test', now());
+  values ('00000000-0000-0000-0000-000000000c05', '00000000-0000-0000-0000-000000000a02', 'access-scenario-5@example.test', now());
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000a02","role":"authenticated"}', true);
 set local role authenticated;
-select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), true, 'Maintainer: can_edit_section(nights)');
-select is(public.can_edit_section('00000000-0000-0000-0000-000000000a05'), true, 'Maintainer: can_edit_section(days)');
-select is(public.can_edit_schedule(), true, 'Maintainer: can_edit_schedule');
-select is(public.can_manage_staff(), true, 'Maintainer: can_manage_staff');
-select is(public.can_manage_unit(), true, 'Maintainer: can_manage_unit');
-select is(public.can_read_change_log(), true, 'Maintainer: can_read_change_log');
-select ok((select manager is not distinct from false from public.current_access()), 'Maintainer: current_access.manager');
-select ok((select administrator is not distinct from false from public.current_access()), 'Maintainer: current_access.administrator');
-select ok((select maintainer is not distinct from true from public.current_access()), 'Maintainer: current_access.maintainer');
-select ok((select staff_member_id is not distinct from null::uuid from public.current_access()), 'Maintainer: current_access.staff_member_id');
-select ok((select night_scheduler_section_ids is not distinct from '{}'::uuid[] from public.current_access()), 'Maintainer: current_access.night_scheduler_section_ids');
-select is((select count(*)::integer from public.current_access()), 1, 'Maintainer: one Access row');
+select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), false, 'Maintainer without a Repair: can_edit_section(nights)');
+select is(public.can_edit_section('00000000-0000-0000-0000-000000000a05'), false, 'Maintainer without a Repair: can_edit_section(days)');
+select is(public.can_edit_schedule(), false, 'Maintainer without a Repair: can_edit_schedule');
+select is(public.can_manage_staff(), false, 'Maintainer without a Repair: can_manage_staff');
+select is(public.can_manage_unit(), false, 'Maintainer without a Repair: can_manage_unit');
+select is(public.can_read_change_log(), false, 'Maintainer without a Repair: can_read_change_log');
+select ok((select manager is not distinct from false from public.current_access()), 'Maintainer without a Repair: current_access.manager');
+select ok((select administrator is not distinct from false from public.current_access()), 'Maintainer without a Repair: current_access.administrator');
+select ok((select maintainer is not distinct from true from public.current_access()), 'Maintainer without a Repair: current_access.maintainer');
+select ok((select staff_member_id is not distinct from '00000000-0000-0000-0000-000000000c05'::uuid from public.current_access()), 'Maintainer without a Repair: current_access.staff_member_id');
+select ok((select night_scheduler_section_ids is not distinct from '{}'::uuid[] from public.current_access()), 'Maintainer without a Repair: current_access.night_scheduler_section_ids');
+select is((select count(*)::integer from public.current_access()), 1, 'Maintainer without a Repair: one Access row');
 reset role;
 -- former Manager after handover to Staff member
 select set_config('request.jwt.claims', '{}', true);

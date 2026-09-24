@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
+
+import 'support/repair.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/app_dependencies.dart';
@@ -49,6 +52,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
           access: database.accessFor(person),
           key: ValueKey('$person-${month ?? september}'),
           rules: scheduleRulesInMemory(database, actingAs: person),

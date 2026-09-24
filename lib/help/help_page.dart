@@ -12,15 +12,15 @@ enum HelpRole {
 }
 
 Set<HelpRole> helpRolesFor(Access access) => {
-  if (access.isRepairAccess) HelpRole.maintainer,
+  if (access.maintainer) HelpRole.maintainer,
   if (access.grants.manager) HelpRole.manager,
   if (access.grants.administrator) HelpRole.administrator,
   if (access.grants.nightSchedulerSectionIds.isNotEmpty)
     HelpRole.nightScheduler,
-  if (!access.isRepairAccess &&
-      !access.grants.manager &&
+  if (!access.grants.manager &&
       !access.grants.administrator &&
-      access.grants.nightSchedulerSectionIds.isEmpty)
+      access.grants.nightSchedulerSectionIds.isEmpty &&
+      access.ownStaffMemberId != null)
     HelpRole.staffMember,
 };
 
@@ -80,16 +80,16 @@ const helpTopics = <HelpTopic>[
   HelpTopic(
     title: 'Maintainer repairs',
     who: 'Maintainer only',
-    what: 'The Maintainer can use Manager controls to investigate and repair the app under their own account. The Staff Manager still makes ED decisions.',
-    how: 'Sign in with the separately provisioned Maintainer account. For a Unit change, enter a short reason when asked. The change and reason appear in Settings history. The Maintainer has no Staff list or Schedule row.',
-    searchTerms: 'repair reason manager access',
+    what: 'The Maintainer hat can temporarily use Manager controls to investigate and repair the app. The Staff Manager still makes ED decisions.',
+    how: '1. Open Maintainer repairs from Schedule actions or Settings.\n2. Choose the reason category that matches the work. Add 3-240 characters of detail when useful; Something else requires it.\n3. Choose Break the glass, then use the marked Manager controls.\n4. In the full-width Repairing banner, choose Close this repair when the work is done.\nResult: Manager controls close, ordinary Staff authority returns, and the Repair also ends automatically within one hour. The person wearing the hat remains on the Staff list and Schedule through their ordinary Staff row.',
+    searchTerms: 'repair reason manager access break glass close one hour',
     roles: {HelpRole.maintainer},
   ),
   HelpTopic(
     title: 'Settings',
     who: 'Everyone; Unit choices require Manager, Administrator, or Maintainer access',
     what: 'Settings is the directory for choices that affect future behavior. Personal choices belong to you or this device. Unit choices govern the department.',
-    how: 'Open Schedule actions, then Settings. On a wide screen use More destinations. Everyone can choose Appearance and Add ER Schedule on this device. Staff can also open My calendar and Notifications under Personal. Managers, Administrators, and the Maintainer can open Staffing minimums, Open shift pickup approval, Print wording, Shift codes, Sections, Permission assignments, and Settings history.',
+    how: '1. Open Schedule actions, then Settings. On a wide screen use More destinations.\n2. Choose a Personal item for yourself or this device. Staff can use My calendar and Notifications.\n3. Managers and Administrators can choose a Unit item. The Maintainer first chooses a locked, marked Manager control and opens a Repair.\nResult: Personal choices affect you or this device; Unit choices affect the department.',
     searchTerms:
         'appearance dark light theme install app calendar notifications',
   ),

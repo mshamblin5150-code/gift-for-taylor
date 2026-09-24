@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../help/help_page.dart';
 import '../notifications/notice_gateway.dart';
+import '../maintainer/maintainer_repair.dart';
+import '../maintainer/repair_controller.dart';
 import '../notifications/notices_page.dart';
 import '../schedule_theme.dart';
 import '../staff/staff_gateway.dart';
@@ -77,6 +79,7 @@ class MonthGridPage extends StatefulWidget {
     this.bookPagePresenter,
     this.printWordingGateway,
     this.settingsHistory,
+    required this.repairController,
     this.now,
   });
 
@@ -103,6 +106,7 @@ class MonthGridPage extends StatefulWidget {
   final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;
   final SettingsHistory? settingsHistory;
+  final RepairController repairController;
   final DateTime Function()? now;
 
   @override
@@ -627,10 +631,50 @@ class _MonthGridPageState extends State<MonthGridPage> {
             onManagerTransferred: widget.onManagerTransferred,
             access: _access,
             settingsHistory: widget.settingsHistory,
+            maintainerRepairController: widget.repairController,
           ),
         );
       },
     ),
+    if (_access.maintainer && !_access.isRepairAccess)
+      _ScheduleAction(
+        label: 'Maintainer repairs (break glass)',
+        icon: Icons.build_outlined,
+        secondary: true,
+        onPressed: () => _open(
+          (context) =>
+              MaintainerRepairPage(controller: widget.repairController),
+        ),
+      ),
+    if (_access.maintainer && !_access.isRepairAccess) ...[
+      _ScheduleAction(
+        label: 'Schedule and Month controls (requires Repair)',
+        icon: Icons.lock_outline,
+        secondary: true,
+        onPressed: () => _open(
+          (context) =>
+              MaintainerRepairPage(controller: widget.repairController),
+        ),
+      ),
+      _ScheduleAction(
+        label: 'Approvals (requires Repair)',
+        icon: Icons.lock_outline,
+        secondary: true,
+        onPressed: () => _open(
+          (context) =>
+              MaintainerRepairPage(controller: widget.repairController),
+        ),
+      ),
+      _ScheduleAction(
+        label: 'Staff and Invite changes (requires Repair)',
+        icon: Icons.lock_outline,
+        secondary: true,
+        onPressed: () => _open(
+          (context) =>
+              MaintainerRepairPage(controller: widget.repairController),
+        ),
+      ),
+    ],
     _ScheduleAction(
       label: 'Help',
       icon: Icons.help_outline,

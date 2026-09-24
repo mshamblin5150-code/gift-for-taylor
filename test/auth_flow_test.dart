@@ -1,4 +1,5 @@
 import 'support/app_dependencies.dart';
+import 'support/repair.dart';
 import 'support/in_memory_staff_gateway.dart';
 
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
@@ -75,6 +76,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
+          maintainerRepairController: noopRepairController(),
           scheduleRules: ScheduleRules(_scheduleStore(const [])),
           noticeGateway: const NoopNoticeGateway(),
           access: Access(grants: Grants()),

@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/app_dependencies.dart';
+import 'support/repair.dart';
 
 typedef _StaffingFact = ({
   int? minimum,
@@ -137,6 +138,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
           access: database.accessFor(actingAs),
           key: ValueKey(month ?? september),
           rules: rules,
@@ -208,6 +210,7 @@ void main() {
         theme: ThemeData.dark(),
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
           access: database.accessFor('manager'),
           rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: september,

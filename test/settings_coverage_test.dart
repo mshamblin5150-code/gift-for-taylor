@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/app_dependencies.dart';
+import 'support/repair.dart';
 
 void main() {
   testWidgets('Unit settings opens the Coverage pool editor', (tester) async {
@@ -15,6 +16,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
+          maintainerRepairController: noopRepairController(),
           scheduleRules: scheduleRulesInMemory(database, actingAs: 'manager'),
           noticeGateway: const NoopNoticeGateway(),
           openShiftStore: database.openShiftStoreFor('manager'),

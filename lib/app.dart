@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app_dependencies.dart';
 import 'auth/sign_in_page.dart';
 import 'calendar/calendar_feed_page.dart';
+import 'maintainer/maintainer_repair.dart';
 import 'notifications/notice_gateway.dart';
 import 'schedule/month_grid_page.dart';
 import 'staff/staff_gateway.dart';
@@ -55,6 +56,21 @@ class ScheduleApp extends StatelessWidget {
         theme: ScheduleTheme.light,
         darkTheme: ScheduleTheme.dark,
         themeMode: mode,
+        builder: (context, child) => Stack(
+          fit: StackFit.expand,
+          children: [
+            child ?? const SizedBox.shrink(),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: RepairBanner(
+                controller: dependencies.repairController,
+                onClosed: () => navigatorKey?.currentState?.popUntil(
+                  (route) => route.isFirst,
+                ),
+              ),
+            ),
+          ],
+        ),
         home: _AuthGate(dependencies: dependencies, inviteToken: inviteToken),
       ),
     );
@@ -354,10 +370,16 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.dependencies.repairController.accessRevision.addListener(
+      _refreshAccess,
+    );
   }
 
   @override
   void dispose() {
+    widget.dependencies.repairController.accessRevision.removeListener(
+      _refreshAccess,
+    );
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -380,6 +402,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
       await widget.dependencies.noticeGateway.disablePush();
     } finally {
       await widget.dependencies.authGateway.signOut();
+      widget.dependencies.repairController.synchronize(null);
     }
   }
 
@@ -393,6 +416,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
         sections.isNotEmpty &&
         access.ownStaffMemberId != null &&
         await _shouldShowNotificationSetup();
+    widget.dependencies.repairController.synchronize(access.activeRepair);
     final monthToCheck =
         (await widget.dependencies.scheduleStore.monthsAwaitingConfirmation())
             .firstOrNull;
@@ -532,6 +556,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
           bookPagePresenter: widget.dependencies.bookPagePresenter,
           printWordingGateway: widget.dependencies.printWordingGateway,
           settingsHistory: widget.dependencies.settingsHistory,
+          repairController: widget.dependencies.repairController,
           onCalendarFeed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (context) => CalendarFeedPage(

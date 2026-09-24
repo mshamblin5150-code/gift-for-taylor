@@ -5,9 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/app_dependencies.dart';
+import 'support/repair.dart';
 
 void main() {
-  testWidgets('Maintainer sees Unit controls without Staff calendar settings', (
+  testWidgets('Maintainer sees marked controls without ambient authority', (
     tester,
   ) async {
     final rules = scheduleRulesInMemory(
@@ -20,16 +21,27 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
+          maintainerRepairController: noopRepairController(),
           scheduleRules: rules,
           noticeGateway: const NoopNoticeGateway(),
-          access: Access(grants: Grants(), maintainer: true),
+          access: Access(
+            grants: Grants(),
+            maintainer: true,
+            ownStaffMemberId: 'maintainer',
+          ),
           onCalendarFeed: () {},
           onManageStaff: () async {},
         ),
       ),
     );
-    expect(find.text('Unit'), findsOneWidget);
+    expect(find.text('Maintainer repairs'), findsOneWidget);
+    expect(find.text('Unit'), findsNothing);
+    expect(find.text('Manager controls'), findsOneWidget);
     expect(find.text('Sections'), findsOneWidget);
-    expect(find.text('My calendar'), findsNothing);
+    expect(
+      find.text('Requires a Repair — tap to break the glass'),
+      findsWidgets,
+    );
+    expect(find.text('My calendar'), findsOneWidget);
   });
 }
