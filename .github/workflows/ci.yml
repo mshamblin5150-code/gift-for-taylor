@@ -17,6 +17,7 @@ jobs:
       - run: deno test supabase/functions/calendar-feed/index_test.ts
       - run: deno check supabase/functions/send-calendar-invitation/index.ts
       - run: deno test --allow-env supabase/functions/send-calendar-invitation/calendar_test.ts
+      - run: deno test supabase/functions/send-calendar-invitation/delivery_test.ts
 
   flutter:
     runs-on: ubuntu-latest

@@ -112,11 +112,13 @@ Store the same `CALENDAR_WEBHOOK_SECRET` value in database Vault under the name
 `calendar_webhook_secret`. The `send_calendar_invitation_on_queue` trigger calls
 the function after each outbox insert. It is installed by migration; do not
 create a second Dashboard webhook. The function rejects requests without this
-header and drains up to 50 pending rows per call. Invoke it after configuring
-the secrets to drain invitations queued before setup, and when retrying a failed
-send. The trigger URL points at the production Supabase project; change it for
-another project.
-Monitor pending rows and function logs; delivery failures leave rows pending.
+header and accepts the one outbox `id` in the webhook body. It atomically claims
+that row before sending, so concurrent calls cannot deliver it twice and no call
+can drain unrelated rows. A failed send releases that row for an explicit retry
+with the same body, capped at three total attempts. The trigger URL points at the
+production Supabase project; change it for another project.
+Monitor pending rows, `delivery_attempts`, and function logs; delivery failures
+leave rows pending without making later invitations retry them.
 The webhook and SMTP secret must be configured before Staff can receive mail.
 
 Staff can switch to the Calendar feed in **My calendar**. Switching queues

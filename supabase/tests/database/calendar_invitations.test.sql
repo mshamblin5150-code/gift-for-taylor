@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(28);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000981', 'calendar@example.test');
@@ -130,6 +130,84 @@ select public.revoke_calendar_subscription((select id from named_subscriptions
   order by id desc limit 1));
 select is(public.my_calendar_channel(), 'invitations',
   'revoking the last subscription restores invitations');
+
+set local role postgres;
+insert into public.calendar_invitation_outbox
+  (id, staff_member_id, work_date, recipient, method, shift_code, sequence)
+values
+  ('00000000-0000-0000-0000-000000000986',
+   '00000000-0000-0000-0000-000000000983', '2027-06-01',
+   'calendar@example.test', 'REQUEST', '7A', 0),
+  ('00000000-0000-0000-0000-000000000987',
+   '00000000-0000-0000-0000-000000000983', '2027-06-02',
+   'calendar@example.test', 'REQUEST', '7A', 0);
+create temp table claimed_delivery (id uuid, delivery_claim uuid);
+grant select, insert, delete on claimed_delivery to service_role;
+set local role service_role;
+insert into claimed_delivery
+  select id, delivery_claim from public.calendar_invitation_claim(
+    '00000000-0000-0000-0000-000000000986');
+select is((select count(*)::int from claimed_delivery), 1,
+  'delivery claims the requested invitation');
+select is((select delivery_attempts from public.calendar_invitation_outbox
+  where id = '00000000-0000-0000-0000-000000000986'), 1,
+  'claim records one bounded delivery attempt');
+select is((select count(*)::int from public.calendar_invitation_claim(
+  '00000000-0000-0000-0000-000000000986')), 0,
+  'a claimed invitation cannot be claimed concurrently');
+select public.calendar_invitation_failed(
+  '00000000-0000-0000-0000-000000000986', gen_random_uuid());
+select ok((select delivery_claim is not null
+  from public.calendar_invitation_outbox
+  where id = '00000000-0000-0000-0000-000000000986'),
+  'a different worker cannot release the claim');
+select public.calendar_invitation_failed(
+  '00000000-0000-0000-0000-000000000986',
+  (select delivery_claim from claimed_delivery));
+delete from claimed_delivery;
+insert into claimed_delivery
+  select id, delivery_claim from public.calendar_invitation_claim(
+    '00000000-0000-0000-0000-000000000986');
+select is((select delivery_attempts from public.calendar_invitation_outbox
+  where id = '00000000-0000-0000-0000-000000000986'), 2,
+  'a released failed invitation can be claimed again');
+set local role postgres;
+update public.calendar_invitation_outbox set superseded_at = clock_timestamp()
+where id = '00000000-0000-0000-0000-000000000986';
+set local role service_role;
+select public.calendar_invitation_sent(
+  '00000000-0000-0000-0000-000000000986',
+  (select delivery_claim from claimed_delivery));
+select ok((select sent_at is not null and delivery_claim is null
+  from public.calendar_invitation_outbox
+  where id = '00000000-0000-0000-0000-000000000986'),
+  'only the claiming worker marks the invitation sent');
+select ok((select sent_at is not null and superseded_at is not null
+  from public.calendar_invitation_outbox
+  where id = '00000000-0000-0000-0000-000000000986'),
+  'an in-flight invitation records completion after a newer revision supersedes it');
+
+delete from claimed_delivery;
+insert into claimed_delivery select id, delivery_claim
+  from public.calendar_invitation_claim('00000000-0000-0000-0000-000000000987');
+select public.calendar_invitation_failed(
+  '00000000-0000-0000-0000-000000000987',
+  (select delivery_claim from claimed_delivery));
+delete from claimed_delivery;
+insert into claimed_delivery select id, delivery_claim
+  from public.calendar_invitation_claim('00000000-0000-0000-0000-000000000987');
+select public.calendar_invitation_failed(
+  '00000000-0000-0000-0000-000000000987',
+  (select delivery_claim from claimed_delivery));
+delete from claimed_delivery;
+insert into claimed_delivery select id, delivery_claim
+  from public.calendar_invitation_claim('00000000-0000-0000-0000-000000000987');
+select public.calendar_invitation_failed(
+  '00000000-0000-0000-0000-000000000987',
+  (select delivery_claim from claimed_delivery));
+select is((select count(*)::int from public.calendar_invitation_claim(
+  '00000000-0000-0000-0000-000000000987')), 0,
+  'a failed invitation stops after three delivery attempts');
 
 select * from finish();
 rollback;
