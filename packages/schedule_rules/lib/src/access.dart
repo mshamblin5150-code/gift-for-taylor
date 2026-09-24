@@ -1,5 +1,56 @@
 import '../schedule_rules.dart' show EditableSections;
 
+/// Why the Maintainer broke the glass for one bounded Repair.
+enum RepairReasonCategory {
+  managerHandover('manager_handover', 'Manager handover'),
+  scheduleOrMonth('schedule_or_month', 'Schedule or Month'),
+  unitSettings('unit_settings', 'Unit settings'),
+  staffOrInvite('staff_or_invite', 'Staff record or Invite'),
+  investigation('investigation', 'Investigating a fault'),
+  somethingElse('something_else', 'Something else');
+
+  const RepairReasonCategory(this.value, this.label);
+
+  final String value;
+  final String label;
+
+  static RepairReasonCategory fromValue(String value) =>
+      values.firstWhere((category) => category.value == value);
+}
+
+/// The open Repair that temporarily gives the Maintainer Manager authority.
+final class MaintainerRepair {
+  const MaintainerRepair({
+    required this.id,
+    required this.category,
+    required this.openedAt,
+    required this.expiresAt,
+    this.detail,
+    this.remaining,
+  });
+
+  final String id;
+  final RepairReasonCategory category;
+  final String? detail;
+  final DateTime openedAt;
+  final DateTime expiresAt;
+  final Duration? remaining;
+
+  @override
+  bool operator ==(Object other) =>
+      other is MaintainerRepair &&
+      id == other.id &&
+      category == other.category &&
+      detail == other.detail &&
+      openedAt == other.openedAt &&
+      expiresAt == other.expiresAt &&
+      remaining == other.remaining;
+
+  @override
+  int get hashCode =>
+      Object.hash(id, category, detail, openedAt, expiresAt, remaining);
+}
+
 /// Independent Access grants held by a Staff member.
 final class Grants {
   Grants({
@@ -46,13 +97,15 @@ final class Access {
     required this.grants,
     this.maintainer = false,
     this.ownStaffMemberId,
+    this.activeRepair,
   });
 
   final Grants grants;
   final bool maintainer;
   final String? ownStaffMemberId;
+  final MaintainerRepair? activeRepair;
 
-  bool get _managerLevel => grants.manager || maintainer;
+  bool get _managerLevel => grants.manager || activeRepair != null;
   bool canEditSection(String id) =>
       _managerLevel || grants.nightSchedulerSectionIds.contains(id);
   EditableSections get editableSections => _managerLevel
@@ -72,15 +125,17 @@ final class Access {
       _managerLevel ||
       grants.administrator ||
       grants.nightSchedulerSectionIds.isNotEmpty;
-  bool get isRepairAccess => maintainer;
+  bool get isRepairAccess => activeRepair != null;
 
   @override
   bool operator ==(Object other) =>
       other is Access &&
       grants == other.grants &&
       maintainer == other.maintainer &&
-      ownStaffMemberId == other.ownStaffMemberId;
+      ownStaffMemberId == other.ownStaffMemberId &&
+      activeRepair == other.activeRepair;
 
   @override
-  int get hashCode => Object.hash(grants, maintainer, ownStaffMemberId);
+  int get hashCode =>
+      Object.hash(grants, maintainer, ownStaffMemberId, activeRepair);
 }

@@ -4,7 +4,7 @@
   {"name":"Administrator","manager":false,"administrator":true,"maintainer":false,"sections":[],"staffMemberId":"staff","active":true,"editSection":false,"runSchedule":false,"manageStaff":true,"manageUnit":true,"readChangeLog":true},
   {"name":"Night scheduler for one Section","manager":false,"administrator":false,"maintainer":false,"sections":["nights"],"staffMemberId":"staff","active":true,"editSection":true,"runSchedule":false,"manageStaff":false,"manageUnit":false,"readChangeLog":true},
   {"name":"Administrator plus Night scheduler","manager":false,"administrator":true,"maintainer":false,"sections":["nights"],"staffMemberId":"staff","active":true,"editSection":true,"runSchedule":false,"manageStaff":true,"manageUnit":true,"readChangeLog":true},
-  {"name":"Maintainer","manager":false,"administrator":false,"maintainer":true,"sections":[],"staffMemberId":null,"active":true,"editSection":true,"runSchedule":true,"manageStaff":true,"manageUnit":true,"readChangeLog":true},
+  {"name":"Maintainer without a Repair","manager":false,"administrator":false,"maintainer":true,"repair":false,"sections":[],"staffMemberId":"staff","active":true,"editSection":false,"runSchedule":false,"manageStaff":false,"manageUnit":false,"readChangeLog":false},
   {"name":"former Manager after handover to Staff member","manager":false,"administrator":false,"maintainer":false,"sections":[],"staffMemberId":"staff","active":true,"editSection":false,"runSchedule":false,"manageStaff":false,"manageUnit":false,"readChangeLog":false},
   {"name":"revoked or Last-day person","manager":false,"administrator":false,"maintainer":false,"sections":[],"staffMemberId":null,"active":false,"editSection":false,"runSchedule":false,"manageStaff":false,"manageUnit":false,"readChangeLog":false}
 ]

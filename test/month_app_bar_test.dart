@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/app_dependencies.dart';
+import 'support/repair.dart';
 
 void main() {
   late InMemoryScheduleDatabase database;
@@ -40,6 +41,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
           access: database.accessFor('manager'),
           rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: DateTime(2026, 9),
@@ -79,6 +81,7 @@ void main() {
         MaterialApp(
           home: MonthGridPage(
             noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
             access: database.accessFor('manager'),
             rules: scheduleRulesInMemory(database, actingAs: 'manager'),
             month: DateTime(2026, 9),
@@ -132,6 +135,7 @@ void main() {
         MaterialApp(
           home: MonthGridPage(
             noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
             access: database.accessFor('rn-1'),
             rules: scheduleRulesInMemory(database, actingAs: 'rn-1'),
             month: DateTime(2026, 9),
@@ -176,6 +180,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
           access: database.accessFor('manager'),
           rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: DateTime(2026, 9),

@@ -31,6 +31,7 @@ insert into private.maintainer_identity(auth_user_id) values ('$maintainerAuth')
     final manager = scenario['manager'] as bool;
     final administrator = scenario['administrator'] as bool;
     final maintainer = scenario['maintainer'] as bool;
+    final repair = scenario['repair'] as bool? ?? false;
     final active = scenario['active'] as bool;
     final sections = (scenario['sections'] as List<dynamic>).cast<String>();
     final role = manager
@@ -52,8 +53,13 @@ insert into public.staff_members(id, display_name, role, active)
   values ('$staffId', 'Access scenario $index', '$role', $active);
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
-  values ('$staffId', '$staffAuth', 'access-scenario-$index@example.test', now());
+  values ('$staffId', '$auth', 'access-scenario-$index@example.test', now());
 $sectionSql''');
+    if (repair) {
+      sql.writeln(
+        "select public.open_maintainer_repair('investigation', null);",
+      );
+    }
     sql.writeln(
       "select set_config('request.jwt.claims', '{\"sub\":\"$auth\",\"role\":\"authenticated\"}', true);",
     );
@@ -68,7 +74,7 @@ $sectionSql''');
     };
     final expected = <String, bool>{
       'can_edit_section(nights)': scenario['editSection'] as bool,
-      'can_edit_section(days)': manager || maintainer,
+      'can_edit_section(days)': manager || repair,
       'can_edit_schedule': scenario['runSchedule'] as bool,
       'can_manage_staff': scenario['manageStaff'] as bool,
       'can_manage_unit': scenario['manageUnit'] as bool,

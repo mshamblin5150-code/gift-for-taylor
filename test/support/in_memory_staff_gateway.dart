@@ -22,7 +22,9 @@ final class InMemoryStaffGateway implements StaffGateway {
     ),
     maintainer: actorRole == 'maintainer',
     ownStaffMemberId: currentId,
+    activeRepair: activeRepair,
   );
+  MaintainerRepair? activeRepair;
   bool transferEligible = true;
 
   @override

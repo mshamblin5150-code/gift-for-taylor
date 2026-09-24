@@ -24,6 +24,14 @@ void main() {
         ),
         maintainer: scenario['maintainer'] as bool,
         ownStaffMemberId: scenario['staffMemberId'] as String?,
+        activeRepair: (scenario['repair'] as bool? ?? false)
+            ? MaintainerRepair(
+                id: 'repair',
+                category: RepairReasonCategory.investigation,
+                openedAt: DateTime.utc(2026, 9, 24, 12),
+                expiresAt: DateTime.utc(2026, 9, 24, 13),
+              )
+            : null,
       );
       expect(access.canEditSection('nights'), scenario['editSection']);
       expect(
@@ -32,7 +40,7 @@ void main() {
       );
       expect(
         access.canEditSection('days'),
-        (scenario['manager'] as bool) || (scenario['maintainer'] as bool),
+        (scenario['manager'] as bool) || (scenario['repair'] as bool? ?? false),
       );
       expect(access.canRunSchedule, scenario['runSchedule']);
       expect(access.canManageStaff, scenario['manageStaff']);
@@ -80,13 +88,35 @@ void main() {
     expect(access.canChangeAccess(Grants()), isTrue);
     expect(access.canChangeAccess(Grants(manager: true)), isFalse);
     expect(access.isRepairAccess, isFalse);
-    final maintainer = Access(grants: Grants(), maintainer: true);
-    expect(maintainer.canTransferManager, isTrue);
-    expect(maintainer.canReadUnreleased, isTrue);
-    expect(maintainer.ownStaffMemberId, isNull);
-    expect(maintainer.isRepairAccess, isTrue);
-    expect(maintainer.canUseOwnSettings, isFalse);
-    expect(maintainer.canChangeAccess(Grants()), isTrue);
+    final maintainer = Access(
+      grants: Grants(),
+      maintainer: true,
+      ownStaffMemberId: 'staff',
+    );
+    expect(maintainer.canTransferManager, isFalse);
+    expect(maintainer.canReadUnreleased, isFalse);
+    expect(maintainer.ownStaffMemberId, 'staff');
+    expect(maintainer.isRepairAccess, isFalse);
+    expect(maintainer.canUseOwnSettings, isTrue);
+    expect(maintainer.canChangeAccess(Grants()), isFalse);
+
+    final repairing = Access(
+      grants: Grants(),
+      maintainer: true,
+      ownStaffMemberId: 'staff',
+      activeRepair: MaintainerRepair(
+        id: 'repair',
+        category: RepairReasonCategory.managerHandover,
+        openedAt: DateTime.utc(2026, 9, 24, 12),
+        expiresAt: DateTime.utc(2026, 9, 24, 13),
+      ),
+    );
+    expect(repairing.canTransferManager, isTrue);
+    expect(repairing.canReadUnreleased, isTrue);
+    expect(repairing.ownStaffMemberId, 'staff');
+    expect(repairing.isRepairAccess, isTrue);
+    expect(repairing.canUseOwnSettings, isTrue);
+    expect(repairing.canChangeAccess(Grants()), isTrue);
   });
 
   test('committed pgTAP matches the shared scenarios', () {

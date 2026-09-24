@@ -32,9 +32,16 @@ void main() {
   });
 
   test('independent Access grants select every Help catalog held', () {
-    expect(helpRolesFor(Access(grants: Grants(), maintainer: true)), {
-      HelpRole.maintainer,
-    });
+    expect(
+      helpRolesFor(
+        Access(
+          grants: Grants(),
+          maintainer: true,
+          ownStaffMemberId: 'maintainer',
+        ),
+      ),
+      {HelpRole.maintainer, HelpRole.staffMember},
+    );
     expect(
       helpRolesFor(
         Access(

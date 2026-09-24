@@ -13,6 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'support/repair.dart';
+
 void main() {
   const days = StaffSection(id: 'days', name: 'State dayshift RN');
   const nights = StaffSection(id: 'nights', name: 'PRN nightshift RN');
@@ -862,10 +864,18 @@ void main() {
   testWidgets('Maintainer can transfer Manager from Staff details', (
     tester,
   ) async {
-    final gateway = InMemoryStaffGateway(
-      actorRole: 'manager',
-      list: const StaffList(sections: [days], members: [alex]),
-    )..actorRole = 'maintainer';
+    final gateway =
+        InMemoryStaffGateway(
+            actorRole: 'manager',
+            list: const StaffList(sections: [days], members: [alex]),
+          )
+          ..actorRole = 'maintainer'
+          ..activeRepair = MaintainerRepair(
+            id: 'repair',
+            category: RepairReasonCategory.managerHandover,
+            openedAt: DateTime.utc(2026, 9, 24, 12),
+            expiresAt: DateTime.utc(2026, 9, 24, 13),
+          );
     await tester.pumpWidget(
       MaterialApp(
         home: StaffListPage(
@@ -1328,6 +1338,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
+          maintainerRepairController: noopRepairController(),
           scheduleRules: rules,
           noticeGateway: const NoopNoticeGateway(),
           access: Access(
@@ -1341,10 +1352,7 @@ void main() {
     await tester.tap(find.text('Transfer Manager'));
     await tester.pumpAndSettle();
     expect(find.text('Alex Tech'), findsOneWidget);
-    expect(
-      find.textContaining('Maintainer uses a separate account'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Maintainer hat'), findsOneWidget);
     await tester.tap(find.text('Alex Tech'));
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Transfer Manager'));
@@ -1363,16 +1371,30 @@ void main() {
   testWidgets('Maintainer can open handover without Staff access choices', (
     tester,
   ) async {
-    final gateway = InMemoryStaffGateway(
-      actorRole: 'manager',
-      list: const StaffList(sections: [days], members: [alex]),
-    )..actorRole = 'maintainer';
+    final gateway =
+        InMemoryStaffGateway(
+            actorRole: 'manager',
+            list: const StaffList(sections: [days], members: [alex]),
+          )
+          ..actorRole = 'maintainer'
+          ..activeRepair = MaintainerRepair(
+            id: 'repair',
+            category: RepairReasonCategory.managerHandover,
+            openedAt: DateTime.utc(2026, 9, 24, 12),
+            expiresAt: DateTime.utc(2026, 9, 24, 13),
+          );
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
+          maintainerRepairController: noopRepairController(),
           scheduleRules: rules,
           noticeGateway: const NoopNoticeGateway(),
-          access: Access(grants: Grants(), maintainer: true),
+          access: Access(
+            grants: Grants(),
+            maintainer: true,
+            ownStaffMemberId: 'maintainer',
+            activeRepair: gateway.activeRepair,
+          ),
           staffGateway: gateway,
         ),
       ),

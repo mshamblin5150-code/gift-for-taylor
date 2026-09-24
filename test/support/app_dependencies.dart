@@ -4,6 +4,7 @@ import 'package:er_schedule/app_dependencies.dart';
 import 'package:er_schedule/auth/auth_gateway.dart';
 import 'package:er_schedule/calendar/calendar_feed_page.dart';
 import 'package:er_schedule/notifications/notice_gateway.dart';
+import 'package:er_schedule/maintainer/repair_controller.dart';
 import 'package:er_schedule/schedule/book_page_printing.dart';
 import 'package:er_schedule/schedule/messages_composer.dart';
 import 'package:er_schedule/schedule/print_wording_gateway.dart';
@@ -15,6 +16,7 @@ import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 
 import 'in_memory_settings_history.dart';
 import 'in_memory_staff_gateway.dart';
+import 'repair.dart';
 
 AppDependencies appDependencies({
   AuthGateway? authGateway,
@@ -29,6 +31,7 @@ AppDependencies appDependencies({
   PrintWordingGateway? printWordingGateway,
   CalendarFeedGateway? calendarFeedGateway,
   SettingsHistory? settingsHistory,
+  RepairController? repairController,
 }) {
   final database = InMemoryScheduleDatabase(sections: const []);
   return AppDependencies(
@@ -44,6 +47,7 @@ AppDependencies appDependencies({
     printWordingGateway: printWordingGateway ?? const NoopPrintWordingGateway(),
     calendarFeedGateway: calendarFeedGateway ?? const NoopCalendarFeedGateway(),
     settingsHistory: settingsHistory ?? InMemorySettingsHistory(),
+    repairController: repairController ?? noopRepairController(),
   );
 }
 

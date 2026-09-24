@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/app_dependencies.dart';
+import 'support/repair.dart';
 
 void main() {
   const section = ScheduleSection(id: 'nights', name: 'Night RN');
@@ -29,6 +30,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          repairController: noopRepairController(),
           rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           access: access,
           month: month,
@@ -59,11 +61,32 @@ void main() {
           own: true,
         ),
         (
-          name: 'Maintainer',
-          access: Access(grants: Grants(), maintainer: true),
+          name: 'Maintainer without a Repair',
+          access: Access(
+            grants: Grants(),
+            maintainer: true,
+            ownStaffMemberId: 'nurse',
+          ),
+          run: false,
+          changeLog: false,
+          own: true,
+        ),
+        (
+          name: 'Maintainer with a Repair',
+          access: Access(
+            grants: Grants(),
+            maintainer: true,
+            ownStaffMemberId: 'nurse',
+            activeRepair: MaintainerRepair(
+              id: 'repair',
+              category: RepairReasonCategory.scheduleOrMonth,
+              openedAt: DateTime.utc(2026, 9, 24, 12),
+              expiresAt: DateTime.utc(2026, 9, 24, 13),
+            ),
+          ),
           run: true,
           changeLog: true,
-          own: false,
+          own: true,
         ),
         (
           name: 'Administrator',
@@ -139,6 +162,18 @@ void main() {
         find.text('My Requests off'),
         scenario.own && !scenario.run ? findsOneWidget : findsNothing,
       );
+      if (scenario.name == 'Maintainer without a Repair') {
+        expect(find.text('Maintainer repairs (break glass)'), findsOneWidget);
+        expect(
+          find.text('Schedule and Month controls (requires Repair)'),
+          findsOneWidget,
+        );
+        expect(find.text('Approvals (requires Repair)'), findsOneWidget);
+        expect(
+          find.text('Staff and Invite changes (requires Repair)'),
+          findsOneWidget,
+        );
+      }
     });
   }
 
@@ -159,6 +194,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
           rules: rules,
           access: Access(
             grants: Grants(administrator: true),
@@ -202,6 +238,7 @@ void main() {
         MaterialApp(
           home: MonthGridPage(
             noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
             rules: scheduleRulesInMemory(database, actingAs: 'manager'),
             access: Access(
               grants: Grants(

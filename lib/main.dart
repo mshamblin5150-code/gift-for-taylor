@@ -4,8 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'app_dependencies.dart';
 import 'auth/auth_gateway.dart';
-import 'auth/repair_reason_client.dart';
 import 'calendar/calendar_feed_page.dart';
+import 'maintainer/repair_controller.dart';
+import 'maintainer/supabase_repair_gateway.dart';
 import 'notifications/notice_gateway.dart';
 import 'schedule/book_page_printing.dart';
 import 'schedule/print_wording_gateway.dart';
@@ -34,29 +35,24 @@ Future<void> main() async {
   }
 
   final navigatorKey = GlobalKey<NavigatorState>();
-  final repairClient = RepairReasonClient(navigatorKey);
   await Supabase.initialize(
     url: supabaseUrl,
     publishableKey: supabasePublishableKey,
-    httpClient: repairClient,
   );
 
   final client = Supabase.instance.client;
+  final repairController = RepairController(SupabaseRepairGateway(client));
   runApp(
     ScheduleApp(
       dependencies: AppDependencies(
         authGateway: SupabaseAuthGateway(
           client,
-          onSignedOut: () => repairClient.isMaintainer = false,
+          onSignedOut: () => repairController.synchronize(null),
         ),
         scheduleStore: SupabaseScheduleStore(client),
         swapStore: SupabaseSwapStore(client),
         openShiftStore: SupabaseOpenShiftStore(client),
-        staffGateway: SupabaseStaffGateway(
-          client,
-          onAccessLoaded: (access) =>
-              repairClient.isMaintainer = access.isRepairAccess,
-        ),
+        staffGateway: SupabaseStaffGateway(client),
         inviteComposer: SmsInviteComposer(Uri.base),
         messagesComposer: const SmsMessagesComposer(),
         noticeGateway: SupabaseNoticeGateway(
@@ -67,6 +63,7 @@ Future<void> main() async {
         printWordingGateway: SupabasePrintWordingGateway(client),
         calendarFeedGateway: SupabaseCalendarFeedGateway(client, supabaseUrl),
         settingsHistory: SupabaseSettingsHistory(client),
+        repairController: repairController,
       ),
       navigatorKey: navigatorKey,
       inviteToken: Uri.base.queryParameters['invite'],

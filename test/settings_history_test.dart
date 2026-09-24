@@ -3,6 +3,9 @@ import 'package:er_schedule/settings/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
+
+import 'support/repair.dart';
+
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 
 import 'support/in_memory_settings_history.dart';
@@ -28,6 +31,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
+          maintainerRepairController: noopRepairController(),
           scheduleRules: rules,
           noticeGateway: const NoopNoticeGateway(),
           access: access,

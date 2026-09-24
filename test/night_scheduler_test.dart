@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/app_dependencies.dart';
+import 'support/repair.dart';
 
 void main() {
   const days = ScheduleSection(id: 'days', name: 'State dayshift RN');
@@ -59,6 +60,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
           access: database.accessFor(actingAs),
           rules: scheduleRulesInMemory(database, actingAs: actingAs),
           month: month ?? september,

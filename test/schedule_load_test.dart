@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/app_dependencies.dart';
+import 'support/repair.dart';
 
 /// The retry button remains a rendering and gesture check; read rules live in
 /// month_session_test.dart.
@@ -36,6 +37,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
           access: database.accessFor('manager'),
           rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: september,

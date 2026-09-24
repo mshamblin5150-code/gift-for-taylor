@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'support/repair.dart';
+
 class _Swaps extends Fake implements SwapStore {
   final items = <Swap>[];
   @override
@@ -154,6 +156,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
           access: db.accessFor('manager'),
           rules: manager,
           month: month,
@@ -228,6 +231,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
           access: db.accessFor('alice'),
           rules: scheduleRulesInMemory(db, actingAs: 'alice'),
           month: month,

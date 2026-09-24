@@ -27,13 +27,15 @@ nobody on the Schedule.
 3. Sign in and check that the ordinary app is unchanged — no Manager controls in
    the Schedule or Settings, because the hat is off until a Repair is open. Help
    shows **Maintainer repairs**.
-4. Break the glass: open a Repair, choosing a reason and writing the detail.
+4. Break the glass: open a Repair and choose its reason category. Add optional
+   detail when useful; **Something else** requires 3–240 characters of detail.
    Manager views and actions become available, a banner names the Repair, and the
    Manager receives a Notice carrying the reason. Close the Repair and confirm
    Manager controls disappear again. An unclosed Repair lapses after an hour.
 
-Repair records carry the Auth actor and the Repair id in
-`maintainer_repair_audit` and, for Settings changes, `unit_setting_audit`.
+Repair records carry the human Staff member, the Auth-bound Maintainer hat and
+the Repair id in `maintainer_repair_audit` and, for Settings changes,
+`unit_setting_audit`.
 
 ## Recover or replace credentials
 

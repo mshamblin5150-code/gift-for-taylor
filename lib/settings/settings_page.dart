@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import '../notifications/notice_gateway.dart';
+import '../maintainer/maintainer_repair.dart';
+import '../maintainer/repair_controller.dart';
 import '../notifications/notices_page.dart';
 import '../help/help_page.dart';
 import '../schedule/print_wording_dialog.dart';
@@ -27,6 +29,7 @@ class SettingsPage extends StatelessWidget {
     this.settingsHistory,
     this.staffGateway,
     this.onManagerTransferred,
+    required this.maintainerRepairController,
   });
 
   final ScheduleRules scheduleRules;
@@ -39,12 +42,24 @@ class SettingsPage extends StatelessWidget {
   final SettingsHistory? settingsHistory;
   final StaffGateway? staffGateway;
   final VoidCallback? onManagerTransferred;
+  final RepairController maintainerRepairController;
 
   @override
   Widget build(BuildContext context) {
     void open(Widget page) {
       Navigator.push(context, MaterialPageRoute<void>(builder: (_) => page));
     }
+
+    void openRepair() =>
+        open(MaintainerRepairPage(controller: maintainerRepairController));
+
+    ListTile repairRequired(String title, IconData icon) => ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: const Text('Requires a Repair — tap to break the glass'),
+      trailing: const Icon(Icons.lock_outline),
+      onTap: openRepair,
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -78,6 +93,42 @@ class SettingsPage extends StatelessWidget {
               subtitle: const Text('Allow notices in this place'),
               onTap: () => open(NoticesPage(gateway: noticeGateway)),
             ),
+          if (access.maintainer)
+            ListTile(
+              leading: const Icon(Icons.build_outlined),
+              title: const Text('Maintainer repairs'),
+              subtitle: Text(
+                access.isRepairAccess
+                    ? 'A Repair is open'
+                    : 'Break the glass for marked Manager controls',
+              ),
+              onTap: access.isRepairAccess ? null : openRepair,
+            ),
+          if (access.maintainer && !access.isRepairAccess) ...[
+            const _SectionHeading('Manager controls'),
+            if (staffGateway != null)
+              repairRequired(
+                'Transfer Manager',
+                Icons.manage_accounts_outlined,
+              ),
+            if (openShiftStore != null) ...[
+              repairRequired('Staffing minimums', Icons.people_outline),
+              repairRequired(
+                'Open shift pickup approval',
+                Icons.fact_check_outlined,
+              ),
+            ],
+            if (printWordingGateway != null)
+              repairRequired('Print wording', Icons.text_fields_outlined),
+            repairRequired('Shift codes', Icons.schedule_outlined),
+            if (onManageStaff != null) ...[
+              repairRequired('Sections', Icons.view_list_outlined),
+              repairRequired(
+                'Permission assignments',
+                Icons.admin_panel_settings_outlined,
+              ),
+            ],
+          ],
           if (access.canTransferManager && staffGateway != null)
             ListTile(
               leading: const Icon(Icons.manage_accounts_outlined),

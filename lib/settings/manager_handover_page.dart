@@ -70,7 +70,7 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
                     'The current Manager will become a Staff member.'
               : '${successor.displayName} will become Manager immediately. '
                     'Your Manager access will end. Your selected Staff access will remain. '
-                    'Maintainer access is on a separate account.',
+                    'The Maintainer hat is unchanged by this transfer.',
         ),
         actions: [
           TextButton(
@@ -173,8 +173,8 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
                 ),
               const SizedBox(height: 12),
               const Text(
-                'Maintainer uses a separate account. This transfer does not change '
-                'that account or turn your Staff login into Maintainer.',
+                'This transfer does not grant, remove, or replace the '
+                'database-bound Maintainer hat.',
               ),
             ],
             if (_error != null) ...[
