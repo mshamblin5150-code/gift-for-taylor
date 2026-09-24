@@ -996,12 +996,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
             ),
           ],
         ),
-        actions: compactActions
-            ? [_compactActions(appBarActions)]
-            : [
-                for (final action in immediateActions) _desktopAction(action),
-                _desktopActionsMenu(secondaryActions),
-              ],
+        actions: [
+          RepairAction(controller: widget.repairController),
+          if (compactActions)
+            _compactActions(appBarActions)
+          else ...[
+            for (final action in immediateActions) _desktopAction(action),
+            _desktopActionsMenu(secondaryActions),
+          ],
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(
