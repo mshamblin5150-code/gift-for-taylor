@@ -10,6 +10,7 @@ import 'package:er_schedule/staff/staff_details_page.dart';
 import 'package:er_schedule/staff/staff_list_page.dart';
 import 'package:er_schedule/staff/staff_contacts.dart';
 import 'package:er_schedule/settings/settings_page.dart';
+import 'package:er_schedule/settings/manager_handover_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
@@ -865,6 +866,52 @@ void main() {
     expect(find.text('Change access'), findsNothing);
   });
 
+  testWidgets('Staff details shows an actionable handover refusal', (
+    tester,
+  ) async {
+    final gateway =
+        InMemoryStaffGateway(
+            actorRole: 'manager',
+            list: const StaffList(sections: [days], members: [alex]),
+            handoverCandidates: const [
+              ManagerHandoverCandidate(id: 'staff-1', displayName: 'Alex Tech'),
+            ],
+          )
+          ..transferError = const ManagerHandoverRefused(
+            ManagerHandoverRefusal.successorInvitePending,
+          );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffListPage(
+          gateway: gateway,
+          rules: rules,
+          inviteComposer: _FakeInviteComposer(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alex Tech'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -450));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Change access'));
+    await tester.tap(find.text('Change access'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Transfer Manager').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Transfer Manager').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        "Confirm this Staff member's accepted Invite before transferring "
+        'Manager.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Could not change the access role.'), findsNothing);
+  });
+
   testWidgets('Maintainer can transfer Manager from Staff details', (
     tester,
   ) async {
@@ -1392,6 +1439,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(gateway.actorRole, 'staff_member');
     expect(gateway.accessRole, 'manager');
+  });
+
+  testWidgets('Manager handover shows the typed refusal instead of Try again', (
+    tester,
+  ) async {
+    final gateway =
+        InMemoryStaffGateway(
+            actorRole: 'manager',
+            list: const StaffList(sections: [days], members: [alex]),
+            handoverCandidates: const [
+              ManagerHandoverCandidate(id: 'staff-1', displayName: 'Alex Tech'),
+            ],
+          )
+          ..transferError = const ManagerHandoverRefused(
+            ManagerHandoverRefusal.retainedSectionMissing,
+          );
+    await tester.pumpWidget(
+      MaterialApp(home: ManagerHandoverPage(gateway: gateway)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Alex Tech'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Transfer Manager'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(FilledButton, 'Transfer Manager'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Review your Night scheduler Sections because one selected for your '
+        'access after handover no longer exists.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Could not transfer Manager. Try again.'), findsNothing);
   });
 
   testWidgets(

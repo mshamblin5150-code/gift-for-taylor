@@ -103,4 +103,43 @@ void main() {
     expect(rejected, 1);
     session.dispose();
   });
+
+  test('Manager handover session preserves a typed refusal', () async {
+    final refusal = ManagerHandoverRefused(
+      ManagerHandoverRefusal.retainedSectionMissing,
+    );
+    final gateway = InMemoryStaffGateway(actorRole: 'manager')
+      ..transferError = refusal;
+    final session = ManagerHandoverSession(gateway);
+
+    final outcome = await session.transfer(
+      successorId: 'staff-1',
+      formerAdministrator: false,
+      formerSections: const {},
+    );
+
+    expect(outcome, isA<ManagerTransferFailed>());
+    expect((outcome as ManagerTransferFailed).error, same(refusal));
+    session.dispose();
+  });
+
+  test('Staff details session preserves a typed handover refusal', () async {
+    final refusal = ManagerHandoverRefused(
+      ManagerHandoverRefusal.successorInvitePending,
+    );
+    final gateway = InMemoryStaffGateway(actorRole: 'manager')
+      ..transferError = refusal;
+    final session = StaffDetailsSession('staff-1', gateway, rules);
+
+    final outcome = await session.saveAccess(
+      grants: Grants(),
+      transfer: true,
+      formerAdministrator: false,
+      formerSections: const {},
+    );
+
+    expect(outcome, isA<StaffCommandFailed>());
+    expect((outcome as StaffCommandFailed).error, same(refusal));
+    session.dispose();
+  });
 }

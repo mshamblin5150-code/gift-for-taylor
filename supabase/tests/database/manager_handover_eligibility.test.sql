@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(23);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000003061', 'manager-306@example.test'),
@@ -93,6 +93,10 @@ select is((select eligibility_code::text from public.manager_handover_candidates
 select is((select eligibility_code::text from public.manager_handover_candidates()
   where staff_member_id = '00000000-0000-0000-0000-000000003086'),
   'no_current_section', 'a Staff member without a current Section remains visible');
+select throws_ok($$select public.transfer_manager_with_access(
+  '00000000-0000-0000-0000-000000003086', false, '{}'::uuid[])$$,
+  'P2806', 'Manager successor is not eligible: no_current_section',
+  'a successor without a current Section receives a distinct refusal code');
 select lives_ok($$select public.change_staff_section(
   '00000000-0000-0000-0000-000000003086',
   '00000000-0000-0000-0000-000000003070', current_date)$$,
@@ -109,9 +113,44 @@ select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000003061","role":"authenticated"}', true);
 
 select throws_ok($$select public.transfer_manager_with_access(
+  '00000000-0000-0000-0000-000000003080', false, '{}'::uuid[])$$,
+  'P2799', 'Choose another Staff member as Manager',
+  'self-transfer receives a distinct refusal code');
+select throws_ok($$select public.transfer_manager_with_access(
+  '00000000-0000-0000-0000-000000003081', false,
+  array['00000000-0000-0000-0000-000000003099']::uuid[])$$,
+  'P2800', 'Section not found',
+  'a missing retained Section receives a distinct refusal code');
+select throws_ok($$select public.transfer_manager_with_access(
+  '00000000-0000-0000-0000-000000003085', false, '{}'::uuid[])$$,
+  'P2801', 'Manager successor is not eligible: no_staff_account',
+  'a successor without an account receives a distinct refusal code');
+select throws_ok($$select public.transfer_manager_with_access(
   '00000000-0000-0000-0000-000000003082', false, '{}'::uuid[])$$,
-  'Manager successor is not eligible: invite_acceptance_pending',
+  'P2802', 'Manager successor is not eligible: invite_acceptance_pending',
   'the transfer enforces the same pending-acceptance answer');
+select throws_ok($$select public.transfer_manager_with_access(
+  '00000000-0000-0000-0000-000000003083', false, '{}'::uuid[])$$,
+  'P2803', 'Manager successor is not eligible: account_revoked',
+  'a successor with a revoked account receives a distinct refusal code');
+select throws_ok($$select public.transfer_manager_with_access(
+  '00000000-0000-0000-0000-000000003084', false, '{}'::uuid[])$$,
+  'P2804', 'Manager successor is not eligible: inactive',
+  'an inactive successor receives a distinct refusal code');
+select ok(
+  pg_get_functiondef(
+    'public.transfer_manager_with_access(uuid,boolean,uuid[])'::regprocedure)
+      like '%P2805%',
+  'the defensive already-Manager refusal keeps its stable code');
+
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000003062","role":"authenticated"}', true);
+select throws_ok($$select public.transfer_manager_with_access(
+  '00000000-0000-0000-0000-000000003082', false, '{}'::uuid[])$$,
+  'P2797', 'Only the Manager can transfer the Manager role',
+  'a caller without Manager access receives a distinct refusal code');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000003061","role":"authenticated"}', true);
 select lives_ok($$select public.transfer_manager_with_access(
   '00000000-0000-0000-0000-000000003081', true,
   array['00000000-0000-0000-0000-000000003071']::uuid[])$$,
@@ -139,7 +178,7 @@ alter table public.staff_members enable trigger keep_active_manager;
 set local role authenticated;
 select throws_ok($$select public.transfer_manager_with_access(
   '00000000-0000-0000-0000-000000003085', false, '{}'::uuid[])$$,
-  'Manager transfer cannot continue: no active Manager',
+  'P2798', 'Manager transfer cannot continue: no active Manager',
   'a missing active Manager refuses before any handover write');
 
 select * from finish();

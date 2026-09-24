@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../staff/manager_handover_wording.dart';
+import '../staff/refusal_wording.dart';
 import '../staff/staff_gateway.dart';
 import 'manager_handover_session.dart';
 
@@ -130,8 +131,12 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
     switch (outcome) {
       case ManagerTransferred():
         Navigator.pop(context, true);
-      case ManagerTransferFailed():
-        setState(() => _error = 'Could not transfer Manager. Try again.');
+      case ManagerTransferFailed(:final error):
+        setState(
+          () => _error =
+              managerHandoverRefusalWording(error) ??
+              'Could not transfer Manager. Try again.',
+        );
     }
   }
 
