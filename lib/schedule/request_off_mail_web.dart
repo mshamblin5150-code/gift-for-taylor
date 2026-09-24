@@ -3,11 +3,8 @@ import 'dart:html' as html;
 
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'request_off_mail_uri.dart';
+
 Future<void> openRequestOffMail(RequestOffEmail email) async {
-  final uri = Uri(
-    scheme: 'mailto',
-    path: email.to,
-    queryParameters: {'subject': email.subject, 'body': email.body},
-  );
-  html.window.location.assign(uri.toString());
+  html.window.location.assign(requestOffMailUri(email).toString());
 }
