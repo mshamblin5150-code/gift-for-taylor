@@ -41,7 +41,9 @@ final class ManagerTransferred extends ManagerTransferOutcome {
 }
 
 final class ManagerTransferFailed extends ManagerTransferOutcome {
-  const ManagerTransferFailed();
+  const ManagerTransferFailed([this.error]);
+
+  final Object? error;
 }
 
 final class ManagerHandoverSession extends ChangeNotifier {
@@ -82,7 +84,7 @@ final class ManagerHandoverSession extends ChangeNotifier {
       return const ManagerTransferred();
     } catch (error) {
       if (error is AccessRejected) _onAccessRejected?.call();
-      return const ManagerTransferFailed();
+      return ManagerTransferFailed(error);
     } finally {
       _replace(_state.copyWith(saving: false));
     }

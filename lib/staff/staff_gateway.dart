@@ -135,6 +135,76 @@ final class InvalidInviteException implements Exception {
   const InvalidInviteException();
 }
 
+enum ManagerHandoverRefusal {
+  managerAccessChanged,
+  noActiveManager,
+  sameStaffMember,
+  retainedSectionMissing,
+  successorNoAccount,
+  successorInvitePending,
+  successorAccountRevoked,
+  successorInactive,
+  successorAlreadyManager,
+  successorNoCurrentSection,
+}
+
+final class ManagerHandoverRefused implements Exception {
+  const ManagerHandoverRefused(this.reason);
+
+  final ManagerHandoverRefusal reason;
+}
+
+enum InviteAcceptanceRefusal {
+  staffAcceptancePending,
+  staffAlreadyAccepted,
+  emailAcceptancePending,
+  accountMissingEmail,
+}
+
+final class InviteAcceptanceRefused implements Exception {
+  const InviteAcceptanceRefused(this.reason);
+
+  final InviteAcceptanceRefusal reason;
+}
+
+Future<T> mapManagerHandoverRefusal<T>(Future<T> Function() command) async {
+  try {
+    return await command();
+  } on PostgrestException catch (error) {
+    final reason = switch (error.code) {
+      'P2797' => ManagerHandoverRefusal.managerAccessChanged,
+      'P2798' => ManagerHandoverRefusal.noActiveManager,
+      'P2799' => ManagerHandoverRefusal.sameStaffMember,
+      'P2800' => ManagerHandoverRefusal.retainedSectionMissing,
+      'P2801' => ManagerHandoverRefusal.successorNoAccount,
+      'P2802' => ManagerHandoverRefusal.successorInvitePending,
+      'P2803' => ManagerHandoverRefusal.successorAccountRevoked,
+      'P2804' => ManagerHandoverRefusal.successorInactive,
+      'P2805' => ManagerHandoverRefusal.successorAlreadyManager,
+      'P2806' => ManagerHandoverRefusal.successorNoCurrentSection,
+      _ => null,
+    };
+    if (reason != null) throw ManagerHandoverRefused(reason);
+    rethrow;
+  }
+}
+
+Future<T> mapInviteAcceptanceRefusal<T>(Future<T> Function() command) async {
+  try {
+    return await command();
+  } on PostgrestException catch (error) {
+    final reason = switch (error.code) {
+      'P2807' => InviteAcceptanceRefusal.staffAcceptancePending,
+      'P2808' => InviteAcceptanceRefusal.staffAlreadyAccepted,
+      'P2809' => InviteAcceptanceRefusal.emailAcceptancePending,
+      'P2810' => InviteAcceptanceRefusal.accountMissingEmail,
+      _ => null,
+    };
+    if (reason != null) throw InviteAcceptanceRefused(reason);
+    rethrow;
+  }
+}
+
 final class SectionInUseException implements Exception {
   const SectionInUseException();
 }
@@ -294,14 +364,16 @@ final class SupabaseStaffGateway implements StaffGateway {
     String newManagerId,
     bool formerAdministrator,
     Set<String> formerSectionIds,
-  ) => mapAccessRejected(
-    () => _client.rpc<void>(
-      'transfer_manager_with_access',
-      params: {
-        'p_new_manager_id': newManagerId,
-        'p_former_administrator': formerAdministrator,
-        'p_former_section_ids': formerSectionIds.toList(),
-      },
+  ) => mapManagerHandoverRefusal(
+    () => mapAccessRejected(
+      () => _client.rpc<void>(
+        'transfer_manager_with_access',
+        params: {
+          'p_new_manager_id': newManagerId,
+          'p_former_administrator': formerAdministrator,
+          'p_former_section_ids': formerSectionIds.toList(),
+        },
+      ),
     ),
   );
 
@@ -544,9 +616,11 @@ final class SupabaseStaffGateway implements StaffGateway {
   ) async {
     String result;
     try {
-      result = await _client.rpc<String>(
-        'accept_invite',
-        params: {'p_token': token, 'p_cell_number': cellNumber},
+      result = await mapInviteAcceptanceRefusal(
+        () => _client.rpc<String>(
+          'accept_invite',
+          params: {'p_token': token, 'p_cell_number': cellNumber},
+        ),
       );
     } on PostgrestException catch (error) {
       if (error.code == 'P2793') {

@@ -6,6 +6,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'contact_picker.dart';
 import 'invite_composer.dart';
 import 'manager_handover_wording.dart';
+import 'refusal_wording.dart';
 import 'staff_details_session.dart';
 import 'staff_dialogs.dart';
 import 'staff_gateway.dart';
@@ -188,8 +189,13 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
       formerAdministrator: selection.formerAdministrator,
       formerSections: selection.formerSections,
     );
-    if (outcome case StaffCommandFailed()) {
-      if (mounted) _showError('Could not change the access role.');
+    if (outcome case StaffCommandFailed(:final error)) {
+      if (mounted) {
+        _showError(
+          managerHandoverRefusalWording(error) ??
+              'Could not change the access role.',
+        );
+      }
     }
   }
 

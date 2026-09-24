@@ -9,6 +9,7 @@ import 'maintainer/maintainer_repair.dart';
 import 'notifications/notice_gateway.dart';
 import 'schedule/month_grid_page.dart';
 import 'staff/staff_gateway.dart';
+import 'staff/refusal_wording.dart';
 import 'staff/staff_list_page.dart';
 import 'staff/staff_details_page.dart';
 import 'schedule_theme.dart';
@@ -278,7 +279,9 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
             InvalidInviteException() =>
               'This Invite is invalid, expired, or has already been used. '
                   'Ask your Manager to resend it.',
-            _ => 'Could not check this Invite. Try again.',
+            final error =>
+              inviteAcceptanceRefusalWording(error) ??
+                  'Could not check this Invite. Try again.',
           };
           return Scaffold(
             appBar: AppBar(

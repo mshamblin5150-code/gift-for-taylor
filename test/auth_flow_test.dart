@@ -598,6 +598,66 @@ void main() {
     expect(find.textContaining('23505'), findsNothing);
   });
 
+  testWidgets('Invite refusals explain what unblocks acceptance', (
+    tester,
+  ) async {
+    const cases = {
+      InviteAcceptanceRefusal.staffAcceptancePending:
+          'Wait for the Manager or an Administrator to confirm your Invite '
+          'acceptance before signing in.',
+      InviteAcceptanceRefusal.staffAlreadyAccepted:
+          'This Invite was already accepted, so sign in with the email that '
+          'accepted it or ask your Manager to resend it.',
+      InviteAcceptanceRefusal.emailAcceptancePending:
+          'Ask the Manager or an Administrator to confirm the Invite this '
+          'email already accepted.',
+      InviteAcceptanceRefusal.accountMissingEmail:
+          'Sign out and use an account with an email address before accepting '
+          'this Invite.',
+    };
+
+    for (final MapEntry(key: reason, value: wording) in cases.entries) {
+      final staffGateway = InMemoryStaffGateway()
+        ..acceptanceError = InviteAcceptanceRefused(reason);
+      await tester.pumpWidget(
+        ScheduleApp(
+          key: ValueKey(reason),
+          dependencies: appDependencies(
+            authGateway: FakeAuthGateway(),
+            scheduleStore: _scheduleStore(const []),
+            staffGateway: staffGateway,
+          ),
+          inviteToken: 'fresh-token',
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Cell number'),
+        '555-0137',
+      );
+      await tester.tap(find.text('Continue to email'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Email'),
+        'invitee@example.test',
+      );
+      await tester.tap(find.text('Email me a code'));
+      await tester.pump();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'One-time code'),
+        '123456',
+      );
+      await tester.tap(find.text('Verify code'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(wording), findsOneWidget);
+      expect(
+        find.text('Could not check this Invite. Try again.'),
+        findsNothing,
+      );
+    }
+  });
+
   testWidgets(
     'returning to the foreground rebuilds the Schedule when Access changes',
     (tester) async {

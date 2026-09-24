@@ -33,7 +33,9 @@ final class StaffCommandSaved extends StaffCommandOutcome {
 }
 
 final class StaffCommandFailed extends StaffCommandOutcome {
-  const StaffCommandFailed();
+  const StaffCommandFailed([this.error]);
+
+  final Object? error;
 }
 
 sealed class StaffInviteOutcome {
@@ -177,7 +179,7 @@ final class StaffDetailsSession extends ChangeNotifier {
     } catch (error) {
       if (error is AccessRejected) _onAccessRejected?.call();
       if (reloadOnFailure) await load();
-      return const StaffCommandFailed();
+      return StaffCommandFailed(error);
     }
   }
 
