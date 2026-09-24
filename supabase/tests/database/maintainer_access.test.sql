@@ -79,6 +79,24 @@ select ok(public.can_manage_staff(), 'an open Repair enables Staff management');
 select ok(public.can_edit_schedule(), 'an open Repair enables Schedule repair');
 select is((select reason_category::text from public.current_maintainer_repair()),
   'unit_settings', 'the open Repair exposes its reason category');
+set local role postgres;
+select is((select count(*)::integer from public.staff_notices
+  where kind = 'maintainer_repair'), 1,
+  'opening a Repair raises exactly one Notice');
+select is((select staff_member_id from public.staff_notices
+  where kind = 'maintainer_repair'),
+  '00000000-0000-0000-0000-000000002194'::uuid,
+  'the Repair Notice goes to the current Manager');
+select is((select title from public.staff_notices
+  where kind = 'maintainer_repair'),
+  'Repair: Unit settings', 'the Repair Notice names its category');
+select is((select body from public.staff_notices
+  where kind = 'maintainer_repair'),
+  'Correct the unit print heading',
+  'the Repair Notice carries the Maintainer detail');
+select ok(not (select push_eligible from public.staff_notices
+  where kind = 'maintainer_repair'), 'the Repair Notice does not push');
+set local role authenticated;
 
 select lives_ok($$select public.set_print_wording(
   'Print', 'Repair title', '')$$,
@@ -148,6 +166,19 @@ select is((select repair_id from public.maintainer_repair_audit
   where relation_name = 'staff_members' order by id desc limit 1),
   (select id from public.current_maintainer_repair()),
   'handover Repair history names its authorising Repair');
+
+select public.close_maintainer_repair();
+set local role postgres;
+update private.maintainer_identity
+set auth_user_id = '00000000-0000-0000-0000-000000002192';
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000002192","role":"authenticated"}', true);
+select public.open_maintainer_repair('investigation', 'Check the handover result');
+select is((select count(*)::integer from public.staff_notices
+  where kind = 'maintainer_repair'
+    and staff_member_id = '00000000-0000-0000-0000-000000002195'), 0,
+  'a Maintainer who is the Manager does not receive a self-notice');
 
 select throws_ok($$update private.maintainer_identity
   set auth_user_id = '00000000-0000-0000-0000-000000002192'$$,
