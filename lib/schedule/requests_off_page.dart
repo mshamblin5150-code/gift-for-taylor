@@ -11,10 +11,12 @@ class RequestsOffPage extends StatefulWidget {
     super.key,
     required this.rules,
     required this.isManager,
+    this.now = DateTime.now,
   });
 
   final ScheduleRules rules;
   final bool isManager;
+  final DateTime Function() now;
 
   @override
   State<RequestsOffPage> createState() => _RequestsOffPageState();
@@ -72,6 +74,8 @@ class _RequestsOffPageState extends State<RequestsOffPage> {
   Future<void> _newRequest() async {
     final dates = <DateTime>{};
     final reason = TextEditingController();
+    final today = _dateOnly(widget.now());
+    final lastSelectableDate = DateTime(today.year, today.month + 2, 0);
     final draft = await showDialog<RequestOffDraft>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -82,28 +86,84 @@ class _RequestsOffPageState extends State<RequestsOffPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Wrap(
-                  spacing: 6,
-                  children: [
-                    for (final date in dates.toList()..sort())
-                      InputChip(
-                        label: Text(DateFormat.yMMMd().format(date)),
-                        onDeleted: () => refresh(() => dates.remove(date)),
-                      ),
-                  ],
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Choose dates from ${DateFormat.MMMd().format(today)} '
+                    'through ${DateFormat.yMMMd().format(lastSelectableDate)}. '
+                    'The Manager can act on this month and next month.',
+                  ),
                 ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${dates.length} ${dates.length == 1 ? 'day' : 'days'} selected',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                if (dates.isNotEmpty)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 220),
+                    child: SingleChildScrollView(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Wrap(
+                          spacing: 6,
+                          children: [
+                            for (final date in dates.toList()..sort())
+                              InputChip(
+                                label: Text(DateFormat.yMMMd().format(date)),
+                                onDeleted: () =>
+                                    refresh(() => dates.remove(date)),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 TextButton.icon(
                   icon: const Icon(Icons.add),
-                  label: const Text('Add a day'),
+                  label: const Text('Add a range'),
                   onPressed: () async {
-                    final date = await showDatePicker(
+                    final range = await showDateRangePicker(
                       context: context,
-                      firstDate: DateTime.now().subtract(
-                        const Duration(days: 365),
+                      firstDate: today,
+                      lastDate: lastSelectableDate,
+                      currentDate: today,
+                      helpText: 'Select range',
+                      builder: (context, child) => Theme(
+                        data: Theme.of(context).copyWith(
+                          datePickerTheme: DatePickerThemeData(
+                            rangePickerHeaderHeadlineStyle: Theme.of(context)
+                                .textTheme
+                                .titleMedium,
+                          ),
+                        ),
+                        child: child!,
                       ),
-                      lastDate: DateTime.now().add(const Duration(days: 730)),
                     );
-                    if (date != null) refresh(() => dates.add(date));
+                    if (range == null) return;
+                    final rangeDates = _daysIn(range);
+                    final combined = {...dates, ...rangeDates};
+                    if (combined.length > _maximumRequestOffDays) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'That would select ${combined.length} days. '
+                            'A Request off can include up to 31 days; '
+                            'Choose a shorter range.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    refresh(() {
+                      dates
+                        ..clear()
+                        ..addAll(combined);
+                    });
                   },
                 ),
                 TextField(
@@ -127,7 +187,7 @@ class _RequestsOffPageState extends State<RequestsOffPage> {
                   : () => Navigator.pop(
                       context,
                       RequestOffDraft(
-                        dates: dates.toList(),
+                        dates: dates.toList()..sort(),
                         reason: reason.text,
                       ),
                     ),
@@ -330,4 +390,17 @@ class _RequestsOffPageState extends State<RequestsOffPage> {
             ],
           ),
   );
+}
+
+const _maximumRequestOffDays = 31;
+
+DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
+
+Iterable<DateTime> _daysIn(DateTimeRange range) sync* {
+  var date = _dateOnly(range.start);
+  final last = _dateOnly(range.end);
+  while (!date.isAfter(last)) {
+    yield date;
+    date = DateTime(date.year, date.month, date.day + 1);
+  }
 }
