@@ -52,7 +52,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('unsupported push gives iPhone install and sign-in steps', (
+  testWidgets('manual phone install steps remain visible without a prompt', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -65,11 +65,24 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Share > Add to Home Screen'), findsWidgets);
+    expect(find.textContaining('iPhone:'), findsWidgets);
     expect(
-      find.textContaining('sign in again with the same personal email'),
+      find.textContaining('Scroll the list of options down'),
       findsWidgets,
     );
+    expect(find.textContaining('Edit Actions'), findsWidgets);
+    expect(find.textContaining('leave it on'), findsWidgets);
+    expect(find.textContaining('you will get no notifications'), findsWidgets);
+    expect(find.textContaining('iPad:'), findsWidgets);
+    expect(find.textContaining('View More'), findsWidgets);
+    expect(find.textContaining('Android Chrome:'), findsWidgets);
+    expect(find.textContaining('Install and create shortcut'), findsWidgets);
+    expect(find.textContaining('Do not choose Create shortcut'), findsWidgets);
+    expect(
+      find.textContaining('sign in with the same personal email'),
+      findsWidgets,
+    );
+    expect(find.text('Install on this device'), findsNothing);
     expect(find.text('Allow notifications'), findsNothing);
   });
 

@@ -13,6 +13,5 @@ InstallState installState() => switch (_installState().toDart) {
   'available' => InstallState.available,
   _ => InstallState.unavailable,
 };
-Future<void> promptInstall() async {
-  await _promptInstall().toDart;
-}
+Future<InstallPromptResult> promptInstall() async =>
+    installPromptResultFromBrowser((await _promptInstall().toDart).toDart);

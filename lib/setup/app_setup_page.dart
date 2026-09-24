@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../help/help_page.dart';
 import '../notifications/notice_gateway.dart';
 import 'install_browser.dart' as browser;
+import 'install_guidance.dart';
 
 /// The shareable app address never contains an Invite token or other URL state.
 Uri ordinaryAppUri(Uri current) => Uri(
@@ -38,6 +39,7 @@ class _AppSetupPageState extends State<AppSetupPage> {
   browser.InstallState _installState = browser.installState();
   late Future<PushState> _pushState = _readPushState();
   bool _busy = false;
+  bool _installing = false;
   String? _message;
 
   @override
@@ -58,8 +60,23 @@ class _AppSetupPageState extends State<AppSetupPage> {
   }
 
   Future<void> _install() async {
-    await browser.promptInstall();
-    if (mounted) setState(() => _installState = browser.installState());
+    setState(() {
+      _installing = true;
+      _message = null;
+    });
+    final result = await browser.promptInstall();
+    if (!mounted) return;
+    setState(() {
+      _installing = false;
+      _installState = browser.installState();
+      _message = switch (result) {
+        browser.InstallPromptResult.accepted =>
+          'Installation started. Open ER Schedule from its new icon.',
+        browser.InstallPromptResult.dismissed => 'Installation was skipped. Use the phone steps below whenever you are ready.',
+        browser.InstallPromptResult.unavailable =>
+          'The install offer is unavailable. Use the phone steps below.',
+      };
+    });
   }
 
   Future<PushState> _readPushState() async {
@@ -161,7 +178,7 @@ class _AppSetupPageState extends State<AppSetupPage> {
         ] else if (_installState == browser.InstallState.available) ...[
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: _install,
+            onPressed: _installing ? null : _install,
             icon: const Icon(Icons.install_mobile_outlined),
             label: const Text('Install on this device'),
           ),
@@ -177,15 +194,15 @@ class _AppSetupPageState extends State<AppSetupPage> {
               ? 'Paste the copied link into a message to yourself, then open it on your computer. After the Manager confirms your Invite, sign in there with the same personal email. Do not reuse the one-time Invite link.'
               : 'Paste the copied link into a message to yourself, then open it on your computer and sign in with the same personal email. Do not reuse a one-time Invite link.',
         ),
-        const SizedBox(height: 20),
-        Text(
-          'Install on a phone or tablet',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'iPhone or iPad: in Safari, tap Share > Add to Home Screen, choose Open as Web App, then tap Add. Open the new icon and sign in again with the same personal email.\n\nAndroid Chrome: tap Install if Chrome offers it, or open Chrome’s menu and choose Install app. Then open the new icon.',
-        ),
+        if (_installState != browser.InstallState.installed) ...[
+          const SizedBox(height: 20),
+          Text(
+            'Install on a phone or tablet',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          const Text(phoneInstallGuidance),
+        ],
         const SizedBox(height: 20),
         Text(
           'Install on a computer',
@@ -196,9 +213,7 @@ class _AppSetupPageState extends State<AppSetupPage> {
           'Windows: in Edge, open the Apps menu and choose Install this site as an app. In Chrome, choose Install page as app from the menu.\n\nMac: in Safari, choose File > Add to Dock. In Chrome, choose Install page as app from the menu.',
         ),
         const SizedBox(height: 16),
-        const Text(
-          'If your browser does not offer installation, bookmark the ordinary app link instead.',
-        ),
+        const Text(computerInstallFallbackGuidance),
         const SizedBox(height: 16),
         TextButton.icon(
           onPressed: () => Navigator.of(context).push(

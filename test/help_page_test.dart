@@ -4,6 +4,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 void main() {
+  test('phone install Help covers every supported platform and recovery', () {
+    final guidance = helpTopics
+        .singleWhere((topic) => topic.title == 'Install on a phone')
+        .how;
+
+    for (final requiredText in [
+      'iPhone:',
+      'Scroll the list of options down',
+      'Edit Actions',
+      'leave it on',
+      'you will get no notifications',
+      'iPad:',
+      'View More',
+      'Android Chrome:',
+      'Install and create shortcut',
+      'Do not choose Create shortcut',
+    ]) {
+      expect(guidance, contains(requiredText), reason: requiredText);
+    }
+  });
+
   test('every manager action visible to Night schedulers is labeled', () {
     final managerOnly = helpTopics.where(
       (topic) =>

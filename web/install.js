@@ -20,8 +20,14 @@ window.erInstallState = () => {
 window.erPromptInstall = async () => {
   if (!installPrompt) return 'unavailable';
   const prompt = installPrompt;
-  installPrompt = null;
-  await prompt.prompt();
-  const choice = await prompt.userChoice;
-  return choice.outcome;
+  try {
+    await prompt.prompt();
+    const choice = await prompt.userChoice;
+    return choice.outcome;
+  } finally {
+    // A BeforeInstallPromptEvent is one-shot, including after dismissal.
+    // Clear it after its result has been reported so the caller can direct
+    // the user to the manual steps instead of leaving a dead button behind.
+    installPrompt = null;
+  }
 };

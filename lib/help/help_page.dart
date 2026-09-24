@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import '../setup/install_guidance.dart';
+
 /// Help is shipped as source with the PWA: searching and reading never needs
 /// a network request. Update the corresponding topic when a capability changes.
 enum HelpRole {
@@ -125,20 +127,7 @@ const helpTopics = <HelpTopic>[
     who: 'Everyone using a phone or tablet',
     what:
         'Add ER Schedule to your phone or tablet for its own Home Screen icon.',
-    how:
-        'iPhone or iPad:\n'
-        '1. Open Add ER Schedule from the Invite flow or Settings.\n'
-        '2. Tap Copy app link.\n'
-        '3. Paste the link into Safari’s address bar.\n'
-        '4. Tap Share > Add to Home Screen.\n'
-        '5. Choose Open as Web App.\n'
-        '6. Tap Add.\n'
-        '7. Open ER Schedule from its new Home Screen icon.\n'
-        'Android Chrome:\n'
-        '1. Open Add ER Schedule.\n'
-        '2. Tap Install if offered, or choose Install app from Chrome’s menu.\n'
-        '3. Open ER Schedule from its new icon.\n'
-        'If installation is unavailable, bookmark the ordinary app link. Installation needs your confirmation.',
+    how: phoneInstallGuidance,
     searchTerms: 'install app download app home screen iphone ipad android safari chrome icon',
   ),
   HelpTopic(
