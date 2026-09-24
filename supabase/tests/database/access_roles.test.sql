@@ -12,6 +12,14 @@ insert into public.staff_members(id, display_name, role) values
   ('00000000-0000-0000-0000-000000000604', 'Access Manager', 'manager'),
   ('00000000-0000-0000-0000-000000000605', 'Access Staff', 'staff_member'),
   ('00000000-0000-0000-0000-000000000607', 'Access Successor', 'staff_member');
+insert into public.staff_section_assignments(
+  staff_member_id, section_id, display_order, effective_from) values
+  ('00000000-0000-0000-0000-000000000604',
+   '00000000-0000-0000-0000-000000000603', 0, current_date),
+  ('00000000-0000-0000-0000-000000000605',
+   '00000000-0000-0000-0000-000000000603', 1, current_date),
+  ('00000000-0000-0000-0000-000000000607',
+   '00000000-0000-0000-0000-000000000603', 2, current_date);
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at) values
   ('00000000-0000-0000-0000-000000000604',

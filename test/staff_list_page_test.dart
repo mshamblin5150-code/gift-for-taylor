@@ -6,6 +6,7 @@ import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'dart:async';
 
 import 'package:er_schedule/staff/staff_gateway.dart';
+import 'package:er_schedule/staff/staff_details_page.dart';
 import 'package:er_schedule/staff/staff_list_page.dart';
 import 'package:er_schedule/staff/staff_contacts.dart';
 import 'package:er_schedule/settings/settings_page.dart';
@@ -833,6 +834,9 @@ void main() {
           ),
         ],
       ),
+      handoverCandidates: const [
+        ManagerHandoverCandidate(id: 'staff-1', displayName: 'Alex Tech'),
+      ],
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -870,6 +874,9 @@ void main() {
             list: const StaffList(sections: [days], members: [alex]),
           )
           ..actorRole = 'maintainer'
+          ..handoverCandidates = const [
+            ManagerHandoverCandidate(id: 'staff-1', displayName: 'Alex Tech'),
+          ]
           ..activeRepair = MaintainerRepair(
             id: 'repair',
             category: RepairReasonCategory.managerHandover,
@@ -899,22 +906,30 @@ void main() {
   testWidgets('handover waits for the Staff member to accept the Invite', (
     tester,
   ) async {
-    final gateway = InMemoryStaffGateway(
-      actorRole: 'manager',
-      list: const StaffList(
-        sections: [days],
-        members: [
-          StaffListMember(
-            id: 'staff-1',
-            displayName: 'Alex Tech',
-            cellNumber: '5551112222',
-            sectionId: 'days',
-            displayOrder: 0,
-            personalEmail: 'alex@example.test',
-          ),
-        ],
-      ),
-    )..transferEligible = false;
+    final gateway =
+        InMemoryStaffGateway(
+            actorRole: 'manager',
+            list: const StaffList(
+              sections: [days],
+              members: [
+                StaffListMember(
+                  id: 'staff-1',
+                  displayName: 'Alex Tech',
+                  cellNumber: '5551112222',
+                  sectionId: 'days',
+                  displayOrder: 0,
+                  personalEmail: 'alex@example.test',
+                ),
+              ],
+            ),
+          )
+          ..handoverCandidates = const [
+            ManagerHandoverCandidate(
+              id: 'staff-1',
+              displayName: 'Alex Tech',
+              blocker: ManagerHandoverBlocker.noStaffAccount,
+            ),
+          ];
     await tester.pumpWidget(
       MaterialApp(
         home: StaffListPage(
@@ -932,6 +947,14 @@ void main() {
     await tester.tap(find.text('Change access'));
     await tester.pumpAndSettle();
     expect(find.text('Transfer Manager'), findsNothing);
+    expect(
+      find.text(
+        'Alex Tech has not completed an Invite. Resend the Invite and ask '
+        'them to accept it before transferring Manager.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Resend Invite'), findsOneWidget);
   });
 
   testWidgets('Manager assigns Night scheduler Sections from Staff details', (
@@ -1334,6 +1357,9 @@ void main() {
     final gateway = InMemoryStaffGateway(
       actorRole: 'manager',
       list: const StaffList(sections: [days], members: [alex]),
+      handoverCandidates: const [
+        ManagerHandoverCandidate(id: 'staff-1', displayName: 'Alex Tech'),
+      ],
     )..currentId = 'current-manager';
     await tester.pumpWidget(
       MaterialApp(
@@ -1368,6 +1394,154 @@ void main() {
     expect(gateway.accessRole, 'manager');
   });
 
+  testWidgets(
+    'Personal settings names an accepted Invite awaiting confirmation',
+    (tester) async {
+      var staffListOpenCount = 0;
+      final gateway =
+          InMemoryStaffGateway(
+              actorRole: 'manager',
+              list: const StaffList(sections: [days], members: []),
+            )
+            ..currentId = 'current-manager'
+            ..handoverCandidates = const [
+              ManagerHandoverCandidate(
+                id: 'taylor',
+                displayName: 'Taylor',
+                blocker: ManagerHandoverBlocker.inviteAcceptancePending,
+              ),
+            ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SettingsPage(
+            maintainerRepairController: noopRepairController(),
+            scheduleRules: rules,
+            noticeGateway: const NoopNoticeGateway(),
+            access: Access(
+              grants: Grants(manager: true),
+              ownStaffMemberId: 'current-manager',
+            ),
+            staffGateway: gateway,
+            onManageStaff: () async => staffListOpenCount++,
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Transfer Manager'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Taylor'), findsOneWidget);
+      expect(
+        find.text(
+          'Taylor accepted the Invite. Confirm it before transferring Manager.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(FilledButton, 'Transfer Manager'),
+        findsNothing,
+      );
+      await tester.tap(find.text('Open Staff list'));
+      await tester.pumpAndSettle();
+      expect(staffListOpenCount, 1);
+    },
+  );
+
+  testWidgets('handover opens details to assign a missing Section', (
+    tester,
+  ) async {
+    String? openedStaffMemberId;
+    final gateway = InMemoryStaffGateway(
+      actorRole: 'manager',
+      list: const StaffList(sections: [days], members: []),
+      handoverCandidates: const [
+        ManagerHandoverCandidate(
+          id: 'uri',
+          displayName: 'Uri',
+          blocker: ManagerHandoverBlocker.noCurrentSection,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          maintainerRepairController: noopRepairController(),
+          scheduleRules: rules,
+          noticeGateway: const NoopNoticeGateway(),
+          access: Access(grants: Grants(manager: true)),
+          staffGateway: gateway,
+          onOpenStaffDetails: (id) async => openedStaffMemberId = id,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Transfer Manager'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Uri has no current Section. Assign a Section before transferring '
+        'Manager.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Assign Section'));
+    await tester.pumpAndSettle();
+    expect(openedStaffMemberId, 'uri');
+  });
+
+  testWidgets(
+    'handover can restore the same Section after an assignment ended',
+    (tester) async {
+      final gateway = InMemoryStaffGateway(
+        actorRole: 'manager',
+        list: const StaffList(sections: [days], members: [alex]),
+        handoverCandidates: const [
+          ManagerHandoverCandidate(
+            id: 'staff-1',
+            displayName: 'Alex Tech',
+            blocker: ManagerHandoverBlocker.noCurrentSection,
+          ),
+        ],
+      )..grantsByStaff['staff-1'] = Grants();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StaffDetailsPage(
+            staffMemberId: 'staff-1',
+            gateway: gateway,
+            rules: rules,
+            inviteComposer: _FakeInviteComposer(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.drag(find.byType(ListView), const Offset(0, -450));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Change access'));
+      await tester.tap(find.text('Change access'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Assign Section'));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<DropdownButtonFormField<String>>(
+              find.byType(DropdownButtonFormField<String>),
+            )
+            .initialValue,
+        isNull,
+      );
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('State dayshift RN').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save change'));
+      await tester.pumpAndSettle();
+      expect(find.text('Change Alex Tech'), findsNothing);
+    },
+  );
+
   testWidgets('Maintainer can open handover without Staff access choices', (
     tester,
   ) async {
@@ -1377,6 +1551,9 @@ void main() {
             list: const StaffList(sections: [days], members: [alex]),
           )
           ..actorRole = 'maintainer'
+          ..handoverCandidates = const [
+            ManagerHandoverCandidate(id: 'staff-1', displayName: 'Alex Tech'),
+          ]
           ..activeRepair = MaintainerRepair(
             id: 'repair',
             category: RepairReasonCategory.managerHandover,

@@ -5,6 +5,8 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 import 'contact_picker.dart';
 import 'invite_composer.dart';
+import 'manager_handover_wording.dart';
+import 'staff_details_session.dart';
 import 'staff_dialogs.dart';
 import 'staff_gateway.dart';
 import 'staff_contacts.dart';
@@ -17,6 +19,7 @@ class StaffDetailsPage extends StatefulWidget {
     required this.rules,
     required this.inviteComposer,
     this.phoneContacts = const BrowserPhoneContacts(),
+    this.onAccessRejected,
   });
 
   final String staffMemberId;
@@ -24,57 +27,30 @@ class StaffDetailsPage extends StatefulWidget {
   final ScheduleRules rules;
   final InviteComposer inviteComposer;
   final PhoneContacts phoneContacts;
+  final VoidCallback? onAccessRejected;
 
   @override
   State<StaffDetailsPage> createState() => _StaffDetailsPageState();
 }
 
 class _StaffDetailsPageState extends State<StaffDetailsPage> {
-  StaffMemberDetails? _details;
-  StaffList? _list;
-  Access _access = Access(grants: Grants());
-  bool _canTransferManager = false;
-  List<StaffAccessChange> _accessChanges = const [];
-  Grants _targetGrants = Grants();
-  Object? _error;
+  late final StaffDetailsSession _session;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _session = StaffDetailsSession(
+      widget.staffMemberId,
+      widget.gateway,
+      widget.rules,
+      widget.onAccessRejected,
+    )..load();
   }
 
-  Future<void> _load() async {
-    try {
-      final (
-        details,
-        list,
-        access,
-        accessChanges,
-        canTransferManager,
-        targetGrants,
-      ) = await (
-        widget.gateway.loadStaffMemberDetails(widget.staffMemberId),
-        widget.gateway.loadStaffList(),
-        widget.gateway.currentAccess(),
-        widget.gateway.loadStaffAccessChanges(widget.staffMemberId),
-        widget.gateway.canTransferManagerTo(widget.staffMemberId),
-        widget.gateway.loadAccessGrants(widget.staffMemberId),
-      ).wait;
-      if (mounted) {
-        setState(() {
-          _details = details;
-          _list = list;
-          _access = access;
-          _accessChanges = accessChanges;
-          _canTransferManager = canTransferManager;
-          _targetGrants = targetGrants;
-          _error = null;
-        });
-      }
-    } catch (error) {
-      if (mounted) setState(() => _error = error);
-    }
+  @override
+  void dispose() {
+    _session.dispose();
+    super.dispose();
   }
 
   void _showError(String message) {
@@ -83,7 +59,7 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
   }
 
   Future<void> _editContact() async {
-    final details = _details!;
+    final details = _session.state.details!;
     final update = await showDialog<(String, String?)>(
       context: context,
       builder: (context) => _EditContactDialog(
@@ -92,16 +68,14 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
       ),
     );
     if (update == null) return;
-    try {
-      await widget.gateway.updateStaffContact(details.id, update.$1, update.$2);
-      await _load();
-    } catch (_) {
+    final outcome = await _session.updateContact(update.$1, update.$2);
+    if (outcome case StaffCommandFailed()) {
       if (mounted) _showError('Could not save name and cell number.');
     }
   }
 
   void _saveToContacts() {
-    final details = _details!;
+    final details = _session.state.details!;
     try {
       widget.phoneContacts.save(details.displayName, details.cellNumber!);
     } catch (_) {
@@ -110,73 +84,78 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
   }
 
   Future<void> _changeSectionOrRole() async {
-    final details = _details!;
-    final sectionId = details.sectionId;
-    if (sectionId == null || _list == null) return;
+    final state = _session.state;
+    final details = state.details!;
+    final sectionId =
+        managerHandoverPresentation(state.handoverCandidate?.blocker)
+                .resolution ==
+            ManagerHandoverResolution.assignSection
+        ? null
+        : details.sectionId;
+    if (state.list == null) return;
     final change = await showDialog<SectionOrRoleChange>(
       context: context,
       builder: (context) => ChangeSectionOrRoleDialog(
         displayName: details.displayName,
-        sections: _list!.sections,
+        sections: state.list!.sections,
         sectionId: sectionId,
         jobRole: details.jobRole,
       ),
     );
     if (change == null) return;
-    try {
-      if (change.sectionId case final id?) {
-        await widget.rules.store.changeSection(
-          ChangeSection(
-            staffMemberId: details.id,
-            sectionId: id,
-            from: change.from,
-          ),
-        );
-      }
-      if (change.jobRole case final role?) {
-        await widget.rules.store.changeJobRole(
-          ChangeJobRole(
-            staffMemberId: details.id,
-            jobRole: role,
-            from: change.from,
-          ),
-        );
-      }
-      await _load();
-    } catch (_) {
-      await _load();
+    final outcome = await _session.changeSectionOrRole(
+      from: change.from,
+      sectionId: change.sectionId,
+      jobRole: change.jobRole,
+    );
+    if (outcome case StaffCommandFailed()) {
       if (mounted) _showError('Could not save the change.');
     }
   }
 
   Future<void> _setLastDay() async {
-    final details = _details!;
+    final details = _session.state.details!;
     final day = await showDialog<DateTime>(
       context: context,
       builder: (context) => SetLastDayDialog(displayName: details.displayName),
     );
     if (day == null) return;
-    try {
-      await widget.rules.store.setLastDay(
-        SetLastDay(staffMemberId: details.id, lastDay: day),
-      );
-      await _load();
-    } catch (_) {
+    final outcome = await _session.setLastDay(day);
+    if (outcome case StaffCommandFailed()) {
       if (mounted) _showError('Could not set the Last day.');
     }
   }
 
   Future<void> _resendInvite() async {
-    try {
-      final invite = await widget.gateway.resendInvite(widget.staffMemberId);
-      await widget.inviteComposer.open(invite);
-    } catch (_) {
-      if (mounted) _showError('Could not create or text a fresh Invite.');
+    final outcome = await _session.resendInvite();
+    switch (outcome) {
+      case StaffInviteReady(:final invite):
+        await widget.inviteComposer.open(invite);
+      case StaffInviteFailed():
+        if (mounted) _showError('Could not create or text a fresh Invite.');
+    }
+  }
+
+  Future<void> _resolveHandoverBlocker(ManagerHandoverBlocker blocker) async {
+    switch (managerHandoverPresentation(blocker).resolution) {
+      case ManagerHandoverResolution.resendInvite:
+        await _resendInvite();
+        return;
+      case ManagerHandoverResolution.reviewInviteAcceptance:
+      case ManagerHandoverResolution.reactivateStaff:
+        if (mounted) Navigator.pop(context);
+        return;
+      case ManagerHandoverResolution.assignSection:
+        await _changeSectionOrRole();
+        return;
+      case ManagerHandoverResolution.none:
+        return;
     }
   }
 
   Future<void> _changeAccessRole() async {
-    final details = _details!;
+    final state = _session.state;
+    final details = state.details!;
     final selection =
         await showDialog<
           ({
@@ -189,132 +168,138 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
           context: context,
           builder: (context) => _AccessRoleDialog(
             details: details,
-            sections: _list!.sections,
-            grants: _targetGrants,
-            canTransferManager:
-                _access.canTransferManager && _canTransferManager,
+            sections: state.list!.sections,
+            grants: state.targetGrants,
+            canTransferManager: state.access.canTransferManager,
+            handoverCandidate: state.handoverCandidate,
+            onResolveHandoverBlocker:
+                switch (state.handoverCandidate?.blocker) {
+                  final ManagerHandoverBlocker blocker
+                      when blocker != ManagerHandoverBlocker.alreadyManager =>
+                    () => _resolveHandoverBlocker(blocker),
+                  _ => null,
+                },
           ),
         );
     if (selection == null) return;
-    try {
-      if (selection.transfer) {
-        await widget.gateway.transferManagerWithAccess(
-          details.id,
-          selection.formerAdministrator,
-          selection.formerSections,
-        );
-      } else {
-        await widget.gateway.setAccessGrants(details.id, selection.grants);
-      }
-      await _load();
-    } catch (_) {
+    final outcome = await _session.saveAccess(
+      grants: selection.grants,
+      transfer: selection.transfer,
+      formerAdministrator: selection.formerAdministrator,
+      formerSections: selection.formerSections,
+    );
+    if (outcome case StaffCommandFailed()) {
       if (mounted) _showError('Could not change the access role.');
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final details = _details;
-    final sectionName = _list?.sections
-        .where((section) => section.id == details?.sectionId)
-        .firstOrNull
-        ?.name;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(details?.displayName ?? 'Staff member details'),
-      ),
-      body: switch ((details, _error)) {
-        (_, Object()) => const Center(
-          child: Text('Could not load Staff member details.'),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: _session,
+    builder: (context, _) {
+      final state = _session.state;
+      final details = state.details;
+      final sectionName = state.list?.sections
+          .where((section) => section.id == details?.sectionId)
+          .firstOrNull
+          ?.name;
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(details?.displayName ?? 'Staff member details'),
         ),
-        (null, _) => const Center(child: CircularProgressIndicator()),
-        (final StaffMemberDetails person, _) => ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _Detail(label: 'Name', value: person.displayName),
-            _Detail(
-              label: 'Cell number',
-              value: person.cellNumber ?? 'Add a cell number to finish setup',
-            ),
-            _Detail(label: 'Section', value: sectionName ?? 'No Section'),
-            _Detail(
-              label: 'Job role',
-              value: person.jobRole?.label ?? 'Not set',
-            ),
-            _Detail(
-              label: 'Access',
-              value: [
-                if (_targetGrants.manager) 'Manager',
-                if (_targetGrants.administrator) 'Administrator',
-                if (_targetGrants.nightSchedulerSectionIds.isNotEmpty)
-                  'Night scheduler',
-                if (!_targetGrants.manager &&
-                    !_targetGrants.administrator &&
-                    _targetGrants.nightSchedulerSectionIds.isEmpty)
-                  'Staff member',
-              ].join(' and '),
-            ),
-            _Detail(
-              label: 'Last day',
-              value: person.lastDay == null
-                  ? 'Not set'
-                  : DateFormat.yMMMd().format(person.lastDay!),
-            ),
-            _Detail(
-              label: 'Personal email',
-              value: person.personalEmail ?? 'Not signed up yet',
-            ),
-            const SizedBox(height: 16),
-            if (person.cellNumber?.trim().isNotEmpty ?? false)
-              OutlinedButton(
-                onPressed: _saveToContacts,
-                child: const Text('Add to contacts'),
+        body: switch ((details, state.loadError)) {
+          (_, Object()) => const Center(
+            child: Text('Could not load Staff member details.'),
+          ),
+          (null, _) => const Center(child: CircularProgressIndicator()),
+          (final StaffMemberDetails person, _) => ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _Detail(label: 'Name', value: person.displayName),
+              _Detail(
+                label: 'Cell number',
+                value: person.cellNumber ?? 'Add a cell number to finish setup',
               ),
-            FilledButton(
-              onPressed: _editContact,
-              child: const Text('Edit name and cell number'),
-            ),
-            if (_access.canChangeAccess(_targetGrants))
-              OutlinedButton(
-                onPressed: _changeAccessRole,
-                child: const Text('Change access'),
+              _Detail(label: 'Section', value: sectionName ?? 'No Section'),
+              _Detail(
+                label: 'Job role',
+                value: person.jobRole?.label ?? 'Not set',
               ),
-            if (person.lastDay == null) ...[
-              OutlinedButton(
-                onPressed: _changeSectionOrRole,
-                child: const Text('Change Section or Job role'),
+              _Detail(
+                label: 'Access',
+                value: [
+                  if (state.targetGrants.manager) 'Manager',
+                  if (state.targetGrants.administrator) 'Administrator',
+                  if (state.targetGrants.nightSchedulerSectionIds.isNotEmpty)
+                    'Night scheduler',
+                  if (!state.targetGrants.manager &&
+                      !state.targetGrants.administrator &&
+                      state.targetGrants.nightSchedulerSectionIds.isEmpty)
+                    'Staff member',
+                ].join(' and '),
               ),
-              OutlinedButton(
-                onPressed: _setLastDay,
-                child: const Text('Set Last day'),
+              _Detail(
+                label: 'Last day',
+                value: person.lastDay == null
+                    ? 'Not set'
+                    : DateFormat.yMMMd().format(person.lastDay!),
               ),
-              if (person.personalEmail == null) ...[
+              _Detail(
+                label: 'Personal email',
+                value: person.personalEmail ?? 'Not signed up yet',
+              ),
+              const SizedBox(height: 16),
+              if (person.cellNumber?.trim().isNotEmpty ?? false)
                 OutlinedButton(
-                  onPressed: person.cellNumber == null ? null : _resendInvite,
-                  child: const Text('Resend Invite'),
+                  onPressed: _saveToContacts,
+                  child: const Text('Add to contacts'),
                 ),
-                if (person.cellNumber == null)
-                  const Text('Add a cell number before sending an Invite'),
+              FilledButton(
+                onPressed: _editContact,
+                child: const Text('Edit name and cell number'),
+              ),
+              if (state.access.canChangeAccess(state.targetGrants))
+                OutlinedButton(
+                  onPressed: _changeAccessRole,
+                  child: const Text('Change access'),
+                ),
+              if (person.lastDay == null) ...[
+                OutlinedButton(
+                  onPressed: _changeSectionOrRole,
+                  child: const Text('Change Section or Job role'),
+                ),
+                OutlinedButton(
+                  onPressed: _setLastDay,
+                  child: const Text('Set Last day'),
+                ),
+                if (person.personalEmail == null) ...[
+                  OutlinedButton(
+                    onPressed: person.cellNumber == null ? null : _resendInvite,
+                    child: const Text('Resend Invite'),
+                  ),
+                  if (person.cellNumber == null)
+                    const Text('Add a cell number before sending an Invite'),
+                ],
+              ],
+              if (state.accessChanges.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Text('Access history'),
+                for (final change in state.accessChanges)
+                  ListTile(
+                    title: Text(
+                      '${change.oldRole.replaceAll('_', ' ')} → ${change.newRole.replaceAll('_', ' ')}',
+                    ),
+                    subtitle: Text(
+                      DateFormat.yMMMd().add_jm().format(change.changedAt),
+                    ),
+                  ),
               ],
             ],
-            if (_accessChanges.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              const Text('Access history'),
-              for (final change in _accessChanges)
-                ListTile(
-                  title: Text(
-                    '${change.oldRole.replaceAll('_', ' ')} → ${change.newRole.replaceAll('_', ' ')}',
-                  ),
-                  subtitle: Text(
-                    DateFormat.yMMMd().add_jm().format(change.changedAt),
-                  ),
-                ),
-            ],
-          ],
-        ),
-      },
-    );
-  }
+          ),
+        },
+      );
+    },
+  );
 }
 
 class _Detail extends StatelessWidget {
@@ -333,12 +318,16 @@ class _AccessRoleDialog extends StatefulWidget {
     required this.sections,
     required this.grants,
     required this.canTransferManager,
+    required this.handoverCandidate,
+    required this.onResolveHandoverBlocker,
   });
 
   final StaffMemberDetails details;
   final List<StaffSection> sections;
   final Grants grants;
   final bool canTransferManager;
+  final ManagerHandoverCandidate? handoverCandidate;
+  final Future<void> Function()? onResolveHandoverBlocker;
 
   @override
   State<_AccessRoleDialog> createState() => _AccessRoleDialogState();
@@ -352,6 +341,11 @@ class _AccessRoleDialogState extends State<_AccessRoleDialog> {
   bool _transfer = false;
   bool _formerAdministrator = false;
   final Set<String> _formerSections = {};
+
+  Future<void> _resolveHandoverBlocker() async {
+    Navigator.pop(context);
+    await widget.onResolveHandoverBlocker?.call();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -390,39 +384,53 @@ class _AccessRoleDialogState extends State<_AccessRoleDialog> {
                         }),
                 ),
             ],
-            if (!departed && widget.canTransferManager) ...[
+            if (widget.canTransferManager &&
+                widget.handoverCandidate != null) ...[
               const Divider(),
-              CheckboxListTile(
-                title: const Text('Transfer Manager'),
-                value: _transfer,
-                onChanged: (value) =>
-                    setState(() => _transfer = value ?? false),
-              ),
-              if (_transfer) ...[
-                const Text(
-                  'The selected Staff member becomes Manager immediately.',
-                ),
-                const Text(
-                  'Your access after handover (Staff member by default)',
-                ),
+              if (!departed && widget.handoverCandidate!.isEligible) ...[
                 CheckboxListTile(
-                  title: const Text('Administrator'),
-                  value: _formerAdministrator,
+                  title: const Text('Transfer Manager'),
+                  value: _transfer,
                   onChanged: (value) =>
-                      setState(() => _formerAdministrator = value ?? false),
+                      setState(() => _transfer = value ?? false),
                 ),
-                const Text('Night scheduler Sections'),
-                for (final section in widget.sections)
+                if (_transfer) ...[
+                  const Text(
+                    'The selected Staff member becomes Manager immediately.',
+                  ),
+                  const Text(
+                    'Your access after handover (Staff member by default)',
+                  ),
                   CheckboxListTile(
-                    title: Text(section.name),
-                    value: _formerSections.contains(section.id),
-                    onChanged: (checked) => setState(() {
-                      if (checked == true) {
-                        _formerSections.add(section.id);
-                      } else {
-                        _formerSections.remove(section.id);
-                      }
-                    }),
+                    title: const Text('Administrator'),
+                    value: _formerAdministrator,
+                    onChanged: (value) =>
+                        setState(() => _formerAdministrator = value ?? false),
+                  ),
+                  const Text('Night scheduler Sections'),
+                  for (final section in widget.sections)
+                    CheckboxListTile(
+                      title: Text(section.name),
+                      value: _formerSections.contains(section.id),
+                      onChanged: (checked) => setState(() {
+                        if (checked == true) {
+                          _formerSections.add(section.id);
+                        } else {
+                          _formerSections.remove(section.id);
+                        }
+                      }),
+                    ),
+                ],
+              ] else if (!widget.handoverCandidate!.isEligible) ...[
+                Text(managerHandoverNextStep(widget.handoverCandidate!)),
+                if (widget.onResolveHandoverBlocker != null)
+                  TextButton(
+                    onPressed: _resolveHandoverBlocker,
+                    child: Text(
+                      managerHandoverPresentation(
+                        widget.handoverCandidate!.blocker,
+                      ).resolution.label,
+                    ),
                   ),
               ],
             ],

@@ -571,6 +571,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
                       gateway: widget.dependencies.staffGateway,
                       rules: widget.dependencies.rules,
                       inviteComposer: widget.dependencies.inviteComposer,
+                      onAccessRejected: _refreshAccess,
                     ),
                   ),
                 )
@@ -584,6 +585,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
                         gateway: widget.dependencies.staffGateway,
                         rules: widget.dependencies.rules,
                         inviteComposer: widget.dependencies.inviteComposer,
+                        onAccessRejected: _refreshAccess,
                       ),
                     ),
                   );

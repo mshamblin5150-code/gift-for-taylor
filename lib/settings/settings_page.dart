@@ -25,10 +25,12 @@ class SettingsPage extends StatelessWidget {
     this.printWordingGateway,
     this.onCalendarFeed,
     this.onManageStaff,
+    this.onOpenStaffDetails,
     required this.access,
     this.settingsHistory,
     this.staffGateway,
     this.onManagerTransferred,
+    this.onAccessRejected,
     required this.maintainerRepairController,
   });
 
@@ -38,10 +40,12 @@ class SettingsPage extends StatelessWidget {
   final PrintWordingGateway? printWordingGateway;
   final VoidCallback? onCalendarFeed;
   final Future<void> Function()? onManageStaff;
+  final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
   final Access access;
   final SettingsHistory? settingsHistory;
   final StaffGateway? staffGateway;
   final VoidCallback? onManagerTransferred;
+  final VoidCallback? onAccessRejected;
   final RepairController maintainerRepairController;
 
   @override
@@ -145,6 +149,9 @@ class SettingsPage extends StatelessWidget {
                     builder: (_) => ManagerHandoverPage(
                       gateway: staffGateway!,
                       isMaintainer: access.isRepairAccess,
+                      onManageStaff: onManageStaff,
+                      onOpenStaffDetails: onOpenStaffDetails,
+                      onAccessRejected: onAccessRejected,
                     ),
                   ),
                 );

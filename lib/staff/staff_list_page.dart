@@ -21,6 +21,7 @@ class StaffListPage extends StatefulWidget {
     required this.rules,
     required this.inviteComposer,
     this.phoneContacts = const BrowserPhoneContacts(),
+    this.onAccessRejected,
   });
 
   final StaffGateway gateway;
@@ -29,6 +30,7 @@ class StaffListPage extends StatefulWidget {
   final ScheduleRules rules;
   final InviteComposer inviteComposer;
   final PhoneContacts phoneContacts;
+  final VoidCallback? onAccessRejected;
 
   @override
   State<StaffListPage> createState() => _StaffListPageState();
@@ -247,6 +249,7 @@ class _StaffListPageState extends State<StaffListPage> {
           rules: widget.rules,
           inviteComposer: widget.inviteComposer,
           sections: staffList.sections,
+          onAccessRejected: widget.onAccessRejected,
         ),
       ),
     );
@@ -262,6 +265,7 @@ class _StaffListPageState extends State<StaffListPage> {
           rules: widget.rules,
           inviteComposer: widget.inviteComposer,
           phoneContacts: widget.phoneContacts,
+          onAccessRejected: widget.onAccessRejected,
         ),
       ),
     );

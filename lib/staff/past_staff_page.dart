@@ -16,12 +16,14 @@ class PastStaffPage extends StatefulWidget {
     required this.rules,
     required this.inviteComposer,
     required this.sections,
+    this.onAccessRejected,
   });
 
   final StaffGateway gateway;
   final ScheduleRules rules;
   final InviteComposer inviteComposer;
   final List<StaffSection> sections;
+  final VoidCallback? onAccessRejected;
 
   @override
   State<PastStaffPage> createState() => _PastStaffPageState();
@@ -114,6 +116,7 @@ class _PastStaffPageState extends State<PastStaffPage> {
                         gateway: widget.gateway,
                         rules: widget.rules,
                         inviteComposer: widget.inviteComposer,
+                        onAccessRejected: widget.onAccessRejected,
                       ),
                     ),
                   );

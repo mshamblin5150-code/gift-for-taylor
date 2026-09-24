@@ -9,6 +9,7 @@ final class InMemoryStaffGateway implements StaffGateway {
     this.pastStaff = const [],
     this.currentId,
     this.actorRole = 'staff_member',
+    this.handoverCandidates = const [],
   }) : _list = list ?? const StaffList(sections: [], members: []);
 
   StaffList get list => _list;
@@ -25,10 +26,11 @@ final class InMemoryStaffGateway implements StaffGateway {
     activeRepair: activeRepair,
   );
   MaintainerRepair? activeRepair;
-  bool transferEligible = true;
+  List<ManagerHandoverCandidate> handoverCandidates;
 
   @override
-  Future<bool> canTransferManagerTo(String id) async => transferEligible;
+  Future<List<ManagerHandoverCandidate>>
+  loadManagerHandoverCandidates() async => handoverCandidates;
   @override
   Future<List<StaffAccessChange>> loadStaffAccessChanges(String id) async =>
       accessRole == null
@@ -79,6 +81,7 @@ final class InMemoryStaffGateway implements StaffGateway {
     bool formerAdministrator,
     Set<String> formerSections,
   ) async {
+    if (transferError case final error?) throw error;
     accessRole = 'manager';
     grantsByStaff[id] = (await loadAccessGrants(id)).copyWith(manager: true);
     actorRole = formerAdministrator
@@ -87,6 +90,8 @@ final class InMemoryStaffGateway implements StaffGateway {
         ? 'night_scheduler'
         : 'staff_member';
   }
+
+  Object? transferError;
 
   String? accessRole;
   DateTime? accessLastDay;
@@ -108,6 +113,7 @@ final class InMemoryStaffGateway implements StaffGateway {
 
   @override
   Future<void> updateStaffContact(String id, String name, String? cell) async {
+    if (updateContactError case final error?) throw error;
     _list = StaffList(
       sections: _list.sections,
       members: [
@@ -127,6 +133,8 @@ final class InMemoryStaffGateway implements StaffGateway {
       ],
     );
   }
+
+  Object? updateContactError;
 
   StaffList _list;
   final List<PastStaffMember> pastStaff;
@@ -260,6 +268,7 @@ final class InMemoryStaffGateway implements StaffGateway {
 
   @override
   Future<StaffInvite> resendInvite(String staffMemberId) async {
+    if (resendInviteError case final error?) throw error;
     resentStaffMemberId = staffMemberId;
     return const StaffInvite(
       staffMemberId: 'staff-1',
@@ -267,4 +276,6 @@ final class InMemoryStaffGateway implements StaffGateway {
       token: 'fresh-token',
     );
   }
+
+  Object? resendInviteError;
 }
