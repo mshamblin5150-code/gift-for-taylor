@@ -85,6 +85,7 @@ void main() {
     expect(access.canTransferManager, isFalse);
     expect(access.ownStaffMemberId, 'staff');
     expect(access.canUseOwnSettings, isTrue);
+    expect(access.canUseStaffCellActions, isTrue);
     expect(access.canChangeAccess(Grants()), isTrue);
     expect(access.canChangeAccess(Grants(manager: true)), isFalse);
     expect(access.isRepairAccess, isFalse);
@@ -98,6 +99,7 @@ void main() {
     expect(maintainer.ownStaffMemberId, 'staff');
     expect(maintainer.isRepairAccess, isFalse);
     expect(maintainer.canUseOwnSettings, isTrue);
+    expect(maintainer.canUseStaffCellActions, isTrue);
     expect(maintainer.canChangeAccess(Grants()), isFalse);
 
     final repairing = Access(

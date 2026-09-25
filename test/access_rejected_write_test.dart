@@ -56,4 +56,29 @@ void main() {
       }
     },
   );
+
+  test('Call-in SQLSTATEs map without exposing backend messages', () async {
+    const reasons = {
+      'P2811': CallInRefusal.recorderNotWorking,
+      'P2812': CallInRefusal.targetNotWorking,
+      'P2813': CallInRefusal.settled,
+    };
+    for (final MapEntry(:key, :value) in reasons.entries) {
+      final error = PostgrestException(message: 'backend wording', code: key);
+      await expectLater(
+        mapCallInRefusal<void>(() => Future.error(error)),
+        throwsA(
+          isA<CallInRefused>().having((error) => error.reason, 'reason', value),
+        ),
+      );
+    }
+  });
+
+  test('Call-in mapping keeps generic failures unchanged', () async {
+    final error = PostgrestException(message: 'failure', code: '23505');
+    await expectLater(
+      mapCallInRefusal<void>(() => Future.error(error)),
+      throwsA(same(error)),
+    );
+  });
 }

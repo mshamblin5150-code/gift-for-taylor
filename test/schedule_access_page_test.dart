@@ -256,6 +256,12 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('cell-day-nurse-2026-09-18')));
       await tester.pumpAndSettle();
       expect(find.text('Other Shift code'), findsNothing);
+      expect(
+        find.text('There are no actions available for this cell.'),
+        findsOneWidget,
+      );
+      await tester.tapAt(const Offset(8, 8));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const ValueKey('cell-nurse-2026-09-18')));
       await tester.pumpAndSettle();

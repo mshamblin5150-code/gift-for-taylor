@@ -153,6 +153,9 @@ final class InMemoryScheduleDatabase {
   final List<RequestOff> _requestsOff = [];
   final List<RequestOff> _pendingRequestsOff = [];
   final Map<String, int> _unreadRequestOffNotices = {};
+  final Map<String, bool> _onFloorNow = {};
+  final Map<String, ({String previousCode, bool settled})> _callIns = {};
+  final List<int> _callInPostedCounts = [];
   final StreamController<DateTime> _updates = StreamController.broadcast();
   final List<DateTime> _awaitingConfirmation = [];
   final Map<DateTime, MonthStatus> _monthStatus;
@@ -191,6 +194,22 @@ final class InMemoryScheduleDatabase {
   /// Supplies the unread notice count returned to [staffMemberId].
   void seedUnreadRequestOffNotices(String staffMemberId, int count) {
     _unreadRequestOffNotices[staffMemberId] = count;
+  }
+
+  void seedOnFloorNow(String staffMemberId, bool value) {
+    _onFloorNow[staffMemberId] = value;
+  }
+
+  void seedCallInPostedCount(int count) {
+    _callInPostedCounts.add(count);
+  }
+
+  void settleCallIn(String staffMemberId, DateTime date) {
+    final key = _cellKey(staffMemberId, date);
+    final record = _callIns[key];
+    if (record != null) {
+      _callIns[key] = (previousCode: record.previousCode, settled: true);
+    }
   }
 
   /// Supplies Open shifts created by SQL in a test scenario.
@@ -484,6 +503,74 @@ final class _InMemoryScheduleStore implements ScheduleStore {
         ),
       );
     }
+  }
+
+  @override
+  Future<bool> isOnFloorNow() async =>
+      _database._onFloorNow[_actingAs] ?? false;
+
+  @override
+  Future<int> recordCallIn(String staffMemberId, DateTime date) async {
+    if (!await isOnFloorNow()) {
+      throw const CallInRefused(CallInRefusal.recorderNotWorking);
+    }
+    final key = _cellKey(staffMemberId, date);
+    final current = _database._cells[key];
+    final legend = _database._shiftCodes
+        .where((code) => code.code == current?.shiftCode.trim().toUpperCase())
+        .firstOrNull;
+    if (current == null || legend?.isWorking != true) {
+      throw const CallInRefused(CallInRefusal.targetNotWorking);
+    }
+    _database._callIns[key] = (previousCode: current.shiftCode, settled: false);
+    _write(
+      ScheduleCell(
+        staffMemberId: staffMemberId,
+        sectionId: current.sectionId,
+        date: date,
+        shiftCode: 'C/I',
+      ),
+    );
+    return _database._callInPostedCounts.isEmpty
+        ? 0
+        : _database._callInPostedCounts.removeAt(0);
+  }
+
+  @override
+  Future<CallInWithdrawalState> callInWithdrawalState(
+    String staffMemberId,
+    DateTime date,
+  ) async {
+    final record = _database._callIns[_cellKey(staffMemberId, date)];
+    if (record == null) return CallInWithdrawalState.notRecorded;
+    return record.settled
+        ? CallInWithdrawalState.settled
+        : CallInWithdrawalState.withdrawable;
+  }
+
+  @override
+  Future<void> withdrawCallIn(String staffMemberId, DateTime date) async {
+    if (!await isOnFloorNow()) {
+      throw const CallInRefused(CallInRefusal.recorderNotWorking);
+    }
+    final key = _cellKey(staffMemberId, date);
+    final record = _database._callIns[key];
+    if (record == null) {
+      throw const CallInRefused(CallInRefusal.targetNotWorking);
+    }
+    if (record.settled) {
+      throw const CallInRefused(CallInRefusal.settled);
+    }
+    final current = _database._cells[key]!;
+    _write(
+      ScheduleCell(
+        staffMemberId: staffMemberId,
+        sectionId: current.sectionId,
+        date: date,
+        shiftCode: record.previousCode,
+      ),
+    );
+    _database._callIns.remove(key);
   }
 
   void _write(ScheduleCell cell) {

@@ -56,6 +56,65 @@ final class EditFailed extends EditOutcome {
   const EditFailed();
 }
 
+final class StaffCellReview {
+  const StaffCellReview({
+    required this.currentCode,
+    this.action,
+    this.unavailableReason,
+  });
+
+  final String currentCode;
+  final StaffCellAction? action;
+  final StaffCellUnavailableReason? unavailableReason;
+}
+
+enum StaffCellAction { recordCallIn, withdrawCallIn }
+
+enum StaffCellUnavailableReason {
+  targetNotWorking,
+  recorderNotWorkingToRecord,
+  recorderNotWorkingToWithdraw,
+  onFloorUnknown,
+  callInSettled,
+  callInNotRecorded,
+  withdrawalStateUnknown,
+}
+
+sealed class RecordCallInOutcome {
+  const RecordCallInOutcome();
+}
+
+final class CallInRecorded extends RecordCallInOutcome {
+  const CallInRecorded(this.openShiftsPosted);
+  final int openShiftsPosted;
+}
+
+final class RecordCallInRefused extends RecordCallInOutcome {
+  const RecordCallInRefused(this.reason);
+  final CallInRefusal reason;
+}
+
+final class RecordCallInFailed extends RecordCallInOutcome {
+  const RecordCallInFailed();
+}
+
+sealed class WithdrawCallInOutcome {
+  const WithdrawCallInOutcome();
+}
+
+final class CallInWithdrawn extends WithdrawCallInOutcome {
+  const CallInWithdrawn();
+}
+
+final class WithdrawCallInRefused extends WithdrawCallInOutcome {
+  const WithdrawCallInRefused(this.reason);
+  final CallInRefusal reason;
+}
+
+final class WithdrawCallInFailed extends WithdrawCallInOutcome {
+  const WithdrawCallInFailed();
+}
+
 sealed class AnnounceOutcome {
   const AnnounceOutcome();
 }
@@ -187,6 +246,7 @@ final class MonthSessionState {
     this.previousMonthStarted = false,
     this.shiftCodes = const [],
     this.staffing = const [],
+    this.onFloorNow,
     this.loadError,
     this.savingDrop = false,
   });
@@ -198,6 +258,7 @@ final class MonthSessionState {
   final bool previousMonthStarted;
   final List<LegendCode> shiftCodes;
   final List<SectionStaffing> staffing;
+  final bool? onFloorNow;
   final Object? loadError;
   final DateTime today;
   final bool savingDrop;
@@ -211,6 +272,7 @@ final class MonthSessionState {
         _announcementValues(other.announcement),
         _announcementValues(announcement),
       ) &&
+      other.onFloorNow == onFloorNow &&
       other.unreached == unreached &&
       other.previousMonthStarted == previousMonthStarted &&
       listEquals(
@@ -234,6 +296,7 @@ final class MonthSessionState {
     previousMonthStarted,
     Object.hashAll(shiftCodes.map(_codeValue)),
     Object.hashAll(staffing.map(_staffingValue)),
+    onFloorNow,
     loadError,
     today,
     savingDrop,
@@ -333,6 +396,7 @@ typedef _MonthRead = ({
   List<LegendCode> codes,
   List<SectionStaffing> staffing,
   UnreachedThisWeek? unreached,
+  bool? onFloorNow,
 });
 
 /// Data and liveness for exactly one calendar month.
@@ -367,6 +431,11 @@ final class MonthSession extends ChangeNotifier {
   final DateTime Function() _now;
   final MonthSessionTimerFactory _timerFactory;
   final VoidCallback? _onAccessRejected;
+  // Deliberately shared for this month session: the Staff gateway is read
+  // once, while every command is still authorized again by the server.
+  late final Future<bool?> _onFloorNowRead = _access.canUseStaffCellActions
+      ? _adjunct<bool?>(_rules.store.isOnFloorNow, null)
+      : Future<bool?>.value();
   late MonthSessionState _state;
   MonthSessionState get state => _state;
   StreamSubscription<void>? _updates;
@@ -424,6 +493,119 @@ final class MonthSession extends ChangeNotifier {
     } catch (error) {
       _rejected(error);
       return const EditFailed();
+    }
+  }
+
+  Future<StaffCellReview> reviewStaffCell(
+    ScheduleRow row,
+    DateTime date,
+  ) async {
+    final code = state.grid?.shiftCodeFor(row.staffMemberId, date) ?? '';
+    final normalized = code.trim().toUpperCase();
+    final targetIsWorking = state.shiftCodes.any(
+      (item) => item.code == normalized && item.isWorking,
+    );
+    final withdrawalState = normalized == 'C/I'
+        ? await _adjunct<CallInWithdrawalState?>(
+            () => _rules.store.callInWithdrawalState(row.staffMemberId, date),
+            null,
+          )
+        : null;
+    final (:action, :unavailableReason) = _staffCellAvailability(
+      isCallIn: normalized == 'C/I',
+      targetIsWorking: targetIsWorking,
+      onFloorNow: state.onFloorNow,
+      withdrawalState: withdrawalState,
+    );
+    return StaffCellReview(
+      currentCode: code,
+      action: action,
+      unavailableReason: unavailableReason,
+    );
+  }
+
+  ({StaffCellAction? action, StaffCellUnavailableReason? unavailableReason})
+  _staffCellAvailability({
+    required bool isCallIn,
+    required bool targetIsWorking,
+    required bool? onFloorNow,
+    required CallInWithdrawalState? withdrawalState,
+  }) {
+    if (isCallIn) {
+      if (withdrawalState == CallInWithdrawalState.settled) {
+        return (
+          action: null,
+          unavailableReason: StaffCellUnavailableReason.callInSettled,
+        );
+      }
+      if (withdrawalState == CallInWithdrawalState.notRecorded) {
+        return (
+          action: null,
+          unavailableReason: StaffCellUnavailableReason.callInNotRecorded,
+        );
+      }
+      if (withdrawalState == null) {
+        return (
+          action: null,
+          unavailableReason: StaffCellUnavailableReason.withdrawalStateUnknown,
+        );
+      }
+      if (onFloorNow == true) {
+        return (
+          action: StaffCellAction.withdrawCallIn,
+          unavailableReason: null,
+        );
+      }
+    } else {
+      if (!targetIsWorking) {
+        return (
+          action: null,
+          unavailableReason: StaffCellUnavailableReason.targetNotWorking,
+        );
+      }
+      if (onFloorNow == true) {
+        return (action: StaffCellAction.recordCallIn, unavailableReason: null);
+      }
+    }
+    return (
+      action: null,
+      unavailableReason: onFloorNow == false
+          ? isCallIn
+                ? StaffCellUnavailableReason.recorderNotWorkingToWithdraw
+                : StaffCellUnavailableReason.recorderNotWorkingToRecord
+          : StaffCellUnavailableReason.onFloorUnknown,
+    );
+  }
+
+  Future<RecordCallInOutcome> recordCallIn(
+    ScheduleRow row,
+    DateTime date,
+  ) async {
+    try {
+      final posted = await _rules.store.recordCallIn(row.staffMemberId, date);
+      await refresh();
+      return CallInRecorded(posted);
+    } on CallInRefused catch (error) {
+      return RecordCallInRefused(error.reason);
+    } catch (error) {
+      _rejected(error);
+      return const RecordCallInFailed();
+    }
+  }
+
+  Future<WithdrawCallInOutcome> withdrawCallIn(
+    ScheduleRow row,
+    DateTime date,
+  ) async {
+    try {
+      await _rules.store.withdrawCallIn(row.staffMemberId, date);
+      await refresh();
+      return const CallInWithdrawn();
+    } on CallInRefused catch (error) {
+      return WithdrawCallInRefused(error.reason);
+    } catch (error) {
+      _rejected(error);
+      return const WithdrawCallInFailed();
     }
   }
 
@@ -607,6 +789,7 @@ final class MonthSession extends ChangeNotifier {
         previousMonthStarted: _state.previousMonthStarted,
         shiftCodes: _state.shiftCodes,
         staffing: _state.staffing,
+        onFloorNow: _state.onFloorNow,
         loadError: _state.loadError,
         savingDrop: savingDrop ?? _state.savingDrop,
       );
@@ -630,6 +813,7 @@ final class MonthSession extends ChangeNotifier {
           previousMonthStarted: read.previousMonthStarted,
           shiftCodes: List.unmodifiable(read.codes),
           staffing: List.unmodifiable(read.staffing),
+          onFloorNow: read.onFloorNow,
           loadError: null,
           savingDrop: _state.savingDrop,
         ),
@@ -671,6 +855,7 @@ final class MonthSession extends ChangeNotifier {
     final unreachedRead = _access.canRunSchedule
         ? _readUnreachedThisWeek()
         : Future<UnreachedThisWeek?>.value();
+    final onFloorNowRead = _onFloorNowRead;
     // Waits for both required reads whichever fails, so a failure on one side
     // leaves no unobserved error on the other, and reports the error itself
     // rather than a wrapper.
@@ -689,6 +874,7 @@ final class MonthSession extends ChangeNotifier {
       codes: await codesRead,
       staffing: await staffingRead,
       unreached: await unreachedRead,
+      onFloorNow: await onFloorNowRead,
     );
   }
 
