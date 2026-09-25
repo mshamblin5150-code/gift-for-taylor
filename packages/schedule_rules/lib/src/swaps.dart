@@ -4,6 +4,17 @@ part of '../schedule_rules.dart';
 /// the Manager approves it.
 enum SwapStatus { proposed, accepted, declined, approved }
 
+/// The first day that can be offered in a Swap proposed at [now].
+DateTime firstFutureSwapDay(DateTime now) =>
+    DateTime(now.year, now.month, now.day + 1);
+
+/// Whether [date] is far enough in the future to offer in a Swap at [now].
+bool isFutureSwapDay(DateTime date, {required DateTime now}) => !DateTime(
+  date.year,
+  date.month,
+  date.day,
+).isBefore(firstFutureSwapDay(now));
+
 final class Swap {
   const Swap({
     required this.id,

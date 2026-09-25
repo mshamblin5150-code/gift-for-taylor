@@ -15,6 +15,7 @@ class SwapsPage extends StatefulWidget {
     required this.staffMemberId,
     required this.isManager,
     this.messagesComposer,
+    this.now = DateTime.now,
   });
 
   final ScheduleRules rules;
@@ -23,6 +24,7 @@ class SwapsPage extends StatefulWidget {
   final String? staffMemberId;
   final bool isManager;
   final MessagesComposer? messagesComposer;
+  final DateTime Function() now;
 
   @override
   State<SwapsPage> createState() => _SwapsPageState();
@@ -77,7 +79,9 @@ class _SwapsPageState extends State<SwapsPage> {
     final colleagues = grid.rows
         .where((row) => row.staffMemberId != me && row.cellNumber != null)
         .toList();
-    final myDays = _workingDays(grid, me, codes);
+    final now = widget.now();
+    final firstSwapDay = firstFutureSwapDay(now);
+    final myDays = _workingDays(grid, me, codes, now);
     if (colleagues.isEmpty || myDays.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -89,7 +93,12 @@ class _SwapsPageState extends State<SwapsPage> {
     var colleague = colleagues.first;
     var mine = myDays.first;
     var mineGrid = grid;
-    var theirs = _workingDays(grid, colleague.staffMemberId, codes).firstOrNull;
+    var theirs = _workingDays(
+      grid,
+      colleague.staffMemberId,
+      codes,
+      now,
+    ).firstOrNull;
     var theirGrid = grid;
     final choice = await showDialog<(ScheduleRow, DateTime, DateTime)>(
       context: context,
@@ -123,6 +132,7 @@ class _SwapsPageState extends State<SwapsPage> {
                         grid,
                         colleague.staffMemberId,
                         codes,
+                        now,
                       ).firstOrNull;
                       theirGrid = grid;
                     }),
@@ -131,7 +141,7 @@ class _SwapsPageState extends State<SwapsPage> {
                     title: const Text('My shift'),
                     subtitle: Text(_dayLabel(mineGrid, me, mine)),
                     onTap: () async {
-                      final date = await _pickDate(context, mine);
+                      final date = await _pickDate(context, mine, firstSwapDay);
                       if (date == null) return;
                       final loaded = await _gridOn(date);
                       if (loaded != null && context.mounted) {
@@ -154,7 +164,11 @@ class _SwapsPageState extends State<SwapsPage> {
                             ),
                     ),
                     onTap: () async {
-                      final date = await _pickDate(context, theirs ?? mine);
+                      final date = await _pickDate(
+                        context,
+                        theirs ?? mine,
+                        firstSwapDay,
+                      );
                       if (date == null) return;
                       final loaded = await _gridOn(date);
                       if (loaded != null && context.mounted) {
@@ -381,15 +395,21 @@ class _SwapsPageState extends State<SwapsPage> {
   );
 }
 
-List<DateTime> _workingDays(MonthGrid grid, String id, List<LegendCode> codes) {
+List<DateTime> _workingDays(
+  MonthGrid grid,
+  String id,
+  List<LegendCode> codes,
+  DateTime now,
+) {
   final start = DateTime(grid.month.year, grid.month.month);
   final length = DateTime(grid.month.year, grid.month.month + 1, 0).day;
   return [
     for (var day = 1; day <= length; day++)
-      if (isWorkingShift(
-        grid.shiftCodeFor(id, DateTime(start.year, start.month, day)) ?? '',
-        codes: codes,
-      ))
+      if (isFutureSwapDay(DateTime(start.year, start.month, day), now: now) &&
+          isWorkingShift(
+            grid.shiftCodeFor(id, DateTime(start.year, start.month, day)) ?? '',
+            codes: codes,
+          ))
         DateTime(start.year, start.month, day),
   ];
 }
@@ -397,10 +417,13 @@ List<DateTime> _workingDays(MonthGrid grid, String id, List<LegendCode> codes) {
 String _dayLabel(MonthGrid grid, String id, DateTime date) =>
     '${DateFormat.MMMd().format(date)} — ${grid.shiftCodeFor(id, date)}';
 
-Future<DateTime?> _pickDate(BuildContext context, DateTime initial) =>
-    showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
+Future<DateTime?> _pickDate(
+  BuildContext context,
+  DateTime initial,
+  DateTime firstSwapDay,
+) => showDatePicker(
+  context: context,
+  initialDate: initial,
+  firstDate: firstSwapDay,
+  lastDate: DateTime(2100),
+);
