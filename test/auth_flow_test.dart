@@ -7,6 +7,7 @@ import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:er_schedule/app.dart';
+import 'package:er_schedule/auth/auth_gateway.dart';
 import 'package:er_schedule/auth/sign_in_page.dart';
 import 'package:er_schedule/notifications/notice_gateway.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
@@ -263,6 +264,66 @@ void main() {
 
     expect(gateway.verifiedEmail, 'manager@example.test');
     expect(gateway.verifiedCode, '123456');
+  });
+
+  testWidgets('invalid sign-in email is identified without blaming delivery', (
+    tester,
+  ) async {
+    final gateway = FakeAuthGateway(
+      false,
+      InvalidEmailAddress(Exception('invalid email')),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SignInPage(
+          authGateway: gateway,
+          noticeGateway: const NoopNoticeGateway(),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Email'),
+      'not-an-address',
+    );
+    await tester.tap(find.text('Email me a code'));
+    await tester.pump();
+
+    expect(
+      find.text('That email address is not valid. Enter it again.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('could not send'), findsNothing);
+  });
+
+  testWidgets('provider failure owns the fault and is reported', (
+    tester,
+  ) async {
+    final failure = SignInCodeDeliveryFailed(Exception('mail quota reached'));
+    Object? reportedError;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SignInPage(
+          authGateway: FakeAuthGateway(false, failure),
+          noticeGateway: const NoopNoticeGateway(),
+          onError: (error, _) => reportedError = error,
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Email'),
+      'nurse@example.com',
+    );
+    await tester.tap(find.text('Email me a code'));
+    await tester.pump();
+
+    expect(
+      find.text('We could not send a code right now. Try again later.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Check the email'), findsNothing);
+    expect(reportedError, same(failure));
   });
 
   testWidgets('signed-in Manager can sign out', (tester) async {

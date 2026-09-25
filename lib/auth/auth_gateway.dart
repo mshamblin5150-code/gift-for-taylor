@@ -9,6 +9,23 @@ abstract interface class AuthGateway {
   Future<void> signOut();
 }
 
+sealed class RequestCodeFailure implements Exception {
+  const RequestCodeFailure(this.cause);
+
+  final Object cause;
+
+  @override
+  String toString() => '$runtimeType: $cause';
+}
+
+final class InvalidEmailAddress extends RequestCodeFailure {
+  const InvalidEmailAddress(super.cause);
+}
+
+final class SignInCodeDeliveryFailed extends RequestCodeFailure {
+  const SignInCodeDeliveryFailed(super.cause);
+}
+
 final class SupabaseAuthGateway implements AuthGateway {
   SupabaseAuthGateway(this._client, {this.onSignedOut});
 
@@ -27,8 +44,15 @@ final class SupabaseAuthGateway implements AuthGateway {
       .distinct();
 
   @override
-  Future<void> requestCode(String email) {
-    return _client.auth.signInWithOtp(email: email, shouldCreateUser: true);
+  Future<void> requestCode(String email) async {
+    try {
+      await _client.auth.signInWithOtp(email: email, shouldCreateUser: true);
+    } on AuthException catch (error, stackTrace) {
+      final failure = error.code == 'email_address_invalid'
+          ? InvalidEmailAddress(error)
+          : SignInCodeDeliveryFailed(error);
+      Error.throwWithStackTrace(failure, stackTrace);
+    }
   }
 
   @override

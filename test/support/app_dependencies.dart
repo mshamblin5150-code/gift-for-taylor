@@ -52,10 +52,11 @@ AppDependencies appDependencies({
 }
 
 final class FakeAuthGateway implements AuthGateway {
-  FakeAuthGateway([this._signedIn = false]);
+  FakeAuthGateway([this._signedIn = false, this.requestCodeError]);
 
   final _controller = StreamController<bool>.broadcast();
   bool _signedIn;
+  final Object? requestCodeError;
   String? requestedEmail;
   String? verifiedEmail;
   String? verifiedCode;
@@ -71,7 +72,10 @@ final class FakeAuthGateway implements AuthGateway {
   Stream<bool> get signedInChanges => _controller.stream;
 
   @override
-  Future<void> requestCode(String email) async => requestedEmail = email;
+  Future<void> requestCode(String email) async {
+    requestedEmail = email;
+    if (requestCodeError case final error?) throw error;
+  }
 
   @override
   Future<void> verifyCode({required String email, required String code}) async {

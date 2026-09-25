@@ -5,17 +5,35 @@ import '../notifications/notice_gateway.dart';
 import '../settings/appearance.dart';
 import '../setup/app_setup_page.dart';
 
+typedef SignInErrorReporter = void Function(
+  Object error,
+  StackTrace stackTrace,
+);
+
+void _reportSignInError(Object error, StackTrace stackTrace) {
+  FlutterError.reportError(
+    FlutterErrorDetails(
+      exception: error,
+      stack: stackTrace,
+      library: 'ER Schedule authentication',
+      context: ErrorDescription('while completing sign-in'),
+    ),
+  );
+}
+
 class SignInPage extends StatefulWidget {
   const SignInPage({
     super.key,
     required this.authGateway,
     required this.noticeGateway,
     this.awaitingConfirmation = false,
+    this.onError = _reportSignInError,
   });
 
   final AuthGateway authGateway;
   final NoticeGateway noticeGateway;
   final bool awaitingConfirmation;
+  final SignInErrorReporter onError;
 
   @override
   State<SignInPage> createState() => _SignInPageState();
@@ -50,12 +68,19 @@ class _SignInPageState extends State<SignInPage> {
         await widget.authGateway.requestCode(_emailController.text.trim());
         if (mounted) setState(() => _codeRequested = true);
       }
-    } catch (_) {
+    } on InvalidEmailAddress {
+      if (mounted) {
+        setState(() {
+          _error = 'That email address is not valid. Enter it again.';
+        });
+      }
+    } catch (error, stackTrace) {
+      widget.onError(error, stackTrace);
       if (mounted) {
         setState(() {
           _error = _codeRequested
               ? 'That code did not work. Check it and try again.'
-              : 'We could not send a code. Check the email and try again.';
+              : 'We could not send a code right now. Try again later.';
         });
       }
     } finally {
