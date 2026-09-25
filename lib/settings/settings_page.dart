@@ -112,7 +112,9 @@ class SettingsPage extends StatelessWidget {
               ),
               onTap: access.isRepairAccess ? null : openRepair,
             ),
-          if (access.maintainer && signInFailureLog != null)
+          if (access.maintainer &&
+              access.isRepairAccess &&
+              signInFailureLog != null)
             ListTile(
               leading: const Icon(Icons.mark_email_unread_outlined),
               title: const Text('Sign-in failures'),

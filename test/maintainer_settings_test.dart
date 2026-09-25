@@ -30,6 +30,7 @@ void main() {
             maintainer: true,
             ownStaffMemberId: 'maintainer',
           ),
+          signInFailureLog: FakeSignInFailureLog(),
           onCalendarFeed: () {},
           onManageStaff: () async {},
         ),
@@ -44,6 +45,7 @@ void main() {
       findsWidgets,
     );
     expect(find.text('My calendar'), findsOneWidget);
+    expect(find.text('Sign-in failures'), findsNothing);
   });
 
   testWidgets('Maintainer can read a recorded sign-in provider failure', (
@@ -65,13 +67,24 @@ void main() {
       ),
       actingAs: 'manager',
     );
+    final openedAt = DateTime(2026, 9, 24, 14);
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
           maintainerRepairController: noopRepairController(),
           scheduleRules: rules,
           noticeGateway: const NoopNoticeGateway(),
-          access: Access(grants: Grants(), maintainer: true),
+          access: Access(
+            grants: Grants(),
+            maintainer: true,
+            activeRepair: MaintainerRepair(
+              id: 'repair-338',
+              category: RepairReasonCategory.investigation,
+              detail: 'Review sign-in delivery failures',
+              openedAt: openedAt,
+              expiresAt: openedAt.add(const Duration(hours: 1)),
+            ),
+          ),
           signInFailureLog: failureLog,
         ),
       ),

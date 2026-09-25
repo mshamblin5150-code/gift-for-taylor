@@ -91,7 +91,17 @@ class _AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<_AuthGate> {
   late final Future<void> _prepareInviteSignIn = _prepareInvite();
+  late final SignInSession _signInSession = SignInSession(
+    widget.dependencies.authGateway,
+    widget.dependencies.signInFailureLog,
+  );
   String? _inviteCellNumber;
+
+  @override
+  void dispose() {
+    _signInSession.dispose();
+    super.dispose();
+  }
 
   Future<void> _prepareInvite() async {
     if (widget.inviteToken != null &&
@@ -136,10 +146,7 @@ class _AuthGateState extends State<_AuthGate> {
                 );
               }
               return SignInPage(
-                session: SignInSession(
-                  widget.dependencies.authGateway,
-                  widget.dependencies.signInFailureLog,
-                ),
+                session: _signInSession,
                 noticeGateway: widget.dependencies.noticeGateway,
                 awaitingConfirmation: widget.inviteToken != null,
               );

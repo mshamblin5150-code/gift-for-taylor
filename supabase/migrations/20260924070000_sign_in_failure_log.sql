@@ -56,8 +56,8 @@ stable
 set search_path = ''
 as $$
 begin
-  if not public.is_maintainer() then
-    raise exception 'Only the Maintainer can read sign-in failures'
+  if private.active_maintainer_repair_id() is null then
+    raise exception 'An active Maintainer Repair is required to read sign-in failures'
       using errcode = '42501';
   end if;
 

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(10);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000003381', 'maintainer-338@example.test'),
@@ -29,14 +29,20 @@ select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000003382","role":"authenticated"}',
   true);
 select throws_ok($$select * from public.read_sign_in_failures()$$,
-  '42501', 'Only the Maintainer can read sign-in failures',
+  '42501', 'An active Maintainer Repair is required to read sign-in failures',
   'ordinary Staff cannot read sign-in failures');
 
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000003381","role":"authenticated"}',
   true);
+select throws_ok($$select * from public.read_sign_in_failures()$$,
+  '42501', 'An active Maintainer Repair is required to read sign-in failures',
+  'the Maintainer cannot read failures outside a Repair');
+select lives_ok($$select public.open_maintainer_repair(
+  'investigation', 'Review sign-in delivery failures')$$,
+  'the Maintainer can open an investigation Repair');
 select is((select count(*)::integer from public.read_sign_in_failures()), 1,
-  'the Maintainer can read the failure without opening a Repair');
+  'the Maintainer can read the failure during a Repair');
 select is((select error_message from public.read_sign_in_failures()),
   'mail quota reached', 'the Maintainer sees the provider reply');
 
