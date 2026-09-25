@@ -128,7 +128,7 @@ begin
   perform 1 from public.schedule_cells
   where staff_member_id = v_staff and work_date = v_short.work_date for update;
   if public.staff_member_has_day_conflict(v_staff, v_short.work_date) then
-    raise exception 'You already have a shift that day';
+    raise exception 'You already have a Schedule entry that day';
   end if;
   if v_short.filled_at is not null then
     insert into public.open_shift_pickups(short_shift_id, staff_member_id, status)

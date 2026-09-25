@@ -122,7 +122,8 @@ select lives_ok($$select public.set_staff_last_day('00000000-0000-0000-0000-0000
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000273","role":"authenticated"}', true);
 select throws_ok($$select public.request_open_shift_pickup(
   (select id from public.short_shifts where work_date = '2027-02-11'))$$,
-  'You already have a shift that day', 'scheduled LPN cannot pick up another shift that day');
+  'You already have a Schedule entry that day',
+  'scheduled LPN cannot pick up another shift that day');
 reset role;
 select is((select count(*)::int from public.staff_notices where kind = 'open_shift_posted'
   and staff_member_id = '00000000-0000-0000-0000-000000000279' and body like '%2027-02-11%'), 0,

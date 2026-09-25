@@ -122,7 +122,7 @@ select throws_ok(
     select id from public.short_shifts
     where work_date = (clock_timestamp() at time zone 'America/New_York')::date
   ))$$,
-  'P0001', 'You already have a shift that day',
+  'P0001', 'You already have a Schedule entry that day',
   'Request off also refuses a direct pickup'
 );
 select is(
