@@ -62,11 +62,15 @@ Future<void> textSwapColleague(
   BuildContext context, {
   required Swap swap,
   required ScheduleRow colleague,
+  required SwapStore swapStore,
   required MessagesComposer? messagesComposer,
 }) async {
-  final number = colleague.cellNumber;
-  if (number == null || messagesComposer == null) return;
+  if (messagesComposer == null) return;
   try {
+    final number =
+        colleague.cellNumber ??
+        await swapStore.colleagueCellNumberForSwap(swap.id);
+    if (number == null) return;
     await messagesComposer.open(
       [number],
       'Hi ${colleague.displayName}, can we Swap my ${DateFormat.MMMd().format(swap.requesterDate)} '

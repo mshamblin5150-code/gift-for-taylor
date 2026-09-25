@@ -158,8 +158,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     rules: widget.rules,
     access: widget.access,
     openShiftStore: widget.openShiftStore,
-    canProposeSwaps:
-        widget.swapStore != null && widget.swapStaffMemberId != null,
+    swapStore: widget.swapStore,
     month: _month,
     now: widget.now,
     onAccessRejected: widget.onAccessRejected,
@@ -280,9 +279,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
     DateTime colleagueDate,
   ) async {
     final requesterId = widget.swapStaffMemberId;
-    final store = widget.swapStore;
     final grid = _session.state.grid;
-    if (requesterId == null || store == null || grid == null) return;
+    if (requesterId == null || grid == null) return;
     final choice = await showSwapProposalDialog(
       context,
       rules: widget.rules,
@@ -293,22 +291,23 @@ class _MonthGridPageState extends State<MonthGridPage> {
       fixedColleagueDate: colleagueDate,
     );
     if (choice == null || !mounted) return;
-    try {
-      final swap = await store.proposeSwap(
-        choice.colleague.staffMemberId,
-        choice.requesterDate,
-        choice.colleagueDate,
-      );
-      if (!mounted) return;
-      await textSwapColleague(
-        context,
-        swap: swap,
-        colleague: choice.colleague,
-        messagesComposer: widget.messagesComposer,
-      );
-      _pendingWork.refresh();
-    } catch (_) {
-      if (mounted) {
+    final outcome = await _session.proposeSwap(
+      choice.colleague.staffMemberId,
+      choice.requesterDate,
+      choice.colleagueDate,
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case SwapProposed(:final swap):
+        await textSwapColleague(
+          context,
+          swap: swap,
+          colleague: choice.colleague,
+          swapStore: widget.swapStore!,
+          messagesComposer: widget.messagesComposer,
+        );
+        _pendingWork.refresh();
+      case ProposeSwapFailed():
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -316,7 +315,6 @@ class _MonthGridPageState extends State<MonthGridPage> {
             ),
           ),
         );
-      }
     }
   }
 

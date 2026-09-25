@@ -21,7 +21,6 @@ void main() {
     staffMemberId: 'colleague',
     displayName: 'Colleague RN',
     sectionId: 'nurses',
-    cellNumber: '5553334444',
     hasAcceptedInvite: true,
   );
   final month = DateTime(2026, 9);
@@ -72,6 +71,7 @@ void main() {
         (requester.staffMemberId, requesterDay): '7A',
         (colleague.staffMemberId, colleagueDay): '7P',
       },
+      cellNumbers: {colleague.staffMemberId: '5553334444'},
     );
     messages = _RecordingMessagesComposer();
   }
@@ -233,6 +233,7 @@ void main() {
         (requester.staffMemberId, octoberDay): '7A',
         (colleague.staffMemberId, colleagueDay): '7P',
       },
+      cellNumbers: {colleague.staffMemberId: '5553334444'},
     );
 
     await pumpSchedule(tester);

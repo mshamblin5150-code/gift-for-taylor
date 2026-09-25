@@ -1,10 +1,11 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(9);
 
 insert into auth.users (id, email)
 values
+  ('00000000-0000-0000-0000-00000000018f', 'departed@example.test'),
   ('00000000-0000-0000-0000-000000000190', 'staying@example.test'),
   ('00000000-0000-0000-0000-000000000191', 'manager@example.test'),
   ('00000000-0000-0000-0000-000000000192', 'outsider@example.test');
@@ -27,19 +28,29 @@ insert into public.staff_accounts (
   staff_member_id,
   auth_user_id,
   personal_email,
-  accepted_invite_at
+  accepted_invite_at,
+  revoked_at
 )
 values
   (
     '00000000-0000-0000-0000-000000000195',
     '00000000-0000-0000-0000-000000000191',
     'manager@example.test',
-    now()
+    now(),
+    null
   ),
   (
     '00000000-0000-0000-0000-000000000197',
     '00000000-0000-0000-0000-000000000190',
     'staying@example.test',
+    now(),
+    null
+  ),
+  (
+    '00000000-0000-0000-0000-000000000198',
+    '00000000-0000-0000-0000-00000000018f',
+    'departed@example.test',
+    now(),
     now()
   );
 
@@ -190,6 +201,13 @@ select is(
     where staff_member_id = '00000000-0000-0000-0000-000000000196'),
   false,
   'a Schedule row reports when the Staff member has not accepted an Invite'
+);
+
+select is(
+  (select has_accepted_invite from public.schedule_rows('2026-09-01')
+    where staff_member_id = '00000000-0000-0000-0000-000000000198'),
+  false,
+  'a retained departed row is not eligible after its account is revoked'
 );
 
 select set_config(

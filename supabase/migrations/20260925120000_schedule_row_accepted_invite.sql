@@ -27,10 +27,11 @@ as $$
       select 1 from public.push_subscriptions subscription
       where subscription.staff_member_id = member.id
     ) else false end,
-    exists (
+    member.active and exists (
       select 1 from public.staff_accounts account
       where account.staff_member_id = member.id
         and account.accepted_invite_at is not null
+        and account.revoked_at is null
     )
   from held
   join public.staff_members member on member.id = held.staff_member_id
@@ -51,3 +52,28 @@ $$;
 
 revoke all on function public.schedule_rows(date) from public;
 grant execute on function public.schedule_rows(date) to authenticated;
+
+-- Cell numbers remain Staff-list data. A requester may read only the number for
+-- the colleague on a Swap they already proposed, which is enough to open the
+-- text draft without widening schedule_rows for every Staff member.
+create function public.swap_colleague_cell_number(p_swap_id uuid)
+returns text
+language sql stable security definer set search_path = ''
+as $$
+  select member.cell_number
+  from public.swaps swap
+  join public.staff_members member on member.id = swap.colleague_id
+  where swap.id = p_swap_id
+    and swap.requester_id = public.current_staff_member_id()
+    and swap.status = 'proposed'
+    and member.active
+    and exists (
+      select 1 from public.staff_accounts account
+      where account.staff_member_id = member.id
+        and account.accepted_invite_at is not null
+        and account.revoked_at is null
+    )
+$$;
+
+revoke all on function public.swap_colleague_cell_number(uuid) from public;
+grant execute on function public.swap_colleague_cell_number(uuid) to authenticated;

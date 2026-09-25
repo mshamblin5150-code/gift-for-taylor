@@ -86,6 +86,19 @@ enum StaffCellSwapUnavailableReason {
   dayNotFuture,
 }
 
+sealed class ProposeSwapOutcome {
+  const ProposeSwapOutcome();
+}
+
+final class SwapProposed extends ProposeSwapOutcome {
+  const SwapProposed(this.swap);
+  final Swap swap;
+}
+
+final class ProposeSwapFailed extends ProposeSwapOutcome {
+  const ProposeSwapFailed();
+}
+
 enum StaffCellUnavailableReason {
   targetNotWorking,
   recorderNotWorkingToRecord,
@@ -423,14 +436,14 @@ final class MonthSession extends ChangeNotifier {
     required Access access,
     required DateTime month,
     OpenShiftStore? openShiftStore,
-    bool canProposeSwaps = false,
+    SwapStore? swapStore,
     DateTime Function()? now,
     MonthSessionTimerFactory? timerFactory,
     VoidCallback? onAccessRejected,
   }) : _rules = rules,
        _access = access,
        _openShiftStore = openShiftStore,
-       _canProposeSwaps = canProposeSwaps,
+       _swapStore = swapStore,
        month = DateTime(month.year, month.month),
        _now = now ?? DateTime.now,
        _timerFactory = timerFactory ?? Timer.new,
@@ -446,7 +459,7 @@ final class MonthSession extends ChangeNotifier {
   final ScheduleRules _rules;
   final Access _access;
   final OpenShiftStore? _openShiftStore;
-  final bool _canProposeSwaps;
+  final SwapStore? _swapStore;
   final DateTime month;
   final DateTime Function() _now;
   final MonthSessionTimerFactory _timerFactory;
@@ -551,7 +564,7 @@ final class MonthSession extends ChangeNotifier {
     String code,
   ) {
     final requesterId = _access.ownStaffMemberId;
-    if (!_canProposeSwaps ||
+    if (_swapStore == null ||
         requesterId == null ||
         requesterId == row.staffMemberId) {
       return null;
@@ -577,6 +590,24 @@ final class MonthSession extends ChangeNotifier {
       );
     }
     return const StaffCellSwapReview();
+  }
+
+  Future<ProposeSwapOutcome> proposeSwap(
+    String colleagueId,
+    DateTime requesterDate,
+    DateTime colleagueDate,
+  ) async {
+    try {
+      final swap = await _swapStore!.proposeSwap(
+        colleagueId,
+        requesterDate,
+        colleagueDate,
+      );
+      return SwapProposed(swap);
+    } catch (error) {
+      _rejected(error);
+      return const ProposeSwapFailed();
+    }
   }
 
   ({StaffCellAction? action, StaffCellUnavailableReason? unavailableReason})

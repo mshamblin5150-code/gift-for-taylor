@@ -96,6 +96,7 @@ class _SwapsPageState extends State<SwapsPage> {
         context,
         swap: proposed!,
         colleague: choice.colleague,
+        swapStore: widget.swapStore,
         messagesComposer: widget.messagesComposer,
       );
     }
@@ -206,9 +207,7 @@ class _SwapsPageState extends State<SwapsPage> {
                       : swap.status == SwapStatus.proposed &&
                             swap.requesterId == widget.staffMemberId &&
                             grid.rows.any(
-                              (row) =>
-                                  row.staffMemberId == swap.colleagueId &&
-                                  row.cellNumber != null,
+                              (row) => row.staffMemberId == swap.colleagueId,
                             )
                       ? IconButton(
                           tooltip: 'Text colleague',
@@ -219,6 +218,7 @@ class _SwapsPageState extends State<SwapsPage> {
                             colleague: grid.rows.firstWhere(
                               (row) => row.staffMemberId == swap.colleagueId,
                             ),
+                            swapStore: widget.swapStore,
                             messagesComposer: widget.messagesComposer,
                           ),
                         )
