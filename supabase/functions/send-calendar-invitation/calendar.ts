@@ -12,9 +12,15 @@ export type Invitation = {
   ends_at: string | null;
   sequence: number;
   last_modified: string;
+  sender?: string;
 };
 
-export const sender = "no-reply@axion.healthcare";
+export const sender = "no-reply@calendar.axion.healthcare";
+const legacySender = "no-reply@axion.healthcare";
+
+export function invitationSender(event: Invitation): string {
+  return event.sender ?? legacySender;
+}
 
 type InvitationMessage = Invitation | readonly Invitation[];
 
@@ -54,11 +60,15 @@ function invitationEvents(value: InvitationMessage): readonly Invitation[] {
   const events = Array.isArray(value) ? value : [value];
   if (events.length === 0) throw new Error("An invitation needs an event");
   const [{ method, recipient }] = events;
+  const organizer = invitationSender(events[0]);
   if (events.some((event) => event.method !== method)) {
     throw new Error("A calendar message cannot mix methods");
   }
   if (events.some((event) => event.recipient !== recipient)) {
     throw new Error("A calendar message cannot mix recipients");
+  }
+  if (events.some((event) => invitationSender(event) !== organizer)) {
+    throw new Error("A calendar message cannot mix organizers");
   }
   return events;
 }
@@ -71,7 +81,7 @@ function calendarEvent(event: Invitation): string[] {
     `DTSTAMP:${stamp(event.last_modified)}`,
     `LAST-MODIFIED:${stamp(event.last_modified)}`,
     `SEQUENCE:${event.sequence}`,
-    `ORGANIZER;CN=ER Schedule:mailto:${sender}`,
+    `ORGANIZER;CN=ER Schedule:mailto:${invitationSender(event)}`,
     `ATTENDEE;RSVP=FALSE;PARTSTAT=ACCEPTED:mailto:${event.recipient}`,
     `SUMMARY:${
       text(shiftSummary(event.shift_code, event.starts_at, event.ends_at))
@@ -117,7 +127,7 @@ export function invitationMessage(value: InvitationMessage) {
   );
   const isBatch = events.length > 1;
   return {
-    from: `ER Schedule <${sender}>`,
+    from: `ER Schedule <${invitationSender(event)}>`,
     to: event.recipient,
     subject: isBatch
       ? `${events.length} shifts — Month Schedule`

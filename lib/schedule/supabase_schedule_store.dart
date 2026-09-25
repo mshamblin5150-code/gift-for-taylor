@@ -43,16 +43,49 @@ final class SupabaseScheduleStore implements ScheduleStore {
   Future<void> saveShiftCode(LegendCode code, {String? originalCode}) =>
       _client.rpc<void>(
         'save_shift_code',
-        params: {
-          'p_code': code.code,
-          'p_original_code': originalCode,
-          'p_meaning': code.meaning,
-          'p_start_time': code.startTime,
-          'p_end_time': code.endTime,
-          'p_is_working': code.isWorking,
-          'p_coverage_window': code.coverageWindow,
-        },
+        params: _shiftCodeParams(code, originalCode: originalCode),
       );
+
+  Map<String, dynamic> _shiftCodeParams(
+    LegendCode code, {
+    String? originalCode,
+  }) => {
+    'p_code': code.code,
+    'p_original_code': originalCode,
+    'p_meaning': code.meaning,
+    'p_start_time': code.startTime,
+    'p_end_time': code.endTime,
+    'p_is_working': code.isWorking,
+    'p_coverage_window': code.coverageWindow,
+  };
+
+  @override
+  Future<List<ShiftCodeChangePlan>> previewShiftCodeChange(
+    LegendCode code, {
+    String? originalCode,
+  }) async {
+    final result = await _client.rpc<List<dynamic>>(
+      'preview_shift_code_change',
+      params: _shiftCodeParams(code, originalCode: originalCode),
+    );
+    return result
+        .cast<Map<String, dynamic>>()
+        .map(ShiftCodeChangePlan.fromJson)
+        .toList();
+  }
+
+  @override
+  Future<void> commitShiftCodeChange(
+    LegendCode code,
+    List<ShiftCodeChangePlan> expectedPlan, {
+    String? originalCode,
+  }) => _client.rpc<void>(
+    'commit_shift_code_change',
+    params: {
+      ..._shiftCodeParams(code, originalCode: originalCode),
+      'p_expected_plan': [for (final row in expectedPlan) row.toJson()],
+    },
+  );
 
   @override
   Future<void> deleteShiftCode(String code) async {

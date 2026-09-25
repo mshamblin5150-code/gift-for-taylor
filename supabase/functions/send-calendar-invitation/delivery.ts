@@ -1,4 +1,4 @@
-import type { Invitation } from "./calendar.ts";
+import { type Invitation, invitationSender } from "./calendar.ts";
 
 export type ClaimedInvitation = Invitation & { delivery_claim: string };
 
@@ -58,15 +58,15 @@ export function createCalendarInvitationHandler(
   function groupClaimsForDelivery(
     invitations: ClaimedInvitationMessage,
   ): ClaimedInvitationMessage[] {
-    const grouped = new Map<
-      string,
-      Map<Invitation["method"], ClaimedInvitation[]>
-    >();
+    const grouped = new Map<string, Map<string, ClaimedInvitation[]>>();
     for (const invitation of invitations) {
       const recipientGroups = grouped.get(invitation.recipient) ?? new Map();
-      const group = recipientGroups.get(invitation.method) ?? [];
+      const messageKey = `${invitation.method}\0${
+        invitationSender(invitation)
+      }`;
+      const group = recipientGroups.get(messageKey) ?? [];
       group.push(invitation);
-      recipientGroups.set(invitation.method, group);
+      recipientGroups.set(messageKey, group);
       grouped.set(invitation.recipient, recipientGroups);
     }
     return [...grouped.values()].flatMap((recipientGroups) =>

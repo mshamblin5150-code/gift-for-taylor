@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 /// The Shift code catalog. The Manager may edit it; Staff members may read it.
@@ -193,8 +194,16 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
     end.dispose();
     if (result == null) return;
     try {
-      await widget.rules.store.saveShiftCode(
+      final plan = await widget.rules.store.previewShiftCodeChange(
         result,
+        originalCode: original?.code,
+      );
+      if (plan.isNotEmpty && !await _confirmCalendarInvitationChanges(plan)) {
+        return;
+      }
+      await widget.rules.store.commitShiftCodeChange(
+        result,
+        plan,
         originalCode: original?.code,
       );
       _reload();
@@ -205,6 +214,51 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
       }
     }
   }
+
+  Future<bool> _confirmCalendarInvitationChanges(
+    List<ShiftCodeChangePlan> plan,
+  ) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Review Calendar invitations'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'This Shift code change affects Calendar invitations for '
+                  'released Schedules. '
+                  'Confirm the dates and counts before saving.',
+                ),
+                const SizedBox(height: 12),
+                for (final row in plan)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      '${DateFormat.MMMd().format(row.workDate)} · '
+                      '${row.shiftCode} · ${row.count} '
+                      '${row.count == 1 ? 'invitation' : 'invitations'} '
+                      '${row.method == CalendarInvitationMethod.cancel ? 'withdrawn' : 'updated'}',
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Confirm change'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
 
   Future<void> _delete(LegendCode code) async {
     final confirmed = await showDialog<bool>(

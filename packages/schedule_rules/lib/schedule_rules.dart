@@ -60,6 +60,15 @@ abstract interface class ScheduleRules {
 abstract interface class ScheduleStore {
   Future<List<ScheduleSection>> sections();
   Future<List<LegendCode>> shiftCodes();
+  Future<List<ShiftCodeChangePlan>> previewShiftCodeChange(
+    LegendCode code, {
+    String? originalCode,
+  });
+  Future<void> commitShiftCodeChange(
+    LegendCode code,
+    List<ShiftCodeChangePlan> expectedPlan, {
+    String? originalCode,
+  });
   Future<void> saveShiftCode(LegendCode code, {String? originalCode});
   Future<void> deleteShiftCode(String code);
 
@@ -577,6 +586,55 @@ final class LegendCode {
   /// Day or Night coverage; null means the code counts toward neither window.
   final String? coverageWindow;
   final bool active;
+}
+
+enum CalendarInvitationMethod {
+  request('REQUEST'),
+  cancel('CANCEL');
+
+  const CalendarInvitationMethod(this.value);
+
+  final String value;
+
+  static CalendarInvitationMethod fromValue(String value) =>
+      CalendarInvitationMethod.values.singleWhere(
+        (item) => item.value == value,
+      );
+}
+
+final class ShiftCodeChangePlan {
+  const ShiftCodeChangePlan({
+    required this.workDate,
+    required this.shiftCode,
+    required this.method,
+    required this.count,
+    this.staffMemberIds = const [],
+  });
+
+  factory ShiftCodeChangePlan.fromJson(Map<String, dynamic> json) =>
+      ShiftCodeChangePlan(
+        workDate: DateTime.parse(json['work_date'] as String),
+        shiftCode: json['shift_code'] as String,
+        method: CalendarInvitationMethod.fromValue(json['method'] as String),
+        count: json['count'] as int,
+        staffMemberIds: List<String>.unmodifiable(
+          (json['staff_member_ids'] as List<dynamic>).cast<String>(),
+        ),
+      );
+
+  final DateTime workDate;
+  final String shiftCode;
+  final CalendarInvitationMethod method;
+  final int count;
+  final List<String> staffMemberIds;
+
+  Map<String, dynamic> toJson() => {
+    'work_date': workDate.toIso8601String().substring(0, 10),
+    'shift_code': shiftCode,
+    'method': method.value,
+    'count': count,
+    'staff_member_ids': staffMemberIds,
+  };
 }
 
 String? coverageWindowForHours(String? start, String? end) {

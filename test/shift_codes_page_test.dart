@@ -246,4 +246,54 @@ void main() {
       findsWidgets,
     );
   });
+
+  testWidgets('affected invitations are reviewed before a Shift code saves', (
+    tester,
+  ) async {
+    final database = InMemoryScheduleDatabase(
+      sections: const [],
+      grants: {'manager': Grants(manager: true)},
+      shiftCodes: const [
+        LegendCode(
+          '7A',
+          startTime: '07:00',
+          endTime: '19:00',
+          isWorking: true,
+          coverageWindow: 'day',
+        ),
+      ],
+      shiftCodeChangePlan: [
+        ShiftCodeChangePlan(
+          workDate: DateTime(2027, 3, 4),
+          shiftCode: '7A',
+          method: CalendarInvitationMethod.request,
+          count: 2,
+        ),
+      ],
+    );
+    final rules = scheduleRulesInMemory(database, actingAs: 'manager');
+
+    await tester.pumpWidget(MaterialApp(home: ShiftCodesPage(rules: rules)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('7A'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Starts (HH:mm, optional)'),
+      '08:00',
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Review Calendar invitations'), findsOneWidget);
+    expect(find.text('Mar 4 · 7A · 2 invitations updated'), findsOneWidget);
+    expect(
+      (await rules.store.shiftCodes()).single.startTime,
+      '07:00',
+      reason: 'preview must not save before confirmation',
+    );
+
+    await tester.tap(find.text('Confirm change'));
+    await tester.pumpAndSettle();
+    expect((await rules.store.shiftCodes()).single.startTime, '08:00');
+  });
 }
