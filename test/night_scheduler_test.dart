@@ -149,6 +149,10 @@ void main() {
 
       await tester.tap(cell('rn-2', october16));
       await tester.pumpAndSettle();
+      expect(
+        find.text('There are no actions available for this cell.'),
+        findsNothing,
+      );
       await tester.tap(find.text('Edit Shift'));
       await tester.pumpAndSettle();
       expect(find.text('Other Shift code'), findsOneWidget);

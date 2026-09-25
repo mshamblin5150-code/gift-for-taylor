@@ -96,7 +96,8 @@ class _StaffCellSheet extends StatelessWidget {
                 const SizedBox(height: 8),
               ],
             ],
-            if (action == null &&
+            if (!canEditShift &&
+                action == null &&
                 (review.swap == null || !review.swap!.available))
               Text(
                 'There are no actions available for this cell.',
