@@ -2,13 +2,17 @@ import type { Invitation } from "./calendar.ts";
 
 export type ClaimedInvitation = Invitation & { delivery_claim: string };
 
+export type ClaimedInvitationMessage = readonly ClaimedInvitation[];
+
 export type DeliveryDependencies = {
   secret: string;
-  claim: (id: string) => Promise<ClaimedInvitation | null>;
-  beginSend: (invitation: ClaimedInvitation) => Promise<void>;
-  send: (invitation: ClaimedInvitation) => Promise<void>;
-  markSent: (invitation: ClaimedInvitation) => Promise<void>;
-  release: (invitation: ClaimedInvitation) => Promise<void>;
+  claim: (id: string) => Promise<ClaimedInvitationMessage>;
+  beginSend: (
+    invitations: ClaimedInvitationMessage,
+  ) => Promise<ClaimedInvitationMessage>;
+  send: (invitations: ClaimedInvitationMessage) => Promise<void>;
+  markSent: (invitations: ClaimedInvitationMessage) => Promise<void>;
+  release: (invitations: ClaimedInvitationMessage) => Promise<void>;
 };
 
 function json(body: Record<string, unknown>, status = 200): Response {
@@ -37,16 +41,41 @@ function isDefinitiveSmtpRejection(error: unknown): boolean {
 export function createCalendarInvitationHandler(
   dependencies: DeliveryDependencies,
 ): (request: Request) => Promise<Response> {
-  async function releaseForRetry(invitation: ClaimedInvitation): Promise<void> {
+  async function releaseForRetry(
+    invitations: ClaimedInvitationMessage,
+  ): Promise<void> {
     try {
-      await dependencies.release(invitation);
+      await dependencies.release(invitations);
     } catch (releaseError) {
       console.error(
         "Calendar invitation claim release failed",
-        invitation.id,
+        invitations[0]?.id,
         releaseError,
       );
     }
+  }
+
+  function groupClaimsForDelivery(
+    invitations: ClaimedInvitationMessage,
+  ): ClaimedInvitationMessage[] {
+    const grouped = new Map<
+      string,
+      Map<Invitation["method"], ClaimedInvitation[]>
+    >();
+    for (const invitation of invitations) {
+      const recipientGroups = grouped.get(invitation.recipient) ?? new Map();
+      const group = recipientGroups.get(invitation.method) ?? [];
+      group.push(invitation);
+      recipientGroups.set(invitation.method, group);
+      grouped.set(invitation.recipient, recipientGroups);
+    }
+    return [...grouped.values()].flatMap((recipientGroups) =>
+      [...recipientGroups.values()].map((group) =>
+        group.sort((left, right) =>
+          left.work_date.localeCompare(right.work_date)
+        )
+      )
+    );
   }
 
   return async (request) => {
@@ -64,37 +93,54 @@ export function createCalendarInvitationHandler(
       return new Response("Invalid invitation id", { status: 400 });
     }
 
-    let invitation: ClaimedInvitation | null;
+    let invitations: ClaimedInvitationMessage;
     try {
-      invitation = await dependencies.claim(id);
+      invitations = await dependencies.claim(id);
     } catch (error) {
       console.error("Calendar invitation claim failed", id, error);
       return json({ sent: 0, failures: 1 }, 503);
     }
-    if (!invitation) return json({ sent: 0, failures: 0 });
+    if (invitations.length === 0) return json({ sent: 0, failures: 0 });
 
-    try {
-      await dependencies.beginSend(invitation);
-    } catch (error) {
-      console.error("Calendar invitation send start failed", id, error);
-      await releaseForRetry(invitation);
-      return json({ sent: 0, failures: 1 }, 503);
-    }
+    const queuedMessages = groupClaimsForDelivery(invitations);
+    let sent = 0;
+    let failures = 0;
+    let failureStatus = 200;
+    for (let index = 0; index < queuedMessages.length; index++) {
+      const message = queuedMessages[index];
+      let sendable: ClaimedInvitationMessage;
+      try {
+        sendable = await dependencies.beginSend(message);
+      } catch (error) {
+        console.error("Calendar invitation send start failed", id, error);
+        await releaseForRetry(message);
+        failures++;
+        failureStatus = 503;
+        continue;
+      }
+      if (sendable.length === 0) continue;
 
-    try {
-      await dependencies.send(invitation);
-    } catch (error) {
-      console.error("Calendar invitation delivery failed", id, error);
-      if (isDefinitiveSmtpRejection(error)) await releaseForRetry(invitation);
-      return json({ sent: 0, failures: 1 }, 502);
-    }
+      try {
+        await dependencies.send(sendable);
+      } catch (error) {
+        console.error("Calendar invitation delivery failed", id, error);
+        if (isDefinitiveSmtpRejection(error)) {
+          await releaseForRetry(sendable);
+        }
+        failures++;
+        failureStatus = Math.max(failureStatus, 502);
+        continue;
+      }
 
-    try {
-      await dependencies.markSent(invitation);
-    } catch (error) {
-      console.error("Calendar invitation completion failed", id, error);
-      return json({ sent: 0, failures: 1 }, 503);
+      try {
+        await dependencies.markSent(sendable);
+        sent++;
+      } catch (error) {
+        console.error("Calendar invitation completion failed", id, error);
+        failures++;
+        failureStatus = 503;
+      }
     }
-    return json({ sent: 1, failures: 0 });
+    return json({ sent, failures }, failureStatus);
   };
 }
