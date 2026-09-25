@@ -39,3 +39,26 @@ Future<T> mapCallInRefusal<T>(Future<T> Function() command) async {
     rethrow;
   }
 }
+
+/// Maps Swap proposal refusals to domain values so pages never inspect SQL
+/// messages or duplicate the rules that produced them.
+Future<T> mapSwapProposalRefusal<T>(Future<T> Function() command) async {
+  try {
+    return await mapAccessRejected(command);
+  } on PostgrestException catch (error) {
+    final reason = switch (error.code) {
+      'P2814' => SwapProposalRefusal.differentStaffRequired,
+      'P2815' => SwapProposalRefusal.equalCountsRequired,
+      'P2816' => SwapProposalRefusal.shiftLimitExceeded,
+      'P2817' => SwapProposalRefusal.duplicateDate,
+      'P2818' => SwapProposalRefusal.colleagueNotInvited,
+      'P2819' => SwapProposalRefusal.dayNotFuture,
+      'P2820' => SwapProposalRefusal.sourceUnavailable,
+      'P2821' => SwapProposalRefusal.destinationUnavailable,
+      'P2822' => SwapProposalRefusal.noChange,
+      _ => null,
+    };
+    if (reason != null) throw SwapProposalRefused(reason);
+    rethrow;
+  }
+}

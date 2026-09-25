@@ -527,6 +527,7 @@ final class ScheduleChange {
     required this.changedByName,
     required this.changedAt,
     required this.announced,
+    this.swapId,
     this.moot = false,
     this.reach,
   });
@@ -544,6 +545,7 @@ final class ScheduleChange {
   final String changedByName;
   final DateTime changedAt;
   final bool announced;
+  final String? swapId;
   final bool moot;
   final String? reach;
 }

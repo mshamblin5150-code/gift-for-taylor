@@ -135,6 +135,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> openRequesterCell(WidgetTester tester) async {
+    await tester.tap(find.text('Month'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('cell-requester-2026-09-11')));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets(
     'Staff proposes a Swap from a colleague working cell with their shift fixed',
     (tester) async {
@@ -157,12 +164,12 @@ void main() {
 
       final proposed = (await swaps.storeFor('requester').swaps()).single;
       expect(proposed.colleagueId, 'colleague');
-      expect(proposed.requesterDate, requesterDay);
-      expect(proposed.colleagueDate, colleagueDay);
+      expect(proposed.requesterShifts.single.date, requesterDay);
+      expect(proposed.colleagueShifts.single.date, colleagueDay);
       expect(messages.numbers, ['5553334444']);
       expect(
         messages.body,
-        'Hi Colleague RN, can we Swap my Sep 11 7A shift for your Sep 14 7P shift? '
+        'Hi Colleague RN, can we Swap my Sep 11 7A for your Sep 14 7P? '
         'Please answer in the ER Schedule app.',
       );
     },
@@ -182,6 +189,176 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Choose my shift'), findsOneWidget);
     expect(find.text('Sep 14 — 7P'), findsOneWidget);
+  });
+
+  testWidgets('a multi-day Swap accumulates from a colleague cell', (
+    tester,
+  ) async {
+    final requesterDayTwo = DateTime(2026, 9, 12);
+    final colleagueDayTwo = DateTime(2026, 9, 15);
+    final manager = scheduleRulesInMemory(schedule, actingAs: 'manager');
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: requester.staffMemberId,
+        sectionId: section.id,
+        date: requesterDayTwo,
+        shiftCode: '7A',
+      ),
+    );
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: colleague.staffMemberId,
+        sectionId: section.id,
+        date: colleagueDayTwo,
+        shiftCode: '7P',
+      ),
+    );
+    schedule.markAllAnnounced();
+    swaps = InMemorySwapDatabase(
+      shifts: {
+        (requester.staffMemberId, requesterDay): '7A',
+        (requester.staffMemberId, requesterDayTwo): '7A',
+        (colleague.staffMemberId, colleagueDay): '7P',
+        (colleague.staffMemberId, colleagueDayTwo): '7P',
+      },
+    );
+
+    await pumpSchedule(tester);
+    await openColleagueCell(tester);
+    await tester.tap(find.text('Propose a Swap'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose my shift'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sep 11 — 7A'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(TextButton, 'Add another shift').first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sep 12 — 7A'));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Pick 1 more of Colleague RN's shift."), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Add another shift').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sep 15 — 7P'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Propose'));
+    await tester.pumpAndSettle();
+
+    final proposed = (await swaps.storeFor('requester').swaps()).single;
+    expect(proposed.requesterShifts.map((shift) => shift.date), [
+      requesterDay,
+      requesterDayTwo,
+    ]);
+    expect(proposed.colleagueShifts.map((shift) => shift.date), [
+      colleagueDay,
+      colleagueDayTwo,
+    ]);
+  });
+
+  testWidgets(
+    'a multi-day Swap can start from the requester own working cell',
+    (tester) async {
+      final requesterDayTwo = DateTime(2026, 9, 13);
+      final colleagueDayTwo = DateTime(2026, 9, 15);
+      final manager = scheduleRulesInMemory(schedule, actingAs: 'manager');
+      await manager.saveCell(
+        SaveCell(
+          staffMemberId: requester.staffMemberId,
+          sectionId: section.id,
+          date: requesterDayTwo,
+          shiftCode: '7A',
+        ),
+      );
+      await manager.saveCell(
+        SaveCell(
+          staffMemberId: colleague.staffMemberId,
+          sectionId: section.id,
+          date: colleagueDayTwo,
+          shiftCode: '7P',
+        ),
+      );
+      schedule.markAllAnnounced();
+      swaps = InMemorySwapDatabase(
+        shifts: {
+          (requester.staffMemberId, requesterDay): '7A',
+          (requester.staffMemberId, requesterDayTwo): '7A',
+          (colleague.staffMemberId, colleagueDay): '7P',
+          (colleague.staffMemberId, colleagueDayTwo): '7P',
+        },
+        cellNumbers: {colleague.staffMemberId: '5553334444'},
+      );
+
+      await pumpSchedule(tester);
+      await openRequesterCell(tester);
+      await tester.tap(find.text('Propose a Swap'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sep 11 — 7A'), findsOneWidget);
+      expect(find.text('Colleague RN'), findsWidgets);
+      await tester.tap(
+        find.widgetWithText(TextButton, 'Add another shift').first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Already selected'), findsOneWidget);
+      await tester.tap(find.text('Sep 13 — 7A'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text("Choose Colleague RN's shift"));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sep 14 — 7P'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(TextButton, 'Add another shift').last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sep 15 — 7P'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Propose'));
+      await tester.pumpAndSettle();
+
+      final proposed = (await swaps.storeFor('requester').swaps()).single;
+      expect(proposed.requesterShifts.map((shift) => shift.date), [
+        requesterDay,
+        requesterDayTwo,
+      ]);
+      expect(proposed.colleagueShifts.map((shift) => shift.date), [
+        colleagueDay,
+        colleagueDayTwo,
+      ]);
+      expect(
+        messages.body,
+        'Hi Colleague RN, can we Swap my Sep 11 and 13 7A for your '
+        'Sep 14–15 7P? Please answer in the ER Schedule app.',
+      );
+    },
+  );
+
+  testWidgets('own-cell entry discloses when no colleague can take the set', (
+    tester,
+  ) async {
+    await scheduleRulesInMemory(schedule, actingAs: 'manager').saveCell(
+      SaveCell(
+        staffMemberId: colleague.staffMemberId,
+        sectionId: section.id,
+        date: requesterDay,
+        shiftCode: '7P',
+      ),
+    );
+    schedule.markAllAnnounced();
+
+    await pumpSchedule(tester);
+    await openRequesterCell(tester);
+    await tester.tap(find.text('Propose a Swap'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'No one colleague can take all these days. This would need two separate Swaps, and either can be declined on its own.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Manager-linked Staff edits without a Swap proposal action', (
@@ -311,8 +488,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final proposed = (await swaps.storeFor('requester').swaps()).single;
-    expect(proposed.requesterDate, octoberDay);
-    expect(proposed.colleagueDate, colleagueDay);
+    expect(proposed.requesterShifts.single.date, octoberDay);
+    expect(proposed.colleagueShifts.single.date, colleagueDay);
   });
 }
 

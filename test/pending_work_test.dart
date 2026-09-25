@@ -56,12 +56,12 @@ Swap _swap(String id, SwapStatus status, {String colleague = 'alice'}) => Swap(
   id: id,
   requesterId: 'bob',
   colleagueId: colleague,
-  requesterDate: DateTime(2026, 9, 20),
-  colleagueDate: DateTime(2026, 9, 21),
-  requesterCode: 'D',
-  colleagueCode: 'N',
-  requesterTargetCode: '',
-  colleagueTargetCode: '',
+  requesterShifts: [
+    SwapShift(date: DateTime(2026, 9, 20), shiftCode: 'D', targetCode: ''),
+  ],
+  colleagueShifts: [
+    SwapShift(date: DateTime(2026, 9, 21), shiftCode: 'N', targetCode: ''),
+  ],
   status: status,
 );
 

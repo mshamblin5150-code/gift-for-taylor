@@ -1,11 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'messages_composer.dart';
 import 'swap_proposal.dart';
+import 'swaps_session.dart';
 
 class SwapsPage extends StatefulWidget {
   const SwapsPage({
@@ -16,6 +15,7 @@ class SwapsPage extends StatefulWidget {
     required this.staffMemberId,
     required this.isManager,
     this.messagesComposer,
+    this.onAccessRejected,
     this.now = DateTime.now,
   });
 
@@ -25,6 +25,7 @@ class SwapsPage extends StatefulWidget {
   final String? staffMemberId;
   final bool isManager;
   final MessagesComposer? messagesComposer;
+  final VoidCallback? onAccessRejected;
   final DateTime Function() now;
 
   @override
@@ -32,44 +33,23 @@ class SwapsPage extends StatefulWidget {
 }
 
 class _SwapsPageState extends State<SwapsPage> {
-  late Future<(MonthGrid, List<Swap>)> _data = _load();
-  StreamSubscription<void>? _updates;
-  bool _busy = false;
+  late final SwapsSession _session;
 
   @override
   void initState() {
     super.initState();
-    _updates = widget.swapStore.updates().listen((_) => _refresh());
+    _session = SwapsSession(
+      rules: widget.rules,
+      swapStore: widget.swapStore,
+      month: widget.month,
+      onAccessRejected: widget.onAccessRejected,
+    );
   }
 
   @override
   void dispose() {
-    _updates?.cancel();
+    _session.dispose();
     super.dispose();
-  }
-
-  Future<(MonthGrid, List<Swap>)> _load() async => (
-    await widget.rules.monthGrid(widget.month),
-    await widget.swapStore.swaps(),
-  );
-
-  void _refresh() => setState(() => _data = _load());
-
-  Future<void> _run(Future<void> Function() action) async {
-    setState(() => _busy = true);
-    try {
-      await action();
-      if (mounted) _refresh();
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.toString())));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
   }
 
   Future<void> _propose(MonthGrid grid) async {
@@ -83,22 +63,25 @@ class _SwapsPageState extends State<SwapsPage> {
       now: widget.now,
     );
     if (choice == null) return;
-    Swap? proposed;
-    await _run(() async {
-      proposed = await widget.swapStore.proposeSwap(
-        choice.colleague.staffMemberId,
-        choice.requesterDate,
-        choice.colleagueDate,
-      );
-    });
-    if (proposed != null && mounted) {
-      await textSwapColleague(
-        context,
-        swap: proposed!,
-        colleague: choice.colleague,
-        swapStore: widget.swapStore,
-        messagesComposer: widget.messagesComposer,
-      );
+    final outcome = await _session.propose(
+      choice.colleague.staffMemberId,
+      choice.requesterDates,
+      choice.colleagueDates,
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case SwapsProposed(:final swap):
+        await textSwapColleague(
+          context,
+          swap: swap,
+          colleague: choice.colleague,
+          swapStore: widget.swapStore,
+          messagesComposer: widget.messagesComposer,
+        );
+      case SwapsProposalRejected(:final reason):
+        _message(swapProposalRefusalMessage(reason));
+      case SwapsProposeFailed():
+        _message("That Swap wasn't proposed. Try again.");
     }
   }
 
@@ -126,13 +109,25 @@ class _SwapsPageState extends State<SwapsPage> {
     );
     controller.dispose();
     if (reason == null) return;
-    await _run(
-      () => widget.swapStore.answerSwap(
-        swap.id,
-        accept: accept,
-        reason: reason.trim(),
-      ),
+    final outcome = await _session.answer(
+      swap.id,
+      accept: accept,
+      reason: reason.trim(),
     );
+    if (outcome is SwapsWriteFailed && mounted) {
+      _message("That Swap answer wasn't saved. Try again.");
+    }
+  }
+
+  void _message(String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+
+  Future<void> _approve(Swap swap) async {
+    final outcome = await _session.approve(swap.id);
+    if (outcome is SwapsWriteFailed && mounted) {
+      _message("That Swap wasn't approved. Try again.");
+    }
   }
 
   @override
@@ -142,27 +137,29 @@ class _SwapsPageState extends State<SwapsPage> {
       actions: [
         IconButton(
           tooltip: 'Refresh Swaps',
-          onPressed: _refresh,
+          onPressed: _session.refresh,
           icon: const Icon(Icons.refresh),
         ),
       ],
     ),
-    body: FutureBuilder<(MonthGrid, List<Swap>)>(
-      future: _data,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+    body: ListenableBuilder(
+      listenable: _session,
+      builder: (context, _) {
+        final state = _session.state;
+        final grid = state.grid;
+        if (grid == null) {
           return Center(
-            child: snapshot.hasError
-                ? Text(snapshot.error.toString())
+            child: state.loadError != null
+                ? const Text("Swaps couldn't be loaded. Try again.")
                 : const CircularProgressIndicator(),
           );
         }
-        final (grid, swaps) = snapshot.data!;
+        final swaps = state.swaps;
         return ListView(
           children: [
             if (widget.staffMemberId != null &&
                 grid.status == MonthStatus.released &&
-                !_busy)
+                !state.busy)
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: FilledButton.icon(
@@ -180,13 +177,12 @@ class _SwapsPageState extends State<SwapsPage> {
                     '${grid.displayNameOf(swap.colleagueId)}',
                   ),
                   subtitle: Text(
-                    '${DateFormat.MMMd().format(swap.requesterDate)} '
-                    '${swap.requesterCode} ↔ ${DateFormat.MMMd().format(swap.colleagueDate)} '
-                    '${swap.colleagueCode}\n${swap.status.name}'
+                    '${_summary(grid, swap)}\n${swap.status.name}'
+                    '${swap.status == SwapStatus.voided && swap.voidedDate != null ? ' — ${grid.displayNameOf(swap.voidedStaffMemberId!)} on ${DateFormat.MMMd().format(swap.voidedDate!)} changed' : ''}'
                     '${swap.reason == null ? '' : ' — ${swap.reason}'}',
                   ),
                   isThreeLine: true,
-                  trailing: _busy
+                  trailing: state.busy
                       ? null
                       : swap.status == SwapStatus.proposed &&
                             swap.colleagueId == widget.staffMemberId
@@ -200,8 +196,7 @@ class _SwapsPageState extends State<SwapsPage> {
                         )
                       : swap.status == SwapStatus.accepted && widget.isManager
                       ? FilledButton(
-                          onPressed: () =>
-                              _run(() => widget.swapStore.approveSwap(swap.id)),
+                          onPressed: () => _approve(swap),
                           child: const Text('Approve'),
                         )
                       : swap.status == SwapStatus.proposed &&
@@ -230,4 +225,20 @@ class _SwapsPageState extends State<SwapsPage> {
       },
     ),
   );
+
+  String _summary(MonthGrid grid, Swap swap) {
+    if (widget.staffMemberId == swap.requesterId) return swapSummary(swap);
+    if (widget.staffMemberId == swap.colleagueId) {
+      return swapSummaryFor(
+        swap,
+        perspective: SwapSummaryPerspective.colleague,
+      );
+    }
+    return swapSummaryFor(
+      swap,
+      perspective: SwapSummaryPerspective.neutral,
+      requesterName: grid.displayNameOf(swap.requesterId),
+      colleagueName: grid.displayNameOf(swap.colleagueId),
+    );
+  }
 }

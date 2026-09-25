@@ -266,6 +266,13 @@ final class InMemoryScheduleDatabase {
   /// Marks every logged change announced.
   void markAllAnnounced() => _markAnnounced((_) => true);
 
+  /// Replaces the change log for focused announcement and history tests.
+  void seedScheduleChanges(List<ScheduleChange> changes) {
+    _changes
+      ..clear()
+      ..addAll(changes);
+  }
+
   void _markAnnounced(bool Function(ScheduleChange change) where) {
     for (final (index, change) in _changes.indexed) {
       if (!where(change)) continue;
@@ -279,6 +286,7 @@ final class InMemoryScheduleDatabase {
         changedByName: change.changedByName,
         changedAt: change.changedAt,
         announced: true,
+        swapId: change.swapId,
       );
     }
   }
@@ -704,6 +712,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           changedByName: change.changedByName,
           changedAt: change.changedAt,
           announced: settlement.announced,
+          swapId: change.swapId,
           moot: settlement.moot,
           reach: settlement.reach,
         );

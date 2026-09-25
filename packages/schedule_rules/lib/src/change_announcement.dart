@@ -17,6 +17,7 @@ final class ChangeAnnouncement {
     Iterable<ScheduleChange> unannounced,
     EditableSections editable,
   ) {
+    final changes = unannounced.toList();
     final sectionOf = {
       for (final row in grid.rows) row.staffMemberId: row.sectionId,
     };
@@ -31,6 +32,14 @@ final class ChangeAnnouncement {
               date: day,
               oldShiftCode: grid.publishedCodeFor(row.staffMemberId, day),
               newShiftCode: grid.shiftCodeFor(row.staffMemberId, day) ?? '',
+              swapId: changes
+                  .where(
+                    (change) =>
+                        change.staffMemberId == row.staffMemberId &&
+                        _sameDay(change.date, day),
+                  )
+                  .lastOrNull
+                  ?.swapId,
             ),
       ];
       if (changedDays.isNotEmpty) {
@@ -39,7 +48,7 @@ final class ChangeAnnouncement {
     }
     return ChangeAnnouncement._(
       {
-        for (final change in unannounced)
+        for (final change in changes)
           if (editable.contains(sectionOf[change.staffMemberId] ?? ''))
             change.id,
       },
@@ -103,11 +112,21 @@ final class AffectedPerson {
   String get message =>
       ['Hi ${row.displayName}, ER Schedule change:', ..._dayLines].join('\n');
 
-  Iterable<String> get _dayLines => changedDays.map(
-    (day) =>
-        '${_shortDate(day.date)}: ${_spoken(day.newShiftCode)} '
-        '(was ${_spoken(day.oldShiftCode)})',
-  );
+  Iterable<String> get _dayLines sync* {
+    final groups = <String, List<ChangedDay>>{};
+    for (final (index, day) in changedDays.indexed) {
+      final key = day.swapId ?? 'standalone:$index';
+      groups.putIfAbsent(key, () => []).add(day);
+    }
+    for (final days in groups.values) {
+      final isSwap = days.first.swapId != null;
+      if (isSwap) yield 'Swap:';
+      for (final day in days) {
+        yield '${isSwap ? '  ' : ''}${_shortDate(day.date)}: '
+            '${_spoken(day.newShiftCode)} (was ${_spoken(day.oldShiftCode)})';
+      }
+    }
+  }
 }
 
 /// One day's change: the code last announced and the code now.
@@ -116,11 +135,13 @@ final class ChangedDay {
     required this.date,
     required this.oldShiftCode,
     required this.newShiftCode,
+    this.swapId,
   });
 
   final DateTime date;
   final String oldShiftCode;
   final String newShiftCode;
+  final String? swapId;
 }
 
 String _spoken(String shiftCode) => switch (shiftCode) {

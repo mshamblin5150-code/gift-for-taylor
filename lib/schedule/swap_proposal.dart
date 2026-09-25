@@ -7,13 +7,13 @@ import 'messages_composer.dart';
 final class SwapProposalChoice {
   const SwapProposalChoice({
     required this.colleague,
-    required this.requesterDate,
-    required this.colleagueDate,
+    required this.requesterDates,
+    required this.colleagueDates,
   });
 
   final ScheduleRow colleague;
-  final DateTime requesterDate;
-  final DateTime colleagueDate;
+  final List<DateTime> requesterDates;
+  final List<DateTime> colleagueDates;
 }
 
 Future<SwapProposalChoice?> showSwapProposalDialog(
@@ -24,6 +24,7 @@ Future<SwapProposalChoice?> showSwapProposalDialog(
   required DateTime Function() now,
   ScheduleRow? fixedColleague,
   DateTime? fixedColleagueDate,
+  DateTime? fixedRequesterDate,
 }) async {
   final codes = await rules.store.shiftCodes();
   if (!context.mounted) return null;
@@ -53,6 +54,7 @@ Future<SwapProposalChoice?> showSwapProposalDialog(
       colleagues: colleagues,
       fixedColleague: fixedColleague,
       fixedColleagueDate: fixedColleagueDate,
+      fixedRequesterDate: fixedRequesterDate,
       now: now,
     ),
   );
@@ -71,12 +73,9 @@ Future<void> textSwapColleague(
         colleague.cellNumber ??
         await swapStore.colleagueCellNumberForSwap(swap.id);
     if (number == null) return;
-    await messagesComposer.open(
-      [number],
-      'Hi ${colleague.displayName}, can we Swap my ${DateFormat.MMMd().format(swap.requesterDate)} '
-      '${swap.requesterCode} shift for your ${DateFormat.MMMd().format(swap.colleagueDate)} '
-      '${swap.colleagueCode} shift? Please answer in the ER Schedule app.',
-    );
+    await messagesComposer.open([
+      number,
+    ], swapTextMessage(swap, colleague.displayName));
   } catch (_) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -90,6 +89,114 @@ Future<void> textSwapColleague(
   }
 }
 
+String swapSummary(Swap swap, {int maxLength = 96}) {
+  return swapSummaryFor(swap, maxLength: maxLength);
+}
+
+enum SwapSummaryPerspective { requester, colleague, neutral }
+
+String swapSummaryFor(
+  Swap swap, {
+  SwapSummaryPerspective perspective = SwapSummaryPerspective.requester,
+  String? requesterName,
+  String? colleagueName,
+  int maxLength = 96,
+}) {
+  final (leftLabel, left, rightLabel, right) = switch (perspective) {
+    SwapSummaryPerspective.requester => (
+      'my',
+      swap.requesterShifts,
+      'your',
+      swap.colleagueShifts,
+    ),
+    SwapSummaryPerspective.colleague => (
+      'my',
+      swap.colleagueShifts,
+      'your',
+      swap.requesterShifts,
+    ),
+    SwapSummaryPerspective.neutral => (
+      '${requesterName ?? 'Requester'}’s',
+      swap.requesterShifts,
+      '${colleagueName ?? 'Colleague'}’s',
+      swap.colleagueShifts,
+    ),
+  };
+  final detailed =
+      '$leftLabel ${_sideSummary(left)} for $rightLabel ${_sideSummary(right)}';
+  if (detailed.length <= maxLength) return detailed;
+  return '$leftLabel ${left.length} shifts for $rightLabel '
+      '${right.length} shifts in ER Schedule';
+}
+
+String swapTextMessage(Swap swap, String colleagueName) {
+  final prefix = 'Hi $colleagueName, can we Swap ';
+  const suffix = '? Please answer in the ER Schedule app.';
+  final detailed = swapSummaryFor(swap, maxLength: 1000);
+  final summary = prefix.length + detailed.length + suffix.length <= 160
+      ? detailed
+      : swapSummaryFor(swap, maxLength: 0);
+  return '$prefix$summary$suffix';
+}
+
+String swapProposalRefusalMessage(SwapProposalRefusal reason) =>
+    switch (reason) {
+      SwapProposalRefusal.differentStaffRequired =>
+        'Choose another Staff member for this Swap.',
+      SwapProposalRefusal.equalCountsRequired =>
+        'Pick the same number of shifts for each Staff member.',
+      SwapProposalRefusal.shiftLimitExceeded =>
+        'A Swap can include at most 31 shifts for each Staff member.',
+      SwapProposalRefusal.duplicateDate => 'Choose each shift only once.',
+      SwapProposalRefusal.colleagueNotInvited =>
+        'That colleague is not in the app yet.',
+      SwapProposalRefusal.dayNotFuture => 'Swap shifts must be after today.',
+      SwapProposalRefusal.sourceUnavailable =>
+        'An offered shift changed or its Schedule is no longer released.',
+      SwapProposalRefusal.destinationUnavailable =>
+        'Someone is now working on a destination day. Choose another Swap.',
+      SwapProposalRefusal.noChange =>
+        'Choose shifts that would change the Schedule.',
+    };
+
+String _sideSummary(List<SwapShift> shifts) {
+  final sorted = [...shifts]..sort((a, b) => a.date.compareTo(b.date));
+  final dates = _dateRuns(sorted.map((shift) => shift.date).toList());
+  final codes = sorted.map((shift) => shift.shiftCode).toSet();
+  return codes.length == 1 ? '$dates ${codes.single}' : dates;
+}
+
+String _dateRuns(List<DateTime> dates) {
+  final runs = <({DateTime start, DateTime end})>[];
+  for (var start = 0; start < dates.length;) {
+    var end = start;
+    while (end + 1 < dates.length &&
+        _day(dates[end]).add(const Duration(days: 1)) == _day(dates[end + 1])) {
+      end++;
+    }
+    runs.add((start: dates[start], end: dates[end]));
+    start = end + 1;
+  }
+  final sameMonth = dates.every(
+    (date) => date.year == dates.first.year && date.month == dates.first.month,
+  );
+  final labels = <String>[
+    for (final (index, run) in runs.indexed)
+      if (sameMonth)
+        '${index == 0 ? '${DateFormat.MMM().format(run.start)} ' : ''}'
+            '${run.start.day}${run.start == run.end ? '' : '–${run.end.day}'}'
+      else if (run.start == run.end)
+        DateFormat.MMMd().format(run.start)
+      else if (run.start.month == run.end.month)
+        '${DateFormat.MMM().format(run.start)} ${run.start.day}–${run.end.day}'
+      else
+        '${DateFormat.MMMd().format(run.start)}–${DateFormat.MMMd().format(run.end)}',
+  ];
+  if (labels.length < 2) return labels.single;
+  if (labels.length == 2) return '${labels.first} and ${labels.last}';
+  return '${labels.sublist(0, labels.length - 1).join(', ')} and ${labels.last}';
+}
+
 class _SwapProposalDialog extends StatefulWidget {
   const _SwapProposalDialog({
     required this.rules,
@@ -99,6 +206,7 @@ class _SwapProposalDialog extends StatefulWidget {
     required this.colleagues,
     required this.fixedColleague,
     required this.fixedColleagueDate,
+    required this.fixedRequesterDate,
     required this.now,
   });
 
@@ -109,6 +217,7 @@ class _SwapProposalDialog extends StatefulWidget {
   final List<ScheduleRow> colleagues;
   final ScheduleRow? fixedColleague;
   final DateTime? fixedColleagueDate;
+  final DateTime? fixedRequesterDate;
   final DateTime Function() now;
 
   @override
@@ -118,89 +227,81 @@ class _SwapProposalDialog extends StatefulWidget {
 class _SwapProposalDialogState extends State<_SwapProposalDialog> {
   late ScheduleRow _colleague =
       widget.fixedColleague ?? widget.colleagues.first;
-  DateTime? _requesterDate;
-  late DateTime? _colleagueDate = widget.fixedColleagueDate;
-  late MonthGrid _requesterGrid = widget.initialGrid;
-  late MonthGrid _colleagueGrid = widget.initialGrid;
+  late final Set<DateTime> _requesterDates = {
+    if (widget.fixedRequesterDate case final date?) _day(date),
+  };
+  late final Set<DateTime> _colleagueDates = {
+    if (widget.fixedColleagueDate case final date?) _day(date),
+  };
+  late final Map<DateTime, MonthGrid> _requesterGrids = {
+    for (final date in _requesterDates) date: widget.initialGrid,
+  };
+  late final Map<DateTime, MonthGrid> _colleagueGrids = {
+    for (final date in _colleagueDates) date: widget.initialGrid,
+  };
+  late MonthGrid _requesterPickerGrid = widget.initialGrid;
+  late MonthGrid _colleaguePickerGrid = widget.initialGrid;
 
-  Future<void> _pickRequesterDay() async {
+  Future<void> _pick({required bool requester}) async {
     final picked = await _pickWorkingDay(
       context,
       rules: widget.rules,
-      initialGrid: _requesterGrid,
-      staffMemberId: widget.requesterId,
+      initialGrid: requester ? _requesterPickerGrid : _colleaguePickerGrid,
+      staffMemberId: requester ? widget.requesterId : _colleague.staffMemberId,
       codes: widget.codes,
       now: widget.now(),
-      title: 'Choose my working shift',
+      selectedDates: requester ? _requesterDates : _colleagueDates,
+      title: requester
+          ? 'Choose my working shift'
+          : "Choose ${_colleague.displayName}'s working shift",
     );
-    if (picked != null && mounted) {
-      setState(() {
-        _requesterDate = picked.date;
-        _requesterGrid = picked.grid;
-      });
-    }
-  }
-
-  Future<void> _pickColleagueDay() async {
-    final picked = await _pickWorkingDay(
-      context,
-      rules: widget.rules,
-      initialGrid: _colleagueGrid,
-      staffMemberId: _colleague.staffMemberId,
-      codes: widget.codes,
-      now: widget.now(),
-      title: "Choose ${_colleague.displayName}'s working shift",
-    );
-    if (picked != null && mounted) {
-      setState(() {
-        _colleagueDate = picked.date;
-        _colleagueGrid = picked.grid;
-      });
-    }
+    if (picked == null || !mounted) return;
+    final date = _day(picked.date);
+    setState(() {
+      if (requester) {
+        _requesterDates.add(date);
+        _requesterGrids[date] = picked.grid;
+        _requesterPickerGrid = picked.grid;
+      } else {
+        _colleagueDates.add(date);
+        _colleagueGrids[date] = picked.grid;
+        _colleaguePickerGrid = picked.grid;
+      }
+    });
   }
 
   String? get _unavailableReason {
     if (!_colleague.hasAcceptedInvite) {
       return '${_colleague.displayName} is not in the app yet.';
     }
-    final requesterDate = _requesterDate;
-    if (requesterDate == null) return 'Choose your working shift.';
-    final colleagueDate = _colleagueDate;
-    if (colleagueDate == null) {
+    if (_requesterDates.isEmpty) {
+      return 'Choose at least one of your working shifts.';
+    }
+    if (_colleagueDates.isEmpty) {
       return "Choose ${_colleague.displayName}'s working shift.";
     }
-    if (_requesterGrid.status != MonthStatus.released ||
-        _colleagueGrid.status != MonthStatus.released) {
-      return 'Both Schedule months must be released.';
+    if (_requesterDates.length != _colleagueDates.length) {
+      final count = (_requesterDates.length - _colleagueDates.length).abs();
+      return _requesterDates.length > _colleagueDates.length
+          ? "Pick $count more of ${_colleague.displayName}'s ${count == 1 ? 'shift' : 'shifts'}."
+          : 'Pick $count more of your ${count == 1 ? 'shift' : 'shifts'}.';
     }
-    if (!isFutureSwapDay(requesterDate, now: widget.now()) ||
-        !isFutureSwapDay(colleagueDate, now: widget.now())) {
-      return 'Swap shifts must be after today.';
-    }
-    final requesterCode =
-        _requesterGrid.shiftCodeFor(widget.requesterId, requesterDate) ?? '';
-    final colleagueCode =
-        _colleagueGrid.shiftCodeFor(_colleague.staffMemberId, colleagueDate) ??
-        '';
-    if (!isWorkingShift(requesterCode, codes: widget.codes) ||
-        !isWorkingShift(colleagueCode, codes: widget.codes)) {
-      return 'Both days must still have working Shifts.';
-    }
-    if (_sameDay(requesterDate, colleagueDate)) {
-      return requesterCode == colleagueCode
-          ? 'Choose shifts that would change the Schedule.'
-          : null;
-    }
-    final requesterTarget =
-        _colleagueGrid.shiftCodeFor(widget.requesterId, colleagueDate) ?? '';
-    final colleagueTarget =
-        _requesterGrid.shiftCodeFor(_colleague.staffMemberId, requesterDate) ??
-        '';
-    if (!_isFree(requesterTarget) || !_isFree(colleagueTarget)) {
-      return 'Both destination days must be off before this Swap can be proposed.';
+    if (_requesterDates.length > 31) {
+      return 'A Swap can include at most 31 shifts for each Staff member.';
     }
     return null;
   }
+
+  bool get _noSingleColleagueCanTakeMine =>
+      widget.fixedRequesterDate != null &&
+      _requesterDates.isNotEmpty &&
+      !widget.colleagues.any(
+        (colleague) => _requesterDates.every((date) {
+          final grid = _requesterGrids[date];
+          return grid != null &&
+              _isFree(grid.shiftCodeFor(colleague.staffMemberId, date) ?? '');
+        }),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -231,8 +332,9 @@ class _SwapProposalDialogState extends State<_SwapProposalDialog> {
                   _colleague = widget.colleagues.firstWhere(
                     (row) => row.staffMemberId == id,
                   );
-                  _colleagueDate = null;
-                  _colleagueGrid = widget.initialGrid;
+                  _colleagueDates.clear();
+                  _colleagueGrids.clear();
+                  _colleaguePickerGrid = widget.initialGrid;
                 }),
               )
             else
@@ -240,36 +342,36 @@ class _SwapProposalDialogState extends State<_SwapProposalDialog> {
                 _colleague.displayName,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('My shift'),
-              subtitle: Text(
-                _requesterDate == null
-                    ? 'Choose my shift'
-                    : _dayLabel(
-                        _requesterGrid,
-                        widget.requesterId,
-                        _requesterDate!,
-                      ),
-              ),
-              onTap: _pickRequesterDay,
+            _ShiftCart(
+              title: 'My shifts',
+              emptyLabel: 'Choose my shift',
+              dates: _requesterDates,
+              grids: _requesterGrids,
+              staffMemberId: widget.requesterId,
+              onAdd: () => _pick(requester: true),
+              onRemove: (date) => setState(() {
+                _requesterDates.remove(date);
+                _requesterGrids.remove(date);
+              }),
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Colleague shift'),
-              subtitle: Text(
-                _colleagueDate == null
-                    ? "Choose ${_colleague.displayName}'s shift"
-                    : _dayLabel(
-                        _colleagueGrid,
-                        _colleague.staffMemberId,
-                        _colleagueDate!,
-                      ),
-              ),
-              onTap: widget.fixedColleagueDate == null
-                  ? _pickColleagueDay
-                  : null,
+            _ShiftCart(
+              title: "${_colleague.displayName}'s shifts",
+              emptyLabel: "Choose ${_colleague.displayName}'s shift",
+              dates: _colleagueDates,
+              grids: _colleagueGrids,
+              staffMemberId: _colleague.staffMemberId,
+              onAdd: () => _pick(requester: false),
+              onRemove: (date) => setState(() {
+                _colleagueDates.remove(date);
+                _colleagueGrids.remove(date);
+              }),
             ),
+            if (_noSingleColleagueCanTakeMine) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'No one colleague can take all these days. This would need two separate Swaps, and either can be declined on its own.',
+              ),
+            ],
             if (reason != null) ...[const SizedBox(height: 8), Text(reason)],
           ],
         ),
@@ -285,8 +387,8 @@ class _SwapProposalDialogState extends State<_SwapProposalDialog> {
                   context,
                   SwapProposalChoice(
                     colleague: _colleague,
-                    requesterDate: _requesterDate!,
-                    colleagueDate: _colleagueDate!,
+                    requesterDates: _sorted(_requesterDates),
+                    colleagueDates: _sorted(_colleagueDates),
                   ),
                 )
               : null,
@@ -295,6 +397,52 @@ class _SwapProposalDialogState extends State<_SwapProposalDialog> {
       ],
     );
   }
+}
+
+class _ShiftCart extends StatelessWidget {
+  const _ShiftCart({
+    required this.title,
+    required this.emptyLabel,
+    required this.dates,
+    required this.grids,
+    required this.staffMemberId,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final String title;
+  final String emptyLabel;
+  final Set<DateTime> dates;
+  final Map<DateTime, MonthGrid> grids;
+  final String staffMemberId;
+  final VoidCallback onAdd;
+  final ValueChanged<DateTime> onRemove;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SizedBox(height: 8),
+      Text(title, style: Theme.of(context).textTheme.titleSmall),
+      if (dates.isEmpty)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(emptyLabel),
+          onTap: onAdd,
+        )
+      else
+        for (final date in _sorted(dates))
+          InputChip(
+            label: Text(_dayLabel(grids[date]!, staffMemberId, date)),
+            onDeleted: () => onRemove(date),
+          ),
+      TextButton.icon(
+        onPressed: onAdd,
+        icon: const Icon(Icons.add),
+        label: const Text('Add another shift'),
+      ),
+    ],
+  );
 }
 
 final class _WorkingDaySelection {
@@ -310,6 +458,7 @@ Future<_WorkingDaySelection?> _pickWorkingDay(
   required String staffMemberId,
   required List<LegendCode> codes,
   required DateTime now,
+  required Set<DateTime> selectedDates,
   required String title,
 }) => showDialog<_WorkingDaySelection>(
   context: context,
@@ -319,6 +468,7 @@ Future<_WorkingDaySelection?> _pickWorkingDay(
     staffMemberId: staffMemberId,
     codes: codes,
     now: now,
+    selectedDates: selectedDates,
     title: title,
   ),
 );
@@ -330,6 +480,7 @@ class _WorkingDayPicker extends StatefulWidget {
     required this.staffMemberId,
     required this.codes,
     required this.now,
+    required this.selectedDates,
     required this.title,
   });
 
@@ -338,6 +489,7 @@ class _WorkingDayPicker extends StatefulWidget {
   final String staffMemberId;
   final List<LegendCode> codes;
   final DateTime now;
+  final Set<DateTime> selectedDates;
   final String title;
 
   @override
@@ -427,10 +579,15 @@ class _WorkingDayPickerState extends State<_WorkingDayPicker> {
                         title: Text(
                           _dayLabel(_grid, widget.staffMemberId, day),
                         ),
-                        onTap: () => Navigator.pop(
-                          context,
-                          _WorkingDaySelection(_grid, day),
-                        ),
+                        subtitle: widget.selectedDates.contains(_day(day))
+                            ? const Text('Already selected')
+                            : null,
+                        onTap: widget.selectedDates.contains(_day(day))
+                            ? null
+                            : () => Navigator.pop(
+                                context,
+                                _WorkingDaySelection(_grid, day),
+                              ),
                       ),
                   ],
                 ),
@@ -466,8 +623,10 @@ List<DateTime> _workingDays(
 String _dayLabel(MonthGrid grid, String staffMemberId, DateTime date) =>
     '${DateFormat.MMMd().format(date)} — ${grid.shiftCodeFor(staffMemberId, date)}';
 
-bool _sameDay(DateTime a, DateTime b) =>
-    a.year == b.year && a.month == b.month && a.day == b.day;
+List<DateTime> _sorted(Iterable<DateTime> dates) =>
+    [...dates]..sort((a, b) => a.compareTo(b));
+
+DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
 
 bool _isFree(String code) {
   final normalized = code.trim().toUpperCase();
