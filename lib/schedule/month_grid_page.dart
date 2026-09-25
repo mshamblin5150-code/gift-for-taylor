@@ -234,7 +234,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
         );
         return;
       case Editable():
-        if (_access.ownStaffMemberId != null &&
+        if (!_access.canRunSchedule &&
+            _access.ownStaffMemberId != null &&
             _access.ownStaffMemberId != row.staffMemberId) {
           final action = await _showStaffCellActions(
             row,

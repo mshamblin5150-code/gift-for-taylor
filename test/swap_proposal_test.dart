@@ -36,6 +36,7 @@ void main() {
     ScheduleRow colleagueRow = colleague,
     bool released = true,
     bool nightScheduler = false,
+    bool managerAccount = false,
   }) async {
     schedule = InMemoryScheduleDatabase(
       sections: const [section],
@@ -44,6 +45,7 @@ void main() {
         if (!released) 'requester': Grants(administrator: true),
         if (nightScheduler)
           'requester': Grants(nightSchedulerSectionIds: {'nurses'}),
+        if (managerAccount) 'requester': Grants(manager: true),
       },
       releasedMonths: released ? {month} : const {},
     );
@@ -97,6 +99,26 @@ void main() {
           swapStaffMemberId: 'requester',
           swapStore: swaps.storeFor('requester'),
           messagesComposer: messages,
+          noticeGateway: const NoopNoticeGateway(),
+          repairController: noopRepairController(),
+          now: () => now,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> pumpManagerSchedule(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MonthGridPage(
+          rules: scheduleRulesInMemory(schedule, actingAs: 'requester'),
+          access: schedule.accessFor('requester'),
+          month: month,
+          swapStore: swaps.storeFor('requester'),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           now: () => now,
@@ -160,6 +182,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Choose my shift'), findsOneWidget);
     expect(find.text('Sep 14 — 7P'), findsOneWidget);
+  });
+
+  testWidgets('Manager-linked Staff edits without a Swap proposal action', (
+    tester,
+  ) async {
+    await seedFixture(managerAccount: true);
+    await pumpManagerSchedule(tester);
+
+    await tester.tap(find.byKey(const ValueKey('cell-colleague-2026-09-14')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Other Shift code'), findsOneWidget);
+    expect(find.text('Propose a Swap'), findsNothing);
   });
 
   testWidgets('a non-working colleague cell names why Swap is unavailable', (

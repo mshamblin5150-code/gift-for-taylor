@@ -564,7 +564,9 @@ final class MonthSession extends ChangeNotifier {
     String code,
   ) {
     final requesterId = _access.ownStaffMemberId;
-    if (requesterId == null || requesterId == row.staffMemberId) {
+    if (_access.canRunSchedule ||
+        requesterId == null ||
+        requesterId == row.staffMemberId) {
       return null;
     }
     if (state.grid?.status != MonthStatus.released) {
