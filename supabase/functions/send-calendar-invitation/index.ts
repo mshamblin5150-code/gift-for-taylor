@@ -3,9 +3,20 @@ import nodemailer from "npm:nodemailer@7.0.6";
 import { invitationMessage } from "./calendar.ts";
 import {
   type ClaimedInvitation,
+  type ClaimedInvitationMessage,
   createCalendarInvitationHandler,
   isCalendarInvitationRequestAuthorized,
 } from "./delivery.ts";
+
+function deliveryClaim(invitations: ClaimedInvitationMessage) {
+  const invitation = invitations[0];
+  return {
+    p_id: invitation.batch_id ?? invitation.id,
+    p_recipient: invitation.recipient,
+    p_method: invitation.method,
+    p_claim: invitation.delivery_claim,
+  };
+}
 
 Deno.serve(async (request) => {
   const secret = Deno.env.get("CALENDAR_WEBHOOK_SECRET");
@@ -35,29 +46,28 @@ Deno.serve(async (request) => {
         p_id: id,
       });
       if (error) throw error;
-      return (data?.[0] as ClaimedInvitation | undefined) ?? null;
+      return (data as ClaimedInvitation[] | null) ?? [];
     },
-    beginSend: async (invitation) => {
+    beginSend: async (invitations) => {
       const { data, error } = await client.rpc("calendar_invitation_sending", {
-        p_id: invitation.id,
-        p_claim: invitation.delivery_claim,
+        ...deliveryClaim(invitations),
       });
-      if (error || data !== true) throw error ?? new Error("Claim was lost");
+      if (error) throw error;
+      const currentIds = new Set((data as string[] | null) ?? []);
+      return invitations.filter((invitation) => currentIds.has(invitation.id));
     },
-    send: async (invitation) => {
-      await transport.sendMail(invitationMessage(invitation));
+    send: async (invitations) => {
+      await transport.sendMail(invitationMessage(invitations));
     },
-    markSent: async (invitation) => {
+    markSent: async (invitations) => {
       const { data, error } = await client.rpc("calendar_invitation_sent", {
-        p_id: invitation.id,
-        p_claim: invitation.delivery_claim,
+        ...deliveryClaim(invitations),
       });
       if (error || data !== true) throw error ?? new Error("Claim was lost");
     },
-    release: async (invitation) => {
+    release: async (invitations) => {
       const { error } = await client.rpc("calendar_invitation_failed", {
-        p_id: invitation.id,
-        p_claim: invitation.delivery_claim,
+        ...deliveryClaim(invitations),
       });
       if (error) throw error;
     },

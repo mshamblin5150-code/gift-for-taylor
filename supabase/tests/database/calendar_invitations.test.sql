@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(43);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000981', 'calendar@example.test');
@@ -303,6 +303,59 @@ set local role service_role;
 select is((select count(*)::int from public.calendar_invitation_claim(
   '00000000-0000-0000-0000-000000000993')), 0,
   'an uncertain send cannot be reclaimed automatically');
+
+set local role postgres;
+insert into public.schedule_months (id, month_start) values
+  ('00000000-0000-0000-0000-000000000994', '2027-07-01');
+insert into public.schedule_cells
+  (schedule_month_id, staff_member_id, section_id, work_date, shift_code)
+values
+  ('00000000-0000-0000-0000-000000000994',
+   '00000000-0000-0000-0000-000000000983',
+   '00000000-0000-0000-0000-000000000982', '2027-07-04', 'D'),
+  ('00000000-0000-0000-0000-000000000994',
+   '00000000-0000-0000-0000-000000000983',
+   '00000000-0000-0000-0000-000000000982', '2027-07-05', 'D');
+delete from net.http_request_queue;
+update public.schedule_months set release_state = 'released', released_at = now(),
+  released_by_staff_member_id = '00000000-0000-0000-0000-000000000983'
+where id = '00000000-0000-0000-0000-000000000994';
+select is((select count(distinct batch_id)::int
+  from public.calendar_invitation_outbox
+  where work_date in ('2027-07-04', '2027-07-05')), 1,
+  'a Month release stamps one batch across its invitation rows');
+select is((select count(distinct (batch_id, recipient, method))::int
+  from public.calendar_invitation_outbox
+  where work_date in ('2027-07-04', '2027-07-05')), 1,
+  'two released shifts for one Staff member produce one message');
+select is((select count(*)::int from net.http_request_queue), 1,
+  'a Month release posts one webhook for its batch');
+delete from claimed_delivery;
+set local role service_role;
+insert into claimed_delivery select id, delivery_claim
+from public.calendar_invitation_claim((select batch_id
+  from public.calendar_invitation_outbox where work_date = '2027-07-04'));
+select is((select count(*)::int from claimed_delivery), 2,
+  'claiming a release batch claims every current shift in it');
+select is((select count(distinct delivery_claim)::int from claimed_delivery), 1,
+  'one claim token owns the release batch');
+set local role postgres;
+update public.schedule_cells set shift_code = '7A'
+where work_date = '2027-07-04';
+select ok((select batch_id is null and sequence = 1
+  from public.calendar_invitation_outbox
+  where work_date = '2027-07-04' and superseded_at is null),
+  'a later single-shift REQUEST leaves the batch and advances its sequence');
+set local role service_role;
+select is((select count(*)::int
+  from public.calendar_invitation_sending(
+    (select batch_id from public.calendar_invitation_outbox
+      where work_date = '2027-07-05'),
+    'calendar@example.test', 'REQUEST',
+    (select claimed.delivery_claim from claimed_delivery claimed
+      join public.calendar_invitation_outbox event on event.id = claimed.id
+      where event.work_date = '2027-07-05'))), 1,
+  'send start returns only the still-current event from a claimed message');
 
 select * from finish();
 rollback;

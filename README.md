@@ -99,8 +99,9 @@ the scheduler marks the text announcement sent.
 ## Calendar invitations and feed
 
 Calendar invitations are the default for active Staff members with a personal
-email. A Month release queues one `REQUEST` per working shift. Subsequent
-Schedule changes queue a new `REQUEST` or a `CANCEL` for removed shifts. The
+email. A Month release sends one message per Staff member, carrying one
+`VEVENT` per working shift. Subsequent Schedule changes queue a separate
+`REQUEST` or a `CANCEL` for the changed shift. The
 `calendar_invitation_outbox` retains each sequence and delivery state. The
 delivery function sends iMIP mail using the same Resend SMTP provider as Auth.
 Set `RESEND_SMTP_PASSWORD` to a Resend API key allowed to send from the verified
@@ -109,13 +110,14 @@ Set `RESEND_SMTP_PASSWORD` to a Resend API key allowed to send from the verified
 its contact card from **My calendar**.
 
 Store the same `CALENDAR_WEBHOOK_SECRET` value in database Vault under the name
-`calendar_webhook_secret`. The `send_calendar_invitation_on_queue` trigger calls
-the function after each outbox insert. It is installed by migration; do not
+`calendar_webhook_secret`. The installed database triggers call the function
+once per Month release batch and once for each later single-shift row; do not
 create a second Dashboard webhook. The function rejects requests without this
-header and accepts the one outbox `id` in the webhook body. It atomically claims
-that row before sending, so concurrent calls cannot deliver it twice and no call
-can drain unrelated rows. A five-minute scheduled sweep retries only known
-failures or stale claims that never reached SMTP, capped at three total attempts.
+header and accepts the batch or row `id` in the webhook body. It atomically
+claims only that delivery before sending, so concurrent calls cannot deliver it
+twice and no call can drain unrelated rows. A five-minute scheduled sweep
+retries only known failures or stale claims that never reached SMTP, capped at
+three total attempts.
 An uncertain send is held for investigation instead of risking duplicate mail.
 The trigger URL points at the production Supabase project; change it for another
 project.

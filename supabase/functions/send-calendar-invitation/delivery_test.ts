@@ -39,13 +39,13 @@ Deno.test("a burst sends each queued invitation exactly once", async () => {
     secret: "secret",
     claim: (id) => {
       const queuedInvitation = queued.get(id);
-      if (!queuedInvitation || claimed.has(id)) return Promise.resolve(null);
+      if (!queuedInvitation || claimed.has(id)) return Promise.resolve([]);
       claimed.add(id);
-      return Promise.resolve(queuedInvitation);
+      return Promise.resolve([queuedInvitation]);
     },
-    beginSend: () => Promise.resolve(),
-    send: (queuedInvitation) => {
-      sends.push(queuedInvitation.id);
+    beginSend: (invitations) => Promise.resolve(invitations),
+    send: (queuedInvitations) => {
+      sends.push(queuedInvitations[0].id);
       return Promise.resolve();
     },
     markSent: () => Promise.resolve(),
@@ -65,6 +65,136 @@ Deno.test("a burst sends each queued invitation exactly once", async () => {
   }
 });
 
+Deno.test("a Month release sends one message per recipient", async () => {
+  const first = { ...invitation("first-shift"), batch_id: "release-batch" };
+  const second = {
+    ...invitation("second-shift"),
+    batch_id: "release-batch",
+    work_date: "2027-01-05",
+  };
+  const otherStaff = {
+    ...invitation("other-staff-shift"),
+    batch_id: "release-batch",
+    staff_member_id: "00000000-0000-0000-0000-000000000002",
+    recipient: "other@example.test",
+  };
+  const messages: string[][] = [];
+  const handler = createCalendarInvitationHandler({
+    secret: "secret",
+    claim: () => Promise.resolve([first, second, otherStaff]),
+    beginSend: (invitations) => Promise.resolve(invitations),
+    send: (events) => {
+      messages.push(events.map((event) => event.id));
+      return Promise.resolve();
+    },
+    markSent: () => Promise.resolve(),
+    release: () => Promise.resolve(),
+  });
+
+  const response = await handler(request("release-batch"));
+
+  if (response.status !== 200) throw new Error("Release delivery failed");
+  if (messages.length !== 2) {
+    throw new Error(`Expected two messages, got ${messages.length}`);
+  }
+  if (messages[0].join(",") !== "first-shift,second-shift") {
+    throw new Error(`First recipient shifts were split: ${messages[0]}`);
+  }
+  if (messages[1].join(",") !== "other-staff-shift") {
+    throw new Error(`Other recipient was not isolated: ${messages[1]}`);
+  }
+});
+
+Deno.test("a calendar message never mixes REQUEST and CANCEL", async () => {
+  const methods: string[][] = [];
+  const handler = createCalendarInvitationHandler({
+    secret: "secret",
+    claim: () =>
+      Promise.resolve([
+        invitation("requested-shift"),
+        { ...invitation("cancelled-shift"), method: "CANCEL" },
+      ]),
+    beginSend: (invitations) => Promise.resolve(invitations),
+    send: (events) => {
+      methods.push(events.map((event) => event.method));
+      return Promise.resolve();
+    },
+    markSent: () => Promise.resolve(),
+    release: () => Promise.resolve(),
+  });
+
+  await handler(request("mixed-batch"));
+
+  if (JSON.stringify(methods) !== JSON.stringify([["REQUEST"], ["CANCEL"]])) {
+    throw new Error(`Methods were mixed in one message: ${methods}`);
+  }
+});
+
+Deno.test("a superseded claimed shift is removed before sending", async () => {
+  const first = invitation("superseded-shift");
+  const second = {
+    ...invitation("current-shift"),
+    work_date: "2027-01-05",
+  };
+  const sends: string[][] = [];
+  const handler = createCalendarInvitationHandler({
+    secret: "secret",
+    claim: () => Promise.resolve([first, second]),
+    beginSend: (events) => Promise.resolve([events[1]]),
+    send: (events) => {
+      sends.push(events.map((event) => event.id));
+      return Promise.resolve();
+    },
+    markSent: () => Promise.resolve(),
+    release: () => Promise.resolve(),
+  });
+
+  await handler(request("release-batch"));
+
+  if (JSON.stringify(sends) !== JSON.stringify([["current-shift"]])) {
+    throw new Error(`Superseded shift reached SMTP: ${JSON.stringify(sends)}`);
+  }
+});
+
+Deno.test("an uncertain recipient does not block later recipients", async () => {
+  const first = invitation("uncertain-recipient");
+  const second = {
+    ...invitation("later-recipient"),
+    staff_member_id: "00000000-0000-0000-0000-000000000002",
+    recipient: "later@example.test",
+  };
+  const attempts: string[] = [];
+  const completed: string[] = [];
+  const handler = createCalendarInvitationHandler({
+    secret: "secret",
+    claim: () => Promise.resolve([first, second]),
+    beginSend: (events) => Promise.resolve(events),
+    send: (events) => {
+      attempts.push(events[0].recipient);
+      return events[0].recipient === first.recipient
+        ? Promise.reject(new Error("connection lost after DATA"))
+        : Promise.resolve();
+    },
+    markSent: (events) => {
+      completed.push(events[0].recipient);
+      return Promise.resolve();
+    },
+    release: () => Promise.resolve(),
+  });
+
+  const response = await handler(request("release-batch"));
+
+  if (response.status !== 502) {
+    throw new Error(`Expected 502, got ${response.status}`);
+  }
+  if (attempts.join(",") !== "staff@example.test,later@example.test") {
+    throw new Error(`Later recipient was blocked: ${attempts}`);
+  }
+  if (completed.join(",") !== "later@example.test") {
+    throw new Error(`Later recipient was not completed: ${completed}`);
+  }
+});
+
 Deno.test("concurrent invocations cannot send the same invitation twice", async () => {
   const claimedInvitation = invitation("same-row");
   let claimed = false;
@@ -72,11 +202,11 @@ Deno.test("concurrent invocations cannot send the same invitation twice", async 
   const dependencies: DeliveryDependencies = {
     secret: "secret",
     claim: () => {
-      if (claimed) return Promise.resolve(null);
+      if (claimed) return Promise.resolve([]);
       claimed = true;
-      return Promise.resolve(claimedInvitation);
+      return Promise.resolve([claimedInvitation]);
     },
-    beginSend: () => Promise.resolve(),
+    beginSend: (invitations) => Promise.resolve(invitations),
     send: async () => {
       sends++;
       await Promise.resolve();
@@ -102,15 +232,15 @@ Deno.test("a failed send releases only its claimed invitation for retry", async 
   const releases: Array<[string, string]> = [];
   const handler = createCalendarInvitationHandler({
     secret: "secret",
-    claim: () => Promise.resolve(claimedInvitation),
-    beginSend: () => Promise.resolve(),
+    claim: () => Promise.resolve([claimedInvitation]),
+    beginSend: (invitations) => Promise.resolve(invitations),
     send: () =>
       Promise.reject(Object.assign(new Error("quota reached"), {
         responseCode: 550,
       })),
     markSent: () => Promise.resolve(),
-    release: (invitation) => {
-      releases.push([invitation.id, invitation.delivery_claim]);
+    release: (invitations) => {
+      releases.push([invitations[0].id, invitations[0].delivery_claim]);
       return Promise.resolve();
     },
   });
@@ -133,8 +263,8 @@ Deno.test("an ambiguous SMTP failure is held instead of released", async () => {
   let released = false;
   const handler = createCalendarInvitationHandler({
     secret: "secret",
-    claim: () => Promise.resolve(claimedInvitation),
-    beginSend: () => Promise.resolve(),
+    claim: () => Promise.resolve([claimedInvitation]),
+    beginSend: (invitations) => Promise.resolve(invitations),
     send: () => Promise.reject(new Error("connection lost after DATA")),
     markSent: () => Promise.resolve(),
     release: () => {
@@ -158,10 +288,10 @@ Deno.test("an uncertain completed send is held instead of released", async () =>
   const steps: string[] = [];
   const handler = createCalendarInvitationHandler({
     secret: "secret",
-    claim: () => Promise.resolve(claimedInvitation),
-    beginSend: () => {
+    claim: () => Promise.resolve([claimedInvitation]),
+    beginSend: (invitations) => {
       steps.push("begin");
-      return Promise.resolve();
+      return Promise.resolve(invitations);
     },
     send: () => {
       steps.push("send");
