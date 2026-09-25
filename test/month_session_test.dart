@@ -138,6 +138,7 @@ void main() {
   late InMemoryScheduleDatabase database;
   late ScheduleRules manager;
   late _OpenShifts openShifts;
+  late SwapStore swaps;
 
   setUp(() {
     database = InMemoryScheduleDatabase(
@@ -148,6 +149,7 @@ void main() {
     );
     manager = scheduleRulesInMemory(database, actingAs: 'manager');
     openShifts = _OpenShifts();
+    swaps = InMemorySwapDatabase(shifts: {}).storeFor('manager');
   });
 
   tearDown(() => openShifts.changes.close());
@@ -162,6 +164,7 @@ void main() {
   }) => MonthSession(
     rules: rules ?? scheduleRulesInMemory(database, actingAs: viewer),
     access: database.accessFor(viewer),
+    swapStore: swaps,
     openShiftStore: openShifts,
     month: viewingMonth ?? month,
     now: now ?? () => DateTime(2026, 9, 18),
@@ -174,6 +177,7 @@ void main() {
     final session = MonthSession(
       rules: manager,
       access: database.accessFor('manager'),
+      swapStore: swaps,
       month: month,
       openShiftStore: openShifts,
       now: () => DateTime(2026, 9, 18),

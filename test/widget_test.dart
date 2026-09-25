@@ -137,6 +137,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          swapStore: emptySwapStore(actingAs),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           access: database.accessFor(actingAs),
@@ -209,6 +210,7 @@ void main() {
       MaterialApp(
         theme: ThemeData.dark(),
         home: MonthGridPage(
+          swapStore: emptySwapStore('manager'),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           access: database.accessFor('manager'),

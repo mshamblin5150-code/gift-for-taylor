@@ -35,11 +35,16 @@ void main() {
   Future<void> seedFixture({
     ScheduleRow colleagueRow = colleague,
     bool released = true,
+    bool nightScheduler = false,
   }) async {
     schedule = InMemoryScheduleDatabase(
       sections: const [section],
       rows: [requester, colleagueRow],
-      grants: released ? const {} : {'requester': Grants(administrator: true)},
+      grants: {
+        if (!released) 'requester': Grants(administrator: true),
+        if (nightScheduler)
+          'requester': Grants(nightSchedulerSectionIds: {'nurses'}),
+      },
       releasedMonths: released ? {month} : const {},
     );
     final manager = scheduleRulesInMemory(schedule, actingAs: 'manager');
@@ -140,6 +145,22 @@ void main() {
       );
     },
   );
+
+  testWidgets('Night scheduler can choose either editing or proposing a Swap', (
+    tester,
+  ) async {
+    await seedFixture(nightScheduler: true);
+    await pumpSchedule(tester);
+    await openColleagueCell(tester);
+
+    expect(find.text('Edit Shift'), findsOneWidget);
+    expect(find.text('Propose a Swap'), findsOneWidget);
+
+    await tester.tap(find.text('Propose a Swap'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose my shift'), findsOneWidget);
+    expect(find.text('Sep 14 — 7P'), findsOneWidget);
+  });
 
   testWidgets('a non-working colleague cell names why Swap is unavailable', (
     tester,

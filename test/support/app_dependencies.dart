@@ -19,6 +19,9 @@ import 'in_memory_settings_history.dart';
 import 'in_memory_staff_gateway.dart';
 import 'repair.dart';
 
+SwapStore emptySwapStore([String viewer = 'viewer']) =>
+    InMemorySwapDatabase(shifts: {}).storeFor(viewer);
+
 AppDependencies appDependencies({
   AuthGateway? authGateway,
   SignInFailureLog? signInFailureLog,
@@ -40,7 +43,7 @@ AppDependencies appDependencies({
     authGateway: authGateway ?? FakeAuthGateway(),
     signInFailureLog: signInFailureLog ?? FakeSignInFailureLog(),
     scheduleStore: scheduleStore ?? database.storeFor('viewer'),
-    swapStore: swapStore ?? InMemorySwapDatabase(shifts: {}).storeFor('viewer'),
+    swapStore: swapStore ?? emptySwapStore(),
     openShiftStore: openShiftStore ?? database.openShiftStoreFor('viewer'),
     staffGateway: staffGateway ?? InMemoryStaffGateway(),
     inviteComposer: inviteComposer ?? const NoopInviteComposer(),

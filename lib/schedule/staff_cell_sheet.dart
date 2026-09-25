@@ -9,10 +9,16 @@ Future<StaffCellAction?> showStaffCellSheet(
   required ScheduleRow row,
   required DateTime date,
   required StaffCellReview review,
+  bool canEditShift = false,
 }) => showModalBottomSheet<StaffCellAction>(
   context: context,
   showDragHandle: true,
-  builder: (context) => _StaffCellSheet(row: row, date: date, review: review),
+  builder: (context) => _StaffCellSheet(
+    row: row,
+    date: date,
+    review: review,
+    canEditShift: canEditShift,
+  ),
 );
 
 class _StaffCellSheet extends StatelessWidget {
@@ -20,11 +26,13 @@ class _StaffCellSheet extends StatelessWidget {
     required this.row,
     required this.date,
     required this.review,
+    required this.canEditShift,
   });
 
   final ScheduleRow row;
   final DateTime date;
   final StaffCellReview review;
+  final bool canEditShift;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +55,15 @@ class _StaffCellSheet extends StatelessWidget {
               'Shift: ${review.currentCode.isEmpty ? '—' : review.currentCode}',
             ),
             const SizedBox(height: 20),
+            if (canEditShift) ...[
+              OutlinedButton.icon(
+                onPressed: () =>
+                    Navigator.of(context).pop(StaffCellAction.editShift),
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit Shift'),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (action != null)
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(action),

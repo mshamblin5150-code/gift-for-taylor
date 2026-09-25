@@ -75,7 +75,7 @@ class MonthGridPage extends StatefulWidget {
     this.onOpenStaffDetails,
     this.onManagerTransferred,
     this.messagesComposer,
-    this.swapStore,
+    required this.swapStore,
     this.openShiftStore,
     required this.noticeGateway,
     this.staffGateway,
@@ -102,7 +102,7 @@ class MonthGridPage extends StatefulWidget {
   final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
   final VoidCallback? onManagerTransferred;
   final MessagesComposer? messagesComposer;
-  final SwapStore? swapStore;
+  final SwapStore swapStore;
   final OpenShiftStore? openShiftStore;
   final NoticeGateway noticeGateway;
   final StaffGateway? staffGateway;
@@ -224,23 +224,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     final editable = _session.editableCell(row, date);
     switch (editable) {
       case NotEditable():
-        final review = await _session.reviewStaffCell(row, date);
-        if (!mounted) return;
-        final action = await showStaffCellSheet(
-          context,
-          row: row,
-          date: date,
-          review: review,
-        );
-        if (action == null || !mounted) return;
-        switch (action) {
-          case StaffCellAction.recordCallIn:
-            await _recordCallIn(row, date);
-          case StaffCellAction.withdrawCallIn:
-            await _withdrawCallIn(row, date);
-          case StaffCellAction.proposeSwap:
-            await _proposeSwap(row, date);
-        }
+        await _showStaffCellActions(row, date);
         return;
       case MonthNotStarted():
         ScaffoldMessenger.of(context).showSnackBar(
@@ -250,7 +234,15 @@ class _MonthGridPageState extends State<MonthGridPage> {
         );
         return;
       case Editable():
-        break;
+        if (_access.ownStaffMemberId != null &&
+            _access.ownStaffMemberId != row.staffMemberId) {
+          final action = await _showStaffCellActions(
+            row,
+            date,
+            canEditShift: true,
+          );
+          if (action != StaffCellAction.editShift) return;
+        }
     }
     if (!mounted) return;
     final edit = await showCellEditSheet(
@@ -272,6 +264,34 @@ class _MonthGridPageState extends State<MonthGridPage> {
           const SnackBar(content: Text("That change wasn't saved. Try again.")),
         );
     }
+  }
+
+  Future<StaffCellAction?> _showStaffCellActions(
+    ScheduleRow row,
+    DateTime date, {
+    bool canEditShift = false,
+  }) async {
+    final review = await _session.reviewStaffCell(row, date);
+    if (!mounted) return null;
+    final action = await showStaffCellSheet(
+      context,
+      row: row,
+      date: date,
+      review: review,
+      canEditShift: canEditShift,
+    );
+    if (action == null || !mounted) return action;
+    switch (action) {
+      case StaffCellAction.editShift:
+        return action;
+      case StaffCellAction.recordCallIn:
+        await _recordCallIn(row, date);
+      case StaffCellAction.withdrawCallIn:
+        await _withdrawCallIn(row, date);
+      case StaffCellAction.proposeSwap:
+        await _proposeSwap(row, date);
+    }
+    return action;
   }
 
   Future<void> _proposeSwap(
@@ -303,7 +323,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           context,
           swap: swap,
           colleague: choice.colleague,
-          swapStore: widget.swapStore!,
+          swapStore: widget.swapStore,
           messagesComposer: widget.messagesComposer,
         );
         _pendingWork.refresh();
@@ -792,9 +812,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ),
       ),
     ),
-    if (_access.canRunSchedule &&
-        widget.swapStore != null &&
-        widget.openShiftStore != null)
+    if (_access.canRunSchedule && widget.openShiftStore != null)
       _ScheduleAction(
         label: 'Approval queue',
         icon: Icons.fact_check_outlined,
@@ -802,7 +820,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         onPressed: () => _open(
           (context) => ApprovalQueuePage(
             rules: widget.rules,
-            swapStore: widget.swapStore!,
+            swapStore: widget.swapStore,
             openShiftStore: widget.openShiftStore!,
             staffGateway: widget.staffGateway,
           ),
@@ -824,9 +842,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
         ),
       ),
-    if (!_access.canRunSchedule &&
-        _access.ownStaffMemberId != null &&
-        widget.swapStore != null)
+    if (!_access.canRunSchedule && _access.ownStaffMemberId != null)
       _ScheduleAction(
         label: 'Swaps',
         icon: Icons.swap_horiz,
@@ -834,7 +850,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         onPressed: () => _open(
           (context) => SwapsPage(
             rules: widget.rules,
-            swapStore: widget.swapStore!,
+            swapStore: widget.swapStore,
             month: _month,
             staffMemberId: widget.swapStaffMemberId,
             isManager: _access.canRunSchedule,
@@ -882,21 +898,20 @@ class _MonthGridPageState extends State<MonthGridPage> {
                   RequestsOffPage(rules: widget.rules, isManager: true),
             ),
           ),
-          if (widget.swapStore != null)
-            _ScheduleAction(
-              label: 'Swaps',
-              icon: Icons.swap_horiz,
-              onPressed: () => _open(
-                (context) => SwapsPage(
-                  rules: widget.rules,
-                  swapStore: widget.swapStore!,
-                  month: _month,
-                  staffMemberId: widget.swapStaffMemberId,
-                  isManager: true,
-                  messagesComposer: widget.messagesComposer,
-                ),
+          _ScheduleAction(
+            label: 'Swaps',
+            icon: Icons.swap_horiz,
+            onPressed: () => _open(
+              (context) => SwapsPage(
+                rules: widget.rules,
+                swapStore: widget.swapStore,
+                month: _month,
+                staffMemberId: widget.swapStaffMemberId,
+                isManager: true,
+                messagesComposer: widget.messagesComposer,
               ),
             ),
+          ),
           if (widget.openShiftStore != null)
             _ScheduleAction(
               label: 'Open shifts',

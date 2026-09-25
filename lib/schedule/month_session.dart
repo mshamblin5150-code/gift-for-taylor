@@ -70,7 +70,7 @@ final class StaffCellReview {
   final StaffCellSwapReview? swap;
 }
 
-enum StaffCellAction { recordCallIn, withdrawCallIn, proposeSwap }
+enum StaffCellAction { editShift, recordCallIn, withdrawCallIn, proposeSwap }
 
 final class StaffCellSwapReview {
   const StaffCellSwapReview({this.unavailableReason});
@@ -435,8 +435,8 @@ final class MonthSession extends ChangeNotifier {
     required ScheduleRules rules,
     required Access access,
     required DateTime month,
+    required SwapStore swapStore,
     OpenShiftStore? openShiftStore,
-    SwapStore? swapStore,
     DateTime Function()? now,
     MonthSessionTimerFactory? timerFactory,
     VoidCallback? onAccessRejected,
@@ -459,7 +459,7 @@ final class MonthSession extends ChangeNotifier {
   final ScheduleRules _rules;
   final Access _access;
   final OpenShiftStore? _openShiftStore;
-  final SwapStore? _swapStore;
+  final SwapStore _swapStore;
   final DateTime month;
   final DateTime Function() _now;
   final MonthSessionTimerFactory _timerFactory;
@@ -564,9 +564,7 @@ final class MonthSession extends ChangeNotifier {
     String code,
   ) {
     final requesterId = _access.ownStaffMemberId;
-    if (_swapStore == null ||
-        requesterId == null ||
-        requesterId == row.staffMemberId) {
+    if (requesterId == null || requesterId == row.staffMemberId) {
       return null;
     }
     if (state.grid?.status != MonthStatus.released) {
@@ -598,7 +596,7 @@ final class MonthSession extends ChangeNotifier {
     DateTime colleagueDate,
   ) async {
     try {
-      final swap = await _swapStore!.proposeSwap(
+      final swap = await _swapStore.proposeSwap(
         colleagueId,
         requesterDate,
         colleagueDate,

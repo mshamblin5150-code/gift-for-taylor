@@ -80,6 +80,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          swapStore: emptySwapStore(actingAs),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           access: database.accessFor(actingAs),
