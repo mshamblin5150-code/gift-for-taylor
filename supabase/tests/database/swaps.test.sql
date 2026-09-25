@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(39);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000281', 'swap-manager@example.test'),
@@ -18,8 +18,8 @@ insert into public.staff_accounts (staff_member_id, auth_user_id, personal_email
   ('00000000-0000-0000-0000-000000000286', '00000000-0000-0000-0000-000000000282', 'swap-a@example.test', now()),
   ('00000000-0000-0000-0000-000000000287', '00000000-0000-0000-0000-000000000283', 'swap-b@example.test', now());
 insert into public.staff_section_assignments (staff_member_id, section_id, display_order, effective_from) values
-  ('00000000-0000-0000-0000-000000000286', '00000000-0000-0000-0000-000000000284', 0, '2027-01-01'),
-  ('00000000-0000-0000-0000-000000000287', '00000000-0000-0000-0000-000000000284', 1, '2027-01-01');
+  ('00000000-0000-0000-0000-000000000286', '00000000-0000-0000-0000-000000000284', 0, '2000-01-01'),
+  ('00000000-0000-0000-0000-000000000287', '00000000-0000-0000-0000-000000000284', 1, '2000-01-01');
 
 set local role authenticated;
 select set_config('request.jwt.claims',
@@ -204,6 +204,76 @@ select throws_ok($$select public.propose_swap(
   '00000000-0000-0000-0000-000000000287', '2027-06-20', '2027-06-22')$$,
   'Both destination dates must be free',
   'occupied destination date refuses a Swap');
+
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', current_date - 1, '7A');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
+  '00000000-0000-0000-0000-000000000284', current_date + 1, '7P');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', current_date + 2, '7A');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
+  '00000000-0000-0000-0000-000000000284', current_date - 2, '7P');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000284', current_date, '7A');
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
+  '00000000-0000-0000-0000-000000000284', current_date + 3, '7P');
+select public.release_month_checked(month_start, true)
+from (
+  select distinct date_trunc('month', work_date)::date as month_start
+  from (values
+    (current_date - 2),
+    (current_date - 1),
+    (current_date),
+    (current_date + 1),
+    (current_date + 2),
+    (current_date + 3)
+  ) dates(work_date)
+) months;
+
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select throws_ok(
+  format($query$select public.propose_swap(
+    '00000000-0000-0000-0000-000000000287', %L, %L)$query$,
+    current_date - 1, current_date + 1),
+  format('Swap day %s must be after today', current_date - 1),
+  'requester cannot offer a past day');
+select throws_ok(
+  format($query$select public.propose_swap(
+    '00000000-0000-0000-0000-000000000287', %L, %L)$query$,
+    current_date + 2, current_date - 2),
+  format('Swap day %s must be after today', current_date - 2),
+  'colleague cannot offer a past day');
+select throws_ok(
+  format($query$select public.propose_swap(
+    '00000000-0000-0000-0000-000000000287', %L, %L)$query$,
+    current_date, current_date + 3),
+  format('Swap day %s must be after today', current_date),
+  'today is not offered because both sides must be after today');
+
+reset role;
+insert into public.swaps (
+  requester_id, colleague_id, requester_date, colleague_date,
+  requester_code, colleague_code, requester_target_code, colleague_target_code,
+  requester_section_id, colleague_section_id, status
+) values (
+  '00000000-0000-0000-0000-000000000286',
+  '00000000-0000-0000-0000-000000000287',
+  current_date, current_date + 1, '7A', '7P', '', '',
+  '00000000-0000-0000-0000-000000000284',
+  '00000000-0000-0000-0000-000000000284', 'accepted'
+);
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select throws_ok(
+  format($query$select public.approve_swap(%L)$query$,
+    (select id from public.swaps
+      where requester_date = current_date and status = 'accepted')),
+  format('Swap day %s must be after today', current_date),
+  'a Swap cannot be approved after an offered day arrives');
 
 select * from finish();
 rollback;
