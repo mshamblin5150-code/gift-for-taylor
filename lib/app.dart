@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_dependencies.dart';
 import 'auth/sign_in_page.dart';
+import 'auth/sign_in_session.dart';
 import 'calendar/calendar_feed_page.dart';
 import 'maintainer/maintainer_repair.dart';
 import 'notifications/notice_gateway.dart';
@@ -135,7 +136,10 @@ class _AuthGateState extends State<_AuthGate> {
                 );
               }
               return SignInPage(
-                authGateway: widget.dependencies.authGateway,
+                session: SignInSession(
+                  widget.dependencies.authGateway,
+                  widget.dependencies.signInFailureLog,
+                ),
                 noticeGateway: widget.dependencies.noticeGateway,
                 awaitingConfirmation: widget.inviteToken != null,
               );
@@ -559,6 +563,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
           bookPagePresenter: widget.dependencies.bookPagePresenter,
           printWordingGateway: widget.dependencies.printWordingGateway,
           settingsHistory: widget.dependencies.settingsHistory,
+          signInFailureLog: widget.dependencies.signInFailureLog,
           repairController: widget.dependencies.repairController,
           onCalendarFeed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'app_dependencies.dart';
 import 'auth/auth_gateway.dart';
+import 'auth/sign_in_failure_log.dart';
 import 'calendar/calendar_feed_page.dart';
 import 'maintainer/repair_controller.dart';
 import 'maintainer/supabase_repair_gateway.dart';
@@ -49,6 +50,7 @@ Future<void> main() async {
           client,
           onSignedOut: () => repairController.synchronize(null),
         ),
+        signInFailureLog: SupabaseSignInFailureLog(client),
         scheduleStore: SupabaseScheduleStore(client),
         swapStore: SupabaseSwapStore(client),
         openShiftStore: SupabaseOpenShiftStore(client),

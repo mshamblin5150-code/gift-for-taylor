@@ -8,6 +8,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../help/help_page.dart';
+import '../auth/sign_in_failure_log.dart';
 import '../notifications/notice_gateway.dart';
 import '../maintainer/maintainer_repair.dart';
 import '../maintainer/repair_controller.dart';
@@ -79,6 +80,7 @@ class MonthGridPage extends StatefulWidget {
     this.bookPagePresenter,
     this.printWordingGateway,
     this.settingsHistory,
+    this.signInFailureLog,
     required this.repairController,
     this.now,
   });
@@ -106,6 +108,7 @@ class MonthGridPage extends StatefulWidget {
   final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;
   final SettingsHistory? settingsHistory;
+  final SignInFailureLog? signInFailureLog;
   final RepairController repairController;
   final DateTime Function()? now;
 
@@ -633,6 +636,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             onAccessRejected: widget.onAccessRejected,
             access: _access,
             settingsHistory: widget.settingsHistory,
+            signInFailureLog: widget.signInFailureLog,
             maintainerRepairController: widget.repairController,
           ),
         );

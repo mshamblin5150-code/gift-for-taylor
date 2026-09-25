@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:er_schedule/auth/auth_gateway.dart';
+import 'package:er_schedule/auth/sign_in_failure_log.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -40,17 +43,47 @@ void main() {
       ),
     );
   });
+
+  test(
+    'failure log records the provider reply without the email address',
+    () async {
+      late http.Request recordedRequest;
+      final client = _clientWith(
+        MockClient((request) async {
+          recordedRequest = request;
+        return http.Response('', 204, request: request);
+        }),
+      );
+      addTearDown(client.dispose);
+
+      await SupabaseSignInFailureLog(client).record(
+        const SignInCodeDeliveryFailed(
+          AuthApiException(
+            'mail quota reached',
+            statusCode: '500',
+            code: 'unexpected_failure',
+          ),
+        ),
+        StackTrace.empty,
+      );
+
+      expect(recordedRequest.url.path, endsWith('/rpc/record_sign_in_failure'));
+      expect(jsonDecode(recordedRequest.body), {
+        'p_error_code': 'unexpected_failure',
+        'p_status_code': '500',
+        'p_error_message': 'mail quota reached',
+      });
+      expect(recordedRequest.body, isNot(contains('nurse@example.com')));
+    },
+  );
 }
 
 SupabaseAuthGateway _gatewayReturning({
   required int statusCode,
   required String body,
 }) {
-  final client = SupabaseClient(
-    'https://example.supabase.co',
-    'test-key',
-    authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
-    httpClient: MockClient(
+  final client = _clientWith(
+    MockClient(
       (_) async => http.Response(
         body,
         statusCode,
@@ -64,3 +97,10 @@ SupabaseAuthGateway _gatewayReturning({
   addTearDown(client.dispose);
   return SupabaseAuthGateway(client);
 }
+
+SupabaseClient _clientWith(http.Client httpClient) => SupabaseClient(
+  'https://example.supabase.co',
+  'test-key',
+  authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
+  httpClient: httpClient,
+);

@@ -1,39 +1,21 @@
 import 'package:flutter/material.dart';
 
-import 'auth_gateway.dart';
+import 'sign_in_session.dart';
 import '../notifications/notice_gateway.dart';
 import '../settings/appearance.dart';
 import '../setup/app_setup_page.dart';
 
-typedef SignInErrorReporter = void Function(
-  Object error,
-  StackTrace stackTrace,
-);
-
-void _reportSignInError(Object error, StackTrace stackTrace) {
-  FlutterError.reportError(
-    FlutterErrorDetails(
-      exception: error,
-      stack: stackTrace,
-      library: 'ER Schedule authentication',
-      context: ErrorDescription('while completing sign-in'),
-    ),
-  );
-}
-
 class SignInPage extends StatefulWidget {
   const SignInPage({
     super.key,
-    required this.authGateway,
+    required this.session,
     required this.noticeGateway,
     this.awaitingConfirmation = false,
-    this.onError = _reportSignInError,
   });
 
-  final AuthGateway authGateway;
+  final SignInSession session;
   final NoticeGateway noticeGateway;
   final bool awaitingConfirmation;
-  final SignInErrorReporter onError;
 
   @override
   State<SignInPage> createState() => _SignInPageState();
@@ -58,34 +40,39 @@ class _SignInPageState extends State<SignInPage> {
       _busy = true;
       _error = null;
     });
-    try {
-      if (_codeRequested) {
-        await widget.authGateway.verifyCode(
-          email: _emailController.text.trim(),
-          code: _codeController.text.trim(),
-        );
-      } else {
-        await widget.authGateway.requestCode(_emailController.text.trim());
-        if (mounted) setState(() => _codeRequested = true);
+    if (_codeRequested) {
+      final outcome = await widget.session.verifyCode(
+        email: _emailController.text.trim(),
+        code: _codeController.text.trim(),
+      );
+      if (!mounted) return;
+      switch (outcome) {
+        case SignInCodeVerified():
+          break;
+        case SignInCodeInvalid():
+          setState(() {
+            _error = 'That code did not work. Check it and try again.';
+          });
       }
-    } on InvalidEmailAddress {
-      if (mounted) {
-        setState(() {
-          _error = 'That email address is not valid. Enter it again.';
-        });
+    } else {
+      final outcome = await widget.session.requestCode(
+        _emailController.text.trim(),
+      );
+      if (!mounted) return;
+      switch (outcome) {
+        case SignInCodeSent():
+          setState(() => _codeRequested = true);
+        case SignInEmailInvalid():
+          setState(() {
+            _error = 'That email address is not valid. Enter it again.';
+          });
+        case SignInCodeNotSent():
+          setState(() {
+            _error = 'We could not send a code right now. Try again later.';
+          });
       }
-    } catch (error, stackTrace) {
-      widget.onError(error, stackTrace);
-      if (mounted) {
-        setState(() {
-          _error = _codeRequested
-              ? 'That code did not work. Check it and try again.'
-              : 'We could not send a code right now. Try again later.';
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
+    if (mounted) setState(() => _busy = false);
   }
 
   @override

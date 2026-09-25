@@ -3,6 +3,7 @@ import 'package:er_schedule/settings/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
+import 'package:er_schedule/auth/sign_in_failure_log.dart';
 
 import 'support/app_dependencies.dart';
 import 'support/repair.dart';
@@ -43,5 +44,44 @@ void main() {
       findsWidgets,
     );
     expect(find.text('My calendar'), findsOneWidget);
+  });
+
+  testWidgets('Maintainer can read a recorded sign-in provider failure', (
+    tester,
+  ) async {
+    final failureLog = FakeSignInFailureLog()
+      ..failures = [
+        SignInFailureRecord(
+          happenedAt: DateTime(2026, 9, 24, 14, 30),
+          code: 'unexpected_failure',
+          statusCode: '500',
+          message: 'mail quota reached',
+        ),
+      ];
+    final rules = scheduleRulesInMemory(
+      InMemoryScheduleDatabase(
+        grants: {'manager': Grants(manager: true)},
+        sections: const [],
+      ),
+      actingAs: 'manager',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          maintainerRepairController: noopRepairController(),
+          scheduleRules: rules,
+          noticeGateway: const NoopNoticeGateway(),
+          access: Access(grants: Grants(), maintainer: true),
+          signInFailureLog: failureLog,
+        ),
+      ),
+    );
+
+    expect(find.text('Sign-in failures'), findsOneWidget);
+
+    await tester.tap(find.text('Sign-in failures'));
+    await tester.pumpAndSettle();
+    expect(find.text('unexpected_failure'), findsOneWidget);
+    expect(find.textContaining('mail quota reached'), findsOneWidget);
   });
 }

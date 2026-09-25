@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:er_schedule/app_dependencies.dart';
 import 'package:er_schedule/auth/auth_gateway.dart';
+import 'package:er_schedule/auth/sign_in_failure_log.dart';
 import 'package:er_schedule/calendar/calendar_feed_page.dart';
 import 'package:er_schedule/notifications/notice_gateway.dart';
 import 'package:er_schedule/maintainer/repair_controller.dart';
@@ -20,6 +21,7 @@ import 'repair.dart';
 
 AppDependencies appDependencies({
   AuthGateway? authGateway,
+  SignInFailureLog? signInFailureLog,
   ScheduleStore? scheduleStore,
   SwapStore? swapStore,
   OpenShiftStore? openShiftStore,
@@ -36,6 +38,7 @@ AppDependencies appDependencies({
   final database = InMemoryScheduleDatabase(sections: const []);
   return AppDependencies(
     authGateway: authGateway ?? FakeAuthGateway(),
+    signInFailureLog: signInFailureLog ?? FakeSignInFailureLog(),
     scheduleStore: scheduleStore ?? database.storeFor('viewer'),
     swapStore: swapStore ?? InMemorySwapDatabase(shifts: {}).storeFor('viewer'),
     openShiftStore: openShiftStore ?? database.openShiftStoreFor('viewer'),
@@ -49,6 +52,19 @@ AppDependencies appDependencies({
     settingsHistory: settingsHistory ?? InMemorySettingsHistory(),
     repairController: repairController ?? noopRepairController(),
   );
+}
+
+final class FakeSignInFailureLog implements SignInFailureLog {
+  final recorded = <Object>[];
+  List<SignInFailureRecord> failures = const [];
+
+  @override
+  Future<void> record(Object error, StackTrace stackTrace) async {
+    recorded.add(error);
+  }
+
+  @override
+  Future<List<SignInFailureRecord>> read() async => failures;
 }
 
 final class FakeAuthGateway implements AuthGateway {
