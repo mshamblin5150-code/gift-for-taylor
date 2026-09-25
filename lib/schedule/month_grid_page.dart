@@ -35,6 +35,7 @@ import 'requests_off_page.dart';
 import 'shift_codes_page.dart';
 import 'staffing_sheet.dart';
 import 'staff_cell_sheet.dart';
+import 'swap_proposal.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -157,6 +158,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
     rules: widget.rules,
     access: widget.access,
     openShiftStore: widget.openShiftStore,
+    canProposeSwaps:
+        widget.swapStore != null && widget.swapStaffMemberId != null,
     month: _month,
     now: widget.now,
     onAccessRejected: widget.onAccessRejected,
@@ -236,6 +239,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
             await _recordCallIn(row, date);
           case StaffCellAction.withdrawCallIn:
             await _withdrawCallIn(row, date);
+          case StaffCellAction.proposeSwap:
+            await _proposeSwap(row, date);
         }
         return;
       case MonthNotStarted():
@@ -267,6 +272,51 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("That change wasn't saved. Try again.")),
         );
+    }
+  }
+
+  Future<void> _proposeSwap(
+    ScheduleRow colleague,
+    DateTime colleagueDate,
+  ) async {
+    final requesterId = widget.swapStaffMemberId;
+    final store = widget.swapStore;
+    final grid = _session.state.grid;
+    if (requesterId == null || store == null || grid == null) return;
+    final choice = await showSwapProposalDialog(
+      context,
+      rules: widget.rules,
+      initialGrid: grid,
+      requesterId: requesterId,
+      now: widget.now ?? DateTime.now,
+      fixedColleague: colleague,
+      fixedColleagueDate: colleagueDate,
+    );
+    if (choice == null || !mounted) return;
+    try {
+      final swap = await store.proposeSwap(
+        choice.colleague.staffMemberId,
+        choice.requesterDate,
+        choice.colleagueDate,
+      );
+      if (!mounted) return;
+      await textSwapColleague(
+        context,
+        swap: swap,
+        colleague: choice.colleague,
+        messagesComposer: widget.messagesComposer,
+      );
+      _pendingWork.refresh();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "That Swap wasn't proposed. Check the shifts and try again.",
+            ),
+          ),
+        );
+      }
     }
   }
 

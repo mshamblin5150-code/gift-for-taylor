@@ -480,6 +480,7 @@ final class ScheduleRow {
     this.cellNumber,
     this.lastDay,
     this.hasPushSubscription = false,
+    this.hasAcceptedInvite = false,
   });
 
   final String staffMemberId;
@@ -491,6 +492,9 @@ final class ScheduleRow {
 
   /// Whether this Staff member currently has a live notification subscription.
   final bool hasPushSubscription;
+
+  /// Whether this Staff member has an active account from an accepted Invite.
+  final bool hasAcceptedInvite;
 
   /// The Last day of someone who left in or before this month, even if they
   /// have since come back.

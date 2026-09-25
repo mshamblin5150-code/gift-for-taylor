@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'messages_composer.dart';
+import 'swap_proposal.dart';
 
 class SwapsPage extends StatefulWidget {
   const SwapsPage({
@@ -74,195 +75,29 @@ class _SwapsPageState extends State<SwapsPage> {
   Future<void> _propose(MonthGrid grid) async {
     final me = widget.staffMemberId;
     if (me == null) return;
-    final codes = await widget.rules.store.shiftCodes();
-    if (!mounted) return;
-    final colleagues = grid.rows
-        .where((row) => row.staffMemberId != me && row.cellNumber != null)
-        .toList();
-    final now = widget.now();
-    final firstSwapDay = firstFutureSwapDay(now);
-    final myDays = _workingDays(grid, me, codes, now);
-    if (colleagues.isEmpty || myDays.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No eligible colleague or working shift this month.'),
-        ),
-      );
-      return;
-    }
-    var colleague = colleagues.first;
-    var mine = myDays.first;
-    var mineGrid = grid;
-    var theirs = _workingDays(
-      grid,
-      colleague.staffMemberId,
-      codes,
-      now,
-    ).firstOrNull;
-    var theirGrid = grid;
-    final choice = await showDialog<(ScheduleRow, DateTime, DateTime)>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Text('Propose a Swap'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    initialValue: colleague.staffMemberId,
-                    decoration: const InputDecoration(labelText: 'Colleague'),
-                    items: [
-                      for (final row in colleagues)
-                        DropdownMenuItem(
-                          value: row.staffMemberId,
-                          child: Text(
-                            row.displayName,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    onChanged: (id) => setDialogState(() {
-                      colleague = colleagues.firstWhere(
-                        (row) => row.staffMemberId == id,
-                      );
-                      theirs = _workingDays(
-                        grid,
-                        colleague.staffMemberId,
-                        codes,
-                        now,
-                      ).firstOrNull;
-                      theirGrid = grid;
-                    }),
-                  ),
-                  ListTile(
-                    title: const Text('My shift'),
-                    subtitle: Text(_dayLabel(mineGrid, me, mine)),
-                    onTap: () async {
-                      final date = await _pickDate(context, mine, firstSwapDay);
-                      if (date == null) return;
-                      final loaded = await _gridOn(date);
-                      if (loaded != null && context.mounted) {
-                        setDialogState(() {
-                          mine = date;
-                          mineGrid = loaded;
-                        });
-                      }
-                    },
-                  ),
-                  ListTile(
-                    title: const Text('Colleague shift'),
-                    subtitle: Text(
-                      theirs == null
-                          ? 'Choose a date'
-                          : _dayLabel(
-                              theirGrid,
-                              colleague.staffMemberId,
-                              theirs!,
-                            ),
-                    ),
-                    onTap: () async {
-                      final date = await _pickDate(
-                        context,
-                        theirs ?? mine,
-                        firstSwapDay,
-                      );
-                      if (date == null) return;
-                      final loaded = await _gridOn(date);
-                      if (loaded != null && context.mounted) {
-                        setDialogState(() {
-                          theirs = date;
-                          theirGrid = loaded;
-                        });
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed:
-                    theirs == null ||
-                        !isWorkingShift(
-                          mineGrid.shiftCodeFor(me, mine) ?? '',
-                          codes: codes,
-                        ) ||
-                        !isWorkingShift(
-                          theirGrid.shiftCodeFor(
-                                colleague.staffMemberId,
-                                theirs!,
-                              ) ??
-                              '',
-                          codes: codes,
-                        )
-                    ? null
-                    : () => Navigator.pop(context, (colleague, mine, theirs!)),
-                child: const Text('Propose'),
-              ),
-            ],
-          );
-        },
-      ),
+    final choice = await showSwapProposalDialog(
+      context,
+      rules: widget.rules,
+      initialGrid: grid,
+      requesterId: me,
+      now: widget.now,
     );
     if (choice == null) return;
     Swap? proposed;
     await _run(() async {
-      final (row, myDate, theirDate) = choice;
-      if (row.staffMemberId.isEmpty) {
-        throw ArgumentError('Choose a colleague');
-      }
       proposed = await widget.swapStore.proposeSwap(
-        row.staffMemberId,
-        myDate,
-        theirDate,
+        choice.colleague.staffMemberId,
+        choice.requesterDate,
+        choice.colleagueDate,
       );
     });
-    if (proposed != null) await _textColleague(proposed!, choice.$1);
-  }
-
-  Future<void> _textColleague(Swap swap, ScheduleRow colleague) async {
-    final number = colleague.cellNumber;
-    final composer = widget.messagesComposer;
-    if (number == null || composer == null) return;
-    try {
-      await composer.open(
-        [number],
-        'Hi ${colleague.displayName}, can we Swap my ${DateFormat.MMMd().format(swap.requesterDate)} '
-        '${swap.requesterCode} shift for your ${DateFormat.MMMd().format(swap.colleagueDate)} '
-        '${swap.colleagueCode} shift? Please answer in the ER Schedule app.',
+    if (proposed != null && mounted) {
+      await textSwapColleague(
+        context,
+        swap: proposed!,
+        colleague: choice.colleague,
+        messagesComposer: widget.messagesComposer,
       );
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Swap proposed. Messages could not open; try the text button again.',
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<MonthGrid?> _gridOn(DateTime date) async {
-    try {
-      return await widget.rules.monthGrid(date);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This month could not be loaded. Try again.'),
-          ),
-        );
-      }
-      return null;
     }
   }
 
@@ -378,11 +213,13 @@ class _SwapsPageState extends State<SwapsPage> {
                       ? IconButton(
                           tooltip: 'Text colleague',
                           icon: const Icon(Icons.sms_outlined),
-                          onPressed: () => _textColleague(
-                            swap,
-                            grid.rows.firstWhere(
+                          onPressed: () => textSwapColleague(
+                            context,
+                            swap: swap,
+                            colleague: grid.rows.firstWhere(
                               (row) => row.staffMemberId == swap.colleagueId,
                             ),
+                            messagesComposer: widget.messagesComposer,
                           ),
                         )
                       : null,
@@ -394,36 +231,3 @@ class _SwapsPageState extends State<SwapsPage> {
     ),
   );
 }
-
-List<DateTime> _workingDays(
-  MonthGrid grid,
-  String id,
-  List<LegendCode> codes,
-  DateTime now,
-) {
-  final start = DateTime(grid.month.year, grid.month.month);
-  final length = DateTime(grid.month.year, grid.month.month + 1, 0).day;
-  return [
-    for (var day = 1; day <= length; day++)
-      if (isFutureSwapDay(DateTime(start.year, start.month, day), now: now) &&
-          isWorkingShift(
-            grid.shiftCodeFor(id, DateTime(start.year, start.month, day)) ?? '',
-            codes: codes,
-          ))
-        DateTime(start.year, start.month, day),
-  ];
-}
-
-String _dayLabel(MonthGrid grid, String id, DateTime date) =>
-    '${DateFormat.MMMd().format(date)} — ${grid.shiftCodeFor(id, date)}';
-
-Future<DateTime?> _pickDate(
-  BuildContext context,
-  DateTime initial,
-  DateTime firstSwapDay,
-) => showDatePicker(
-  context: context,
-  initialDate: initial,
-  firstDate: firstSwapDay,
-  lastDate: DateTime(2100),
-);

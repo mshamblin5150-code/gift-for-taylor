@@ -1,10 +1,11 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(8);
 
 insert into auth.users (id, email)
 values
+  ('00000000-0000-0000-0000-000000000190', 'staying@example.test'),
   ('00000000-0000-0000-0000-000000000191', 'manager@example.test'),
   ('00000000-0000-0000-0000-000000000192', 'outsider@example.test');
 
@@ -28,12 +29,19 @@ insert into public.staff_accounts (
   personal_email,
   accepted_invite_at
 )
-values (
-  '00000000-0000-0000-0000-000000000195',
-  '00000000-0000-0000-0000-000000000191',
-  'manager@example.test',
-  now()
-);
+values
+  (
+    '00000000-0000-0000-0000-000000000195',
+    '00000000-0000-0000-0000-000000000191',
+    'manager@example.test',
+    now()
+  ),
+  (
+    '00000000-0000-0000-0000-000000000197',
+    '00000000-0000-0000-0000-000000000190',
+    'staying@example.test',
+    now()
+  );
 
 insert into public.staff_section_assignments (
   staff_member_id,
@@ -168,6 +176,20 @@ select ok(
     where display_name = 'November RN'
   ),
   'any date in the month finds that month'
+);
+
+select is(
+  (select has_accepted_invite from public.schedule_rows('2026-09-01')
+    where staff_member_id = '00000000-0000-0000-0000-000000000197'),
+  true,
+  'a Schedule row reports an accepted Invite from the active account'
+);
+
+select is(
+  (select has_accepted_invite from public.schedule_rows('2026-09-01')
+    where staff_member_id = '00000000-0000-0000-0000-000000000196'),
+  false,
+  'a Schedule row reports when the Staff member has not accepted an Invite'
 );
 
 select set_config(
