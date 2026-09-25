@@ -4,6 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+typedef _OpenShiftsData = ({
+  MonthGrid grid,
+  List<OpenShift> shifts,
+  List<OpenShiftPickup> pickups,
+  int hiddenCount,
+});
+
 class OpenShiftsPage extends StatefulWidget {
   const OpenShiftsPage({
     super.key,
@@ -26,8 +33,7 @@ class OpenShiftsPage extends StatefulWidget {
 }
 
 class _OpenShiftsPageState extends State<OpenShiftsPage> {
-  late Future<(MonthGrid, List<OpenShift>, List<OpenShiftPickup>)> _data =
-      _load();
+  late Future<_OpenShiftsData> _data = _load();
   StreamSubscription<void>? _updates;
   bool _busy = false;
 
@@ -43,10 +49,11 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
     super.dispose();
   }
 
-  Future<(MonthGrid, List<OpenShift>, List<OpenShiftPickup>)> _load() async => (
-    await widget.scheduleRules.monthGrid(widget.month),
-    await widget.rules.openShifts(),
-    await widget.rules.pickups(),
+  Future<_OpenShiftsData> _load() async => (
+    grid: await widget.scheduleRules.monthGrid(widget.month),
+    shifts: await widget.rules.openShifts(),
+    pickups: await widget.rules.pickups(),
+    hiddenCount: await widget.rules.hiddenOpenShiftCount(widget.month),
   );
 
   void _refresh() => setState(() => _data = _load());
@@ -84,7 +91,7 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
         ),
       ],
     ),
-    body: FutureBuilder<(MonthGrid, List<OpenShift>, List<OpenShiftPickup>)>(
+    body: FutureBuilder<_OpenShiftsData>(
       future: _data,
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -94,7 +101,7 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
                 : const CircularProgressIndicator(),
           );
         }
-        final (grid, shifts, pickups) = snapshot.data!;
+        final (:grid, :shifts, :pickups, :hiddenCount) = snapshot.data!;
         final monthShifts = shifts
             .where(
               (shift) =>
@@ -106,6 +113,14 @@ class _OpenShiftsPageState extends State<OpenShiftsPage> {
           children: [
             if (monthShifts.isEmpty)
               const ListTile(title: Text('No Open shifts this month.')),
+            if (!widget.isManager && hiddenCount > 0)
+              ListTile(
+                title: Text(
+                  hiddenCount == 1
+                      ? "1 more Open shift isn't available to you."
+                      : "$hiddenCount more Open shifts aren't available to you.",
+                ),
+              ),
             for (final shift in monthShifts)
               Card(
                 child: ListTile(
