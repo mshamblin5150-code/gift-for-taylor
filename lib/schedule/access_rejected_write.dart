@@ -23,3 +23,19 @@ Future<T> mapStartMonthRefusal<T>(Future<T> Function() write) async {
     rethrow;
   }
 }
+
+/// Maps Call-in refusals to domain values so pages never inspect backend text.
+Future<T> mapCallInRefusal<T>(Future<T> Function() command) async {
+  try {
+    return await mapAccessRejected(command);
+  } on PostgrestException catch (error) {
+    final reason = switch (error.code) {
+      'P2811' => CallInRefusal.recorderNotWorking,
+      'P2812' => CallInRefusal.targetNotWorking,
+      'P2813' => CallInRefusal.settled,
+      _ => null,
+    };
+    if (reason != null) throw CallInRefused(reason);
+    rethrow;
+  }
+}

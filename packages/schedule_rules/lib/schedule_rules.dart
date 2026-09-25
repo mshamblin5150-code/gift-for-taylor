@@ -80,6 +80,20 @@ abstract interface class ScheduleStore {
 
   Future<void> writeCellPair(SaveCellPair action);
 
+  /// Whether the signed-in Staff member is working in the department now.
+  Future<bool> isOnFloorNow();
+
+  /// Records a Call-in and returns the number of Open shifts it posted.
+  Future<int> recordCallIn(String staffMemberId, DateTime date);
+
+  /// Whether a recorded Call-in can still be withdrawn.
+  Future<CallInWithdrawalState> callInWithdrawalState(
+    String staffMemberId,
+    DateTime date,
+  );
+
+  Future<void> withdrawCallIn(String staffMemberId, DateTime date);
+
   Stream<void> monthUpdates(DateTime month);
 
   Future<Access> currentAccess();
@@ -147,6 +161,16 @@ abstract interface class ScheduleStore {
   );
   Future<int> unreadRequestOffNotices();
   Future<void> acknowledgeRequestOffNotices();
+}
+
+enum CallInWithdrawalState { withdrawable, settled, notRecorded }
+
+enum CallInRefusal { recorderNotWorking, targetNotWorking, settled }
+
+final class CallInRefused implements Exception {
+  const CallInRefused(this.reason);
+
+  final CallInRefusal reason;
 }
 
 enum MonthStatus {

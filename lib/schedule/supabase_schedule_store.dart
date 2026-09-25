@@ -391,6 +391,50 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
+  Future<bool> isOnFloorNow() async =>
+      await _client.rpc<bool>('is_current_staff_member_on_floor');
+
+  @override
+  Future<int> recordCallIn(String staffMemberId, DateTime date) =>
+      mapCallInRefusal(
+        () => _client.rpc<int>(
+          'record_call_in',
+          params: {
+            'p_staff_member_id': staffMemberId,
+            'p_work_date': _date(date),
+          },
+        ),
+      );
+
+  @override
+  Future<CallInWithdrawalState> callInWithdrawalState(
+    String staffMemberId,
+    DateTime date,
+  ) async {
+    final value = await _client.rpc<String>(
+      'call_in_withdrawal_state',
+      params: {'p_staff_member_id': staffMemberId, 'p_work_date': _date(date)},
+    );
+    return switch (value) {
+      'withdrawable' => CallInWithdrawalState.withdrawable,
+      'settled' => CallInWithdrawalState.settled,
+      _ => CallInWithdrawalState.notRecorded,
+    };
+  }
+
+  @override
+  Future<void> withdrawCallIn(String staffMemberId, DateTime date) =>
+      mapCallInRefusal(
+        () => _client.rpc<void>(
+          'withdraw_call_in',
+          params: {
+            'p_staff_member_id': staffMemberId,
+            'p_work_date': _date(date),
+          },
+        ),
+      );
+
+  @override
   Stream<void> monthUpdates(DateTime month) {
     late final StreamController<void> controller;
     RealtimeChannel? channel;

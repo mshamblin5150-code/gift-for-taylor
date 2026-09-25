@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(18);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000001471', 'auto-manager@example.test'),
@@ -47,8 +47,8 @@ where member.id in ('00000000-0000-0000-0000-000000001474',
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000001471","role":"authenticated"}', true);
 select public.set_open_shift_approval_default(false);
-select public.save_schedule_cell('00000000-0000-0000-0000-000000001475',
-  '00000000-0000-0000-0000-000000001473', '2027-04-14', 'C/I');
+select is(public.record_call_in('00000000-0000-0000-0000-000000001475', '2027-04-14'), 1,
+  'recording reports the one Open shift it posted');
 select is((select count(*)::integer from public.short_shifts where work_date = '2027-04-14'), 1,
   'three on against three: one Call-in posts one Open shift');
 select is((select count(*)::integer from public.short_shifts where work_date = '2027-04-14'

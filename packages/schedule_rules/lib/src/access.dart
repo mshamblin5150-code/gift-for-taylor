@@ -117,6 +117,7 @@ final class Access {
   bool get canManageUnit => _managerLevel || grants.administrator;
   bool get canTransferManager => _managerLevel;
   bool get canUseOwnSettings => ownStaffMemberId != null;
+  bool get canUseStaffCellActions => ownStaffMemberId != null;
   bool get canReadUnreleased =>
       _managerLevel ||
       grants.administrator ||

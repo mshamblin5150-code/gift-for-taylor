@@ -102,6 +102,12 @@ void main() {
     await tester.tap(cell('rn-1', september18));
     await tester.pumpAndSettle();
     expect(find.text('Other Shift code'), findsNothing);
+    expect(
+      find.text('There are no actions available for this cell.'),
+      findsOneWidget,
+    );
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pumpAndSettle();
 
     await tester.tap(cell('rn-2', september18));
     await tester.pumpAndSettle();
@@ -131,6 +137,12 @@ void main() {
       await tester.tap(cell('rn-1', october16));
       await tester.pumpAndSettle();
       expect(find.text('Other Shift code'), findsNothing);
+      expect(
+        find.text('There are no actions available for this cell.'),
+        findsOneWidget,
+      );
+      await tester.tapAt(const Offset(8, 8));
+      await tester.pumpAndSettle();
 
       await tester.tap(cell('rn-2', october16));
       await tester.pumpAndSettle();

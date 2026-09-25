@@ -1,7 +1,7 @@
 begin;
 set local time zone 'America/New_York';
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(27);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000901', 'call-manager@example.test'),
@@ -37,13 +37,19 @@ insert into public.schedule_cells(schedule_month_id, staff_member_id, section_id
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000902","role":"authenticated"}', true);
-select lives_ok($$select public.record_call_in('00000000-0000-0000-0000-000000000907', '2027-10-14')$$,
-  'working Staff member records a colleague on another day');
+select ok(public.is_current_staff_member_on_floor(),
+  'caller-side read says a working Staff member is on the floor');
+select ok(has_function_privilege('authenticated', 'public.is_current_staff_member_on_floor()', 'EXECUTE'),
+  'authenticated callers can read their on-floor state');
+select is(public.record_call_in('00000000-0000-0000-0000-000000000907', '2027-10-14'), 0,
+  'working Staff member records a colleague and sees that no Open shift posted');
 reset role;
 select is((select shift_code from public.schedule_cells where staff_member_id =
   '00000000-0000-0000-0000-000000000907' and work_date = '2027-10-14'), 'C/I',
   'Call-in writes the target cell');
 set local role authenticated;
+select is(public.call_in_withdrawal_state('00000000-0000-0000-0000-000000000907', '2027-10-14'),
+  'withdrawable', 'unfilled Call-in is visibly withdrawable');
 select throws_ok($$select public.record_call_in('00000000-0000-0000-0000-000000000907', '2027-10-14')$$,
   'Target has no working Shift to call in from', 'cannot record the same Call-in twice');
 select throws_ok($$select public.save_schedule_cell('00000000-0000-0000-0000-000000000907',
@@ -83,6 +89,8 @@ update public.schedule_cells set shift_code = case
     then '7A' else '7P' end
 where staff_member_id = '00000000-0000-0000-0000-000000000906' and work_date = current_date;
 set local role authenticated;
+select is(public.is_current_staff_member_on_floor(), false,
+  'caller-side read says a later or finished Staff member is off the floor');
 select throws_ok($$select public.record_call_in('00000000-0000-0000-0000-000000000907', '2027-10-15')$$,
   'You must be working when you record a Call-in',
   'Staff member scheduled later or already off duty cannot record');
@@ -136,6 +144,8 @@ insert into public.short_shifts(schedule_month_id, work_date, shift_code, reason
      and work_date = '2027-10-15' and new_shift_code = 'C/I' order by changed_at desc limit 1), now());
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000901","role":"authenticated"}', true);
+select is(public.call_in_withdrawal_state('00000000-0000-0000-0000-000000000907', '2027-10-15'),
+  'settled', 'filled Open shift makes the Call-in visibly settled');
 select throws_ok($$select public.withdraw_call_in('00000000-0000-0000-0000-000000000907', '2027-10-15')$$,
   'A Call-in is settled once an Open shift is filled', 'filled shift prevents withdrawal');
 select is((select shift_code from public.schedule_cells where staff_member_id =

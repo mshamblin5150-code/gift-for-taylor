@@ -33,6 +33,7 @@ import 'pending_work.dart';
 import 'requests_off_page.dart';
 import 'shift_codes_page.dart';
 import 'staffing_sheet.dart';
+import 'staff_cell_sheet.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -218,6 +219,21 @@ class _MonthGridPageState extends State<MonthGridPage> {
     final editable = _session.editableCell(row, date);
     switch (editable) {
       case NotEditable():
+        final review = await _session.reviewStaffCell(row, date);
+        if (!mounted) return;
+        final action = await showStaffCellSheet(
+          context,
+          row: row,
+          date: date,
+          review: review,
+        );
+        if (action == null || !mounted) return;
+        switch (action) {
+          case StaffCellAction.recordCallIn:
+            await _recordCallIn(row, date);
+          case StaffCellAction.withdrawCallIn:
+            await _withdrawCallIn(row, date);
+        }
         return;
       case MonthNotStarted():
         ScaffoldMessenger.of(context).showSnackBar(
@@ -229,6 +245,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       case Editable():
         break;
     }
+    if (!mounted) return;
     final edit = await showCellEditSheet(
       context,
       row: row,
@@ -248,6 +265,42 @@ class _MonthGridPageState extends State<MonthGridPage> {
           const SnackBar(content: Text("That change wasn't saved. Try again.")),
         );
     }
+  }
+
+  Future<void> _recordCallIn(ScheduleRow row, DateTime date) async {
+    final outcome = await _session.recordCallIn(row, date);
+    if (!mounted) return;
+    final message = switch (outcome) {
+      CallInRecorded(openShiftsPosted: 0) => 'Call-in recorded. The day still meets its minimum, so no Open shift was posted.',
+      CallInRecorded(:final openShiftsPosted) =>
+        'Call-in recorded. $openShiftsPosted Open ${openShiftsPosted == 1 ? 'shift was' : 'shifts were'} posted.',
+      RecordCallInRefused(reason: CallInRefusal.recorderNotWorking) =>
+        'You must be working now to record a Call-in.',
+      RecordCallInRefused(reason: CallInRefusal.targetNotWorking) =>
+        'That Staff member no longer has a working Shift to call in from.',
+      RecordCallInRefused(reason: CallInRefusal.settled) =>
+        'That Call-in is already settled.',
+      RecordCallInFailed() => "The Call-in wasn't recorded. Try again.",
+    };
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _withdrawCallIn(ScheduleRow row, DateTime date) async {
+    final outcome = await _session.withdrawCallIn(row, date);
+    if (!mounted) return;
+    final message = switch (outcome) {
+      CallInWithdrawn() =>
+        'Call-in withdrawn. The previous Shift was restored.',
+      WithdrawCallInRefused(reason: CallInRefusal.recorderNotWorking) =>
+        'You must be working now to withdraw a Call-in.',
+      WithdrawCallInRefused(reason: CallInRefusal.targetNotWorking) =>
+        'There is no recorded Call-in to withdraw.',
+      WithdrawCallInRefused(reason: CallInRefusal.settled) => 'This Call-in is settled because an Open shift was filled, so it cannot be withdrawn.',
+      WithdrawCallInFailed() => "The Call-in wasn't withdrawn. Try again.",
+    };
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _drop(
@@ -2224,6 +2277,7 @@ class _DayView extends StatelessWidget {
                               )
                               ? _changeColor(context)
                               : null,
+                          onTap: () => onEdit(entry.row, entry.date),
                         ),
                 ],
               ] else ...[
