@@ -106,6 +106,71 @@ void main() {
     );
   });
 
+  test('one Swap groups its changed days and names the cause', () async {
+    await publishStartingMonth();
+    await save(dana, 18, 'X');
+    await save(dana, 19, 'N');
+    final changes = await manager.changeLog(september);
+    database.seedScheduleChanges([
+      for (final change in changes.where((change) => !change.announced))
+        ScheduleChange(
+          id: change.id,
+          staffMemberId: change.staffMemberId,
+          date: change.date,
+          oldShiftCode: change.oldShiftCode,
+          newShiftCode: change.newShiftCode,
+          changedBy: change.changedBy,
+          changedByName: change.changedByName,
+          changedAt: change.changedAt,
+          announced: false,
+          swapId: 'swap-1',
+        ),
+    ]);
+
+    expect(
+      (await manager.changeAnnouncement(september)).people.single.message,
+      'Hi Dana Reyes, ER Schedule change:\n'
+      'Swap:\n'
+      '  Fri 9/18: off (was 7A)\n'
+      '  Sat 9/19: N (was 7A)',
+    );
+  });
+
+  test('interleaved Swap days stay grouped by Swap', () async {
+    await publishStartingMonth();
+    await save(dana, 20, '7A');
+    database.markAllAnnounced();
+    await save(dana, 18, 'X');
+    await save(dana, 19, 'N');
+    await save(dana, 20, 'X');
+    final changes = await manager.changeLog(september);
+    database.seedScheduleChanges([
+      for (final change in changes.where((change) => !change.announced))
+        ScheduleChange(
+          id: change.id,
+          staffMemberId: change.staffMemberId,
+          date: change.date,
+          oldShiftCode: change.oldShiftCode,
+          newShiftCode: change.newShiftCode,
+          changedBy: change.changedBy,
+          changedByName: change.changedByName,
+          changedAt: change.changedAt,
+          announced: false,
+          swapId: change.date.day == 19 ? 'swap-2' : 'swap-1',
+        ),
+    ]);
+
+    expect(
+      (await manager.changeAnnouncement(september)).people.single.message,
+      'Hi Dana Reyes, ER Schedule change:\n'
+      'Swap:\n'
+      '  Fri 9/18: off (was 7A)\n'
+      '  Sun 9/20: off (was 7A)\n'
+      'Swap:\n'
+      '  Sat 9/19: N (was 7A)',
+    );
+  });
+
   test('several edits to one cell announce only the net change', () async {
     await publishStartingMonth();
     await save(sam, 18, 'X');

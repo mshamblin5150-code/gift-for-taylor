@@ -295,10 +295,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     return action;
   }
 
-  Future<void> _proposeSwap(
-    ScheduleRow colleague,
-    DateTime colleagueDate,
-  ) async {
+  Future<void> _proposeSwap(ScheduleRow tappedRow, DateTime tappedDate) async {
     final requesterId = widget.swapStaffMemberId;
     final grid = _session.state.grid;
     if (requesterId == null || grid == null) return;
@@ -308,14 +305,19 @@ class _MonthGridPageState extends State<MonthGridPage> {
       initialGrid: grid,
       requesterId: requesterId,
       now: widget.now ?? DateTime.now,
-      fixedColleague: colleague,
-      fixedColleagueDate: colleagueDate,
+      fixedColleague: tappedRow.staffMemberId == requesterId ? null : tappedRow,
+      fixedColleagueDate: tappedRow.staffMemberId == requesterId
+          ? null
+          : tappedDate,
+      fixedRequesterDate: tappedRow.staffMemberId == requesterId
+          ? tappedDate
+          : null,
     );
     if (choice == null || !mounted) return;
     final outcome = await _session.proposeSwap(
       choice.colleague.staffMemberId,
-      choice.requesterDate,
-      choice.colleagueDate,
+      choice.requesterDates,
+      choice.colleagueDates,
     );
     if (!mounted) return;
     switch (outcome) {
@@ -328,6 +330,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
           messagesComposer: widget.messagesComposer,
         );
         _pendingWork.refresh();
+      case SwapProposeRefused(:final reason):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(swapProposalRefusalMessage(reason))),
+        );
       case ProposeSwapFailed():
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -856,6 +862,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             staffMemberId: widget.swapStaffMemberId,
             isManager: _access.canRunSchedule,
             messagesComposer: widget.messagesComposer,
+            onAccessRejected: widget.onAccessRejected,
           ),
         ),
       ),
@@ -910,6 +917,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 staffMemberId: widget.swapStaffMemberId,
                 isManager: true,
                 messagesComposer: widget.messagesComposer,
+                onAccessRejected: widget.onAccessRejected,
               ),
             ),
           ),

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'access_rejected_write.dart';
+
 final class SupabaseSwapStore implements SwapStore {
   const SupabaseSwapStore(this.client);
 
@@ -13,9 +15,9 @@ final class SupabaseSwapStore implements SwapStore {
     final rows = await client
         .from('swaps')
         .select(
-          'id, requester_id, colleague_id, requester_date, colleague_date, '
-          'requester_code, colleague_code, requester_target_code, '
-          'colleague_target_code, status, reason',
+          'id, requester_id, colleague_id, status, reason, '
+          'voided_staff_member_id, voided_work_date, '
+          'swap_shifts(side, work_date, shift_code, target_code)',
         )
         .order('created_at', ascending: false);
     return [for (final row in rows) _swap(row)];
@@ -55,17 +57,28 @@ final class SupabaseSwapStore implements SwapStore {
   @override
   Future<Swap> proposeSwap(
     String colleagueId,
-    DateTime requesterDate,
-    DateTime colleagueDate,
+    List<DateTime> requesterDates,
+    List<DateTime> colleagueDates,
   ) async {
-    final row = await client.rpc<Map<String, dynamic>>(
-      'propose_swap',
-      params: {
-        'p_colleague_id': colleagueId,
-        'p_requester_date': _date(requesterDate),
-        'p_colleague_date': _date(colleagueDate),
-      },
+    final id = await mapSwapProposalRefusal(
+      () => client.rpc<String>(
+        'propose_swap',
+        params: {
+          'p_colleague_id': colleagueId,
+          'p_requester_dates': requesterDates.map(_date).toList(),
+          'p_colleague_dates': colleagueDates.map(_date).toList(),
+        },
+      ),
     );
+    final row = await client
+        .from('swaps')
+        .select(
+          'id, requester_id, colleague_id, status, reason, '
+          'voided_staff_member_id, voided_work_date, '
+          'swap_shifts(side, work_date, shift_code, target_code)',
+        )
+        .eq('id', id)
+        .single();
     return _swap(row);
   }
 
@@ -74,34 +87,52 @@ final class SupabaseSwapStore implements SwapStore {
     String swapId, {
     required bool accept,
     String? reason,
-  }) => client.rpc<void>(
-    'answer_swap',
-    params: {'p_swap_id': swapId, 'p_accept': accept, 'p_reason': reason},
+  }) => mapAccessRejected(
+    () => client.rpc<void>(
+      'answer_swap',
+      params: {'p_swap_id': swapId, 'p_accept': accept, 'p_reason': reason},
+    ),
   );
 
   @override
-  Future<void> approveSwap(String swapId) =>
-      client.rpc<void>('approve_swap', params: {'p_swap_id': swapId});
+  Future<void> approveSwap(String swapId) => mapAccessRejected(
+    () => client.rpc<void>('approve_swap', params: {'p_swap_id': swapId}),
+  );
 
   @override
-  Future<void> declineSwap(String swapId, {String? reason}) => client.rpc<void>(
-    'decline_swap',
-    params: {'p_swap_id': swapId, 'p_reason': reason},
-  );
+  Future<void> declineSwap(String swapId, {String? reason}) =>
+      mapAccessRejected(
+        () => client.rpc<void>(
+          'decline_swap',
+          params: {'p_swap_id': swapId, 'p_reason': reason},
+        ),
+      );
 
-  Swap _swap(Map<String, dynamic> row) => Swap(
-    id: row['id'] as String,
-    requesterId: row['requester_id'] as String,
-    colleagueId: row['colleague_id'] as String,
-    requesterDate: DateTime.parse(row['requester_date'] as String),
-    colleagueDate: DateTime.parse(row['colleague_date'] as String),
-    requesterCode: row['requester_code'] as String,
-    colleagueCode: row['colleague_code'] as String,
-    requesterTargetCode: row['requester_target_code'] as String,
-    colleagueTargetCode: row['colleague_target_code'] as String,
-    status: SwapStatus.values.byName(row['status'] as String),
-    reason: row['reason'] as String?,
-  );
+  Swap _swap(Map<String, dynamic> row) {
+    final shifts = (row['swap_shifts'] as List<dynamic>)
+        .cast<Map<String, dynamic>>();
+    List<SwapShift> side(String side) => [
+      for (final shift in shifts.where((shift) => shift['side'] == side))
+        SwapShift(
+          date: DateTime.parse(shift['work_date'] as String),
+          shiftCode: shift['shift_code'] as String,
+          targetCode: shift['target_code'] as String,
+        ),
+    ]..sort((a, b) => a.date.compareTo(b.date));
+    return Swap(
+      id: row['id'] as String,
+      requesterId: row['requester_id'] as String,
+      colleagueId: row['colleague_id'] as String,
+      requesterShifts: side('requester'),
+      colleagueShifts: side('colleague'),
+      status: SwapStatus.values.byName(row['status'] as String),
+      reason: row['reason'] as String?,
+      voidedStaffMemberId: row['voided_staff_member_id'] as String?,
+      voidedDate: row['voided_work_date'] == null
+          ? null
+          : DateTime.parse(row['voided_work_date'] as String),
+    );
+  }
 }
 
 String _date(DateTime date) =>

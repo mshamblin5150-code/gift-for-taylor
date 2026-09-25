@@ -42,25 +42,31 @@ final class _InMemorySwapStore implements SwapStore {
   @override
   Future<Swap> proposeSwap(
     String colleagueId,
-    DateTime requesterDate,
-    DateTime colleagueDate,
+    List<DateTime> requesterDates,
+    List<DateTime> colleagueDates,
   ) async {
-    requesterDate = _day(requesterDate);
-    colleagueDate = _day(colleagueDate);
-    final mine = database.shiftCodeFor(actor, requesterDate);
-    final theirs = database.shiftCodeFor(colleagueId, colleagueDate);
-    final myTarget = database.shiftCodeFor(actor, colleagueDate) ?? '';
-    final theirTarget = database.shiftCodeFor(colleagueId, requesterDate) ?? '';
+    requesterDates = requesterDates.map(_day).toList();
+    colleagueDates = colleagueDates.map(_day).toList();
     final swap = Swap(
       id: '${database._swaps.length + 1}',
       requesterId: actor,
       colleagueId: colleagueId,
-      requesterDate: requesterDate,
-      colleagueDate: colleagueDate,
-      requesterCode: mine ?? '',
-      colleagueCode: theirs ?? '',
-      requesterTargetCode: myTarget,
-      colleagueTargetCode: theirTarget,
+      requesterShifts: [
+        for (final date in requesterDates)
+          SwapShift(
+            date: date,
+            shiftCode: database.shiftCodeFor(actor, date) ?? '',
+            targetCode: database.shiftCodeFor(colleagueId, date) ?? '',
+          ),
+      ],
+      colleagueShifts: [
+        for (final date in colleagueDates)
+          SwapShift(
+            date: date,
+            shiftCode: database.shiftCodeFor(colleagueId, date) ?? '',
+            targetCode: database.shiftCodeFor(actor, date) ?? '',
+          ),
+      ],
       status: SwapStatus.proposed,
     );
     database._swaps.add(swap);
@@ -86,18 +92,17 @@ final class _InMemorySwapStore implements SwapStore {
   Future<void> approveSwap(String swapId) async {
     final index = database._swaps.indexWhere((swap) => swap.id == swapId);
     final swap = database._swaps[index];
-    if (swap.requesterDate == swap.colleagueDate) {
-      database._shifts[(swap.requesterId, swap.requesterDate)] =
-          swap.colleagueCode;
-      database._shifts[(swap.colleagueId, swap.colleagueDate)] =
-          swap.requesterCode;
-    } else {
-      database._shifts[(swap.requesterId, swap.requesterDate)] = 'X';
-      database._shifts[(swap.colleagueId, swap.colleagueDate)] = 'X';
-      database._shifts[(swap.requesterId, swap.colleagueDate)] =
-          swap.colleagueCode;
-      database._shifts[(swap.colleagueId, swap.requesterDate)] =
-          swap.requesterCode;
+    for (final shift in swap.requesterShifts) {
+      database._shifts[(swap.requesterId, shift.date)] = 'X';
+    }
+    for (final shift in swap.colleagueShifts) {
+      database._shifts[(swap.colleagueId, shift.date)] = 'X';
+    }
+    for (final shift in swap.colleagueShifts) {
+      database._shifts[(swap.requesterId, shift.date)] = shift.shiftCode;
+    }
+    for (final shift in swap.requesterShifts) {
+      database._shifts[(swap.colleagueId, shift.date)] = shift.shiftCode;
     }
     database._swaps[index] = _copy(swap, SwapStatus.approved, swap.reason);
   }
@@ -117,12 +122,10 @@ Swap _copy(Swap swap, SwapStatus status, String? reason) => Swap(
   id: swap.id,
   requesterId: swap.requesterId,
   colleagueId: swap.colleagueId,
-  requesterDate: swap.requesterDate,
-  colleagueDate: swap.colleagueDate,
-  requesterCode: swap.requesterCode,
-  colleagueCode: swap.colleagueCode,
-  requesterTargetCode: swap.requesterTargetCode,
-  colleagueTargetCode: swap.colleagueTargetCode,
+  requesterShifts: swap.requesterShifts,
+  colleagueShifts: swap.colleagueShifts,
   status: status,
   reason: reason,
+  voidedStaffMemberId: swap.voidedStaffMemberId,
+  voidedDate: swap.voidedDate,
 );

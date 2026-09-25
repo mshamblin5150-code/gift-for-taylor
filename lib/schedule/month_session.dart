@@ -95,6 +95,11 @@ final class SwapProposed extends ProposeSwapOutcome {
   final Swap swap;
 }
 
+final class SwapProposeRefused extends ProposeSwapOutcome {
+  const SwapProposeRefused(this.reason);
+  final SwapProposalRefusal reason;
+}
+
 final class ProposeSwapFailed extends ProposeSwapOutcome {
   const ProposeSwapFailed();
 }
@@ -564,9 +569,7 @@ final class MonthSession extends ChangeNotifier {
     String code,
   ) {
     final requesterId = _access.ownStaffMemberId;
-    if (_access.canRunSchedule ||
-        requesterId == null ||
-        requesterId == row.staffMemberId) {
+    if (_access.canRunSchedule || requesterId == null) {
       return null;
     }
     if (state.grid?.status != MonthStatus.released) {
@@ -574,7 +577,7 @@ final class MonthSession extends ChangeNotifier {
         unavailableReason: StaffCellSwapUnavailableReason.monthNotReleased,
       );
     }
-    if (!row.hasAcceptedInvite) {
+    if (requesterId != row.staffMemberId && !row.hasAcceptedInvite) {
       return const StaffCellSwapReview(
         unavailableReason: StaffCellSwapUnavailableReason.colleagueNotInApp,
       );
@@ -594,16 +597,18 @@ final class MonthSession extends ChangeNotifier {
 
   Future<ProposeSwapOutcome> proposeSwap(
     String colleagueId,
-    DateTime requesterDate,
-    DateTime colleagueDate,
+    List<DateTime> requesterDates,
+    List<DateTime> colleagueDates,
   ) async {
     try {
       final swap = await _swapStore.proposeSwap(
         colleagueId,
-        requesterDate,
-        colleagueDate,
+        requesterDates,
+        colleagueDates,
       );
       return SwapProposed(swap);
+    } on SwapProposalRefused catch (error) {
+      return SwapProposeRefused(error.reason);
     } catch (error) {
       _rejected(error);
       return const ProposeSwapFailed();

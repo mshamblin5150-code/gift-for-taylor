@@ -81,4 +81,31 @@ void main() {
       throwsA(same(error)),
     );
   });
+
+  test('Swap SQLSTATEs map without exposing backend messages', () async {
+    const reasons = {
+      'P2814': SwapProposalRefusal.differentStaffRequired,
+      'P2815': SwapProposalRefusal.equalCountsRequired,
+      'P2816': SwapProposalRefusal.shiftLimitExceeded,
+      'P2817': SwapProposalRefusal.duplicateDate,
+      'P2818': SwapProposalRefusal.colleagueNotInvited,
+      'P2819': SwapProposalRefusal.dayNotFuture,
+      'P2820': SwapProposalRefusal.sourceUnavailable,
+      'P2821': SwapProposalRefusal.destinationUnavailable,
+      'P2822': SwapProposalRefusal.noChange,
+    };
+    for (final MapEntry(:key, :value) in reasons.entries) {
+      final error = PostgrestException(message: 'backend wording', code: key);
+      await expectLater(
+        mapSwapProposalRefusal<void>(() => Future.error(error)),
+        throwsA(
+          isA<SwapProposalRefused>().having(
+            (error) => error.reason,
+            'reason',
+            value,
+          ),
+        ),
+      );
+    }
+  });
 }

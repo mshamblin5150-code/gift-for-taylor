@@ -125,12 +125,12 @@ void main() {
           id: 'swap',
           requesterId: 'alice',
           colleagueId: 'bob',
-          requesterDate: swapDay,
-          colleagueDate: swapDay,
-          requesterCode: 'D',
-          colleagueCode: 'N',
-          requesterTargetCode: '',
-          colleagueTargetCode: '',
+          requesterShifts: [
+            SwapShift(date: swapDay, shiftCode: 'D', targetCode: ''),
+          ],
+          colleagueShifts: [
+            SwapShift(date: swapDay, shiftCode: 'N', targetCode: ''),
+          ],
           status: SwapStatus.accepted,
         ),
       );

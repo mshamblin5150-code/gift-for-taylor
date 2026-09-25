@@ -110,7 +110,76 @@ void main() {
 
     final proposed = (await swaps.storeFor(alice.staffMemberId).swaps()).single;
     expect(proposed.colleagueId, bob.staffMemberId);
-    expect(proposed.requesterDate, DateTime(2026, 9, 11));
-    expect(proposed.colleagueDate, DateTime(2026, 9, 12));
+    expect(proposed.requesterShifts.single.date, DateTime(2026, 9, 11));
+    expect(proposed.colleagueShifts.single.date, DateTime(2026, 9, 12));
+  });
+
+  testWidgets('Swap tile renders contiguous ranges and scattered dates', (
+    tester,
+  ) async {
+    final month = DateTime(2027, 6);
+    const section = ScheduleSection(id: 'nurses', name: 'Nurses');
+    const alice = ScheduleRow(
+      staffMemberId: 'alice',
+      displayName: 'Alice',
+      sectionId: 'nurses',
+      hasAcceptedInvite: true,
+    );
+    const bob = ScheduleRow(
+      staffMemberId: 'bob',
+      displayName: 'Bob',
+      sectionId: 'nurses',
+      hasAcceptedInvite: true,
+    );
+    final database = InMemoryScheduleDatabase(
+      sections: const [section],
+      rows: const [alice, bob],
+      releasedMonths: {month},
+    );
+    final swaps = InMemorySwapDatabase(
+      shifts: const {},
+      swaps: [
+        Swap(
+          id: 'swap',
+          requesterId: 'alice',
+          colleagueId: 'bob',
+          requesterShifts: [
+            for (final day in [20, 21, 22])
+              SwapShift(
+                date: DateTime(2027, 6, day),
+                shiftCode: '7P',
+                targetCode: 'X',
+              ),
+          ],
+          colleagueShifts: [
+            for (final day in [3, 5, 9])
+              SwapShift(
+                date: DateTime(2027, 7, day),
+                shiftCode: '7A',
+                targetCode: 'X',
+              ),
+          ],
+          status: SwapStatus.proposed,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SwapsPage(
+          rules: scheduleRulesInMemory(database, actingAs: 'alice'),
+          swapStore: swaps.storeFor('alice'),
+          month: month,
+          staffMemberId: 'alice',
+          isManager: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('my Jun 20–22 7P for your Jul 3, 5 and 9 7A'),
+      findsOneWidget,
+    );
   });
 }

@@ -1,8 +1,38 @@
 part of '../schedule_rules.dart';
 
-/// A Swap exchanges two dated Shift codes after both Staff members agree and
-/// the Manager approves it.
-enum SwapStatus { proposed, accepted, declined, approved }
+/// A Swap exchanges two sets of dated Shift codes after both Staff members
+/// agree and the Manager approves it.
+enum SwapStatus { proposed, accepted, declined, approved, voided }
+
+enum SwapProposalRefusal {
+  differentStaffRequired,
+  equalCountsRequired,
+  shiftLimitExceeded,
+  duplicateDate,
+  colleagueNotInvited,
+  dayNotFuture,
+  sourceUnavailable,
+  destinationUnavailable,
+  noChange,
+}
+
+final class SwapProposalRefused implements Exception {
+  const SwapProposalRefused(this.reason);
+
+  final SwapProposalRefusal reason;
+}
+
+final class SwapShift {
+  const SwapShift({
+    required this.date,
+    required this.shiftCode,
+    required this.targetCode,
+  });
+
+  final DateTime date;
+  final String shiftCode;
+  final String targetCode;
+}
 
 /// The first day that can be offered in a Swap proposed at [now].
 DateTime firstFutureSwapDay(DateTime now) =>
@@ -20,27 +50,28 @@ final class Swap {
     required this.id,
     required this.requesterId,
     required this.colleagueId,
-    required this.requesterDate,
-    required this.colleagueDate,
-    required this.requesterCode,
-    required this.colleagueCode,
-    required this.requesterTargetCode,
-    required this.colleagueTargetCode,
+    required this.requesterShifts,
+    required this.colleagueShifts,
     required this.status,
     this.reason,
+    this.voidedStaffMemberId,
+    this.voidedDate,
   });
 
   final String id;
   final String requesterId;
   final String colleagueId;
-  final DateTime requesterDate;
-  final DateTime colleagueDate;
-  final String requesterCode;
-  final String colleagueCode;
-  final String requesterTargetCode;
-  final String colleagueTargetCode;
+  final List<SwapShift> requesterShifts;
+  final List<SwapShift> colleagueShifts;
   final SwapStatus status;
   final String? reason;
+  final String? voidedStaffMemberId;
+  final DateTime? voidedDate;
+
+  DateTime get firstDate => [
+    ...requesterShifts,
+    ...colleagueShifts,
+  ].map((shift) => shift.date).reduce((a, b) => a.isBefore(b) ? a : b);
 }
 
 abstract interface class SwapStore {
@@ -49,8 +80,8 @@ abstract interface class SwapStore {
   Future<String?> colleagueCellNumberForSwap(String swapId);
   Future<Swap> proposeSwap(
     String colleagueId,
-    DateTime requesterDate,
-    DateTime colleagueDate,
+    List<DateTime> requesterDates,
+    List<DateTime> colleagueDates,
   );
   Future<void> answerSwap(
     String swapId, {

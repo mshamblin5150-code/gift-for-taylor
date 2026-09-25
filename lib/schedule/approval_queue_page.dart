@@ -6,6 +6,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 import '../staff/staff_gateway.dart';
 import 'pending_approvals.dart';
+import 'swap_proposal.dart';
 
 /// The Manager's pending decisions across the whole Schedule, including other months.
 class ApprovalQueuePage extends StatefulWidget {
@@ -56,9 +57,11 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
     final shiftById = {for (final shift in shifts) shift.id: shift};
     final dates = <DateTime>{
       for (final swap in pending.swaps)
-        DateTime(swap.requesterDate.year, swap.requesterDate.month),
+        for (final shift in swap.requesterShifts)
+          DateTime(shift.date.year, shift.date.month),
       for (final swap in pending.swaps)
-        DateTime(swap.colleagueDate.year, swap.colleagueDate.month),
+        for (final shift in swap.colleagueShifts)
+          DateTime(shift.date.year, shift.date.month),
       for (final pickup in pending.pickups)
         if (shiftById[pickup.openShiftId] case final shift?)
           DateTime(shift.date.year, shift.date.month),
@@ -111,15 +114,16 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
         ),
       for (final swap in pending.swaps)
         _Decision(
-          date: swap.requesterDate.isBefore(swap.colleagueDate)
-              ? swap.requesterDate
-              : swap.colleagueDate,
+          date: swap.firstDate,
           title:
-              'Swap — ${name(swap.requesterId, swap.requesterDate)} ↔ '
-              '${name(swap.colleagueId, swap.colleagueDate)}',
-          detail:
-              '${DateFormat.yMMMd().format(swap.requesterDate)} ${swap.requesterCode}'
-              ' ↔ ${DateFormat.yMMMd().format(swap.colleagueDate)} ${swap.colleagueCode}',
+              'Swap — ${name(swap.requesterId, swap.firstDate)} ↔ '
+              '${name(swap.colleagueId, swap.firstDate)}',
+          detail: swapSummaryFor(
+            swap,
+            perspective: SwapSummaryPerspective.neutral,
+            requesterName: name(swap.requesterId, swap.firstDate),
+            colleagueName: name(swap.colleagueId, swap.firstDate),
+          ),
           approve: () => widget.swapStore.approveSwap(swap.id),
           decline: () =>
               widget.swapStore.declineSwap(swap.id, reason: _reason?.trim()),
