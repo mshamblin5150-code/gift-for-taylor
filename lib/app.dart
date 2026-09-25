@@ -3,7 +3,10 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_dependencies.dart';
+import 'auth/auth_gateway.dart';
+import 'auth/sign_in_failure_log.dart';
 import 'auth/sign_in_page.dart';
+import 'auth/sign_in_session.dart';
 import 'calendar/calendar_feed_page.dart';
 import 'maintainer/maintainer_repair.dart';
 import 'notifications/notice_gateway.dart';
@@ -134,8 +137,9 @@ class _AuthGateState extends State<_AuthGate> {
                   noticeGateway: widget.dependencies.noticeGateway,
                 );
               }
-              return SignInPage(
+              return _SignInPageHost(
                 authGateway: widget.dependencies.authGateway,
+                failureLog: widget.dependencies.signInFailureLog,
                 noticeGateway: widget.dependencies.noticeGateway,
                 awaitingConfirmation: widget.inviteToken != null,
               );
@@ -153,6 +157,43 @@ class _AuthGateState extends State<_AuthGate> {
       },
     );
   }
+}
+
+class _SignInPageHost extends StatefulWidget {
+  const _SignInPageHost({
+    required this.authGateway,
+    required this.failureLog,
+    required this.noticeGateway,
+    required this.awaitingConfirmation,
+  });
+
+  final AuthGateway authGateway;
+  final SignInFailureLog failureLog;
+  final NoticeGateway noticeGateway;
+  final bool awaitingConfirmation;
+
+  @override
+  State<_SignInPageHost> createState() => _SignInPageHostState();
+}
+
+class _SignInPageHostState extends State<_SignInPageHost> {
+  late final SignInSession _session = SignInSession(
+    widget.authGateway,
+    widget.failureLog,
+  );
+
+  @override
+  void dispose() {
+    _session.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SignInPage(
+    session: _session,
+    noticeGateway: widget.noticeGateway,
+    awaitingConfirmation: widget.awaitingConfirmation,
+  );
 }
 
 class _InviteCellEntry extends StatefulWidget {
@@ -559,6 +600,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
           bookPagePresenter: widget.dependencies.bookPagePresenter,
           printWordingGateway: widget.dependencies.printWordingGateway,
           settingsHistory: widget.dependencies.settingsHistory,
+          signInFailureLog: widget.dependencies.signInFailureLog,
           repairController: widget.dependencies.repairController,
           onCalendarFeed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(

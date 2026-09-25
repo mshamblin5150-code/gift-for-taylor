@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import '../auth/sign_in_failure_log.dart';
+import '../auth/sign_in_failures_page.dart';
 import '../notifications/notice_gateway.dart';
 import '../maintainer/maintainer_repair.dart';
 import '../maintainer/repair_controller.dart';
@@ -28,6 +30,7 @@ class SettingsPage extends StatelessWidget {
     this.onOpenStaffDetails,
     required this.access,
     this.settingsHistory,
+    this.signInFailureLog,
     this.staffGateway,
     this.onManagerTransferred,
     this.onAccessRejected,
@@ -43,6 +46,7 @@ class SettingsPage extends StatelessWidget {
   final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
   final Access access;
   final SettingsHistory? settingsHistory;
+  final SignInFailureLog? signInFailureLog;
   final StaffGateway? staffGateway;
   final VoidCallback? onManagerTransferred;
   final VoidCallback? onAccessRejected;
@@ -107,6 +111,15 @@ class SettingsPage extends StatelessWidget {
                     : 'Break the glass for marked Manager controls',
               ),
               onTap: access.isRepairAccess ? null : openRepair,
+            ),
+          if (access.maintainer &&
+              access.isRepairAccess &&
+              signInFailureLog != null)
+            ListTile(
+              leading: const Icon(Icons.mark_email_unread_outlined),
+              title: const Text('Sign-in failures'),
+              subtitle: const Text('Code emails the provider could not send'),
+              onTap: () => open(SignInFailuresPage(log: signInFailureLog!)),
             ),
           if (access.maintainer && !access.isRepairAccess) ...[
             const _SectionHeading('Manager controls'),
