@@ -11,7 +11,8 @@ final class SignInFailuresLoading extends SignInFailuresState {
 }
 
 final class SignInFailuresLoaded extends SignInFailuresState {
-  const SignInFailuresLoaded(this.failures);
+  SignInFailuresLoaded(List<SignInFailureRecord> failures)
+    : failures = List.unmodifiable(failures);
 
   final List<SignInFailureRecord> failures;
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:er_schedule/auth/auth_gateway.dart';
 import 'package:er_schedule/auth/sign_in_failure_log.dart';
+import 'package:er_schedule/auth/sign_in_failures_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -51,7 +52,7 @@ void main() {
       final client = _clientWith(
         MockClient((request) async {
           recordedRequest = request;
-        return http.Response('', 204, request: request);
+          return http.Response('', 204, request: request);
         }),
       );
       addTearDown(client.dispose);
@@ -76,6 +77,25 @@ void main() {
       expect(recordedRequest.body, isNot(contains('nurse@example.com')));
     },
   );
+
+  test('loaded sign-in failures are immutable session state', () {
+    final state = SignInFailuresLoaded([
+      SignInFailureRecord(
+        happenedAt: DateTime(2026, 9, 24),
+        message: 'mail quota reached',
+      ),
+    ]);
+
+    expect(
+      () => state.failures.add(
+        SignInFailureRecord(
+          happenedAt: DateTime(2026, 9, 25),
+          message: 'another failure',
+        ),
+      ),
+      throwsUnsupportedError,
+    );
+  });
 }
 
 SupabaseAuthGateway _gatewayReturning({
