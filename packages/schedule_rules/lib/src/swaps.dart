@@ -46,6 +46,7 @@ final class Swap {
 abstract interface class SwapStore {
   Future<List<Swap>> swaps();
   Stream<void> updates();
+  Future<String?> colleagueCellNumberForSwap(String swapId);
   Future<Swap> proposeSwap(
     String colleagueId,
     DateTime requesterDate,

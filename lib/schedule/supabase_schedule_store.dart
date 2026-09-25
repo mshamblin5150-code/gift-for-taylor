@@ -188,6 +188,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           cellNumber: row['cell_number'] as String?,
           lastDay: _parseDate(row['last_day']),
           hasPushSubscription: row['has_push_subscription'] as bool? ?? false,
+          hasAcceptedInvite: row['has_accepted_invite'] as bool? ?? false,
         ),
     ];
   }

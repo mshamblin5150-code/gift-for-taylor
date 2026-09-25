@@ -59,6 +59,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          swapStore: emptySwapStore(actingAs),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           access: database.accessFor(actingAs),
@@ -111,6 +112,8 @@ void main() {
 
     await tester.tap(cell('rn-2', september18));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit Shift'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(OutlinedButton, '7P'));
     await tester.pumpAndSettle();
 
@@ -145,6 +148,12 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(cell('rn-2', october16));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('There are no actions available for this cell.'),
+        findsNothing,
+      );
+      await tester.tap(find.text('Edit Shift'));
       await tester.pumpAndSettle();
       expect(find.text('Other Shift code'), findsOneWidget);
       await tester.enterText(find.byType(TextField), '7P');

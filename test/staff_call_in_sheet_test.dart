@@ -63,6 +63,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          swapStore: emptySwapStore('recorder'),
           rules: scheduleRulesInMemory(database, actingAs: 'recorder'),
           access: database.accessFor('recorder'),
           month: month,

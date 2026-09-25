@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(41);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000281', 'swap-manager@example.test'),
@@ -9,10 +9,10 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000283', 'swap-b@example.test');
 insert into public.sections (id, name, display_order) values
   ('00000000-0000-0000-0000-000000000284', 'Swap test Section', 97);
-insert into public.staff_members (id, display_name, role) values
-  ('00000000-0000-0000-0000-000000000285', 'Swap Manager', 'manager'),
-  ('00000000-0000-0000-0000-000000000286', 'Swap A', 'staff_member'),
-  ('00000000-0000-0000-0000-000000000287', 'Swap B', 'staff_member');
+insert into public.staff_members (id, display_name, role, cell_number) values
+  ('00000000-0000-0000-0000-000000000285', 'Swap Manager', 'manager', null),
+  ('00000000-0000-0000-0000-000000000286', 'Swap A', 'staff_member', '+15551112222'),
+  ('00000000-0000-0000-0000-000000000287', 'Swap B', 'staff_member', '+15553334444');
 insert into public.staff_accounts (staff_member_id, auth_user_id, personal_email, accepted_invite_at) values
   ('00000000-0000-0000-0000-000000000285', '00000000-0000-0000-0000-000000000281', 'swap-manager@example.test', now()),
   ('00000000-0000-0000-0000-000000000286', '00000000-0000-0000-0000-000000000282', 'swap-a@example.test', now()),
@@ -37,6 +37,9 @@ select lives_ok($$select public.propose_swap(
   'Staff member proposes a Swap');
 select is((select count(*)::int from public.swaps), 1,
   'requester sees the proposed Swap');
+select is(public.swap_colleague_cell_number((select id from public.swaps limit 1)),
+  '+15553334444'::text,
+  'the requester can open a text draft to the proposed colleague');
 select is((select count(*)::int from public.staff_notices where kind = 'swap_proposed' and staff_member_id = '00000000-0000-0000-0000-000000000286'), 0,
   'requester does not receive their own proposal');
 select throws_ok($$select public.approve_swap((select id from public.swaps limit 1))$$,
@@ -46,6 +49,9 @@ select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000283","role":"authenticated"}', true);
 select is((select count(*)::int from public.swaps), 1,
   'colleague sees the proposed Swap');
+select is(public.swap_colleague_cell_number((select id from public.swaps limit 1)),
+  null::text,
+  'the colleague cannot use the requester-only contact path');
 select is((select count(*)::int from public.staff_notices where kind = 'swap_proposed'), 1,
   'colleague receives the proposal');
 select lives_ok($$select public.answer_swap((select id from public.swaps limit 1), true, null)$$,

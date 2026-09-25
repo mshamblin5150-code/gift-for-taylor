@@ -30,6 +30,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          swapStore: emptySwapStore(),
           repairController: noopRepairController(),
           rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           access: access,
@@ -193,6 +194,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
+          swapStore: emptySwapStore(),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           rules: rules,
@@ -237,6 +239,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: MonthGridPage(
+            swapStore: emptySwapStore(),
             noticeGateway: const NoopNoticeGateway(),
             repairController: noopRepairController(),
             rules: scheduleRulesInMemory(database, actingAs: 'manager'),

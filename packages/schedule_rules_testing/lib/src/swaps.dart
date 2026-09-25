@@ -4,11 +4,14 @@ part of '../schedule_rules_testing.dart';
 final class InMemorySwapDatabase {
   InMemorySwapDatabase({
     required Map<(String, DateTime), String> shifts,
+    Map<String, String> cellNumbers = const {},
     List<Swap> swaps = const [],
   }) : _shifts = Map.of(shifts),
+       _cellNumbers = Map.of(cellNumbers),
        _swaps = List.of(swaps);
 
   final Map<(String, DateTime), String> _shifts;
+  final Map<String, String> _cellNumbers;
   final List<Swap> _swaps;
 
   SwapStore storeFor(String staffMemberId) =>
@@ -29,6 +32,12 @@ final class _InMemorySwapStore implements SwapStore {
 
   @override
   Stream<void> updates() => const Stream<void>.empty();
+
+  @override
+  Future<String?> colleagueCellNumberForSwap(String swapId) async {
+    final swap = database._swaps.where((item) => item.id == swapId).firstOrNull;
+    return swap == null ? null : database._cellNumbers[swap.colleagueId];
+  }
 
   @override
   Future<Swap> proposeSwap(

@@ -46,6 +46,13 @@ final class SupabaseSwapStore implements SwapStore {
   }
 
   @override
+  Future<String?> colleagueCellNumberForSwap(String swapId) =>
+      client.rpc<String?>(
+        'swap_colleague_cell_number',
+        params: {'p_swap_id': swapId},
+      );
+
+  @override
   Future<Swap> proposeSwap(
     String colleagueId,
     DateTime requesterDate,

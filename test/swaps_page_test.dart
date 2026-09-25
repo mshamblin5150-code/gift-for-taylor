@@ -14,16 +14,24 @@ void main() {
       displayName: 'Alice',
       sectionId: 'nurses',
       cellNumber: '5551112222',
+      hasAcceptedInvite: true,
     );
     const bob = ScheduleRow(
       staffMemberId: 'bob',
       displayName: 'Bob',
       sectionId: 'nurses',
       cellNumber: '5553334444',
+      hasAcceptedInvite: true,
+    );
+    const charlie = ScheduleRow(
+      staffMemberId: 'charlie',
+      displayName: 'Charlie',
+      sectionId: 'nurses',
+      cellNumber: '5556667777',
     );
     final database = InMemoryScheduleDatabase(
       sections: const [section],
-      rows: const [alice, bob],
+      rows: const [alice, bob, charlie],
       grants: {'manager': Grants(manager: true)},
       releasedMonths: {month},
     );
@@ -50,7 +58,20 @@ void main() {
         shiftCode: '7P',
       ),
     );
-    final swaps = InMemorySwapDatabase(shifts: const {});
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: charlie.staffMemberId,
+        sectionId: section.id,
+        date: DateTime(2026, 9, 13),
+        shiftCode: '7P',
+      ),
+    );
+    final swaps = InMemorySwapDatabase(
+      shifts: {
+        (alice.staffMemberId, DateTime(2026, 9, 11)): '7A',
+        (bob.staffMemberId, DateTime(2026, 9, 12)): '7P',
+      },
+    );
 
     await tester.pumpWidget(
       MaterialApp(
@@ -68,15 +89,28 @@ void main() {
     await tester.tap(find.text('Propose a Swap'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sep 11 — 7A'), findsOneWidget);
-    expect(find.text('Sep 12 — 7P'), findsOneWidget);
+    expect(find.text('Bob'), findsOneWidget);
+    expect(find.text('Charlie'), findsNothing);
+    expect(find.byType(CalendarDatePicker), findsNothing);
 
+    await tester.tap(find.text('Choose my shift'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sep 9 — 7A'), findsNothing);
+    expect(find.text('Sep 10 — 7A'), findsNothing);
     await tester.tap(find.text('Sep 11 — 7A'));
     await tester.pumpAndSettle();
-    final picker = tester.widget<CalendarDatePicker>(
-      find.byType(CalendarDatePicker),
-    );
-    expect(picker.firstDate, DateTime(2026, 9, 11));
-    expect(picker.initialDate, DateTime(2026, 9, 11));
+
+    await tester.tap(find.text("Choose Bob's shift"));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sep 12 — 7P'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Propose'));
+    await tester.pumpAndSettle();
+
+    final proposed = (await swaps.storeFor(alice.staffMemberId).swaps()).single;
+    expect(proposed.colleagueId, bob.staffMemberId);
+    expect(proposed.requesterDate, DateTime(2026, 9, 11));
+    expect(proposed.colleagueDate, DateTime(2026, 9, 12));
   });
 }

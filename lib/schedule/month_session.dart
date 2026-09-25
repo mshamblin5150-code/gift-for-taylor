@@ -61,14 +61,43 @@ final class StaffCellReview {
     required this.currentCode,
     this.action,
     this.unavailableReason,
+    this.swap,
   });
 
   final String currentCode;
   final StaffCellAction? action;
   final StaffCellUnavailableReason? unavailableReason;
+  final StaffCellSwapReview? swap;
 }
 
-enum StaffCellAction { recordCallIn, withdrawCallIn }
+enum StaffCellAction { editShift, recordCallIn, withdrawCallIn, proposeSwap }
+
+final class StaffCellSwapReview {
+  const StaffCellSwapReview({this.unavailableReason});
+
+  final StaffCellSwapUnavailableReason? unavailableReason;
+  bool get available => unavailableReason == null;
+}
+
+enum StaffCellSwapUnavailableReason {
+  monthNotReleased,
+  colleagueNotInApp,
+  targetNotWorking,
+  dayNotFuture,
+}
+
+sealed class ProposeSwapOutcome {
+  const ProposeSwapOutcome();
+}
+
+final class SwapProposed extends ProposeSwapOutcome {
+  const SwapProposed(this.swap);
+  final Swap swap;
+}
+
+final class ProposeSwapFailed extends ProposeSwapOutcome {
+  const ProposeSwapFailed();
+}
 
 enum StaffCellUnavailableReason {
   targetNotWorking,
@@ -310,6 +339,7 @@ Object _rowValue(ScheduleRow row) => (
   row.cellNumber,
   row.lastDay,
   row.hasPushSubscription,
+  row.hasAcceptedInvite,
 );
 
 List<Object?> _gridValues(MonthGrid? grid) {
@@ -405,6 +435,7 @@ final class MonthSession extends ChangeNotifier {
     required ScheduleRules rules,
     required Access access,
     required DateTime month,
+    required SwapStore swapStore,
     OpenShiftStore? openShiftStore,
     DateTime Function()? now,
     MonthSessionTimerFactory? timerFactory,
@@ -412,6 +443,7 @@ final class MonthSession extends ChangeNotifier {
   }) : _rules = rules,
        _access = access,
        _openShiftStore = openShiftStore,
+       _swapStore = swapStore,
        month = DateTime(month.year, month.month),
        _now = now ?? DateTime.now,
        _timerFactory = timerFactory ?? Timer.new,
@@ -427,6 +459,7 @@ final class MonthSession extends ChangeNotifier {
   final ScheduleRules _rules;
   final Access _access;
   final OpenShiftStore? _openShiftStore;
+  final SwapStore _swapStore;
   final DateTime month;
   final DateTime Function() _now;
   final MonthSessionTimerFactory _timerFactory;
@@ -521,7 +554,60 @@ final class MonthSession extends ChangeNotifier {
       currentCode: code,
       action: action,
       unavailableReason: unavailableReason,
+      swap: _swapReview(row, date, code),
     );
+  }
+
+  StaffCellSwapReview? _swapReview(
+    ScheduleRow row,
+    DateTime date,
+    String code,
+  ) {
+    final requesterId = _access.ownStaffMemberId;
+    if (_access.canRunSchedule ||
+        requesterId == null ||
+        requesterId == row.staffMemberId) {
+      return null;
+    }
+    if (state.grid?.status != MonthStatus.released) {
+      return const StaffCellSwapReview(
+        unavailableReason: StaffCellSwapUnavailableReason.monthNotReleased,
+      );
+    }
+    if (!row.hasAcceptedInvite) {
+      return const StaffCellSwapReview(
+        unavailableReason: StaffCellSwapUnavailableReason.colleagueNotInApp,
+      );
+    }
+    if (!isWorkingShift(code, codes: state.shiftCodes)) {
+      return const StaffCellSwapReview(
+        unavailableReason: StaffCellSwapUnavailableReason.targetNotWorking,
+      );
+    }
+    if (!isFutureSwapDay(date, now: _now())) {
+      return const StaffCellSwapReview(
+        unavailableReason: StaffCellSwapUnavailableReason.dayNotFuture,
+      );
+    }
+    return const StaffCellSwapReview();
+  }
+
+  Future<ProposeSwapOutcome> proposeSwap(
+    String colleagueId,
+    DateTime requesterDate,
+    DateTime colleagueDate,
+  ) async {
+    try {
+      final swap = await _swapStore.proposeSwap(
+        colleagueId,
+        requesterDate,
+        colleagueDate,
+      );
+      return SwapProposed(swap);
+    } catch (error) {
+      _rejected(error);
+      return const ProposeSwapFailed();
+    }
   }
 
   ({StaffCellAction? action, StaffCellUnavailableReason? unavailableReason})
