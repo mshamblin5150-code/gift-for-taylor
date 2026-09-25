@@ -274,6 +274,10 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       List.of(database._openShiftAnswers[actor] ?? const <OpenShift>[]);
 
   @override
+  Future<int> hiddenOpenShiftCount(DateTime month) async =>
+      database._hiddenOpenShiftCountAnswers[actor] ?? 0;
+
+  @override
   Future<List<OpenShiftPickup>> pickups() async =>
       List.of(database._pickupAnswers[actor] ?? const <OpenShiftPickup>[]);
 

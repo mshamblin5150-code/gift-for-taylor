@@ -27,6 +27,12 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   }
 
   @override
+  Future<int> hiddenOpenShiftCount(DateTime month) => client.rpc<int>(
+    'hidden_open_shift_count',
+    params: {'p_month': _date(month)},
+  );
+
+  @override
   Future<List<OpenShiftPickup>> pickups() async {
     final rows = await client
         .from('open_shift_pickups')

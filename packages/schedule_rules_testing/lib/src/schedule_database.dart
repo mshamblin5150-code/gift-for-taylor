@@ -129,6 +129,7 @@ final class InMemoryScheduleDatabase {
   final List<OpenShiftPickup> _openShiftPickups = [];
   final Map<String, List<OpenShiftPickup>> _pickupAnswers = {};
   final Map<String, List<OpenShift>> _openShiftAnswers = {};
+  final Map<String, int> _hiddenOpenShiftCountAnswers = {};
   final List<
     ({
       DateTime date,
@@ -199,6 +200,11 @@ final class InMemoryScheduleDatabase {
   /// Supplies SQL's Open shift visibility answer for a test actor.
   void seedOpenShifts(String actor, List<OpenShift> shifts) {
     _openShiftAnswers[actor] = List.of(shifts);
+  }
+
+  /// Supplies SQL's count of Open shifts hidden from an actor.
+  void seedHiddenOpenShiftCount(String actor, int count) {
+    _hiddenOpenShiftCountAnswers[actor] = count;
   }
 
   /// Supplies SQL's posted count for the next Open shift post command.

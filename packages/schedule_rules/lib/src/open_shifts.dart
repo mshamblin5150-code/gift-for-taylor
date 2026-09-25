@@ -219,6 +219,7 @@ abstract interface class OpenShiftStore {
     List<CoverageRuleChoice> choices,
   );
   Future<List<OpenShift>> openShifts();
+  Future<int> hiddenOpenShiftCount(DateTime month);
   Future<List<OpenShiftPickup>> pickups();
   Future<void> requestPickup(String openShiftId);
   Future<void> approvePickup(String pickupId);
