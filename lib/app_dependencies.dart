@@ -12,6 +12,7 @@ import 'schedule/print_wording_gateway.dart';
 import 'settings/settings_history.dart';
 import 'staff/invite_composer.dart';
 import 'staff/staff_gateway.dart';
+import 'tickets/ticket_gateway.dart';
 
 /// The adapters wired into one running Schedule app.
 final class AppDependencies {
@@ -32,6 +33,7 @@ final class AppDependencies {
     required this.undeliveredInvitationLog,
     required this.settingsHistory,
     required this.repairController,
+    required this.ticketGateway,
   }) : rules = ScheduleRules(scheduleStore);
 
   final AuthGateway authGateway;
@@ -50,5 +52,6 @@ final class AppDependencies {
   final UndeliveredInvitationLog undeliveredInvitationLog;
   final SettingsHistory settingsHistory;
   final RepairController repairController;
+  final TicketGateway ticketGateway;
   final ScheduleRules rules;
 }

@@ -18,6 +18,9 @@ import '../schedule_theme.dart';
 import '../staff/staff_gateway.dart';
 import '../settings/settings_page.dart';
 import '../settings/settings_history.dart';
+import '../tickets/ticket_context.dart';
+import '../tickets/ticket_gateway.dart';
+import '../tickets/ticket_pages.dart';
 
 import 'announce_sheet.dart';
 import 'approval_queue_page.dart';
@@ -89,6 +92,7 @@ class MonthGridPage extends StatefulWidget {
     this.signInFailureLog,
     required this.undeliveredInvitationLog,
     required this.repairController,
+    this.ticketGateway,
     this.now,
   });
 
@@ -119,6 +123,7 @@ class MonthGridPage extends StatefulWidget {
   final SignInFailureLog? signInFailureLog;
   final UndeliveredInvitationLog undeliveredInvitationLog;
   final RepairController repairController;
+  final TicketGateway? ticketGateway;
   final DateTime Function()? now;
 
   @override
@@ -829,10 +834,36 @@ class _MonthGridPageState extends State<MonthGridPage> {
             signInFailureLog: widget.signInFailureLog,
             undeliveredInvitationLog: widget.undeliveredInvitationLog,
             maintainerRepairController: widget.repairController,
+            ticketGateway: widget.ticketGateway,
           ),
         );
       },
     ),
+    if (_access.ownStaffMemberId != null && widget.ticketGateway != null)
+      _ScheduleAction(
+        label: 'Put in a ticket',
+        icon: Icons.support_agent_outlined,
+        secondary: true,
+        onPressed: () => _open(
+          (context) => PutInTicketPage(
+            gateway: widget.ticketGateway!,
+            attachedContext: captureTicketContext(
+              screen: 'Schedule',
+              month: _month,
+            ),
+          ),
+        ),
+      ),
+    if (_access.ownStaffMemberId != null && widget.ticketGateway != null)
+      _ScheduleAction(
+        label: 'My tickets',
+        icon: Icons.inbox_outlined,
+        secondary: true,
+        onPressed: () => _open(
+          (context) =>
+              TicketsPage(gateway: widget.ticketGateway!, maintainer: false),
+        ),
+      ),
     if (_access.maintainer && !_access.isRepairAccess)
       _ScheduleAction(
         label: 'Maintainer repairs (break glass)',

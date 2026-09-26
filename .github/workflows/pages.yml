@@ -73,14 +73,15 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      # These three values ship inside the web app, so they are repository
-      # variables rather than secrets.
+      # These values ship inside the web app; the service settings are
+      # repository variables rather than secrets, and the release is this commit.
       - run: >
           flutter build web --release
           --base-href "/${{ github.event.repository.name }}/"
           --dart-define=SUPABASE_URL=${{ vars.SUPABASE_URL }}
           --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           --dart-define=VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}
+          --dart-define=RELEASE_ID=${{ github.sha }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
