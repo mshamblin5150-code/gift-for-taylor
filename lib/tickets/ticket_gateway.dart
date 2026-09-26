@@ -49,6 +49,13 @@ final class TicketContext {
   final DateTime capturedAt;
 }
 
+final class GitHubIssueLink {
+  const GitHubIssueLink({required this.number, required this.url});
+
+  final int number;
+  final String url;
+}
+
 final class Ticket {
   const Ticket({
     required this.id,
@@ -62,6 +69,13 @@ final class Ticket {
     this.questionCount = 0,
     this.hasNewReply = false,
     this.seenAt,
+    this.githubIssue,
+    this.closeReason,
+    this.closedAt,
+    this.reopenedAt,
+    this.reopenNote,
+    this.canReopen = false,
+    this.reopenUntil,
   });
 
   final String id;
@@ -75,6 +89,13 @@ final class Ticket {
   final int questionCount;
   final bool hasNewReply;
   final DateTime? seenAt;
+  final GitHubIssueLink? githubIssue;
+  final String? closeReason;
+  final DateTime? closedAt;
+  final DateTime? reopenedAt;
+  final String? reopenNote;
+  final bool canReopen;
+  final DateTime? reopenUntil;
 
   String get firstLine => text.split(RegExp(r'\r?\n')).first;
 }
@@ -130,6 +151,20 @@ final class TicketThreadRefused implements Exception {
   final TicketThreadRefusal reason;
 }
 
+enum TicketMutationRefusal {
+  invalidGitHubIssue,
+  closingReasonRequired,
+  cannotClose,
+  reopeningNoteRequired,
+  cannotReopen,
+  reopenExpired,
+}
+
+final class TicketMutationRejected implements Exception {
+  const TicketMutationRejected(this.reason);
+  final TicketMutationRefusal reason;
+}
+
 abstract interface class TicketGateway {
   Future<void> putIn({
     required TicketKind kind,
@@ -140,6 +175,7 @@ abstract interface class TicketGateway {
   Future<List<Ticket>> readMine(String senderId);
   Future<List<Ticket>> readForMaintainer();
   Future<Ticket> openForMaintainer(String id);
+  Future<Ticket> openForSender(String id);
   Future<List<TicketThreadEntry>> readThread(String ticketId);
   Future<Ticket> askQuestion(
     String ticketId, {
@@ -152,6 +188,13 @@ abstract interface class TicketGateway {
     String? answer,
     required bool acceptSuggestion,
   });
+  Future<Ticket> linkToGitHub(String id, GitHubIssueLink issue);
+  Future<Ticket> close(
+    String id, {
+    required TicketState outcome,
+    required String reason,
+  });
+  Future<Ticket> reopen(String id, {required String note});
 }
 
 final class SupabaseTicketGateway implements TicketGateway {
@@ -204,6 +247,21 @@ final class SupabaseTicketGateway implements TicketGateway {
     try {
       final row = await _client.rpc<Map<String, dynamic>>(
         'open_ticket_for_maintainer',
+        params: {'p_ticket_id': id},
+      );
+      return _ticket(row);
+    } on PostgrestException catch (error) {
+      if (error.code == 'P2834') throw const TicketUnavailable();
+      if (_isAccessRejection(error)) throw AccessRejected(error);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Ticket> openForSender(String id) async {
+    try {
+      final row = await _client.rpc<Map<String, dynamic>>(
+        'open_ticket_for_sender',
         params: {'p_ticket_id': id},
       );
       return _ticket(row);
@@ -290,6 +348,63 @@ final class SupabaseTicketGateway implements TicketGateway {
     }
   }
 
+  @override
+  Future<Ticket> linkToGitHub(String id, GitHubIssueLink issue) => _mutation(
+    () => _client.rpc<Map<String, dynamic>>(
+      'link_ticket_to_github',
+      params: {
+        'p_ticket_id': id,
+        'p_issue_number': issue.number,
+        'p_issue_url': issue.url,
+      },
+    ),
+  );
+
+  @override
+  Future<Ticket> close(
+    String id, {
+    required TicketState outcome,
+    required String reason,
+  }) => _mutation(
+    () => _client.rpc<Map<String, dynamic>>(
+      'close_ticket',
+      params: {
+        'p_ticket_id': id,
+        'p_outcome': outcome.databaseValue,
+        'p_reason': reason,
+      },
+    ),
+  );
+
+  @override
+  Future<Ticket> reopen(String id, {required String note}) => _mutation(
+    () => _client.rpc<Map<String, dynamic>>(
+      'reopen_ticket',
+      params: {'p_ticket_id': id, 'p_note': note},
+    ),
+  );
+
+  Future<Ticket> _mutation(Future<Map<String, dynamic>> Function() call) async {
+    try {
+      final row = await call();
+      return _ticket(row);
+    } on PostgrestException catch (error) {
+      final reason = switch (error.code) {
+        'P2835' => TicketMutationRefusal.invalidGitHubIssue,
+        'P2836' => TicketMutationRefusal.closingReasonRequired,
+        'P2837' => TicketMutationRefusal.cannotClose,
+        'P2838' => TicketMutationRefusal.reopeningNoteRequired,
+        'P2839' => TicketMutationRefusal.cannotReopen,
+        'P2840' => TicketMutationRefusal.reopenExpired,
+        _ => null,
+      };
+      if (reason != null) throw TicketMutationRejected(reason);
+      if (error.code == 'P2834') throw const TicketUnavailable();
+      if (_isAccessRejection(error)) throw AccessRejected(error);
+      rethrow;
+    }
+  }
+
   Future<List<Ticket>> _read(String? senderId) async {
     try {
       final query = _client
@@ -297,7 +412,8 @@ final class SupabaseTicketGateway implements TicketGateway {
           .select(
             'id,sender_id,sender_display_name,kind,text,state,screen_context,'
             'schedule_month,release_id,device_context,context_captured_at,'
-            'created_at,seen_at,question_count,latest_reply_at,reply_seen_at',
+            'created_at,seen_at,question_count,latest_reply_at,reply_seen_at,'
+            'close_reason,closed_at,reopened_at,reopen_note',
           );
       final rows = senderId == null
           ? await query.order('created_at', ascending: false)
@@ -333,6 +449,24 @@ final class SupabaseTicketGateway implements TicketGateway {
     seenAt: row['seen_at'] == null
         ? null
         : DateTime.parse(row['seen_at'] as String),
+    githubIssue: row['github_issue_number'] == null
+        ? null
+        : GitHubIssueLink(
+            number: row['github_issue_number'] as int,
+            url: row['github_issue_url'] as String,
+          ),
+    closeReason: row['close_reason'] as String?,
+    closedAt: row['closed_at'] == null
+        ? null
+        : DateTime.parse(row['closed_at'] as String),
+    reopenedAt: row['reopened_at'] == null
+        ? null
+        : DateTime.parse(row['reopened_at'] as String),
+    reopenNote: row['reopen_note'] as String?,
+    canReopen: row['can_reopen'] as bool? ?? false,
+    reopenUntil: row['reopen_until'] == null
+        ? null
+        : DateTime.parse(row['reopen_until'] as String),
   );
 
   TicketThreadEntry _threadEntry(Map<String, dynamic> row) => TicketThreadEntry(

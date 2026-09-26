@@ -1,9 +1,31 @@
+import 'dart:async';
+
 import 'package:er_schedule/tickets/ticket_gateway.dart';
 import 'package:er_schedule/tickets/ticket_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/tickets.dart';
+
+final class _ReopenTimer implements Timer {
+  _ReopenTimer(this.callback);
+
+  final void Function() callback;
+  bool cancelled = false;
+
+  void fire() {
+    if (!cancelled) callback();
+  }
+
+  @override
+  void cancel() => cancelled = true;
+
+  @override
+  bool get isActive => !cancelled;
+
+  @override
+  int get tick => 0;
+}
 
 void main() {
   final context = TicketContext(
@@ -43,6 +65,121 @@ void main() {
 
       expect(gateway.openedIds, [sent.id]);
       expect((session.state as TicketDetailLoaded).ticket, same(seen));
+    },
+  );
+
+  test('detail session records a GitHub link and exposes the updated Ticket', () async {
+    final seen = sampleTicket(state: TicketState.seen);
+    final linked = sampleTicket(
+      state: TicketState.seen,
+      githubIssue: const GitHubIssueLink(
+        number: 365,
+        url: 'https://github.com/mshamblin5150-code/gift-for-taylor/issues/365',
+      ),
+    );
+    final gateway = InMemoryTicketGateway(
+      openAnswers: {seen.id: seen},
+      linkAnswers: {seen.id: linked},
+    );
+    final session = TicketDetailSession(gateway, seen, true);
+    await session.load();
+
+    final outcome = await session.linkToGitHub(
+      const GitHubIssueLink(
+        number: 365,
+        url: 'https://github.com/mshamblin5150-code/gift-for-taylor/issues/365',
+      ),
+    );
+
+    expect(outcome, isA<TicketMutationSucceeded>());
+    expect(gateway.githubLinks.single.issue.number, 365);
+    expect((session.state as TicketDetailLoaded).ticket, same(linked));
+  });
+
+  test(
+    'detail session closes and reopens with the exact sender wording',
+    () async {
+      final seen = sampleTicket(state: TicketState.seen);
+      final done = sampleTicket(
+        state: TicketState.done,
+        closeReason: 'The fix is live in release 1.2.3.',
+        closedAt: DateTime.now(),
+      );
+      final reopened = sampleTicket(
+        state: TicketState.seen,
+        closeReason: done.closeReason,
+        closedAt: done.closedAt,
+        reopenedAt: DateTime.now(),
+        reopenNote: 'It happened again.',
+      );
+      final gateway = InMemoryTicketGateway(
+        openAnswers: {seen.id: seen},
+        closeAnswers: {seen.id: done},
+        reopenAnswers: {seen.id: reopened},
+      );
+      final session = TicketDetailSession(gateway, seen, true);
+      await session.load();
+
+      expect(
+        await session.close(
+          outcome: TicketState.done,
+          reason: 'The fix is live in release 1.2.3.',
+        ),
+        isA<TicketMutationSucceeded>(),
+      );
+      expect(gateway.closes.single.reason, 'The fix is live in release 1.2.3.');
+      expect(
+        await session.reopen(note: 'It happened again.'),
+        isA<TicketMutationSucceeded>(),
+      );
+      expect(gateway.reopens.single.note, 'It happened again.');
+      expect((session.state as TicketDetailLoaded).ticket, same(reopened));
+    },
+  );
+
+  test(
+    'detail session refreshes SQL reopen eligibility at its deadline',
+    () async {
+      final now = DateTime.utc(2026, 9, 26, 15);
+      final deadline = now.add(const Duration(days: 1));
+      final available = sampleTicket(
+        state: TicketState.done,
+        closeReason: 'The fix is live.',
+        closedAt: deadline.subtract(const Duration(days: 14)),
+        canReopen: true,
+        reopenUntil: deadline,
+      );
+      final expired = sampleTicket(
+        state: TicketState.done,
+        closeReason: available.closeReason,
+        closedAt: available.closedAt,
+      );
+      var reads = 0;
+      final gateway = InMemoryTicketGateway(
+        senderOpenAnswer: (_) => reads++ == 0 ? available : expired,
+      );
+      late _ReopenTimer timer;
+      Duration? scheduledDelay;
+      final session = TicketDetailSession(
+        gateway,
+        available,
+        false,
+        now: () => now,
+        timerFactory: (delay, callback) {
+          scheduledDelay = delay;
+          return timer = _ReopenTimer(callback);
+        },
+      );
+
+      await session.load();
+      expect((session.state as TicketDetailLoaded).ticket.canReopen, isTrue);
+      expect(scheduledDelay, const Duration(days: 1, milliseconds: 10));
+      timer.fire();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(reads, 2);
+      expect((session.state as TicketDetailLoaded).ticket.canReopen, isFalse);
+      session.dispose();
     },
   );
 

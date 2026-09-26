@@ -237,9 +237,11 @@ class _TicketsPageState extends State<TicketsPage> {
                   '${DateFormat.yMMMd().format(ticket.createdAt.toLocal())} · '
                   '${ticket.state.label}'
                   '${widget.maintainer && ticket.hasNewReply ? ' · New reply' : ''}'
-                  '${widget.maintainer ? '\n${ticketContextSummary(ticket.context)}' : ''}',
+                  '${widget.maintainer ? '\n${ticketContextSummary(ticket.context)}' : ''}'
+                  '${widget.maintainer && ticket.reopenedAt != null ? '\nReopened · regression' : ''}'
+                  '${!widget.maintainer && ticket.closeReason != null ? '\n${ticket.closeReason}' : ''}',
                 ),
-                isThreeLine: widget.maintainer,
+                isThreeLine: widget.maintainer || ticket.closeReason != null,
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _open(ticket),
               ),
@@ -279,6 +281,7 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
     widget.maintainer,
     onAccessRejected: widget.onAccessRejected,
   )..load();
+  String? _message;
 
   @override
   void dispose() {
@@ -289,7 +292,7 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
     super.dispose();
   }
 
-  Future<void> _ask() async {
+  Future<void> _sendQuestion() async {
     if (_question.text.trim().isEmpty) return;
     setState(() => _threadError = null);
     final outcome = await _session.askQuestion(
@@ -332,6 +335,153 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
     }
   }
 
+  Future<String?> _prompt({
+    required String title,
+    required String label,
+    required Key fieldKey,
+    required String action,
+    required int maxLength,
+    String? explanation,
+    String? Function(String value)? validator,
+  }) async {
+    final formKey = GlobalKey<FormState>();
+    var value = '';
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (explanation != null) ...[
+                  Text(explanation),
+                  const SizedBox(height: 12),
+                ],
+                TextFormField(
+                  key: fieldKey,
+                  onChanged: (next) => value = next,
+                  decoration: InputDecoration(
+                    labelText: label,
+                    border: const OutlineInputBorder(),
+                  ),
+                  maxLength: maxLength,
+                  minLines: maxLength > 200 ? 3 : 1,
+                  maxLines: maxLength > 200 ? 6 : 1,
+                  validator: (candidate) {
+                    final trimmed = candidate?.trim() ?? '';
+                    if (trimmed.isEmpty) return '$label is required.';
+                    return validator?.call(trimmed);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(dialogContext, value.trim());
+              }
+            },
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _recordGitHubIssue() async {
+    final value = await _prompt(
+      title: 'Record GitHub issue',
+      label: 'GitHub issue URL',
+      fieldKey: const Key('ticket-github-url'),
+      action: 'Record issue',
+      maxLength: 200,
+      validator: (value) => _issueMatch(value) == null
+          ? 'Enter an issue URL for this repository.'
+          : null,
+    );
+    if (value == null) return;
+    final match = _issueMatch(value)!;
+    await _act(
+      _session.linkToGitHub(
+        GitHubIssueLink(number: int.parse(match.group(1)!), url: value),
+      ),
+      'GitHub issue recorded.',
+    );
+  }
+
+  RegExpMatch? _issueMatch(String value) => RegExp(
+    r'^https://github\.com/mshamblin5150-code/gift-for-taylor/issues/([1-9]\d*)$',
+  ).firstMatch(value);
+
+  Future<void> _close(TicketState outcome) async {
+    final reason = await _prompt(
+      title: 'Close as ${outcome.label}',
+      label: 'Reason for the sender',
+      fieldKey: const Key('ticket-close-reason'),
+      action: 'Close Ticket',
+      maxLength: 1000,
+      explanation: outcome == TicketState.done
+          ? 'Use Done only when the fix is live in a release, not when its pull request merges.'
+          : 'Explain in plain language why this Ticket will not be done.',
+    );
+    if (reason == null) return;
+    await _act(
+      _session.close(outcome: outcome, reason: reason),
+      'Ticket closed.',
+    );
+  }
+
+  Future<void> _reopen() async {
+    final note = await _prompt(
+      title: 'Reopen Ticket',
+      label: 'What happened again?',
+      fieldKey: const Key('ticket-reopen-note'),
+      action: 'Reopen',
+      maxLength: 500,
+    );
+    if (note == null) return;
+    await _act(_session.reopen(note: note), 'Ticket reopened.');
+  }
+
+  Future<void> _act(
+    Future<TicketMutationOutcome> pending,
+    String success,
+  ) async {
+    setState(() => _message = null);
+    final outcome = await pending;
+    if (!mounted) return;
+    setState(() {
+      _message = switch (outcome) {
+        TicketMutationSucceeded() => success,
+        TicketMutationRefused(:final reason) => switch (reason) {
+          TicketMutationRefusal.invalidGitHubIssue =>
+            'Enter an issue URL for this repository.',
+          TicketMutationRefusal.closingReasonRequired =>
+            'Write a reason for the sender.',
+          TicketMutationRefusal.cannotClose =>
+            'This Ticket can no longer be closed.',
+          TicketMutationRefusal.reopeningNoteRequired =>
+            'Write what happened again.',
+          TicketMutationRefusal.cannotReopen =>
+            'This Ticket cannot be reopened.',
+          TicketMutationRefusal.reopenExpired => 'This Ticket can no longer be reopened. Put in a new Ticket instead.',
+        },
+        TicketMutationFailed() => 'The Ticket could not be updated. Try again.',
+      };
+    });
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Ticket')),
@@ -355,8 +505,28 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(ticket.state.label),
+                if (ticket.reopenedAt != null)
+                  const Text('Reopened · regression'),
                 if (widget.maintainer)
                   Text('Sender: ${ticket.senderDisplayName}'),
+                if (ticket.closeReason != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Closing reason',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(ticket.closeReason!),
+                ],
+                if (ticket.reopenNote != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Reopening note',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(ticket.reopenNote!),
+                ],
                 const SizedBox(height: 20),
                 Text(
                   'Ticket text',
@@ -379,6 +549,55 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
                 Text(
                   'Time: ${DateFormat.yMMMd().add_jm().format(ticket.context.capturedAt.toLocal())}',
                 ),
+                if (widget.maintainer) ...[
+                  const SizedBox(height: 20),
+                  if (ticket.githubIssue == null)
+                    FilledButton.tonal(
+                      onPressed: working ? null : _recordGitHubIssue,
+                      child: const Text('Record GitHub issue'),
+                    )
+                  else ...[
+                    Text(
+                      'GitHub issue #${ticket.githubIssue!.number}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Text(ticket.githubIssue!.url),
+                  ],
+                  if (ticket.state != TicketState.done &&
+                      ticket.state != TicketState.wontDo) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        FilledButton(
+                          onPressed: working
+                              ? null
+                              : () => _close(TicketState.done),
+                          child: const Text('Close as Done'),
+                        ),
+                        OutlinedButton(
+                          onPressed: working
+                              ? null
+                              : () => _close(TicketState.wontDo),
+                          child: const Text("Close as Won't do"),
+                        ),
+                      ],
+                    ),
+                  ],
+                ] else if (ticket.state == TicketState.done ||
+                    ticket.state == TicketState.wontDo) ...[
+                  const SizedBox(height: 20),
+                  if (ticket.canReopen)
+                    FilledButton.tonal(
+                      onPressed: working ? null : _reopen,
+                      child: const Text('Reopen Ticket'),
+                    )
+                  else
+                    const Text(
+                      'This Ticket can no longer be reopened. Please put in a new Ticket if it is still happening.',
+                    ),
+                ],
                 const SizedBox(height: 24),
                 Text(
                   'Private thread',
@@ -428,7 +647,7 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
                     ),
                   ),
                   FilledButton(
-                    onPressed: working ? null : _ask,
+                    onPressed: working ? null : _sendQuestion,
                     child: const Text('Ask sender'),
                   ),
                 ] else if (widget.maintainer &&
@@ -476,6 +695,10 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
+                ],
+                if (_message != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_message!),
                 ],
               ],
             ),
