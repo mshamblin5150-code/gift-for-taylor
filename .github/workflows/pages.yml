@@ -139,8 +139,9 @@ jobs:
               > schema-drift-report.md
           fi
           issue_number="$(
-            gh issue list --state open --limit 100 --json number,title \
-              --jq '.[] | select(.title == "Hosted schema drift detected") | .number' \
+            gh api --paginate --method GET "repos/$GITHUB_REPOSITORY/issues" \
+              -f state=open -f per_page=100 \
+              --jq '.[] | select(.pull_request == null and .title == "Hosted schema drift detected") | .number' \
               | head -n 1
           )"
           if [[ -n "$issue_number" ]]; then
