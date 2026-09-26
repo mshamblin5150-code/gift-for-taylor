@@ -57,9 +57,11 @@ final class SupabaseScheduleStore implements ScheduleStore {
     LegendCode code, {
     String? originalCode,
   }) async {
-    final result = await _client.rpc<List<dynamic>>(
-      'preview_shift_code_change',
-      params: _shiftCodeParams(code, originalCode),
+    final result = await mapAccessRejected(
+      () => _client.rpc<List<dynamic>>(
+        'preview_shift_code_change',
+        params: _shiftCodeParams(code, originalCode),
+      ),
     );
     return result
         .cast<Map<String, dynamic>>()
@@ -72,25 +74,31 @@ final class SupabaseScheduleStore implements ScheduleStore {
     LegendCode code,
     List<ShiftCodeChangePlan> plan, {
     String? originalCode,
-  }) => _client.rpc<void>(
-    'commit_shift_code_change',
-    params: {
-      ..._shiftCodeParams(code, originalCode),
-      'p_expected_plan': [for (final row in plan) row.toJson()],
-    },
+  }) => mapAccessRejected(
+    () => _client.rpc<void>(
+      'commit_shift_code_change',
+      params: {
+        ..._shiftCodeParams(code, originalCode),
+        'p_expected_plan': [for (final row in plan) row.toJson()],
+      },
+    ),
   );
 
   @override
   Future<void> saveShiftCode(LegendCode code, {String? originalCode}) =>
-      _client.rpc<void>(
-        'save_shift_code',
-        params: _shiftCodeParams(code, originalCode),
+      mapAccessRejected(
+        () => _client.rpc<void>(
+          'save_shift_code',
+          params: _shiftCodeParams(code, originalCode),
+        ),
       );
 
   @override
   Future<void> deleteShiftCode(String code) async {
     try {
-      await _client.rpc<void>('delete_shift_code', params: {'p_code': code});
+      await mapAccessRejected(
+        () => _client.rpc<void>('delete_shift_code', params: {'p_code': code}),
+      );
     } on PostgrestException catch (error) {
       if (error.code == 'P2796') throw const ShiftCodeInUse();
       rethrow;

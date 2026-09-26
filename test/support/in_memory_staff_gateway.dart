@@ -145,6 +145,7 @@ final class InMemoryStaffGateway implements StaffGateway {
   List<String>? orderedSections;
   Completer<void>? orderGate;
   String? deletedSection;
+  Object? deleteSectionError;
 
   @override
   Future<StaffList> loadStaffList() async {
@@ -241,6 +242,7 @@ final class InMemoryStaffGateway implements StaffGateway {
 
   @override
   Future<void> deleteEmptySection(String sectionId) async {
+    if (deleteSectionError case final error?) throw error;
     deletedSection = sectionId;
     _list = _list.withSections([
       for (final section in _list.sections)

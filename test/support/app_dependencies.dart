@@ -14,6 +14,7 @@ import 'package:er_schedule/settings/settings_history.dart';
 import 'package:er_schedule/staff/invite_composer.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:er_schedule/tickets/ticket_gateway.dart';
+import 'package:er_schedule/tickets/ticket_activity.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 
@@ -48,6 +49,7 @@ AppDependencies appDependencies({
   SettingsHistory? settingsHistory,
   RepairController? repairController,
   TicketGateway? ticketGateway,
+  TicketActivityLog? ticketActivity,
 }) {
   final database = InMemoryScheduleDatabase(sections: const []);
   return AppDependencies(
@@ -69,6 +71,7 @@ AppDependencies appDependencies({
     settingsHistory: settingsHistory ?? InMemorySettingsHistory(),
     repairController: repairController ?? noopRepairController(),
     ticketGateway: ticketGateway ?? InMemoryTicketGateway(),
+    ticketActivity: ticketActivity ?? TicketActivityLog(),
   );
 }
 
@@ -129,6 +132,11 @@ final class FakeAuthGateway implements AuthGateway {
   @override
   Future<void> signOut() async {
     signOutCount += 1;
+    _signedIn = false;
+    _controller.add(false);
+  }
+
+  void expireSession() {
     _signedIn = false;
     _controller.add(false);
   }

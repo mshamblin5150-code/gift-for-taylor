@@ -39,7 +39,9 @@ final class TicketContext {
     required this.release,
     required this.device,
     required this.capturedAt,
+    required this.recentActions,
     this.month,
+    this.refusalCode,
   });
 
   final String screen;
@@ -47,6 +49,8 @@ final class TicketContext {
   final String release;
   final String device;
   final DateTime capturedAt;
+  final List<String> recentActions;
+  final String? refusalCode;
 }
 
 final class GitHubIssueLink {
@@ -221,6 +225,8 @@ final class SupabaseTicketGateway implements TicketGateway {
           'p_release_id': context.release,
           'p_device_context': context.device,
           'p_context_captured_at': context.capturedAt.toUtc().toIso8601String(),
+          'p_recent_actions': context.recentActions,
+          'p_refusal_code': context.refusalCode,
         },
       );
     } on PostgrestException catch (error) {
@@ -412,8 +418,9 @@ final class SupabaseTicketGateway implements TicketGateway {
           .select(
             'id,sender_id,sender_display_name,kind,text,state,screen_context,'
             'schedule_month,release_id,device_context,context_captured_at,'
-            'created_at,seen_at,question_count,latest_reply_at,reply_seen_at,'
-            'close_reason,closed_at,reopened_at,reopen_note',
+            'recent_actions,refusal_code,created_at,seen_at,question_count,'
+            'latest_reply_at,reply_seen_at,close_reason,closed_at,reopened_at,'
+            'reopen_note',
           );
       final rows = senderId == null
           ? await query.order('created_at', ascending: false)
@@ -442,6 +449,8 @@ final class SupabaseTicketGateway implements TicketGateway {
       release: row['release_id'] as String,
       device: row['device_context'] as String,
       capturedAt: DateTime.parse(row['context_captured_at'] as String),
+      recentActions: List<String>.from(row['recent_actions'] as List),
+      refusalCode: row['refusal_code'] as String?,
     ),
     createdAt: DateTime.parse(row['created_at'] as String),
     questionCount: row['question_count'] as int? ?? 0,

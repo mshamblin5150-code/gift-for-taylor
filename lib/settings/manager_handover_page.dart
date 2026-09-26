@@ -4,6 +4,7 @@ import '../staff/manager_handover_wording.dart';
 import '../staff/refusal_wording.dart';
 import '../staff/staff_gateway.dart';
 import 'manager_handover_session.dart';
+import '../tickets/ticket_refusal.dart';
 
 /// Transfers Manager in one database transaction without changing the
 /// database-bound Maintainer hat.
@@ -33,6 +34,13 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
   bool _formerAdministrator = false;
   final Set<String> _formerSections = {};
   String? _error;
+  String? _refusalCode;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    recordTicketScreenVisit(context, 'Transfer Manager');
+  }
 
   @override
   void initState() {
@@ -121,7 +129,10 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() => _error = null);
+    setState(() {
+      _error = null;
+      _refusalCode = null;
+    });
     final outcome = await _session.transfer(
       successorId: successorId,
       formerAdministrator: _formerAdministrator,
@@ -132,11 +143,15 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
       case ManagerTransferred():
         Navigator.pop(context, true);
       case ManagerTransferFailed(:final error):
-        setState(
-          () => _error =
+        setState(() {
+          _error =
               managerHandoverRefusalWording(error) ??
-              'Could not transfer Manager. Try again.',
-        );
+              'Could not transfer Manager. Try again.';
+          _refusalCode = switch (error) {
+            ManagerHandoverRefused(:final reason) => reason.code,
+            _ => null,
+          };
+        });
     }
   }
 
@@ -206,6 +221,14 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
                 _error!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
+              if (_refusalCode case final code?)
+                TicketRefusalButton(
+                  refusal: TicketRefusalContext(
+                    screen: 'Transfer Manager',
+                    code: code,
+                  ),
+                  onAccessRejected: widget.onAccessRejected,
+                ),
             ],
             const SizedBox(height: 16),
             if (_successorId != null)

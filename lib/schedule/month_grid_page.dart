@@ -21,8 +21,11 @@ import '../settings/settings_history.dart';
 import '../tickets/ticket_context.dart';
 import '../tickets/ticket_gateway.dart';
 import '../tickets/ticket_pages.dart';
+import '../tickets/ticket_activity.dart';
+import '../tickets/ticket_refusal.dart';
 
 import 'announce_sheet.dart';
+import 'access_rejected_write.dart';
 import 'approval_queue_page.dart';
 import 'book_page_printing.dart';
 import 'cell_edit_sheet.dart';
@@ -137,6 +140,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
   PrintWording? _wording;
 
   Access get _access => widget.access;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    recordTicketScreenVisit(context, 'Schedule');
+  }
 
   late ScheduleView _view = widget.staffMemberId == null
       ? ScheduleView.month
@@ -351,7 +360,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
         _pendingWork.refresh();
       case SwapProposeRefused(:final reason):
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(swapProposalRefusalMessage(reason))),
+          mappedRefusalSnackBar(
+            context,
+            message: swapProposalRefusalMessage(reason),
+            refusal: TicketRefusalContext(
+              screen: 'Schedule',
+              month: _month,
+              code: reason.code,
+            ),
+            onAccessRejected: widget.onAccessRejected,
+          ),
         );
       case ProposeSwapFailed():
         ScaffoldMessenger.of(context).showSnackBar(
@@ -399,7 +417,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
         _pendingWork.refresh();
       case GiveawayProposeRefused(:final reason):
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(giveawayProposalRefusalMessage(reason))),
+          mappedRefusalSnackBar(
+            context,
+            message: giveawayProposalRefusalMessage(reason),
+            refusal: TicketRefusalContext(
+              screen: 'Schedule',
+              month: _month,
+              code: reason.code,
+            ),
+            onAccessRejected: widget.onAccessRejected,
+          ),
         );
       case ProposeGiveawayFailed():
         ScaffoldMessenger.of(context).showSnackBar(
@@ -427,8 +454,24 @@ class _MonthGridPageState extends State<MonthGridPage> {
         'That Call-in is already settled.',
       RecordCallInFailed() => "The Call-in wasn't recorded. Try again.",
     };
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    final refusalCode = switch (outcome) {
+      RecordCallInRefused(:final reason) => reason.code,
+      _ => null,
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      refusalCode == null
+          ? SnackBar(content: Text(message))
+          : mappedRefusalSnackBar(
+              context,
+              message: message,
+              refusal: TicketRefusalContext(
+                screen: 'Schedule',
+                month: _month,
+                code: refusalCode,
+              ),
+              onAccessRejected: widget.onAccessRejected,
+            ),
+    );
   }
 
   Future<void> _withdrawCallIn(ScheduleRow row, DateTime date) async {
@@ -444,8 +487,24 @@ class _MonthGridPageState extends State<MonthGridPage> {
       WithdrawCallInRefused(reason: CallInRefusal.settled) => 'This Call-in is settled because an Open shift was filled, so it cannot be withdrawn.',
       WithdrawCallInFailed() => "The Call-in wasn't withdrawn. Try again.",
     };
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    final refusalCode = switch (outcome) {
+      WithdrawCallInRefused(:final reason) => reason.code,
+      _ => null,
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      refusalCode == null
+          ? SnackBar(content: Text(message))
+          : mappedRefusalSnackBar(
+              context,
+              message: message,
+              refusal: TicketRefusalContext(
+                screen: 'Schedule',
+                month: _month,
+                code: refusalCode,
+              ),
+              onAccessRejected: widget.onAccessRejected,
+            ),
+    );
   }
 
   Future<void> _drop(
@@ -677,16 +736,31 @@ class _MonthGridPageState extends State<MonthGridPage> {
     switch (outcome) {
       case Started():
         break;
-      case AlreadyStarted():
+      case AlreadyStarted(:final refusalCode):
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This month has already been started.')),
-        );
-      case NoPreviousMonth():
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${DateFormat.MMMM().format(_previousMonth)} has no Schedule to start from.',
+          mappedRefusalSnackBar(
+            context,
+            message: 'This month has already been started.',
+            refusal: TicketRefusalContext(
+              screen: 'Schedule',
+              month: _month,
+              code: refusalCode,
             ),
+            onAccessRejected: widget.onAccessRejected,
+          ),
+        );
+      case NoPreviousMonth(:final refusalCode):
+        ScaffoldMessenger.of(context).showSnackBar(
+          mappedRefusalSnackBar(
+            context,
+            message:
+                '${DateFormat.MMMM().format(_previousMonth)} has no Schedule to start from.',
+            refusal: TicketRefusalContext(
+              screen: 'Schedule',
+              month: _month,
+              code: refusalCode,
+            ),
+            onAccessRejected: widget.onAccessRejected,
           ),
         );
       case StartMonthFailed():
@@ -851,6 +925,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
             attachedContext: captureTicketContext(
               screen: 'Schedule',
               month: _month,
+              recentActions:
+                  TicketLauncherScope.maybeOf(context)?.actions.snapshot() ??
+                  const [],
             ),
           ),
         ),
@@ -1093,7 +1170,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
         onPressed: () async {
           await Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (context) => ShiftCodesPage(rules: widget.rules),
+              builder: (context) => ShiftCodesPage(
+                rules: widget.rules,
+                onAccessRejected: widget.onAccessRejected,
+              ),
             ),
           );
           if (mounted) await _session.refresh();
@@ -1323,8 +1403,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
                   onPressed: () => _open(
-                    (context) =>
-                        ShiftCodesPage(rules: widget.rules, readOnly: true),
+                    (context) => ShiftCodesPage(
+                      rules: widget.rules,
+                      readOnly: true,
+                      onAccessRejected: widget.onAccessRejected,
+                    ),
                   ),
                   icon: const Icon(Icons.schedule_outlined),
                   label: const Text('Shift code legend'),

@@ -205,6 +205,7 @@ final class MonthAlreadyStarted implements Exception {
 /// A Shift code used by a Schedule cannot be deleted.
 final class ShiftCodeInUse implements Exception {
   const ShiftCodeInUse();
+  String get refusalCode => 'P2796';
 }
 
 /// The month to copy from has no Schedule yet.

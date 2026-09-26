@@ -195,10 +195,12 @@ final class Started extends StartMonthOutcome {
 
 final class AlreadyStarted extends StartMonthOutcome {
   const AlreadyStarted();
+  String get refusalCode => 'P2791';
 }
 
 final class NoPreviousMonth extends StartMonthOutcome {
   const NoPreviousMonth();
+  String get refusalCode => 'P2792';
 }
 
 final class StartMonthFailed extends StartMonthOutcome {

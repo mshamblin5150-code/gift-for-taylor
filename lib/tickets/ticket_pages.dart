@@ -10,11 +10,13 @@ class PutInTicketPage extends StatefulWidget {
     super.key,
     required this.gateway,
     required this.attachedContext,
+    this.initialKind,
     this.onAccessRejected,
   });
 
   final TicketGateway gateway;
   final TicketContext attachedContext;
+  final TicketKind? initialKind;
   final VoidCallback? onAccessRejected;
 
   @override
@@ -28,7 +30,7 @@ class _PutInTicketPageState extends State<PutInTicketPage> {
     widget.gateway,
     onAccessRejected: widget.onAccessRejected,
   );
-  TicketKind? _kind;
+  late TicketKind? _kind = widget.initialKind;
   String? _error;
 
   @override
@@ -540,14 +542,17 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 6),
-                Text('Screen: ${ticket.context.screen}'),
                 Text(
+                  'Screen: ${ticket.context.screen} · '
                   'Month: ${ticket.context.month == null ? 'None' : DateFormat.yMMMM().format(ticket.context.month!)}',
                 ),
-                Text('Release: ${ticket.context.release}'),
-                Text('Device/browser: ${ticket.context.device}'),
                 Text(
-                  'Time: ${DateFormat.yMMMd().add_jm().format(ticket.context.capturedAt.toLocal())}',
+                  'Release: ${ticket.context.release} · '
+                  'Device/browser: ${ticket.context.device}',
+                ),
+                Text(
+                  'Time: ${DateFormat.yMMMd().add_jm().format(ticket.context.capturedAt.toLocal())} · '
+                  '${[if (ticket.context.refusalCode case final code?) 'Refusal: $code', 'Recent actions: ${ticket.context.recentActions.join(' → ')}'].join(' · ')}',
                 ),
                 if (widget.maintainer) ...[
                   const SizedBox(height: 20),
@@ -736,4 +741,6 @@ String ticketContextSummary(TicketContext context) => [
   'release ${context.release}',
   context.device,
   DateFormat.yMMMd().add_jm().format(context.capturedAt.toLocal()),
+  if (context.refusalCode case final code?) 'Refusal $code',
+  'recent ${context.recentActions.join(' → ')}',
 ].join(' · ');

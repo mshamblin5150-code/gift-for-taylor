@@ -5,6 +5,8 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'messages_composer.dart';
 import 'swap_proposal.dart';
 import 'swaps_session.dart';
+import 'access_rejected_write.dart';
+import '../tickets/ticket_refusal.dart';
 
 class SwapsPage extends StatefulWidget {
   const SwapsPage({
@@ -34,6 +36,12 @@ class SwapsPage extends StatefulWidget {
 
 class _SwapsPageState extends State<SwapsPage> {
   late final SwapsSession _session;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    recordTicketScreenVisit(context, 'Swaps');
+  }
 
   @override
   void initState() {
@@ -79,7 +87,7 @@ class _SwapsPageState extends State<SwapsPage> {
           messagesComposer: widget.messagesComposer,
         );
       case SwapsProposalRejected(:final reason):
-        _message(swapProposalRefusalMessage(reason));
+        _message(swapProposalRefusalMessage(reason), refusalCode: reason.code);
       case SwapsProposeFailed():
         _message("That Swap wasn't proposed. Try again.");
     }
@@ -119,9 +127,21 @@ class _SwapsPageState extends State<SwapsPage> {
     }
   }
 
-  void _message(String message) =>
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+  void _message(String message, {String? refusalCode}) =>
+      ScaffoldMessenger.of(context).showSnackBar(
+        refusalCode == null
+            ? SnackBar(content: Text(message))
+            : mappedRefusalSnackBar(
+                context,
+                message: message,
+                refusal: TicketRefusalContext(
+                  screen: 'Swaps',
+                  month: widget.month,
+                  code: refusalCode,
+                ),
+                onAccessRejected: widget.onAccessRejected,
+              ),
+      );
 
   Future<void> _approve(Swap swap) async {
     final outcome = await _session.approve(swap.id);

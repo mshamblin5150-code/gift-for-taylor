@@ -1,6 +1,43 @@
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../refusal_code.dart';
+
+extension CallInRefusalCode on CallInRefusal {
+  String get code => switch (this) {
+    CallInRefusal.recorderNotWorking => 'P2811',
+    CallInRefusal.targetNotWorking => 'P2812',
+    CallInRefusal.settled => 'P2813',
+  };
+}
+
+extension SwapProposalRefusalCode on SwapProposalRefusal {
+  String get code => switch (this) {
+    SwapProposalRefusal.differentStaffRequired => 'P2814',
+    SwapProposalRefusal.equalCountsRequired => 'P2815',
+    SwapProposalRefusal.shiftLimitExceeded => 'P2816',
+    SwapProposalRefusal.duplicateDate => 'P2817',
+    SwapProposalRefusal.colleagueNotInvited => 'P2818',
+    SwapProposalRefusal.dayNotFuture => 'P2819',
+    SwapProposalRefusal.sourceUnavailable => 'P2820',
+    SwapProposalRefusal.destinationUnavailable => 'P2821',
+    SwapProposalRefusal.noChange => 'P2822',
+  };
+}
+
+extension GiveawayProposalRefusalCode on GiveawayProposalRefusal {
+  String get code => switch (this) {
+    GiveawayProposalRefusal.differentStaffRequired => 'P2823',
+    GiveawayProposalRefusal.shiftsRequired => 'P2824',
+    GiveawayProposalRefusal.shiftLimitExceeded => 'P2825',
+    GiveawayProposalRefusal.duplicateDate => 'P2826',
+    GiveawayProposalRefusal.colleagueNotInvited => 'P2827',
+    GiveawayProposalRefusal.dayNotFuture => 'P2828',
+    GiveawayProposalRefusal.sourceUnavailable => 'P2829',
+    GiveawayProposalRefusal.colleagueIneligible => 'P2830',
+  };
+}
+
 /// Translates rejected Schedule writes without changing other failures.
 Future<T> mapAccessRejected<T>(Future<T> Function() write) async {
   try {
@@ -29,12 +66,11 @@ Future<T> mapCallInRefusal<T>(Future<T> Function() command) async {
   try {
     return await mapAccessRejected(command);
   } on PostgrestException catch (error) {
-    final reason = switch (error.code) {
-      'P2811' => CallInRefusal.recorderNotWorking,
-      'P2812' => CallInRefusal.targetNotWorking,
-      'P2813' => CallInRefusal.settled,
-      _ => null,
-    };
+    final reason = valueForRefusalCode(
+      CallInRefusal.values,
+      error.code,
+      (reason) => reason.code,
+    );
     if (reason != null) throw CallInRefused(reason);
     rethrow;
   }
@@ -46,18 +82,11 @@ Future<T> mapSwapProposalRefusal<T>(Future<T> Function() command) async {
   try {
     return await mapAccessRejected(command);
   } on PostgrestException catch (error) {
-    final reason = switch (error.code) {
-      'P2814' => SwapProposalRefusal.differentStaffRequired,
-      'P2815' => SwapProposalRefusal.equalCountsRequired,
-      'P2816' => SwapProposalRefusal.shiftLimitExceeded,
-      'P2817' => SwapProposalRefusal.duplicateDate,
-      'P2818' => SwapProposalRefusal.colleagueNotInvited,
-      'P2819' => SwapProposalRefusal.dayNotFuture,
-      'P2820' => SwapProposalRefusal.sourceUnavailable,
-      'P2821' => SwapProposalRefusal.destinationUnavailable,
-      'P2822' => SwapProposalRefusal.noChange,
-      _ => null,
-    };
+    final reason = valueForRefusalCode(
+      SwapProposalRefusal.values,
+      error.code,
+      (reason) => reason.code,
+    );
     if (reason != null) throw SwapProposalRefused(reason);
     rethrow;
   }
@@ -68,17 +97,11 @@ Future<T> mapGiveawayProposalRefusal<T>(Future<T> Function() command) async {
   try {
     return await mapAccessRejected(command);
   } on PostgrestException catch (error) {
-    final reason = switch (error.code) {
-      'P2823' => GiveawayProposalRefusal.differentStaffRequired,
-      'P2824' => GiveawayProposalRefusal.shiftsRequired,
-      'P2825' => GiveawayProposalRefusal.shiftLimitExceeded,
-      'P2826' => GiveawayProposalRefusal.duplicateDate,
-      'P2827' => GiveawayProposalRefusal.colleagueNotInvited,
-      'P2828' => GiveawayProposalRefusal.dayNotFuture,
-      'P2829' => GiveawayProposalRefusal.sourceUnavailable,
-      'P2830' => GiveawayProposalRefusal.colleagueIneligible,
-      _ => null,
-    };
+    final reason = valueForRefusalCode(
+      GiveawayProposalRefusal.values,
+      error.code,
+      (reason) => reason.code,
+    );
     if (reason != null) throw GiveawayProposalRefused(reason);
     rethrow;
   }

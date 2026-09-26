@@ -11,6 +11,7 @@ import 'staff_details_session.dart';
 import 'staff_dialogs.dart';
 import 'staff_gateway.dart';
 import 'staff_contacts.dart';
+import '../tickets/ticket_refusal.dart';
 
 class StaffDetailsPage extends StatefulWidget {
   const StaffDetailsPage({
@@ -38,6 +39,12 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
   late final StaffDetailsSession _session;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    recordTicketScreenVisit(context, 'Staff details');
+  }
+
+  @override
   void initState() {
     super.initState();
     _session = StaffDetailsSession(
@@ -54,9 +61,20 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
     super.dispose();
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+  void _showError(String message, {String? refusalCode}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      refusalCode == null
+          ? SnackBar(content: Text(message))
+          : mappedRefusalSnackBar(
+              context,
+              message: message,
+              refusal: TicketRefusalContext(
+                screen: 'Staff details',
+                code: refusalCode,
+              ),
+              onAccessRejected: widget.onAccessRejected,
+            ),
+    );
   }
 
   Future<void> _editContact() async {
@@ -194,6 +212,10 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
         _showError(
           managerHandoverRefusalWording(error) ??
               'Could not change the access role.',
+          refusalCode: switch (error) {
+            ManagerHandoverRefused(:final reason) => reason.code,
+            _ => null,
+          },
         );
       }
     }

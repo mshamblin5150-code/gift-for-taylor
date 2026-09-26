@@ -1,5 +1,6 @@
 import 'package:er_schedule/tickets/ticket_gateway.dart';
 import 'package:er_schedule/tickets/ticket_pages.dart';
+import 'package:er_schedule/tickets/ticket_activity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,6 +17,7 @@ void main() {
       release: 'abc1234',
       device: 'Chrome on Windows',
       capturedAt: DateTime(2026, 9, 26, 14, 30),
+      recentActions: const ['Screen: Schedule'],
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -70,6 +72,52 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Open Ticket form'), findsOneWidget);
+  });
+
+  testWidgets('a refusal opens a problem Ticket with code and recent actions', (
+    tester,
+  ) async {
+    final gateway = InMemoryTicketGateway();
+    final actions = TicketActivityLog()
+      ..screenVisited('Schedule')
+      ..rpcCalled('propose_swap');
+    final launcher = TicketLauncher(gateway: gateway, actions: actions);
+
+    await tester.pumpWidget(
+      TicketLauncherScope(
+        launcher: launcher,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: FilledButton(
+                onPressed: () => launcher.openRefusal(
+                  context,
+                  refusal: TicketRefusalContext(
+                    screen: 'Swaps',
+                    month: DateTime(2026, 9),
+                    code: 'P2814',
+                  ),
+                ),
+                child: const Text('Put in a ticket about this'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Put in a ticket about this'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<DropdownButtonFormField<TicketKind>>(
+            find.byType(DropdownButtonFormField<TicketKind>),
+          )
+          .initialValue,
+      TicketKind.problem,
+    );
+    expect(find.textContaining('Refusal P2814'), findsOneWidget);
+    expect(find.textContaining('RPC: propose_swap'), findsOneWidget);
   });
 
   testWidgets('My tickets shows kind, first line, date and state', (

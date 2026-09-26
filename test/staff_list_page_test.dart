@@ -11,11 +11,13 @@ import 'package:er_schedule/staff/staff_list_page.dart';
 import 'package:er_schedule/staff/staff_contacts.dart';
 import 'package:er_schedule/settings/settings_page.dart';
 import 'package:er_schedule/settings/manager_handover_page.dart';
+import 'package:er_schedule/tickets/ticket_activity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/repair.dart';
+import 'support/tickets.dart';
 
 void main() {
   const days = StaffSection(id: 'days', name: 'State dayshift RN');
@@ -869,6 +871,7 @@ void main() {
   testWidgets('Staff details shows an actionable handover refusal', (
     tester,
   ) async {
+    final tickets = InMemoryTicketGateway();
     final gateway =
         InMemoryStaffGateway(
             actorRole: 'manager',
@@ -881,11 +884,17 @@ void main() {
             ManagerHandoverRefusal.successorInvitePending,
           );
     await tester.pumpWidget(
-      MaterialApp(
-        home: StaffListPage(
-          gateway: gateway,
-          rules: rules,
-          inviteComposer: _FakeInviteComposer(),
+      TicketLauncherScope(
+        launcher: TicketLauncher(
+          gateway: tickets,
+          actions: TicketActivityLog(),
+        ),
+        child: MaterialApp(
+          home: StaffListPage(
+            gateway: gateway,
+            rules: rules,
+            inviteComposer: _FakeInviteComposer(),
+          ),
         ),
       ),
     );
@@ -910,6 +919,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Could not change the access role.'), findsNothing);
+    expect(find.text('Put in a ticket about this'), findsOneWidget);
+    await tester.tap(find.text('Put in a ticket about this'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Refusal P2802'), findsOneWidget);
   });
 
   testWidgets('Maintainer can transfer Manager from Staff details', (
@@ -1336,6 +1349,41 @@ void main() {
     expect(find.byTooltip('Add Section'), findsNothing);
     expect(find.byTooltip('Rename State dayshift RN'), findsNothing);
     expect(find.byTooltip('Delete State dayshift RN'), findsNothing);
+  });
+
+  testWidgets('Section-in-use refusal offers a Ticket with P2795', (
+    tester,
+  ) async {
+    final tickets = InMemoryTicketGateway();
+    final gateway = InMemoryStaffGateway(
+      actorRole: 'manager',
+      list: const StaffList(sections: [days], members: []),
+    )..deleteSectionError = const SectionInUseException();
+    await tester.pumpWidget(
+      TicketLauncherScope(
+        launcher: TicketLauncher(
+          gateway: tickets,
+          actions: TicketActivityLog(),
+        ),
+        child: MaterialApp(
+          home: StaffListPage(
+            gateway: gateway,
+            rules: rules,
+            inviteComposer: _FakeInviteComposer(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Delete State dayshift RN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete Section'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Put in a ticket about this'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Refusal P2795'), findsOneWidget);
   });
 
   testWidgets('a Section with Staff members has no delete action', (
