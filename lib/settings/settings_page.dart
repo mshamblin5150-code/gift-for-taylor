@@ -19,6 +19,8 @@ import '../setup/app_setup_page.dart';
 import '../staff/staff_gateway.dart';
 import 'manager_handover_page.dart';
 import 'settings_history.dart';
+import '../tickets/ticket_gateway.dart';
+import '../tickets/ticket_pages.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -38,6 +40,7 @@ class SettingsPage extends StatelessWidget {
     this.onManagerTransferred,
     this.onAccessRejected,
     required this.maintainerRepairController,
+    this.ticketGateway,
   });
 
   final ScheduleRules scheduleRules;
@@ -55,6 +58,7 @@ class SettingsPage extends StatelessWidget {
   final VoidCallback? onManagerTransferred;
   final VoidCallback? onAccessRejected;
   final RepairController maintainerRepairController;
+  final TicketGateway? ticketGateway;
 
   @override
   Widget build(BuildContext context) {
@@ -115,6 +119,19 @@ class SettingsPage extends StatelessWidget {
                     : 'Break the glass for marked Manager controls',
               ),
               onTap: access.isRepairAccess ? null : openRepair,
+            ),
+          if (access.maintainer && ticketGateway != null)
+            ListTile(
+              leading: const Icon(Icons.inbox_outlined),
+              title: const Text('Tickets'),
+              subtitle: const Text('Private messages from Staff'),
+              onTap: () => open(
+                TicketsPage(
+                  gateway: ticketGateway!,
+                  maintainer: true,
+                  onAccessRejected: onAccessRejected,
+                ),
+              ),
             ),
           if (access.maintainer &&
               access.isRepairAccess &&

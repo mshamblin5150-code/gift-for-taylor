@@ -11,6 +11,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/app_dependencies.dart';
 import 'support/repair.dart';
+import 'support/tickets.dart';
 
 typedef _StaffingFact = ({
   int? minimum,
@@ -126,6 +127,7 @@ void main() {
     DateTime Function()? now,
     bool withStaffing = false,
     Size size = const Size(2400, 1600),
+    InMemoryTicketGateway? ticketGateway,
   }) async {
     if (withStaffing && !database.hasStaffingForMonth(month ?? september)) {
       seedStaffing(month ?? september);
@@ -154,6 +156,7 @@ void main() {
           bookPagePresenter: bookPagePresenter,
           printWordingGateway: printWordingGateway,
           now: now,
+          ticketGateway: ticketGateway,
         ),
       ),
     );
@@ -186,6 +189,27 @@ void main() {
     await tester.enterText(find.byType(TextField), 'release month');
     await tester.pump();
     expect(find.text('Month release'), findsNothing);
+  });
+
+  testWidgets('Staff can open Put in a ticket and My tickets from the menu', (
+    tester,
+  ) async {
+    final tickets = InMemoryTicketGateway();
+    await pumpGrid(
+      tester,
+      actingAs: 'rn-1',
+      staffMemberId: 'rn-1',
+      ticketGateway: tickets,
+      size: const Size(390, 844),
+    );
+    await tester.tap(find.byTooltip('Schedule actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Put in a ticket'), findsOneWidget);
+    expect(find.text('My tickets'), findsOneWidget);
+    await tester.tap(find.text('Put in a ticket'));
+    await tester.pumpAndSettle();
+    expect(find.text('Attached context'), findsOneWidget);
+    expect(find.textContaining('Schedule · September 2026'), findsOneWidget);
   });
 
   Color cellColor(WidgetTester tester, String staffMemberId, DateTime date) {

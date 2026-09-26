@@ -13,12 +13,14 @@ import 'package:er_schedule/schedule/print_wording_gateway.dart';
 import 'package:er_schedule/settings/settings_history.dart';
 import 'package:er_schedule/staff/invite_composer.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
+import 'package:er_schedule/tickets/ticket_gateway.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 
 import 'in_memory_settings_history.dart';
 import 'in_memory_staff_gateway.dart';
 import 'repair.dart';
+import 'tickets.dart';
 
 SwapStore emptySwapStore([String viewer = 'viewer']) =>
     InMemorySwapDatabase(shifts: {}).storeFor(viewer);
@@ -45,6 +47,7 @@ AppDependencies appDependencies({
   UndeliveredInvitationLog? undeliveredInvitationLog,
   SettingsHistory? settingsHistory,
   RepairController? repairController,
+  TicketGateway? ticketGateway,
 }) {
   final database = InMemoryScheduleDatabase(sections: const []);
   return AppDependencies(
@@ -65,6 +68,7 @@ AppDependencies appDependencies({
         undeliveredInvitationLog ?? FakeUndeliveredInvitationLog(),
     settingsHistory: settingsHistory ?? InMemorySettingsHistory(),
     repairController: repairController ?? noopRepairController(),
+    ticketGateway: ticketGateway ?? InMemoryTicketGateway(),
   );
 }
 

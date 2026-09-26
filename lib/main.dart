@@ -22,6 +22,7 @@ import 'staff/invite_composer.dart';
 import 'staff/staff_gateway.dart';
 import 'settings/appearance.dart';
 import 'settings/settings_history.dart';
+import 'tickets/ticket_gateway.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,6 +71,7 @@ Future<void> main() async {
         undeliveredInvitationLog: SupabaseUndeliveredInvitationLog(client),
         settingsHistory: SupabaseSettingsHistory(client),
         repairController: repairController,
+        ticketGateway: SupabaseTicketGateway(client),
       ),
       navigatorKey: navigatorKey,
       inviteToken: Uri.base.queryParameters['invite'],

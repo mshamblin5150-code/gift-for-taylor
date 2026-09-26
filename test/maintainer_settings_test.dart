@@ -8,6 +8,7 @@ import 'package:er_schedule/calendar/undelivered_invitation_log.dart';
 
 import 'support/app_dependencies.dart';
 import 'support/repair.dart';
+import 'support/tickets.dart';
 
 void main() {
   testWidgets('Maintainer sees marked controls without ambient authority', (
@@ -35,12 +36,16 @@ void main() {
           signInFailureLog: FakeSignInFailureLog(),
           onCalendarFeed: () {},
           onManageStaff: () async {},
+          ticketGateway: InMemoryTicketGateway(),
         ),
       ),
     );
     expect(find.text('Maintainer repairs'), findsOneWidget);
     expect(find.text('Unit'), findsNothing);
     expect(find.text('Manager controls'), findsOneWidget);
+    expect(find.text('Tickets'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
     expect(find.text('Sections'), findsOneWidget);
     expect(
       find.text('Requires a Repair — tap to break the glass'),

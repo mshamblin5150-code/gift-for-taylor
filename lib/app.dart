@@ -605,6 +605,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
           undeliveredInvitationLog:
               widget.dependencies.undeliveredInvitationLog,
           repairController: widget.dependencies.repairController,
+          ticketGateway: widget.dependencies.ticketGateway,
           onCalendarFeed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (context) => CalendarFeedPage(
