@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'shift_code_change_dialog.dart';
+
 /// The Shift code catalog. The Manager may edit it; Staff members may read it.
 /// A used code can change meaning or hours; renaming keeps its historical
 /// definition for existing cells, and deletion is refused.
@@ -193,8 +195,17 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
     end.dispose();
     if (result == null) return;
     try {
-      await widget.rules.store.saveShiftCode(
+      final plan = await widget.rules.store.previewShiftCodeChange(
         result,
+        originalCode: original?.code,
+      );
+      if (!mounted) return;
+      if (plan.isNotEmpty && !await confirmShiftCodeChange(context, plan)) {
+        return;
+      }
+      await widget.rules.store.commitShiftCodeChange(
+        result,
+        plan,
         originalCode: original?.code,
       );
       _reload();

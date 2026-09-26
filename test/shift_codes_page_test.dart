@@ -246,4 +246,70 @@ void main() {
       findsWidgets,
     );
   });
+
+  testWidgets('Manager reviews affected dates before a Shift code change', (
+    tester,
+  ) async {
+    final database = InMemoryScheduleDatabase(
+      sections: const [],
+      grants: {'manager': Grants(manager: true)},
+      shiftCodes: const [
+        LegendCode(
+          '7A',
+          hours: '7A–7P',
+          startTime: '07:00',
+          endTime: '19:00',
+          coverageWindow: 'day',
+        ),
+      ],
+      shiftCodeChangePlan: [
+        ShiftCodeChangePlan(
+          workDate: DateTime(2027, 4, 4),
+          shiftCode: '7A',
+          method: 'REQUEST',
+          count: 2,
+          staffMemberIds: const ['one', 'two'],
+        ),
+        ShiftCodeChangePlan(
+          workDate: DateTime(2027, 4, 5),
+          shiftCode: '7A',
+          method: 'REQUEST',
+          count: 1,
+          staffMemberIds: const ['one'],
+        ),
+      ],
+    );
+    final rules = scheduleRulesInMemory(database, actingAs: 'manager');
+    await tester.pumpWidget(MaterialApp(home: ShiftCodesPage(rules: rules)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('7A'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Starts (HH:mm, optional)'),
+      '08:00',
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Shift code'), findsNothing);
+    expect(find.text('Review Calendar invitations'), findsOneWidget);
+    expect(find.text('Apr 4 · 7A · replace 2 invitations'), findsOneWidget);
+    expect(find.text('Apr 5 · 7A · replace 1 invitation'), findsOneWidget);
+    expect(
+      (await rules.store.shiftCodes())
+          .singleWhere((code) => code.code == '7A')
+          .startTime,
+      '07:00',
+    );
+
+    await tester.tap(find.text('Confirm change'));
+    await tester.pumpAndSettle();
+    expect(
+      (await rules.store.shiftCodes())
+          .singleWhere((code) => code.code == '7A')
+          .startTime,
+      '08:00',
+    );
+  });
 }
