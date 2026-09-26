@@ -236,6 +236,7 @@ class _TicketsPageState extends State<TicketsPage> {
                   '${ticket.firstLine}\n'
                   '${DateFormat.yMMMd().format(ticket.createdAt.toLocal())} · '
                   '${ticket.state.label}'
+                  '${widget.maintainer && ticket.hasNewReply ? ' · New reply' : ''}'
                   '${widget.maintainer ? '\n${ticketContextSummary(ticket.context)}' : ''}',
                 ),
                 isThreeLine: widget.maintainer,
@@ -268,6 +269,10 @@ class TicketDetailPage extends StatefulWidget {
 }
 
 class _TicketDetailPageState extends State<TicketDetailPage> {
+  final _question = TextEditingController();
+  final _suggestedAnswer = TextEditingController();
+  final _answer = TextEditingController();
+  String? _threadError;
   late final TicketDetailSession _session = TicketDetailSession(
     widget.gateway,
     widget.ticket,
@@ -277,8 +282,54 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
 
   @override
   void dispose() {
+    _question.dispose();
+    _suggestedAnswer.dispose();
+    _answer.dispose();
     _session.dispose();
     super.dispose();
+  }
+
+  Future<void> _ask() async {
+    if (_question.text.trim().isEmpty) return;
+    setState(() => _threadError = null);
+    final outcome = await _session.askQuestion(
+      question: _question.text.trim(),
+      suggestedAnswer: _suggestedAnswer.text.trim().isEmpty
+          ? null
+          : _suggestedAnswer.text.trim(),
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case TicketThreadCommandCompleted():
+        _question.clear();
+        _suggestedAnswer.clear();
+      case TicketThreadCommandRefused(:final reason):
+        setState(() => _threadError = _threadRefusalMessage(reason));
+      case TicketThreadCommandFailed():
+        setState(() => _threadError = 'The question was not sent. Try again.');
+    }
+  }
+
+  Future<void> _answerQuestion(
+    TicketThreadEntry question, {
+    required bool acceptSuggestion,
+  }) async {
+    if (!acceptSuggestion && _answer.text.trim().isEmpty) return;
+    setState(() => _threadError = null);
+    final outcome = await _session.answerQuestion(
+      question.id,
+      answer: acceptSuggestion ? null : _answer.text.trim(),
+      acceptSuggestion: acceptSuggestion,
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case TicketThreadCommandCompleted():
+        _answer.clear();
+      case TicketThreadCommandRefused(:final reason):
+        setState(() => _threadError = _threadRefusalMessage(reason));
+      case TicketThreadCommandFailed():
+        setState(() => _threadError = 'The answer was not sent. Try again.');
+    }
   }
 
   @override
@@ -293,47 +344,168 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
         TicketDetailFailed() => const Center(
           child: Text('Could not open this Ticket.'),
         ),
-        TicketDetailLoaded(:final ticket) => SelectionArea(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Text(
-                ticket.kind.label,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 4),
-              Text(ticket.state.label),
-              if (widget.maintainer)
-                Text('Sender: ${ticket.senderDisplayName}'),
-              const SizedBox(height: 20),
-              Text(
-                'Ticket text',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 6),
-              Text(ticket.text),
-              const SizedBox(height: 20),
-              Text(
-                'Attached context',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 6),
-              Text('Screen: ${ticket.context.screen}'),
-              Text(
-                'Month: ${ticket.context.month == null ? 'None' : DateFormat.yMMMM().format(ticket.context.month!)}',
-              ),
-              Text('Release: ${ticket.context.release}'),
-              Text('Device/browser: ${ticket.context.device}'),
-              Text(
-                'Time: ${DateFormat.yMMMd().add_jm().format(ticket.context.capturedAt.toLocal())}',
-              ),
-            ],
+        TicketDetailLoaded(:final ticket, :final thread, :final working) =>
+          SelectionArea(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  ticket.kind.label,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 4),
+                Text(ticket.state.label),
+                if (widget.maintainer)
+                  Text('Sender: ${ticket.senderDisplayName}'),
+                const SizedBox(height: 20),
+                Text(
+                  'Ticket text',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(ticket.text),
+                const SizedBox(height: 20),
+                Text(
+                  'Attached context',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text('Screen: ${ticket.context.screen}'),
+                Text(
+                  'Month: ${ticket.context.month == null ? 'None' : DateFormat.yMMMM().format(ticket.context.month!)}',
+                ),
+                Text('Release: ${ticket.context.release}'),
+                Text('Device/browser: ${ticket.context.device}'),
+                Text(
+                  'Time: ${DateFormat.yMMMd().add_jm().format(ticket.context.capturedAt.toLocal())}',
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Private thread',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text('Questions asked: ${ticket.questionCount} of 2'),
+                if (ticket.questionCount >= 2)
+                  const Text(
+                    'Two questions have already been asked. Ask in person if more is needed.',
+                  ),
+                const SizedBox(height: 12),
+                if (thread.isEmpty) const Text('No questions yet.'),
+                for (final entry in thread) ...[
+                  Text(
+                    entry.author == TicketThreadAuthor.maintainer
+                        ? 'Maintainer'
+                        : ticket.senderDisplayName,
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  Text(entry.text),
+                  if (entry.suggestedAnswer case final suggestion?)
+                    Text('Suggested answer: $suggestion'),
+                  const SizedBox(height: 12),
+                ],
+                if (widget.maintainer && ticket.state == TicketState.seen) ...[
+                  TextField(
+                    key: const Key('ticket-question'),
+                    controller: _question,
+                    enabled: !working,
+                    maxLength: 1000,
+                    decoration: InputDecoration(
+                      labelText: 'Question for the sender',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('ticket-suggested-answer'),
+                    controller: _suggestedAnswer,
+                    enabled: !working,
+                    maxLength: 500,
+                    decoration: const InputDecoration(
+                      labelText: 'Suggested answer (optional)',
+                      helperText: 'The sender can confirm this with one tap.',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  FilledButton(
+                    onPressed: working ? null : _ask,
+                    child: const Text('Ask sender'),
+                  ),
+                ] else if (widget.maintainer &&
+                    ticket.state == TicketState.waitingOnSender) ...[
+                  const Text("Waiting for the sender's answer."),
+                ] else if (_pendingQuestion(thread) case final pending?
+                    when ticket.state == TicketState.waitingOnSender) ...[
+                  if (pending.suggestedAnswer != null)
+                    FilledButton(
+                      key: const Key('ticket-answer-yes'),
+                      onPressed: working
+                          ? null
+                          : () => _answerQuestion(
+                              pending,
+                              acceptSuggestion: true,
+                            ),
+                      child: const Text('Yes'),
+                    ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('ticket-answer'),
+                    controller: _answer,
+                    enabled: !working,
+                    maxLength: 1000,
+                    decoration: InputDecoration(
+                      labelText: pending.suggestedAnswer == null
+                          ? 'Your answer'
+                          : 'No, it was…',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  FilledButton(
+                    onPressed: working
+                        ? null
+                        : () =>
+                              _answerQuestion(pending, acceptSuggestion: false),
+                    child: const Text('Send answer'),
+                  ),
+                ],
+                if (_threadError case final error?) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    error,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
       },
     ),
   );
 }
+
+TicketThreadEntry? _pendingQuestion(List<TicketThreadEntry> thread) {
+  final answered = {for (final entry in thread) ?entry.replyToId};
+  for (final entry in thread.reversed) {
+    if (entry.author == TicketThreadAuthor.maintainer &&
+        !answered.contains(entry.id)) {
+      return entry;
+    }
+  }
+  return null;
+}
+
+String _threadRefusalMessage(TicketThreadRefusal reason) => switch (reason) {
+  TicketThreadRefusal.questionInvalid =>
+    'Write a question between 1 and 1000 characters.',
+  TicketThreadRefusal.ticketNotReady =>
+    'Wait for the sender to answer before asking another question.',
+  TicketThreadRefusal.answerInvalid =>
+    'Write an answer between 1 and 1000 characters.',
+  TicketThreadRefusal.questionNotWaiting =>
+    'This question is no longer waiting for an answer.',
+};
 
 String ticketContextSummary(TicketContext context) => [
   context.screen,

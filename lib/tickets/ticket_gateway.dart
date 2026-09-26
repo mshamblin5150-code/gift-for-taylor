@@ -59,6 +59,8 @@ final class Ticket {
     required this.state,
     required this.context,
     required this.createdAt,
+    this.questionCount = 0,
+    this.hasNewReply = false,
     this.seenAt,
   });
 
@@ -70,9 +72,35 @@ final class Ticket {
   final TicketState state;
   final TicketContext context;
   final DateTime createdAt;
+  final int questionCount;
+  final bool hasNewReply;
   final DateTime? seenAt;
 
   String get firstLine => text.split(RegExp(r'\r?\n')).first;
+}
+
+enum TicketThreadAuthor { maintainer, sender }
+
+final class TicketThreadEntry {
+  const TicketThreadEntry({
+    required this.id,
+    required this.ticketId,
+    required this.author,
+    required this.text,
+    required this.createdAt,
+    this.suggestedAnswer,
+    this.replyToId,
+    this.acceptedSuggestion,
+  });
+
+  final String id;
+  final String ticketId;
+  final TicketThreadAuthor author;
+  final String text;
+  final String? suggestedAnswer;
+  final String? replyToId;
+  final bool? acceptedSuggestion;
+  final DateTime createdAt;
 }
 
 enum TicketSubmissionRefusal {
@@ -90,6 +118,18 @@ final class TicketUnavailable implements Exception {
   const TicketUnavailable();
 }
 
+enum TicketThreadRefusal {
+  questionInvalid,
+  ticketNotReady,
+  answerInvalid,
+  questionNotWaiting,
+}
+
+final class TicketThreadRefused implements Exception {
+  const TicketThreadRefused(this.reason);
+  final TicketThreadRefusal reason;
+}
+
 abstract interface class TicketGateway {
   Future<void> putIn({
     required TicketKind kind,
@@ -100,6 +140,18 @@ abstract interface class TicketGateway {
   Future<List<Ticket>> readMine(String senderId);
   Future<List<Ticket>> readForMaintainer();
   Future<Ticket> openForMaintainer(String id);
+  Future<List<TicketThreadEntry>> readThread(String ticketId);
+  Future<Ticket> askQuestion(
+    String ticketId, {
+    required String question,
+    String? suggestedAnswer,
+  });
+  Future<Ticket> answerQuestion(
+    String ticketId,
+    String questionId, {
+    String? answer,
+    required bool acceptSuggestion,
+  });
 }
 
 final class SupabaseTicketGateway implements TicketGateway {
@@ -162,6 +214,82 @@ final class SupabaseTicketGateway implements TicketGateway {
     }
   }
 
+  @override
+  Future<List<TicketThreadEntry>> readThread(String ticketId) async {
+    try {
+      final rows = await _client
+          .from('ticket_thread_entries')
+          .select(
+            'id,ticket_id,author,text,suggested_answer,reply_to_id,'
+            'accepted_suggestion,created_at',
+          )
+          .eq('ticket_id', ticketId)
+          .order('created_at');
+      return [for (final row in rows) _threadEntry(row)];
+    } on PostgrestException catch (error) {
+      if (_isAccessRejection(error)) throw AccessRejected(error);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Ticket> askQuestion(
+    String ticketId, {
+    required String question,
+    String? suggestedAnswer,
+  }) async {
+    try {
+      final row = await _client.rpc<Map<String, dynamic>>(
+        'ask_ticket_question',
+        params: {
+          'p_ticket_id': ticketId,
+          'p_question': question,
+          'p_suggested_answer': suggestedAnswer,
+        },
+      );
+      return _ticket(row);
+    } on PostgrestException catch (error) {
+      final reason = switch (error.code) {
+        'P2841' => TicketThreadRefusal.questionInvalid,
+        'P2842' => TicketThreadRefusal.ticketNotReady,
+        _ => null,
+      };
+      if (reason != null) throw TicketThreadRefused(reason);
+      if (_isAccessRejection(error)) throw AccessRejected(error);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Ticket> answerQuestion(
+    String ticketId,
+    String questionId, {
+    String? answer,
+    required bool acceptSuggestion,
+  }) async {
+    try {
+      final row = await _client.rpc<Map<String, dynamic>>(
+        'answer_ticket_question',
+        params: {
+          'p_ticket_id': ticketId,
+          'p_question_id': questionId,
+          'p_answer': answer,
+          'p_accept_suggestion': acceptSuggestion,
+        },
+      );
+      return _ticket(row);
+    } on PostgrestException catch (error) {
+      final reason = switch (error.code) {
+        'P2843' => TicketThreadRefusal.answerInvalid,
+        'P2844' => TicketThreadRefusal.questionNotWaiting,
+        _ => null,
+      };
+      if (reason != null) throw TicketThreadRefused(reason);
+      if (_isAccessRejection(error)) throw AccessRejected(error);
+      rethrow;
+    }
+  }
+
   Future<List<Ticket>> _read(String? senderId) async {
     try {
       final query = _client
@@ -169,7 +297,7 @@ final class SupabaseTicketGateway implements TicketGateway {
           .select(
             'id,sender_id,sender_display_name,kind,text,state,screen_context,'
             'schedule_month,release_id,device_context,context_captured_at,'
-            'created_at,seen_at',
+            'created_at,seen_at,question_count,latest_reply_at,reply_seen_at',
           );
       final rows = senderId == null
           ? await query.order('created_at', ascending: false)
@@ -200,9 +328,28 @@ final class SupabaseTicketGateway implements TicketGateway {
       capturedAt: DateTime.parse(row['context_captured_at'] as String),
     ),
     createdAt: DateTime.parse(row['created_at'] as String),
+    questionCount: row['question_count'] as int? ?? 0,
+    hasNewReply: row['latest_reply_at'] != null && row['reply_seen_at'] == null,
     seenAt: row['seen_at'] == null
         ? null
         : DateTime.parse(row['seen_at'] as String),
+  );
+
+  TicketThreadEntry _threadEntry(Map<String, dynamic> row) => TicketThreadEntry(
+    id: row['id'] as String,
+    ticketId: row['ticket_id'] as String,
+    author: switch (row['author'] as String) {
+      'maintainer' => TicketThreadAuthor.maintainer,
+      'sender' => TicketThreadAuthor.sender,
+      final value => throw FormatException(
+        'Unknown Ticket thread author: $value',
+      ),
+    },
+    text: row['text'] as String,
+    suggestedAnswer: row['suggested_answer'] as String?,
+    replyToId: row['reply_to_id'] as String?,
+    acceptedSuggestion: row['accepted_suggestion'] as bool?,
+    createdAt: DateTime.parse(row['created_at'] as String),
   );
 
   String _date(DateTime value) =>
