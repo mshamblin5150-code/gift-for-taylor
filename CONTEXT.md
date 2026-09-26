@@ -35,8 +35,8 @@ Permission a Staff member holds beyond ordinary Staff actions: Administrator, or
 _Avoid_: Role, access role, permission level
 
 **Staff member**:
-A person on the Schedule who can see it, ask for a Request off, a Swap or an
-Open shift pickup, but not change it. The single exception is a Call-in: a Staff
+A person on the Schedule who can see it, ask for a Request off, a Swap, a
+Giveaway or an Open shift pickup, but not change it. The single exception is a Call-in: a Staff
 member working that day may record one for anybody, because the Manager is not
 there at 03:00 and somebody in the department always is.
 _Avoid_: User, employee, member
@@ -203,6 +203,21 @@ on changed before the Manager approved it. It is not an answer and nobody
 refused anything: the day that moved is named, so a new Swap can be proposed
 knowing whether it is worth it. It is what a Swap applying all at once costs.
 _Avoid_: Cancelled, expired, declined, withdrawn
+
+**Giveaway**:
+A Staff member giving a named colleague a set of their shifts and taking
+nothing back, which the colleague must agree to and which takes effect only
+when the Manager approves it. Like a Swap, the whole set moves together or not
+at all, its days need not be consecutive or share a Schedule month, and it ends
+as voided if the Schedule moves under it before she decides. Only a colleague
+who is off on every one of those days, and who could have picked each shift up
+had it been an Open shift, can be given it. Until the Manager decides, the
+giver may withdraw it: a change of mind, unlike a colleague's or the Manager's
+decline. It is not a Swap
+with an empty side: a Swap is always an exchange.
+Giving a shift to whoever will take it is not a Giveaway but a Request off,
+whose approval leaves an Open shift.
+_Avoid_: Hand-off, handover, transfer, offer, cover, drop
 
 **Open shift**:
 A scheduled shift left uncovered, by an approved Request off, a Last day or a Call-in, or posted by the Manager, and offered for pickup until someone fills it. Any nurse, RN or LPN, may pick up a nursing shift; other roles pick up within their own role. Each shift records whether pickup needs Manager approval; otherwise an eligible Staff member takes it immediately. The day reads short for its Coverage pool while one is open, even when there is no Shortfall because the Staffing minimum is still met or none is set. Releasing a month with one needs no acknowledgement, but she is shown it.
