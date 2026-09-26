@@ -6,6 +6,7 @@ import 'app_dependencies.dart';
 import 'auth/auth_gateway.dart';
 import 'auth/sign_in_failure_log.dart';
 import 'calendar/calendar_feed_page.dart';
+import 'calendar/undelivered_invitation_log.dart';
 import 'maintainer/repair_controller.dart';
 import 'maintainer/supabase_repair_gateway.dart';
 import 'notifications/notice_gateway.dart';
@@ -64,6 +65,7 @@ Future<void> main() async {
         bookPagePresenter: const BrowserBookPagePresenter(),
         printWordingGateway: SupabasePrintWordingGateway(client),
         calendarFeedGateway: SupabaseCalendarFeedGateway(client, supabaseUrl),
+        undeliveredInvitationLog: SupabaseUndeliveredInvitationLog(client),
         settingsHistory: SupabaseSettingsHistory(client),
         repairController: repairController,
       ),

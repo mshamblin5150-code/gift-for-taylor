@@ -129,8 +129,11 @@ three total attempts.
 An uncertain send is held for investigation instead of risking duplicate mail.
 The trigger URL points at the production Supabase project; change it for another
 project.
-Monitor the `retry-calendar-invitation-deliveries` Cron job, pending rows,
-`delivery_attempts`, and function logs. Later invitations never retry old rows.
+The Maintainer can open an investigation Repair and read **Undelivered
+invitations** in Settings without database or dashboard access. Each entry shows
+the Staff member, shift, attempt count, failure time, SMTP status and provider
+reply. Monitor the `retry-calendar-invitation-deliveries` Cron job separately;
+later invitations never retry old rows.
 The webhook and SMTP secret must be configured before Staff can receive mail.
 
 Staff can switch to the Calendar feed in **My calendar**. Switching queues

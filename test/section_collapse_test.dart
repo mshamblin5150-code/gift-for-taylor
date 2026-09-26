@@ -54,6 +54,7 @@ void main() {
           swapStore: emptySwapStore(),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
+          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           access: database.accessFor(person),
           key: ValueKey('$person-${month ?? september}'),
           rules: scheduleRulesInMemory(database, actingAs: person),

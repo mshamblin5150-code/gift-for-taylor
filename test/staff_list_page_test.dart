@@ -1412,6 +1412,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           maintainerRepairController: noopRepairController(),
+          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           scheduleRules: rules,
           noticeGateway: const NoopNoticeGateway(),
           access: Access(
@@ -1503,6 +1504,7 @@ void main() {
         MaterialApp(
           home: SettingsPage(
             maintainerRepairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
             scheduleRules: rules,
             noticeGateway: const NoopNoticeGateway(),
             access: Access(
@@ -1554,6 +1556,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           maintainerRepairController: noopRepairController(),
+          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           scheduleRules: rules,
           noticeGateway: const NoopNoticeGateway(),
           access: Access(grants: Grants(manager: true)),
@@ -1652,6 +1655,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           maintainerRepairController: noopRepairController(),
+          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           scheduleRules: rules,
           noticeGateway: const NoopNoticeGateway(),
           access: Access(

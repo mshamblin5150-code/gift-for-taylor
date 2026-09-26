@@ -70,6 +70,7 @@ void main() {
           staffMemberId: 'recorder',
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
+          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           now: () => day,
         ),
       ),

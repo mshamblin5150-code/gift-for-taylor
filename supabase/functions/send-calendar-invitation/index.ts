@@ -65,6 +65,19 @@ Deno.serve(async (request) => {
       });
       if (error || data !== true) throw error ?? new Error("Claim was lost");
     },
+    markFailed: async (invitations, failure) => {
+      const { data, error } = await client.rpc(
+        "record_calendar_invitation_failure",
+        {
+          ...deliveryClaim(invitations),
+          p_outcome: failure.outcome,
+          p_error_code: failure.code,
+          p_status_code: failure.statusCode,
+          p_error_message: failure.message,
+        },
+      );
+      if (error || data !== true) throw error ?? new Error("Claim was lost");
+    },
     release: async (invitations) => {
       const { error } = await client.rpc("calendar_invitation_failed", {
         ...deliveryClaim(invitations),

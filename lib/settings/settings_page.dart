@@ -3,6 +3,8 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 import '../auth/sign_in_failure_log.dart';
 import '../auth/sign_in_failures_page.dart';
+import '../calendar/undelivered_invitation_log.dart';
+import '../calendar/undelivered_invitations_page.dart';
 import '../notifications/notice_gateway.dart';
 import '../maintainer/maintainer_repair.dart';
 import '../maintainer/repair_controller.dart';
@@ -31,6 +33,7 @@ class SettingsPage extends StatelessWidget {
     required this.access,
     this.settingsHistory,
     this.signInFailureLog,
+    required this.undeliveredInvitationLog,
     this.staffGateway,
     this.onManagerTransferred,
     this.onAccessRejected,
@@ -47,6 +50,7 @@ class SettingsPage extends StatelessWidget {
   final Access access;
   final SettingsHistory? settingsHistory;
   final SignInFailureLog? signInFailureLog;
+  final UndeliveredInvitationLog undeliveredInvitationLog;
   final StaffGateway? staffGateway;
   final VoidCallback? onManagerTransferred;
   final VoidCallback? onAccessRejected;
@@ -120,6 +124,17 @@ class SettingsPage extends StatelessWidget {
               title: const Text('Sign-in failures'),
               subtitle: const Text('Code emails the provider could not send'),
               onTap: () => open(SignInFailuresPage(log: signInFailureLog!)),
+            ),
+          if (access.maintainer && access.isRepairAccess)
+            ListTile(
+              leading: const Icon(Icons.event_busy_outlined),
+              title: const Text('Undelivered invitations'),
+              subtitle: const Text(
+                'Calendar emails the provider could not send',
+              ),
+              onTap: () => open(
+                UndeliveredInvitationsPage(log: undeliveredInvitationLog),
+              ),
             ),
           if (access.maintainer && !access.isRepairAccess) ...[
             const _SectionHeading('Manager controls'),

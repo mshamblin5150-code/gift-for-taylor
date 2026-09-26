@@ -4,6 +4,13 @@ export type ClaimedInvitation = Invitation & { delivery_claim: string };
 
 export type ClaimedInvitationMessage = readonly ClaimedInvitation[];
 
+export type DeliveryFailure = {
+  outcome: "refused" | "uncertain";
+  code: string | null;
+  statusCode: string | null;
+  message: string;
+};
+
 export type DeliveryDependencies = {
   secret: string;
   claim: (id: string) => Promise<ClaimedInvitationMessage>;
@@ -12,6 +19,10 @@ export type DeliveryDependencies = {
   ) => Promise<ClaimedInvitationMessage>;
   send: (invitations: ClaimedInvitationMessage) => Promise<void>;
   markSent: (invitations: ClaimedInvitationMessage) => Promise<void>;
+  markFailed: (
+    invitations: ClaimedInvitationMessage,
+    failure: DeliveryFailure,
+  ) => Promise<void>;
   release: (invitations: ClaimedInvitationMessage) => Promise<void>;
 };
 
@@ -36,6 +47,33 @@ function isDefinitiveSmtpRejection(error: unknown): boolean {
   const responseCode = (error as { responseCode?: unknown }).responseCode;
   return typeof responseCode === "number" && responseCode >= 400 &&
     responseCode <= 599;
+}
+
+function deliveryFailure(
+  error: unknown,
+  outcome: DeliveryFailure["outcome"],
+): DeliveryFailure {
+  if (typeof error !== "object" || error === null) {
+    return { outcome, code: null, statusCode: null, message: String(error) };
+  }
+  const smtpError = error as {
+    code?: unknown;
+    responseCode?: unknown;
+    response?: unknown;
+    message?: unknown;
+  };
+  return {
+    outcome,
+    code: typeof smtpError.code === "string" ? smtpError.code : null,
+    statusCode: typeof smtpError.responseCode === "number"
+      ? String(smtpError.responseCode)
+      : null,
+    message: typeof smtpError.response === "string" && smtpError.response.length
+      ? smtpError.response
+      : typeof smtpError.message === "string" && smtpError.message.length
+      ? smtpError.message
+      : "Unknown provider failure",
+  };
 }
 
 export function createCalendarInvitationHandler(
@@ -124,8 +162,21 @@ export function createCalendarInvitationHandler(
         await dependencies.send(sendable);
       } catch (error) {
         console.error("Calendar invitation delivery failed", id, error);
-        if (isDefinitiveSmtpRejection(error)) {
-          await releaseForRetry(sendable);
+        const refused = isDefinitiveSmtpRejection(error);
+        try {
+          await dependencies.markFailed(
+            sendable,
+            deliveryFailure(error, refused ? "refused" : "uncertain"),
+          );
+        } catch (recordingError) {
+          console.error(
+            "Calendar invitation failure recording failed",
+            id,
+            recordingError,
+          );
+          failures++;
+          failureStatus = 503;
+          continue;
         }
         failures++;
         failureStatus = Math.max(failureStatus, 502);

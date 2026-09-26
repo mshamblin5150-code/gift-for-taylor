@@ -3,6 +3,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'auth/auth_gateway.dart';
 import 'auth/sign_in_failure_log.dart';
 import 'calendar/calendar_feed_page.dart';
+import 'calendar/undelivered_invitation_log.dart';
 import 'maintainer/repair_controller.dart';
 import 'notifications/notice_gateway.dart';
 import 'schedule/book_page_printing.dart';
@@ -27,6 +28,7 @@ final class AppDependencies {
     required this.bookPagePresenter,
     required this.printWordingGateway,
     required this.calendarFeedGateway,
+    required this.undeliveredInvitationLog,
     required this.settingsHistory,
     required this.repairController,
   }) : rules = ScheduleRules(scheduleStore);
@@ -43,6 +45,7 @@ final class AppDependencies {
   final BookPagePresenter bookPagePresenter;
   final PrintWordingGateway printWordingGateway;
   final CalendarFeedGateway calendarFeedGateway;
+  final UndeliveredInvitationLog undeliveredInvitationLog;
   final SettingsHistory settingsHistory;
   final RepairController repairController;
   final ScheduleRules rules;

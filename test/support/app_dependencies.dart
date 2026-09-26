@@ -4,6 +4,7 @@ import 'package:er_schedule/app_dependencies.dart';
 import 'package:er_schedule/auth/auth_gateway.dart';
 import 'package:er_schedule/auth/sign_in_failure_log.dart';
 import 'package:er_schedule/calendar/calendar_feed_page.dart';
+import 'package:er_schedule/calendar/undelivered_invitation_log.dart';
 import 'package:er_schedule/notifications/notice_gateway.dart';
 import 'package:er_schedule/maintainer/repair_controller.dart';
 import 'package:er_schedule/schedule/book_page_printing.dart';
@@ -35,6 +36,7 @@ AppDependencies appDependencies({
   BookPagePresenter? bookPagePresenter,
   PrintWordingGateway? printWordingGateway,
   CalendarFeedGateway? calendarFeedGateway,
+  UndeliveredInvitationLog? undeliveredInvitationLog,
   SettingsHistory? settingsHistory,
   RepairController? repairController,
 }) {
@@ -52,6 +54,8 @@ AppDependencies appDependencies({
     bookPagePresenter: bookPagePresenter ?? const NoopBookPagePresenter(),
     printWordingGateway: printWordingGateway ?? const NoopPrintWordingGateway(),
     calendarFeedGateway: calendarFeedGateway ?? const NoopCalendarFeedGateway(),
+    undeliveredInvitationLog:
+        undeliveredInvitationLog ?? FakeUndeliveredInvitationLog(),
     settingsHistory: settingsHistory ?? InMemorySettingsHistory(),
     repairController: repairController ?? noopRepairController(),
   );
@@ -68,6 +72,13 @@ final class FakeSignInFailureLog implements SignInFailureLog {
 
   @override
   Future<List<SignInFailureRecord>> read() async => failures;
+}
+
+final class FakeUndeliveredInvitationLog implements UndeliveredInvitationLog {
+  List<UndeliveredInvitation> invitations = const [];
+
+  @override
+  Future<List<UndeliveredInvitation>> read() async => invitations;
 }
 
 final class FakeAuthGateway implements AuthGateway {

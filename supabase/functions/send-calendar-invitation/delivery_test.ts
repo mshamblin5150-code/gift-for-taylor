@@ -49,6 +49,7 @@ Deno.test("a burst sends each queued invitation exactly once", async () => {
       return Promise.resolve();
     },
     markSent: () => Promise.resolve(),
+    markFailed: () => Promise.resolve(),
     release: () => Promise.resolve(),
   };
   const handler = createCalendarInvitationHandler(dependencies);
@@ -88,6 +89,7 @@ Deno.test("a Month release sends one message per recipient", async () => {
       return Promise.resolve();
     },
     markSent: () => Promise.resolve(),
+    markFailed: () => Promise.resolve(),
     release: () => Promise.resolve(),
   });
 
@@ -120,6 +122,7 @@ Deno.test("a calendar message never mixes REQUEST and CANCEL", async () => {
       return Promise.resolve();
     },
     markSent: () => Promise.resolve(),
+    markFailed: () => Promise.resolve(),
     release: () => Promise.resolve(),
   });
 
@@ -146,6 +149,7 @@ Deno.test("a superseded claimed shift is removed before sending", async () => {
       return Promise.resolve();
     },
     markSent: () => Promise.resolve(),
+    markFailed: () => Promise.resolve(),
     release: () => Promise.resolve(),
   });
 
@@ -179,6 +183,7 @@ Deno.test("an uncertain recipient does not block later recipients", async () => 
       completed.push(events[0].recipient);
       return Promise.resolve();
     },
+    markFailed: () => Promise.resolve(),
     release: () => Promise.resolve(),
   });
 
@@ -212,6 +217,7 @@ Deno.test("concurrent invocations cannot send the same invitation twice", async 
       await Promise.resolve();
     },
     markSent: () => Promise.resolve(),
+    markFailed: () => Promise.resolve(),
     release: () => Promise.resolve(),
   };
   const handler = createCalendarInvitationHandler(dependencies);
@@ -227,18 +233,29 @@ Deno.test("concurrent invocations cannot send the same invitation twice", async 
   }
 });
 
-Deno.test("a failed send releases only its claimed invitation for retry", async () => {
+Deno.test("a refused send records an outcome before its atomic release", async () => {
   const claimedInvitation = invitation("failed-row");
   const releases: Array<[string, string]> = [];
+  const failures: Array<[string, string | null, string | null, string]> = [];
   const handler = createCalendarInvitationHandler({
     secret: "secret",
     claim: () => Promise.resolve([claimedInvitation]),
     beginSend: (invitations) => Promise.resolve(invitations),
     send: () =>
       Promise.reject(Object.assign(new Error("quota reached"), {
+        code: "EENVELOPE",
         responseCode: 550,
       })),
     markSent: () => Promise.resolve(),
+    markFailed: (_invitations, failure) => {
+      failures.push([
+        failure.outcome,
+        failure.code,
+        failure.statusCode,
+        failure.message,
+      ]);
+      return Promise.resolve();
+    },
     release: (invitations) => {
       releases.push([invitations[0].id, invitations[0].delivery_claim]);
       return Promise.resolve();
@@ -250,23 +267,32 @@ Deno.test("a failed send releases only its claimed invitation for retry", async 
   if (response.status !== 502) {
     throw new Error(`Expected provider failure, got ${response.status}`);
   }
+  if (releases.length !== 0) throw new Error("Refusal was released twice");
   if (
-    JSON.stringify(releases) !==
-      JSON.stringify([[claimedInvitation.id, claimedInvitation.delivery_claim]])
+    JSON.stringify(failures) !==
+      JSON.stringify([["refused", "EENVELOPE", "550", "quota reached"]])
   ) {
-    throw new Error(`Unexpected claim releases: ${JSON.stringify(releases)}`);
+    throw new Error(
+      `Provider reply was not recorded: ${JSON.stringify(failures)}`,
+    );
   }
 });
 
 Deno.test("an ambiguous SMTP failure is held instead of released", async () => {
   const claimedInvitation = invitation("ambiguous-row");
   let released = false;
+  let recorded = false;
   const handler = createCalendarInvitationHandler({
     secret: "secret",
     claim: () => Promise.resolve([claimedInvitation]),
     beginSend: (invitations) => Promise.resolve(invitations),
     send: () => Promise.reject(new Error("connection lost after DATA")),
     markSent: () => Promise.resolve(),
+    markFailed: (_invitations, failure) => {
+      recorded = failure.outcome === "uncertain" &&
+        failure.message === "connection lost after DATA";
+      return Promise.resolve();
+    },
     release: () => {
       released = true;
       return Promise.resolve();
@@ -281,6 +307,34 @@ Deno.test("an ambiguous SMTP failure is held instead of released", async () => {
   if (released) {
     throw new Error("Ambiguous SMTP outcome was released for retry");
   }
+  if (!recorded) throw new Error("Ambiguous SMTP outcome was not recorded");
+});
+
+Deno.test("a failure that cannot be recorded is held", async () => {
+  const claimedInvitation = invitation("unrecorded-row");
+  let released = false;
+  const handler = createCalendarInvitationHandler({
+    secret: "secret",
+    claim: () => Promise.resolve([claimedInvitation]),
+    beginSend: (invitations) => Promise.resolve(invitations),
+    send: () =>
+      Promise.reject(Object.assign(new Error("quota reached"), {
+        responseCode: 550,
+      })),
+    markSent: () => Promise.resolve(),
+    markFailed: () => Promise.reject(new Error("database unavailable")),
+    release: () => {
+      released = true;
+      return Promise.resolve();
+    },
+  });
+
+  const response = await handler(request(claimedInvitation.id));
+
+  if (response.status !== 503) {
+    throw new Error(`Expected recording failure, got ${response.status}`);
+  }
+  if (released) throw new Error("An unrecorded failure was released");
 });
 
 Deno.test("an uncertain completed send is held instead of released", async () => {
@@ -301,6 +355,7 @@ Deno.test("an uncertain completed send is held instead of released", async () =>
       steps.push("mark");
       return Promise.reject(new Error("database unavailable"));
     },
+    markFailed: () => Promise.resolve(),
     release: () => {
       steps.push("release");
       return Promise.resolve();
