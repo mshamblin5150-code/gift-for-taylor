@@ -14,7 +14,7 @@ class ApprovalQueuePage extends StatefulWidget {
     required this.swapStore,
     required this.openShiftStore,
     required this.giveawayStore,
-    this.staffGateway,
+    required this.staffGateway,
     this.onAccessRejected,
   });
 
@@ -22,7 +22,7 @@ class ApprovalQueuePage extends StatefulWidget {
   final SwapStore swapStore;
   final OpenShiftStore openShiftStore;
   final GiveawayStore giveawayStore;
-  final StaffGateway? staffGateway;
+  final StaffGateway staffGateway;
   final VoidCallback? onAccessRejected;
 
   @override

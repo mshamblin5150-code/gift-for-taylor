@@ -32,6 +32,7 @@ void main() {
         home: MonthGridPage(
           swapStore: emptySwapStore(),
           giveawayStore: emptyGiveawayStore(),
+          staffGateway: emptyStaffGateway(),
           repairController: noopRepairController(),
           undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           rules: scheduleRulesInMemory(database, actingAs: 'manager'),
@@ -198,6 +199,7 @@ void main() {
         home: MonthGridPage(
           swapStore: emptySwapStore(),
           giveawayStore: emptyGiveawayStore(),
+          staffGateway: emptyStaffGateway(),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
@@ -245,6 +247,7 @@ void main() {
           home: MonthGridPage(
             swapStore: emptySwapStore(),
             giveawayStore: emptyGiveawayStore(),
+            staffGateway: emptyStaffGateway(),
             noticeGateway: const NoopNoticeGateway(),
             repairController: noopRepairController(),
             undeliveredInvitationLog: FakeUndeliveredInvitationLog(),

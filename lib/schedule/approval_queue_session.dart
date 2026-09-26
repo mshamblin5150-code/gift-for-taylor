@@ -50,7 +50,7 @@ final class ApprovalQueueSession extends ChangeNotifier {
     required SwapStore swapStore,
     required GiveawayStore giveawayStore,
     required OpenShiftStore openShiftStore,
-    StaffGateway? staffGateway,
+    required StaffGateway staffGateway,
     VoidCallback? onAccessRejected,
     ApprovalQueueTimerFactory? timerFactory,
   }) : _rules = rules,
@@ -69,7 +69,7 @@ final class ApprovalQueueSession extends ChangeNotifier {
   final SwapStore _swapStore;
   final GiveawayStore _giveawayStore;
   final OpenShiftStore _openShiftStore;
-  final StaffGateway? _staffGateway;
+  final StaffGateway _staffGateway;
   final VoidCallback? _onAccessRejected;
   ApprovalQueueState _state = const ApprovalQueueState();
   ApprovalQueueState get state => _state;
@@ -173,13 +173,11 @@ final class ApprovalQueueSession extends ChangeNotifier {
   Future<ApprovalDecisionOutcome> decideInvite(
     String inviteId, {
     required bool confirm,
-  }) => _write(() {
-    final gateway = _staffGateway;
-    if (gateway == null) throw StateError('Staff access is unavailable.');
-    return confirm
-        ? gateway.confirmInviteAcceptance(inviteId)
-        : gateway.rejectInviteAcceptance(inviteId);
-  });
+  }) => _write(
+    () => confirm
+        ? _staffGateway.confirmInviteAcceptance(inviteId)
+        : _staffGateway.rejectInviteAcceptance(inviteId),
+  );
 
   Future<ApprovalDecisionOutcome> _write(
     Future<void> Function() command,

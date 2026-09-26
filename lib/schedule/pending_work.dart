@@ -55,9 +55,9 @@ final class PendingWork extends ChangeNotifier {
     required Access access,
     required String? swapStaffMemberId,
     required GiveawayStore giveawayStore,
+    required StaffGateway staffGateway,
     SwapStore? swapStore,
     OpenShiftStore? openShiftStore,
-    StaffGateway? staffGateway,
     PendingWorkTimerFactory? timerFactory,
   }) : _rules = rules,
        _access = access,
@@ -92,7 +92,7 @@ final class PendingWork extends ChangeNotifier {
   final SwapStore? _swapStore;
   final GiveawayStore _giveawayStore;
   final OpenShiftStore? _openShiftStore;
-  final StaffGateway? _staffGateway;
+  final StaffGateway _staffGateway;
   StreamSubscription<void>? _swapUpdates;
   StreamSubscription<void>? _openShiftUpdates;
   StreamSubscription<void>? _giveawayUpdates;

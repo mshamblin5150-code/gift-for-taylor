@@ -26,6 +26,8 @@ SwapStore emptySwapStore([String viewer = 'viewer']) =>
 GiveawayStore emptyGiveawayStore([String viewer = 'viewer']) =>
     InMemoryGiveawayDatabase(shifts: {}).storeFor(viewer);
 
+StaffGateway emptyStaffGateway() => InMemoryStaffGateway();
+
 AppDependencies appDependencies({
   AuthGateway? authGateway,
   SignInFailureLog? signInFailureLog,

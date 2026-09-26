@@ -6,6 +6,8 @@ import 'package:er_schedule/schedule/pending_work.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'support/in_memory_staff_gateway.dart';
+
 final class _Swaps extends Fake implements SwapStore {
   final items = <Swap>[];
   final changes = StreamController<void>.broadcast(sync: true);
@@ -108,6 +110,7 @@ void main() {
     swapStaffMemberId: viewer,
     swapStore: swaps,
     giveawayStore: giveaways,
+    staffGateway: InMemoryStaffGateway(),
     openShiftStore: openShifts,
     timerFactory: (duration, callback) {
       expect(duration, const Duration(seconds: 15));

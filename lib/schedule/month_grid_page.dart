@@ -82,7 +82,7 @@ class MonthGridPage extends StatefulWidget {
     required this.giveawayStore,
     this.openShiftStore,
     required this.noticeGateway,
-    this.staffGateway,
+    required this.staffGateway,
     this.bookPagePresenter,
     this.printWordingGateway,
     this.settingsHistory,
@@ -111,7 +111,7 @@ class MonthGridPage extends StatefulWidget {
   final GiveawayStore giveawayStore;
   final OpenShiftStore? openShiftStore;
   final NoticeGateway noticeGateway;
-  final StaffGateway? staffGateway;
+  final StaffGateway staffGateway;
 
   final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;

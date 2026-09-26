@@ -65,6 +65,7 @@ void main() {
         home: MonthGridPage(
           swapStore: emptySwapStore('recorder'),
           giveawayStore: emptyGiveawayStore('recorder'),
+          staffGateway: emptyStaffGateway(),
           rules: scheduleRulesInMemory(database, actingAs: 'recorder'),
           access: database.accessFor('recorder'),
           month: month,
