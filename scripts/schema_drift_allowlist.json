@@ -1,0 +1,9 @@
+[
+  {
+    "schema": "public",
+    "table": "staff_notices",
+    "kind": "trigger",
+    "name": "send_push_on_notice",
+    "reason": "Supabase Dashboard creates this Database Webhook trigger for the hosted send-push Edge Function."
+  }
+]

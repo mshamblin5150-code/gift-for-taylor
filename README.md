@@ -36,6 +36,14 @@ project, and then publishes the web app to GitHub Pages. `send-push` deploys
 first so migrations that insert historical Notices cannot trigger pushes to
 Staff phones. The app only goes live once deployment and migration succeed.
 
+After a migration run, and once each night, the `schema-drift` job compares
+table triggers and constraints in the hosted `public` and `private` schemas
+with a fresh local database built from the migrations. Drift fails that
+monitoring job and opens or updates one `Hosted schema drift detected` issue;
+it does not block the Pages deployment. Deliberate hosted-only objects must be
+listed with a reason in `scripts/schema_drift_allowlist.json`. The database
+webhook trigger `send_push_on_notice` is the only current exception.
+
 The three compile-time values above are repository *variables*
 (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VAPID_PUBLIC_KEY`), since they
 ship inside the web app. Set `SUPABASE_PROJECT_REF` as a repository variable
