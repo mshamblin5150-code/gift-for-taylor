@@ -52,6 +52,8 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           swapStore: emptySwapStore(),
+          giveawayStore: emptyGiveawayStore(),
+          staffGateway: emptyStaffGateway(),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           undeliveredInvitationLog: FakeUndeliveredInvitationLog(),

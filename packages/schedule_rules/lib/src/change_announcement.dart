@@ -40,6 +40,14 @@ final class ChangeAnnouncement {
                   )
                   .lastOrNull
                   ?.swapId,
+              giveawayId: changes
+                  .where(
+                    (change) =>
+                        change.staffMemberId == row.staffMemberId &&
+                        _sameDay(change.date, day),
+                  )
+                  .lastOrNull
+                  ?.giveawayId,
             ),
       ];
       if (changedDays.isNotEmpty) {
@@ -115,14 +123,20 @@ final class AffectedPerson {
   Iterable<String> get _dayLines sync* {
     final groups = <String, List<ChangedDay>>{};
     for (final (index, day) in changedDays.indexed) {
-      final key = day.swapId ?? 'standalone:$index';
+      final key = day.swapId != null
+          ? 'swap:${day.swapId}'
+          : day.giveawayId != null
+          ? 'giveaway:${day.giveawayId}'
+          : 'standalone:$index';
       groups.putIfAbsent(key, () => []).add(day);
     }
     for (final days in groups.values) {
       final isSwap = days.first.swapId != null;
+      final isGiveaway = days.first.giveawayId != null;
       if (isSwap) yield 'Swap:';
+      if (isGiveaway) yield 'Giveaway:';
       for (final day in days) {
-        yield '${isSwap ? '  ' : ''}${_shortDate(day.date)}: '
+        yield '${isSwap || isGiveaway ? '  ' : ''}${_shortDate(day.date)}: '
             '${_spoken(day.newShiftCode)} (was ${_spoken(day.oldShiftCode)})';
       }
     }
@@ -136,12 +150,14 @@ final class ChangedDay {
     required this.oldShiftCode,
     required this.newShiftCode,
     this.swapId,
+    this.giveawayId,
   });
 
   final DateTime date;
   final String oldShiftCode;
   final String newShiftCode;
   final String? swapId;
+  final String? giveawayId;
 }
 
 String _spoken(String shiftCode) => switch (shiftCode) {

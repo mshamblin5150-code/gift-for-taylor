@@ -108,4 +108,30 @@ void main() {
       );
     }
   });
+
+  test('Giveaway SQLSTATEs map without exposing backend messages', () async {
+    const reasons = {
+      'P2823': GiveawayProposalRefusal.differentStaffRequired,
+      'P2824': GiveawayProposalRefusal.shiftsRequired,
+      'P2825': GiveawayProposalRefusal.shiftLimitExceeded,
+      'P2826': GiveawayProposalRefusal.duplicateDate,
+      'P2827': GiveawayProposalRefusal.colleagueNotInvited,
+      'P2828': GiveawayProposalRefusal.dayNotFuture,
+      'P2829': GiveawayProposalRefusal.sourceUnavailable,
+      'P2830': GiveawayProposalRefusal.colleagueIneligible,
+    };
+    for (final MapEntry(:key, :value) in reasons.entries) {
+      final error = PostgrestException(message: 'backend wording', code: key);
+      await expectLater(
+        mapGiveawayProposalRefusal<void>(() => Future.error(error)),
+        throwsA(
+          isA<GiveawayProposalRefused>().having(
+            (error) => error.reason,
+            'reason',
+            value,
+          ),
+        ),
+      );
+    }
+  });
 }

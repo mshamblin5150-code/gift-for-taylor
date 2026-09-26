@@ -70,7 +70,13 @@ final class StaffCellReview {
   final StaffCellSwapReview? swap;
 }
 
-enum StaffCellAction { editShift, recordCallIn, withdrawCallIn, proposeSwap }
+enum StaffCellAction {
+  editShift,
+  recordCallIn,
+  withdrawCallIn,
+  proposeSwap,
+  proposeGiveaway,
+}
 
 final class StaffCellSwapReview {
   const StaffCellSwapReview({this.unavailableReason});
@@ -102,6 +108,24 @@ final class SwapProposeRefused extends ProposeSwapOutcome {
 
 final class ProposeSwapFailed extends ProposeSwapOutcome {
   const ProposeSwapFailed();
+}
+
+sealed class ProposeGiveawayOutcome {
+  const ProposeGiveawayOutcome();
+}
+
+final class GiveawayProposed extends ProposeGiveawayOutcome {
+  const GiveawayProposed(this.giveaway);
+  final Giveaway giveaway;
+}
+
+final class GiveawayProposeRefused extends ProposeGiveawayOutcome {
+  const GiveawayProposeRefused(this.reason);
+  final GiveawayProposalRefusal reason;
+}
+
+final class ProposeGiveawayFailed extends ProposeGiveawayOutcome {
+  const ProposeGiveawayFailed();
 }
 
 enum StaffCellUnavailableReason {
@@ -441,6 +465,7 @@ final class MonthSession extends ChangeNotifier {
     required Access access,
     required DateTime month,
     required SwapStore swapStore,
+    required GiveawayStore giveawayStore,
     OpenShiftStore? openShiftStore,
     DateTime Function()? now,
     MonthSessionTimerFactory? timerFactory,
@@ -449,6 +474,7 @@ final class MonthSession extends ChangeNotifier {
        _access = access,
        _openShiftStore = openShiftStore,
        _swapStore = swapStore,
+       _giveawayStore = giveawayStore,
        month = DateTime(month.year, month.month),
        _now = now ?? DateTime.now,
        _timerFactory = timerFactory ?? Timer.new,
@@ -465,6 +491,7 @@ final class MonthSession extends ChangeNotifier {
   final Access _access;
   final OpenShiftStore? _openShiftStore;
   final SwapStore _swapStore;
+  final GiveawayStore _giveawayStore;
   final DateTime month;
   final DateTime Function() _now;
   final MonthSessionTimerFactory _timerFactory;
@@ -612,6 +639,41 @@ final class MonthSession extends ChangeNotifier {
     } catch (error) {
       _rejected(error);
       return const ProposeSwapFailed();
+    }
+  }
+
+  Future<List<GiveawayColleague>> eligibleGiveawayColleagues(
+    List<DateTime> dates,
+  ) async {
+    try {
+      return await _giveawayStore.eligibleColleagues(dates);
+    } catch (error) {
+      _rejected(error);
+      return const [];
+    }
+  }
+
+  Future<ProposeGiveawayOutcome> proposeGiveaway(
+    String colleagueId,
+    List<DateTime> dates,
+  ) async {
+    try {
+      final giveaway = await _giveawayStore.proposeGiveaway(colleagueId, dates);
+      return GiveawayProposed(giveaway);
+    } on GiveawayProposalRefused catch (error) {
+      return GiveawayProposeRefused(error.reason);
+    } catch (error) {
+      _rejected(error);
+      return const ProposeGiveawayFailed();
+    }
+  }
+
+  Future<String?> giveawayColleagueCellNumber(String giveawayId) async {
+    try {
+      return await _giveawayStore.colleagueCellNumberForGiveaway(giveawayId);
+    } catch (error) {
+      _rejected(error);
+      return null;
     }
   }
 

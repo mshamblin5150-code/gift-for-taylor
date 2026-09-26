@@ -591,6 +591,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
           staffMemberId: data.staffMemberId,
           swapStaffMemberId: data.swapStaffMemberId,
           swapStore: widget.dependencies.swapStore,
+          giveawayStore: widget.dependencies.giveawayStore,
           openShiftStore: widget.dependencies.openShiftStore,
           onSignOut: _signOut,
           onManagerTransferred: _refreshAccess,

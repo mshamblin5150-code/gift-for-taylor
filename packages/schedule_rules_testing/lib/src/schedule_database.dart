@@ -290,6 +290,7 @@ final class InMemoryScheduleDatabase {
         changedAt: change.changedAt,
         announced: true,
         swapId: change.swapId,
+        giveawayId: change.giveawayId,
       );
     }
   }
@@ -729,6 +730,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
           changedAt: change.changedAt,
           announced: settlement.announced,
           swapId: change.swapId,
+          giveawayId: change.giveawayId,
           moot: settlement.moot,
           reach: settlement.reach,
         );

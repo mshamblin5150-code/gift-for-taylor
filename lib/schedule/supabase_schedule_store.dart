@@ -257,7 +257,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
           .select(
             'id, staff_member_id, work_date, old_shift_code, new_shift_code, '
             'changed_by_staff_member_id, changed_by_auth_user_id, '
-            'changed_at, announced_at, moot_at, reach, swap_id, '
+            'changed_at, announced_at, moot_at, reach, swap_id, giveaway_id, '
             'changed_by:staff_members!changed_by_staff_member_id(display_name)',
           )
           .gte('work_date', _date(_monthStart(month)))
@@ -285,6 +285,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
             changedAt: DateTime.parse(row['changed_at'] as String).toLocal(),
             announced: row['announced_at'] != null,
             swapId: row['swap_id'] as String?,
+            giveawayId: row['giveaway_id'] as String?,
             moot: row['moot_at'] != null,
             reach: row['reach'] as String?,
           ),

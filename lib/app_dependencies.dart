@@ -20,6 +20,7 @@ final class AppDependencies {
     required this.signInFailureLog,
     required this.scheduleStore,
     required this.swapStore,
+    required this.giveawayStore,
     required this.openShiftStore,
     required this.staffGateway,
     required this.inviteComposer,
@@ -37,6 +38,7 @@ final class AppDependencies {
   final SignInFailureLog signInFailureLog;
   final ScheduleStore scheduleStore;
   final SwapStore swapStore;
+  final GiveawayStore giveawayStore;
   final OpenShiftStore openShiftStore;
   final StaffGateway staffGateway;
   final InviteComposer inviteComposer;

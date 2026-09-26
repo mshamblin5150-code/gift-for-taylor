@@ -1,11 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import '../staff/staff_gateway.dart';
-import 'pending_approvals.dart';
+import 'approval_queue_session.dart';
 import 'swap_proposal.dart';
 
 /// The Manager's pending decisions across the whole Schedule, including other months.
@@ -15,65 +13,49 @@ class ApprovalQueuePage extends StatefulWidget {
     required this.rules,
     required this.swapStore,
     required this.openShiftStore,
-    this.staffGateway,
+    required this.giveawayStore,
+    required this.staffGateway,
+    this.onAccessRejected,
   });
 
   final ScheduleRules rules;
   final SwapStore swapStore;
   final OpenShiftStore openShiftStore;
-  final StaffGateway? staffGateway;
+  final GiveawayStore giveawayStore;
+  final StaffGateway staffGateway;
+  final VoidCallback? onAccessRejected;
 
   @override
   State<ApprovalQueuePage> createState() => _ApprovalQueuePageState();
 }
 
 class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
-  late Future<List<_Decision>> _decisions = _load();
-  Timer? _timer;
-  bool _busy = false;
+  late final ApprovalQueueSession _session;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+    _session = ApprovalQueueSession(
+      rules: widget.rules,
+      swapStore: widget.swapStore,
+      giveawayStore: widget.giveawayStore,
+      openShiftStore: widget.openShiftStore,
+      staffGateway: widget.staffGateway,
+      onAccessRejected: widget.onAccessRejected,
+    );
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _session.dispose();
     super.dispose();
   }
 
-  Future<List<_Decision>> _load() async {
-    final (pending, shifts) = await (
-      readPendingApprovals(
-        widget.rules,
-        widget.swapStore,
-        widget.openShiftStore,
-        widget.staffGateway,
-      ),
-      widget.openShiftStore.openShifts(),
-    ).wait;
-    final shiftById = {for (final shift in shifts) shift.id: shift};
-    final dates = <DateTime>{
-      for (final swap in pending.swaps)
-        for (final shift in swap.requesterShifts)
-          DateTime(shift.date.year, shift.date.month),
-      for (final swap in pending.swaps)
-        for (final shift in swap.colleagueShifts)
-          DateTime(shift.date.year, shift.date.month),
-      for (final pickup in pending.pickups)
-        if (shiftById[pickup.openShiftId] case final shift?)
-          DateTime(shift.date.year, shift.date.month),
-    };
-    final grids = <DateTime, MonthGrid>{};
-    await Future.wait(
-      dates.map((month) async {
-        grids[month] = await widget.rules.monthGrid(month);
-      }),
-    );
+  List<_Decision> _decisions(ApprovalQueueState state) {
+    final pending = state.pending!;
+    final shiftById = {for (final shift in state.openShifts) shift.id: shift};
     String name(String id, DateTime date) =>
-        grids[DateTime(date.year, date.month)]?.displayNameOf(id) ?? id;
+        state.grids[DateTime(date.year, date.month)]?.displayNameOf(id) ?? id;
     final decisions = <_Decision>[
       for (final invite in pending.invites)
         _Decision(
@@ -82,10 +64,9 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
           detail:
               '${invite.staffMemberName} accepted as ${invite.personalEmail}. '
               'Confirm this is the right person before granting access.',
-          approve: () =>
-              widget.staffGateway!.confirmInviteAcceptance(invite.inviteId),
-          decline: () =>
-              widget.staffGateway!.rejectInviteAcceptance(invite.inviteId),
+          approve: (_) => _session.decideInvite(invite.inviteId, confirm: true),
+          decline: (_) =>
+              _session.decideInvite(invite.inviteId, confirm: false),
           approveLabel: 'Confirm',
           declineLabel: 'Reject',
           declineReasonSupported: false,
@@ -101,15 +82,15 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
               '${request.dates.map((d) => DateFormat.yMMMd().format(d)).join(', ')}'
               '${request.reason?.isNotEmpty == true ? '\nReason: ${request.reason}' : ''}',
           approvalReasonSupported: true,
-          approve: () => widget.rules.store.decideRequestOff(
+          approve: (reason) => _session.decideRequestOff(
             request.id,
             RequestOffDecision.approved,
-            _reason?.trim(),
+            reason,
           ),
-          decline: () => widget.rules.store.decideRequestOff(
+          decline: (reason) => _session.decideRequestOff(
             request.id,
             RequestOffDecision.declined,
-            _reason?.trim(),
+            reason,
           ),
         ),
       for (final swap in pending.swaps)
@@ -124,9 +105,30 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
             requesterName: name(swap.requesterId, swap.firstDate),
             colleagueName: name(swap.colleagueId, swap.firstDate),
           ),
-          approve: () => widget.swapStore.approveSwap(swap.id),
-          decline: () =>
-              widget.swapStore.declineSwap(swap.id, reason: _reason?.trim()),
+          approve: (reason) =>
+              _session.decideSwap(swap.id, approve: true, reason: reason),
+          decline: (reason) =>
+              _session.decideSwap(swap.id, approve: false, reason: reason),
+        ),
+      for (final giveaway in pending.giveaways)
+        _Decision(
+          date: giveaway.firstDate,
+          title:
+              'Giveaway — ${name(giveaway.giverId, giveaway.firstDate)} → '
+              '${name(giveaway.colleagueId, giveaway.firstDate)}',
+          detail:
+              '${giveaway.shifts.map((shift) => '${DateFormat.yMMMd().format(shift.date)} ${shift.shiftCode}').join(', ')}'
+              '${giveaway.createsShortfall ? '\nWarning: approval would create or deepen a Shortfall.' : ''}',
+          approve: (reason) => _session.decideGiveaway(
+            giveaway.id,
+            approve: true,
+            reason: reason,
+          ),
+          decline: (reason) => _session.decideGiveaway(
+            giveaway.id,
+            approve: false,
+            reason: reason,
+          ),
         ),
       for (final pickup in pending.pickups)
         if (shiftById[pickup.openShiftId] case final shift?)
@@ -136,10 +138,12 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                 'Open shift pickup — ${name(pickup.staffMemberId, shift.date)}',
             detail:
                 '${DateFormat.yMMMd().format(shift.date)} ${shift.shiftCode} • ${shift.jobRole.label}',
-            approve: () => widget.openShiftStore.approvePickup(pickup.id),
-            decline: () => widget.openShiftStore.declinePickup(
+            approve: (reason) =>
+                _session.decidePickup(pickup.id, approve: true, reason: reason),
+            decline: (reason) => _session.decidePickup(
               pickup.id,
-              reason: _reason?.trim(),
+              approve: false,
+              reason: reason,
             ),
           )
         else
@@ -147,21 +151,17 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
             date: DateTime(9999),
             title: 'Open shift pickup — ${pickup.staffMemberId}',
             detail: 'The Open shift is no longer available.',
-            approve: () => widget.openShiftStore.approvePickup(pickup.id),
-            decline: () => widget.openShiftStore.declinePickup(
+            approve: (reason) =>
+                _session.decidePickup(pickup.id, approve: true, reason: reason),
+            decline: (reason) => _session.decidePickup(
               pickup.id,
-              reason: _reason?.trim(),
+              approve: false,
+              reason: reason,
             ),
           ),
     ];
     decisions.sort((a, b) => a.date.compareTo(b.date));
     return decisions;
-  }
-
-  String? _reason;
-
-  void _refresh() {
-    if (mounted && !_busy) setState(() => _decisions = _load());
   }
 
   Future<void> _decide(_Decision item, bool approve) async {
@@ -196,21 +196,17 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
         ],
       ),
     );
-    _reason = explanation;
     if (confirmed != true) return;
-    setState(() => _busy = true);
-    try {
-      await (approve ? item.approve() : item.decline());
-      if (mounted) setState(() => _decisions = _load());
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Decision was not saved: $error')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-      _reason = null;
+    final reason = explanation.trim();
+    final outcome = await (approve
+        ? item.approve(reason)
+        : item.decline(reason));
+    if (outcome is ApprovalDecisionFailed && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('That decision was not saved. Try again.'),
+        ),
+      );
     }
   }
 
@@ -221,28 +217,29 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
       actions: [
         IconButton(
           tooltip: 'Refresh approval queue',
-          onPressed: _refresh,
+          onPressed: _session.refresh,
           icon: const Icon(Icons.refresh),
         ),
       ],
     ),
-    body: FutureBuilder<List<_Decision>>(
-      future: _decisions,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const Center(
-            child: Text('Approval queue could not be loaded.'),
+    body: ListenableBuilder(
+      listenable: _session,
+      builder: (context, _) {
+        final state = _session.state;
+        if (state.pending == null) {
+          return Center(
+            child: state.loadError != null
+                ? const Text('Approval queue could not be loaded.')
+                : const CircularProgressIndicator(),
           );
         }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.data!.isEmpty) {
+        final decisions = _decisions(state);
+        if (decisions.isEmpty) {
           return const Center(child: Text('Nothing awaiting approval.'));
         }
         return ListView(
           children: [
-            for (final item in snapshot.data!)
+            for (final item in decisions)
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -257,13 +254,15 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                       Row(
                         children: [
                           TextButton(
-                            onPressed: _busy
+                            onPressed: state.busy
                                 ? null
                                 : () => _decide(item, false),
                             child: Text(item.declineLabel),
                           ),
                           FilledButton(
-                            onPressed: _busy ? null : () => _decide(item, true),
+                            onPressed: state.busy
+                                ? null
+                                : () => _decide(item, true),
                             child: Text(item.approveLabel),
                           ),
                         ],
@@ -279,7 +278,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
   );
 }
 
-class _Decision {
+final class _Decision {
   const _Decision({
     required this.date,
     required this.title,
@@ -292,11 +291,12 @@ class _Decision {
     this.approveLabel = 'Approve',
     this.declineLabel = 'Decline',
   });
+
   final DateTime date;
   final String title;
   final String detail;
-  final Future<void> Function() approve;
-  final Future<void> Function() decline;
+  final Future<ApprovalDecisionOutcome> Function(String? reason) approve;
+  final Future<ApprovalDecisionOutcome> Function(String? reason) decline;
   final bool approvalReasonSupported;
   final bool declineReasonSupported;
   final String? confirmationDetail;

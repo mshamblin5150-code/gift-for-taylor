@@ -228,7 +228,11 @@ class _ChangeTile extends StatelessWidget {
       subtitle: Text(
         '${change.changedByName} · '
         '${DateFormat.MMMd().add_jm().format(change.changedAt)}\n'
-        '${change.swapId == null ? '' : 'Cause: Swap · '}'
+        '${change.swapId != null
+            ? 'Cause: Swap · '
+            : change.giveawayId != null
+            ? 'Cause: Giveaway · '
+            : ''}'
         'Reach: ${switch ((change.moot, change.reach)) {
           (true, _) => 'Nothing to tell',
           (_, 'notified') => 'Notified',

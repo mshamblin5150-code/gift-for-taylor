@@ -37,6 +37,8 @@ import 'shift_codes_page.dart';
 import 'staffing_sheet.dart';
 import 'staff_cell_sheet.dart';
 import 'swap_proposal.dart';
+import 'giveaway_proposal.dart';
+import 'giveaways_page.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -77,9 +79,10 @@ class MonthGridPage extends StatefulWidget {
     this.onManagerTransferred,
     this.messagesComposer,
     required this.swapStore,
+    required this.giveawayStore,
     this.openShiftStore,
     required this.noticeGateway,
-    this.staffGateway,
+    required this.staffGateway,
     this.bookPagePresenter,
     this.printWordingGateway,
     this.settingsHistory,
@@ -105,9 +108,10 @@ class MonthGridPage extends StatefulWidget {
   final VoidCallback? onManagerTransferred;
   final MessagesComposer? messagesComposer;
   final SwapStore swapStore;
+  final GiveawayStore giveawayStore;
   final OpenShiftStore? openShiftStore;
   final NoticeGateway noticeGateway;
-  final StaffGateway? staffGateway;
+  final StaffGateway staffGateway;
 
   final BookPagePresenter? bookPagePresenter;
   final PrintWordingGateway? printWordingGateway;
@@ -146,6 +150,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       rules: widget.rules,
       access: widget.access,
       swapStore: widget.swapStore,
+      giveawayStore: widget.giveawayStore,
       openShiftStore: widget.openShiftStore,
       staffGateway: widget.staffGateway,
       swapStaffMemberId: widget.swapStaffMemberId,
@@ -162,6 +167,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     access: widget.access,
     openShiftStore: widget.openShiftStore,
     swapStore: widget.swapStore,
+    giveawayStore: widget.giveawayStore,
     month: _month,
     now: widget.now,
     onAccessRejected: widget.onAccessRejected,
@@ -283,6 +289,9 @@ class _MonthGridPageState extends State<MonthGridPage> {
       date: date,
       review: review,
       canEditShift: canEditShift,
+      canGiveAway:
+          row.staffMemberId == widget.swapStaffMemberId &&
+          review.swap?.available == true,
     );
     if (action == null || !mounted) return action;
     switch (action) {
@@ -294,6 +303,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
         await _withdrawCallIn(row, date);
       case StaffCellAction.proposeSwap:
         await _proposeSwap(row, date);
+      case StaffCellAction.proposeGiveaway:
+        await _proposeGiveaway(date);
     }
     return action;
   }
@@ -342,6 +353,54 @@ class _MonthGridPageState extends State<MonthGridPage> {
           const SnackBar(
             content: Text(
               "That Swap wasn't proposed. Check the shifts and try again.",
+            ),
+          ),
+        );
+    }
+  }
+
+  Future<void> _proposeGiveaway(DateTime initialDate) async {
+    final giverId = widget.swapStaffMemberId;
+    final grid = _session.state.grid;
+    if (giverId == null || grid == null) return;
+    final choice = await showGiveawayProposalDialog(
+      context,
+      rules: widget.rules,
+      eligibleColleagues: _session.eligibleGiveawayColleagues,
+      initialGrid: grid,
+      giverId: giverId,
+      now: widget.now ?? DateTime.now,
+      initialDate: initialDate,
+    );
+    if (choice == null || !mounted) return;
+    final outcome = await _session.proposeGiveaway(
+      choice.colleague.staffMemberId,
+      choice.dates,
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case GiveawayProposed(:final giveaway):
+        final cellNumber = await _session.giveawayColleagueCellNumber(
+          giveaway.id,
+        );
+        if (!mounted) return;
+        await textGiveawayColleague(
+          context,
+          giveaway: giveaway,
+          colleague: choice.colleague,
+          cellNumber: cellNumber,
+          messagesComposer: widget.messagesComposer,
+        );
+        _pendingWork.refresh();
+      case GiveawayProposeRefused(:final reason):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(giveawayProposalRefusalMessage(reason))),
+        );
+      case ProposeGiveawayFailed():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "That Giveaway wasn't proposed. Check the shifts and try again.",
             ),
           ),
         );
@@ -832,8 +891,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
           (context) => ApprovalQueuePage(
             rules: widget.rules,
             swapStore: widget.swapStore,
+            giveawayStore: widget.giveawayStore,
             openShiftStore: widget.openShiftStore!,
             staffGateway: widget.staffGateway,
+            onAccessRejected: widget.onAccessRejected,
           ),
         ),
       ),
@@ -866,6 +927,20 @@ class _MonthGridPageState extends State<MonthGridPage> {
             staffMemberId: widget.swapStaffMemberId,
             isManager: _access.canRunSchedule,
             messagesComposer: widget.messagesComposer,
+            onAccessRejected: widget.onAccessRejected,
+          ),
+        ),
+      ),
+    if (!_access.canRunSchedule && _access.ownStaffMemberId != null)
+      _ScheduleAction(
+        label: 'Giveaways',
+        icon: Icons.card_giftcard,
+        onPressed: () => _open(
+          (context) => GiveawaysPage(
+            rules: widget.rules,
+            giveawayStore: widget.giveawayStore,
+            month: _month,
+            staffMemberId: widget.swapStaffMemberId,
             onAccessRejected: widget.onAccessRejected,
           ),
         ),
@@ -921,6 +996,19 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 staffMemberId: widget.swapStaffMemberId,
                 isManager: true,
                 messagesComposer: widget.messagesComposer,
+                onAccessRejected: widget.onAccessRejected,
+              ),
+            ),
+          ),
+          _ScheduleAction(
+            label: 'Giveaways',
+            icon: Icons.card_giftcard,
+            onPressed: () => _open(
+              (context) => GiveawaysPage(
+                rules: widget.rules,
+                giveawayStore: widget.giveawayStore,
+                month: _month,
+                staffMemberId: widget.swapStaffMemberId,
                 onAccessRejected: widget.onAccessRejected,
               ),
             ),
