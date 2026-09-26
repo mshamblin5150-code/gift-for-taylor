@@ -163,12 +163,14 @@ final class SupabaseTicketGateway implements TicketGateway {
   }
 
   Future<List<Ticket>> _read(String? senderId) async {
-    const columns =
-        'id,sender_id,sender_display_name,kind,text,state,screen_context,'
-        'schedule_month,release_id,device_context,context_captured_at,'
-        'created_at,seen_at';
     try {
-      final query = _client.from('tickets').select(columns);
+      final query = _client
+          .from('tickets')
+          .select(
+            'id,sender_id,sender_display_name,kind,text,state,screen_context,'
+            'schedule_month,release_id,device_context,context_captured_at,'
+            'created_at,seen_at',
+          );
       final rows = senderId == null
           ? await query.order('created_at', ascending: false)
           : await query
