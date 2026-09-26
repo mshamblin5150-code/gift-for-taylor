@@ -43,7 +43,9 @@ dated, and labelled for confidence.
   made it painless does not apply: Staff members sign in with personal emails,
   not accounts in our Workspace domain. That leaves an unverified-app warning
   screen for a result invitations already deliver, and it covers no
-  iCloud-only Staff member.
+  iCloud-only Staff member. (Revisited in ADR-0024: provider APIs now back a
+  Linked subscription within the Calendar feed, for a result invitations do not
+  deliver. Invitations stay the default.)
 - **`X-PUBLISHED-TTL` / `REFRESH-INTERVAL` alone.** Kept (see below) but not
   sufficient. `REFRESH-INTERVAL` is a *floor* on the polling interval, not a
   request to poll faster — it can only ever slow a client down. Classic Outlook

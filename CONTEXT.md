@@ -221,28 +221,45 @@ feed, never both.
 _Avoid_: Calendar invite, meeting request, RSVP
 
 **Calendar feed**:
-A Staff member's private link that mirrors their working shifts into a calendar
-app, offered instead of Calendar invitations to someone who would rather have
-one separate calendar they can switch off. It lags, by a day or more on some
-calendars, so each shift it publishes says how current it is.
+One separate calendar of a Staff member's working shifts, which she can switch
+off, offered instead of Calendar invitations. It reaches her through one or more
+Calendar subscriptions, and how current it is depends on their kind.
 _Avoid_: Calendar export, ICS file, self-updating link
 
 **Calendar subscription**:
-One place a Calendar feed has been subscribed to. Sometimes a device, such as an
-iPhone that fetches the feed itself, and sometimes an account elsewhere, such as
-Google, whose servers fetch the feed and sync it on to every device signed into
-it. A Staff member may have several, each with its own link, revocable on its
-own. A revoked one does not go away: it becomes a Disconnected subscription.
+One place a Calendar feed reaches. Either a Fetched subscription or a Linked
+subscription. A Staff member may have several, each revocable on its own. A
+revoked one does not go away: it becomes a Disconnected subscription.
 _Avoid_: Device, calendar client
 
+**Fetched subscription**:
+A Calendar subscription that the calendar comes and collects from its own
+private address, on its own schedule. Sometimes a device, such as an iPhone that
+fetches it itself, and sometimes an account elsewhere, such as Google, whose
+servers fetch it and sync it on to every device signed into it. It works with
+any calendar, iCloud included, but it lags, by a day or more on some calendars,
+so each shift it publishes says how current it is.
+_Avoid_: Link subscription, webcal, ICS subscription
+
+**Linked subscription**:
+A Calendar subscription that ER Schedule writes itself, into a Google or Outlook
+account the Staff member has linked, so a change reaches it within seconds and
+from there every device signed into that account. There is none for iCloud:
+Apple offers no way in, so an iCloud-only Staff member chooses between Calendar
+invitations and a Fetched subscription.
+_Avoid_: Connected calendar, OAuth calendar, synced calendar, integration
+
 **Disconnected subscription**:
-A Calendar subscription whose link has been revoked, whether by the Staff member
+A Calendar subscription that has been revoked, whether by the Staff member
 herself, by her moving back to Calendar invitations, or by her being
 deactivated. It keeps answering rather than going dead: it shows the shifts she
 had up to the day it was disconnected and nothing after, so the calendar it
 feeds can never come to show a shift she might not work. Unless she has left the
 department it also says on its face that it is no longer updated, because a
-calendar app gives no sign of its own when a subscription stops working.
+calendar app gives no sign of its own when a subscription stops working. The one
+exception is a Linked subscription she revokes from Google's or Microsoft's end,
+or whose access there stops working: ER Schedule can no longer touch it, so it
+keeps whatever it last showed, and she is told once, with the day it stopped.
 _Avoid_: Dead feed, tombstone, expired link, broken subscription
 
 **Undelivered invitation**:
