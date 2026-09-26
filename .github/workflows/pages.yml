@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: "23 7 * * *"
 
 permissions:
   contents: read
@@ -23,6 +25,7 @@ jobs:
   # month that opens against a database missing a migration is the Schedule
   # failing to load for everyone on it.
   migrate:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +64,7 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
 
   build:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +88,7 @@ jobs:
   # The build needs no database, so it runs alongside the migration; only going
   # live waits on both.
   deploy:
+    if: github.event_name != 'schedule'
     needs: [build, migrate]
     runs-on: ubuntu-latest
     environment:
@@ -92,3 +97,60 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Observe hosted drift without holding the web deployment. On deploy runs,
+  # compare only after migrations succeed; on the nightly schedule, migrate is
+  # intentionally skipped and this job runs against the current hosted state.
+  schema-drift:
+    needs: migrate
+    if: >-
+      ${{ always() &&
+          (github.event_name == 'schedule' || needs.migrate.result == 'success') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.107.0
+      - run: supabase start
+      - run: python -m pip install 'psycopg[binary]>=3,<4'
+      - id: drift
+        name: Compare hosted invariants with migrations
+        continue-on-error: true
+        run: >-
+          python scripts/check_schema_drift.py
+          --report-file schema-drift-report.md
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      - name: Open or update the drift issue
+        if: steps.drift.outcome == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ ! -s schema-drift-report.md ]]; then
+            printf '%s\n' \
+              '# Hosted schema drift check could not run' \
+              '' \
+              "See workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+              > schema-drift-report.md
+          fi
+          issue_number="$(
+            gh issue list --state open --limit 100 --json number,title \
+              --jq '.[] | select(.title == "Hosted schema drift detected") | .number' \
+              | head -n 1
+          )"
+          if [[ -n "$issue_number" ]]; then
+            gh issue comment "$issue_number" --body-file schema-drift-report.md
+          else
+            gh issue create \
+              --title 'Hosted schema drift detected' \
+              --label bug --label needs-triage \
+              --body-file schema-drift-report.md
+          fi
+      - name: Fail when drift was found
+        if: steps.drift.outcome == 'failure'
+        run: exit 1
