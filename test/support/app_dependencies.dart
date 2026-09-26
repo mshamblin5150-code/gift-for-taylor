@@ -23,11 +23,15 @@ import 'repair.dart';
 SwapStore emptySwapStore([String viewer = 'viewer']) =>
     InMemorySwapDatabase(shifts: {}).storeFor(viewer);
 
+GiveawayStore emptyGiveawayStore([String viewer = 'viewer']) =>
+    InMemoryGiveawayDatabase(shifts: {}).storeFor(viewer);
+
 AppDependencies appDependencies({
   AuthGateway? authGateway,
   SignInFailureLog? signInFailureLog,
   ScheduleStore? scheduleStore,
   SwapStore? swapStore,
+  GiveawayStore? giveawayStore,
   OpenShiftStore? openShiftStore,
   StaffGateway? staffGateway,
   InviteComposer? inviteComposer,
@@ -46,6 +50,7 @@ AppDependencies appDependencies({
     signInFailureLog: signInFailureLog ?? FakeSignInFailureLog(),
     scheduleStore: scheduleStore ?? database.storeFor('viewer'),
     swapStore: swapStore ?? emptySwapStore(),
+    giveawayStore: giveawayStore ?? emptyGiveawayStore(),
     openShiftStore: openShiftStore ?? database.openShiftStoreFor('viewer'),
     staffGateway: staffGateway ?? InMemoryStaffGateway(),
     inviteComposer: inviteComposer ?? const NoopInviteComposer(),

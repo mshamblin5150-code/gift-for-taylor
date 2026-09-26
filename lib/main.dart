@@ -15,6 +15,7 @@ import 'schedule/print_wording_gateway.dart';
 import 'schedule/messages_composer.dart';
 import 'schedule/supabase_schedule_store.dart';
 import 'schedule/supabase_swap_store.dart';
+import 'schedule/supabase_giveaway_store.dart';
 import 'schedule/supabase_open_shift_store.dart';
 
 import 'staff/invite_composer.dart';
@@ -54,6 +55,7 @@ Future<void> main() async {
         signInFailureLog: SupabaseSignInFailureLog(client),
         scheduleStore: SupabaseScheduleStore(client),
         swapStore: SupabaseSwapStore(client),
+        giveawayStore: SupabaseGiveawayStore(client),
         openShiftStore: SupabaseOpenShiftStore(client),
         staffGateway: SupabaseStaffGateway(client),
         inviteComposer: SmsInviteComposer(Uri.base),

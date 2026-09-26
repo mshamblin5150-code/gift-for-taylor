@@ -7,6 +7,7 @@ import 'package:schedule_rules/schedule_rules.dart';
 part 'src/schedule_database.dart';
 part 'src/open_shifts.dart';
 part 'src/swaps.dart';
+part 'src/giveaways.dart';
 
 ScheduleRules scheduleRulesInMemory(
   InMemoryScheduleDatabase database, {

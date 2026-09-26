@@ -136,6 +136,36 @@ void main() {
     );
   });
 
+  test('one Giveaway groups its changed days and names the cause', () async {
+    await publishStartingMonth();
+    await save(dana, 18, 'X');
+    await save(dana, 19, 'N');
+    final changes = await manager.changeLog(september);
+    database.seedScheduleChanges([
+      for (final change in changes.where((change) => !change.announced))
+        ScheduleChange(
+          id: change.id,
+          staffMemberId: change.staffMemberId,
+          date: change.date,
+          oldShiftCode: change.oldShiftCode,
+          newShiftCode: change.newShiftCode,
+          changedBy: change.changedBy,
+          changedByName: change.changedByName,
+          changedAt: change.changedAt,
+          announced: false,
+          giveawayId: 'giveaway-1',
+        ),
+    ]);
+
+    expect(
+      (await manager.changeAnnouncement(september)).people.single.message,
+      'Hi Dana Reyes, ER Schedule change:\n'
+      'Giveaway:\n'
+      '  Fri 9/18: off (was 7A)\n'
+      '  Sat 9/19: N (was 7A)',
+    );
+  });
+
   test('interleaved Swap days stay grouped by Swap', () async {
     await publishStartingMonth();
     await save(dana, 20, '7A');

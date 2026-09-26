@@ -70,7 +70,13 @@ final class StaffCellReview {
   final StaffCellSwapReview? swap;
 }
 
-enum StaffCellAction { editShift, recordCallIn, withdrawCallIn, proposeSwap }
+enum StaffCellAction {
+  editShift,
+  recordCallIn,
+  withdrawCallIn,
+  proposeSwap,
+  proposeGiveaway,
+}
 
 final class StaffCellSwapReview {
   const StaffCellSwapReview({this.unavailableReason});

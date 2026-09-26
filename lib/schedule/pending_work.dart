@@ -55,6 +55,7 @@ final class PendingWork extends ChangeNotifier {
     required Access access,
     required String? swapStaffMemberId,
     SwapStore? swapStore,
+    GiveawayStore? giveawayStore,
     OpenShiftStore? openShiftStore,
     StaffGateway? staffGateway,
     PendingWorkTimerFactory? timerFactory,
@@ -62,6 +63,7 @@ final class PendingWork extends ChangeNotifier {
        _access = access,
        _swapStaffMemberId = swapStaffMemberId,
        _swapStore = swapStore,
+       _giveawayStore = giveawayStore,
        _openShiftStore = openShiftStore,
        _staffGateway = staffGateway {
     if (swapStore != null) {
@@ -75,6 +77,11 @@ final class PendingWork extends ChangeNotifier {
         (_) => _refreshApprovals(),
       );
     }
+    if (giveawayStore != null) {
+      _giveawayUpdates = giveawayStore.updates().listen((_) {
+        _refreshApprovals();
+      });
+    }
     _timer = (timerFactory ?? Timer.periodic)(const Duration(seconds: 15), (_) {
       _refreshRequestsOff();
       _refreshApprovals();
@@ -85,10 +92,12 @@ final class PendingWork extends ChangeNotifier {
   final Access _access;
   final String? _swapStaffMemberId;
   final SwapStore? _swapStore;
+  final GiveawayStore? _giveawayStore;
   final OpenShiftStore? _openShiftStore;
   final StaffGateway? _staffGateway;
   StreamSubscription<void>? _swapUpdates;
   StreamSubscription<void>? _openShiftUpdates;
+  StreamSubscription<void>? _giveawayUpdates;
   Timer? _timer;
   bool _disposed = false;
 
@@ -144,6 +153,7 @@ final class PendingWork extends ChangeNotifier {
         swapStore,
         openShiftStore,
         _staffGateway,
+        _giveawayStore,
       );
       _replace(_state.copyWith(pendingApprovals: pending.count));
     } catch (_) {
@@ -165,6 +175,7 @@ final class PendingWork extends ChangeNotifier {
     _disposed = true;
     _swapUpdates?.cancel();
     _openShiftUpdates?.cancel();
+    _giveawayUpdates?.cancel();
     _timer?.cancel();
     super.dispose();
   }

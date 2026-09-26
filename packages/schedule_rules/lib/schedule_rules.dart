@@ -10,6 +10,7 @@ export 'src/first_month_transcript.dart';
 
 part 'src/change_announcement.dart';
 part 'src/swaps.dart';
+part 'src/giveaways.dart';
 part 'src/request_off.dart';
 part 'src/open_shifts.dart';
 part 'src/coverage_reading.dart';
@@ -537,6 +538,7 @@ final class ScheduleChange {
     required this.changedAt,
     required this.announced,
     this.swapId,
+    this.giveawayId,
     this.moot = false,
     this.reach,
   });
@@ -555,6 +557,7 @@ final class ScheduleChange {
   final DateTime changedAt;
   final bool announced;
   final String? swapId;
+  final String? giveawayId;
   final bool moot;
   final String? reach;
 }

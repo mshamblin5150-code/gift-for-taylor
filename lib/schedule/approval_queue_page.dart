@@ -15,12 +15,14 @@ class ApprovalQueuePage extends StatefulWidget {
     required this.rules,
     required this.swapStore,
     required this.openShiftStore,
+    this.giveawayStore,
     this.staffGateway,
   });
 
   final ScheduleRules rules;
   final SwapStore swapStore;
   final OpenShiftStore openShiftStore;
+  final GiveawayStore? giveawayStore;
   final StaffGateway? staffGateway;
 
   @override
@@ -51,6 +53,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
         widget.swapStore,
         widget.openShiftStore,
         widget.staffGateway,
+        widget.giveawayStore,
       ),
       widget.openShiftStore.openShifts(),
     ).wait;
@@ -64,6 +67,9 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
           DateTime(shift.date.year, shift.date.month),
       for (final pickup in pending.pickups)
         if (shiftById[pickup.openShiftId] case final shift?)
+          DateTime(shift.date.year, shift.date.month),
+      for (final giveaway in pending.giveaways)
+        for (final shift in giveaway.shifts)
           DateTime(shift.date.year, shift.date.month),
     };
     final grids = <DateTime, MonthGrid>{};
@@ -127,6 +133,21 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
           approve: () => widget.swapStore.approveSwap(swap.id),
           decline: () =>
               widget.swapStore.declineSwap(swap.id, reason: _reason?.trim()),
+        ),
+      for (final giveaway in pending.giveaways)
+        _Decision(
+          date: giveaway.firstDate,
+          title:
+              'Giveaway — ${name(giveaway.giverId, giveaway.firstDate)} → '
+              '${name(giveaway.colleagueId, giveaway.firstDate)}',
+          detail:
+              '${giveaway.shifts.map((shift) => '${DateFormat.yMMMd().format(shift.date)} ${shift.shiftCode}').join(', ')}'
+              '${giveaway.createsShortfall ? '\nWarning: approval would create or deepen a Shortfall.' : ''}',
+          approve: () => widget.giveawayStore!.approveGiveaway(giveaway.id),
+          decline: () => widget.giveawayStore!.declineGiveaway(
+            giveaway.id,
+            reason: _reason?.trim(),
+          ),
         ),
       for (final pickup in pending.pickups)
         if (shiftById[pickup.openShiftId] case final shift?)

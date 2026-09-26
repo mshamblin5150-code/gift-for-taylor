@@ -62,3 +62,24 @@ Future<T> mapSwapProposalRefusal<T>(Future<T> Function() command) async {
     rethrow;
   }
 }
+
+/// Maps Giveaway proposal refusals to stable client-facing reasons.
+Future<T> mapGiveawayProposalRefusal<T>(Future<T> Function() command) async {
+  try {
+    return await mapAccessRejected(command);
+  } on PostgrestException catch (error) {
+    final reason = switch (error.code) {
+      'P2823' => GiveawayProposalRefusal.differentStaffRequired,
+      'P2824' => GiveawayProposalRefusal.shiftsRequired,
+      'P2825' => GiveawayProposalRefusal.shiftLimitExceeded,
+      'P2826' => GiveawayProposalRefusal.duplicateDate,
+      'P2827' => GiveawayProposalRefusal.colleagueNotInvited,
+      'P2828' => GiveawayProposalRefusal.dayNotFuture,
+      'P2829' => GiveawayProposalRefusal.sourceUnavailable,
+      'P2830' => GiveawayProposalRefusal.colleagueIneligible,
+      _ => null,
+    };
+    if (reason != null) throw GiveawayProposalRefused(reason);
+    rethrow;
+  }
+}

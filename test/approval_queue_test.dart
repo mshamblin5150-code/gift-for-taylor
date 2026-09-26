@@ -87,7 +87,7 @@ void main() {
     expect(find.text('Nothing awaiting approval.'), findsOneWidget);
   });
 
-  testWidgets('Manager queue combines and orders all three pending decisions', (
+  testWidgets('Manager queue combines and orders all pending decisions', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 900);
@@ -152,6 +152,25 @@ void main() {
           status: PickupStatus.pending,
         ),
       );
+    final giveaways = InMemoryGiveawayDatabase(
+      shifts: const {},
+      giveaways: [
+        Giveaway(
+          id: 'giveaway',
+          giverId: 'alice',
+          colleagueId: 'bob',
+          shifts: [
+            GiveawayShift(
+              date: DateTime(2026, 10, 11),
+              shiftCode: 'D',
+              targetCode: 'X',
+            ),
+          ],
+          status: GiveawayStatus.accepted,
+          createsShortfall: true,
+        ),
+      ],
+    ).storeFor('manager');
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
@@ -162,6 +181,7 @@ void main() {
           rules: manager,
           month: month,
           swapStore: swaps,
+          giveawayStore: giveaways,
           openShiftStore: pickups,
           now: () => DateTime(2026, 9, 19),
         ),
@@ -172,7 +192,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byTooltip('Approval queue'),
-        matching: find.text('3'),
+        matching: find.text('4'),
       ),
       findsOneWidget,
     );
@@ -182,6 +202,8 @@ void main() {
     expect(find.textContaining('Request off — Alice'), findsOneWidget);
     expect(find.textContaining('Open shift pickup — Bob'), findsOneWidget);
     expect(find.textContaining('Swap — Alice ↔ Bob'), findsOneWidget);
+    expect(find.textContaining('Giveaway — Alice → Bob'), findsOneWidget);
+    expect(find.textContaining('Shortfall'), findsOneWidget);
     final requestY = tester
         .getTopLeft(find.textContaining('Request off — Alice'))
         .dy;

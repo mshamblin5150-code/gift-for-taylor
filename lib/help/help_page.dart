@@ -201,9 +201,9 @@ const helpTopics = <HelpTopic>[
   HelpTopic(
     title: 'Approval queue',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
-    what: 'The Approval queue is where the Manager makes pending decisions. It includes Requests off, accepted Swaps, Open shift pickups needing approval, and accepted Invites waiting for identity confirmation. Managers and Administrators can also confirm Invites from the Staff list.',
-    how: 'Manager only: open Approval queue from the Schedule. Read the person, dates, and details before choosing Approve or Decline. An Invite uses Confirm or Reject; an Administrator can do that from Staff list. Add a reason when offered. The item leaves the queue after the decision; use Browse requests to find earlier Request off, Swap, or pickup decisions.',
-    searchTerms: 'pending approval requests off swaps pickups decisions invite confirmation',
+    what: 'The Approval queue is where the Manager makes pending decisions. It includes Requests off, accepted Swaps and Giveaways, Open shift pickups needing approval, and accepted Invites waiting for identity confirmation. Managers and Administrators can also confirm Invites from the Staff list.',
+    how: 'Manager only: open Approval queue from the Schedule. Read the person, dates, and details before choosing Approve or Decline. A Giveaway warning says when approval would create or deepen a Shortfall; it does not block the decision. An Invite uses Confirm or Reject; an Administrator can do that from Staff list. Add a reason when offered. The item leaves the queue after the decision; use Browse requests to find earlier decisions.',
+    searchTerms: 'pending approval requests off swaps giveaways pickups decisions invite confirmation shortfall',
     roles: _manager,
   ),
   HelpTopic(
@@ -225,6 +225,21 @@ const helpTopics = <HelpTopic>[
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'The Manager decides an accepted Swap before either shift changes. A proposal that the colleague has not accepted is not ready for this decision.',
     how: 'Manager only: open Approval queue from the Schedule and find the accepted Swap. Check both people and both dates, then tap Approve or Decline. The decision removes it from the pending queue; use Browse requests, then Swaps, to review it later.',
+    roles: _manager,
+  ),
+  HelpTopic(
+    title: 'Giveaway',
+    who: 'Staff members, including Night schedulers',
+    what: 'Want a named colleague to take one or more of your shifts without trading one back? A Giveaway moves the whole selected set only after the colleague accepts and the Manager approves.',
+    how: 'Open your working day on the Schedule and tap Give this away, or open Giveaways and tap Give shifts away. Add up to 31 future shifts. The list shows only colleagues who are off, on the Schedule, and eligible for every selected day. You may withdraw before the Manager decides. Withdrawn, declined, and voided are different outcomes.',
+    searchTerms: 'give shift away giveaway cover colleague withdraw',
+  ),
+  HelpTopic(
+    title: 'Approve a Giveaway',
+    who: 'Manager only; Night schedulers and Administrators can read this guidance',
+    what: 'The Manager decides an accepted Giveaway before any shift moves. Every selected shift moves together or none do.',
+    how: 'Manager only: open Approval queue and find the accepted Giveaway. Check both people and every date. A Shortfall warning never blocks approval. Choose Approve or Decline; use Browse requests, then Giveaways, to review the outcome later.',
+    searchTerms: 'approve decline giveaway shortfall',
     roles: _manager,
   ),
   HelpTopic(

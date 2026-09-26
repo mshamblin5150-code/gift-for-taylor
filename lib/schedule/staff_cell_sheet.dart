@@ -10,6 +10,7 @@ Future<StaffCellAction?> showStaffCellSheet(
   required DateTime date,
   required StaffCellReview review,
   bool canEditShift = false,
+  bool canGiveAway = false,
 }) => showModalBottomSheet<StaffCellAction>(
   context: context,
   showDragHandle: true,
@@ -18,6 +19,7 @@ Future<StaffCellAction?> showStaffCellSheet(
     date: date,
     review: review,
     canEditShift: canEditShift,
+    canGiveAway: canGiveAway,
   ),
 );
 
@@ -27,12 +29,14 @@ class _StaffCellSheet extends StatelessWidget {
     required this.date,
     required this.review,
     required this.canEditShift,
+    required this.canGiveAway,
   });
 
   final ScheduleRow row;
   final DateTime date;
   final StaffCellReview review;
   final bool canEditShift;
+  final bool canGiveAway;
 
   @override
   Widget build(BuildContext context) {
@@ -84,17 +88,26 @@ class _StaffCellSheet extends StatelessWidget {
                   onPressed: () =>
                       Navigator.of(context).pop(StaffCellAction.proposeSwap),
                   icon: const Icon(Icons.swap_horiz),
-                  label: const Text('Propose a Swap'),
+                  label: Text(canGiveAway ? 'Swap these' : 'Propose a Swap'),
                 )
               else ...[
                 Text(
-                  'Propose a Swap',
+                  canGiveAway ? 'Swap these' : 'Propose a Swap',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 4),
                 Text(_swapUnavailableReason(swap.unavailableReason!)),
                 const SizedBox(height: 8),
               ],
+            ],
+            if (canGiveAway) ...[
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () =>
+                    Navigator.of(context).pop(StaffCellAction.proposeGiveaway),
+                icon: const Icon(Icons.card_giftcard),
+                label: const Text('Give these away'),
+              ),
             ],
             if (!canEditShift &&
                 action == null &&
