@@ -210,6 +210,21 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
     }
   }
 
+  Widget _swapOutcome(ApprovalQueueState state, Swap swap) {
+    String name(String id) =>
+        state.grids[DateTime(swap.firstDate.year, swap.firstDate.month)]
+            ?.displayNameOf(id) ??
+        id;
+    return Card(
+      child: ListTile(
+        title: Text(
+          'Swap — ${name(swap.requesterId)} ↔ ${name(swap.colleagueId)}',
+        ),
+        subtitle: Text(swapStatusWording(swap.status)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -234,7 +249,9 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
           );
         }
         final decisions = _decisions(state);
-        if (decisions.isEmpty) {
+        final outcomes = [...state.pending!.swapOutcomes]
+          ..sort((a, b) => a.firstDate.compareTo(b.firstDate));
+        if (decisions.isEmpty && outcomes.isEmpty) {
           return const Center(child: Text('Nothing awaiting approval.'));
         }
         return ListView(
@@ -271,6 +288,15 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                   ),
                 ),
               ),
+            if (outcomes.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+                child: Text(
+                  'Swap outcomes',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            for (final swap in outcomes) _swapOutcome(state, swap),
           ],
         );
       },

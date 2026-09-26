@@ -40,4 +40,47 @@ void main() {
     expect(session.state.busy, isFalse);
     expect(session.state.swaps.single.requesterShifts.single.date, mine);
   });
+
+  test('in-memory withdrawal enforces requester and terminal state', () async {
+    final date = DateTime(2027, 6, 20);
+    Swap swap(String id, SwapStatus status) => Swap(
+      id: id,
+      requesterId: 'me',
+      colleagueId: 'them',
+      requesterShifts: [
+        SwapShift(date: date, shiftCode: '7A', targetCode: 'X'),
+      ],
+      colleagueShifts: [
+        SwapShift(date: date, shiftCode: '7P', targetCode: 'X'),
+      ],
+      status: status,
+    );
+    final database = InMemorySwapDatabase(
+      shifts: const {},
+      swaps: [
+        swap('accepted', SwapStatus.accepted),
+        swap('approved', SwapStatus.approved),
+      ],
+    );
+
+    await expectLater(
+      database.storeFor('them').withdrawSwap('accepted'),
+      throwsStateError,
+    );
+    await expectLater(
+      database.storeFor('me').withdrawSwap('approved'),
+      throwsStateError,
+    );
+    await database.storeFor('me').withdrawSwap('accepted');
+
+    final swaps = await database.storeFor('me').swaps();
+    expect(
+      swaps.singleWhere((swap) => swap.id == 'accepted').status,
+      SwapStatus.withdrawn,
+    );
+    expect(
+      swaps.singleWhere((swap) => swap.id == 'approved').status,
+      SwapStatus.approved,
+    );
+  });
 }

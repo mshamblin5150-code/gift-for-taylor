@@ -137,6 +137,9 @@ final class SwapsSession extends ChangeNotifier {
     () => _swapStore.answerSwap(swapId, accept: accept, reason: reason),
   );
 
+  Future<SwapsWriteOutcome> withdraw(String swapId) =>
+      _write(() => _swapStore.withdrawSwap(swapId));
+
   Future<SwapsWriteOutcome> approve(String swapId) =>
       _write(() => _swapStore.approveSwap(swapId));
 

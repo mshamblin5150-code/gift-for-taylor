@@ -4,6 +4,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 
+const _section = ScheduleSection(id: 'nurses', name: 'Nurses');
+const _alice = ScheduleRow(
+  staffMemberId: 'alice',
+  displayName: 'Alice',
+  sectionId: 'nurses',
+  hasAcceptedInvite: true,
+);
+const _bob = ScheduleRow(
+  staffMemberId: 'bob',
+  displayName: 'Bob',
+  sectionId: 'nurses',
+  hasAcceptedInvite: true,
+);
+
+InMemoryScheduleDatabase _swapPageDatabase(DateTime month) =>
+    InMemoryScheduleDatabase(
+      sections: const [_section],
+      rows: const [_alice, _bob],
+      releasedMonths: {month},
+    );
+
 void main() {
   testWidgets('Swap choices begin tomorrow', (tester) async {
     final now = DateTime(2026, 9, 10, 8);
@@ -118,24 +139,7 @@ void main() {
     tester,
   ) async {
     final month = DateTime(2027, 6);
-    const section = ScheduleSection(id: 'nurses', name: 'Nurses');
-    const alice = ScheduleRow(
-      staffMemberId: 'alice',
-      displayName: 'Alice',
-      sectionId: 'nurses',
-      hasAcceptedInvite: true,
-    );
-    const bob = ScheduleRow(
-      staffMemberId: 'bob',
-      displayName: 'Bob',
-      sectionId: 'nurses',
-      hasAcceptedInvite: true,
-    );
-    final database = InMemoryScheduleDatabase(
-      sections: const [section],
-      rows: const [alice, bob],
-      releasedMonths: {month},
-    );
+    final database = _swapPageDatabase(month);
     final swaps = InMemorySwapDatabase(
       shifts: const {},
       swaps: [
@@ -180,6 +184,59 @@ void main() {
     expect(
       find.textContaining('my Jun 20–22 7P for your Jul 3, 5 and 9 7A'),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('requester can withdraw a proposed Swap', (tester) async {
+    final month = DateTime(2027, 6);
+    final database = _swapPageDatabase(month);
+    final swaps = InMemorySwapDatabase(
+      shifts: const {},
+      swaps: [
+        Swap(
+          id: 'swap',
+          requesterId: 'alice',
+          colleagueId: 'bob',
+          requesterShifts: [
+            SwapShift(
+              date: DateTime(2027, 6, 20),
+              shiftCode: '7A',
+              targetCode: 'X',
+            ),
+          ],
+          colleagueShifts: [
+            SwapShift(
+              date: DateTime(2027, 6, 21),
+              shiftCode: '7P',
+              targetCode: 'X',
+            ),
+          ],
+          status: SwapStatus.proposed,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SwapsPage(
+          rules: scheduleRulesInMemory(database, actingAs: 'alice'),
+          swapStore: swaps.storeFor('alice'),
+          month: month,
+          staffMemberId: 'alice',
+          isManager: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Withdraw Swap'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Withdrawn by requester'), findsOneWidget);
+    expect(find.byTooltip('Withdraw Swap'), findsNothing);
+    expect(
+      (await swaps.storeFor('alice').swaps()).single.status,
+      SwapStatus.withdrawn,
     );
   });
 }

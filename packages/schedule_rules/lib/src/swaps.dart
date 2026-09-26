@@ -2,7 +2,7 @@ part of '../schedule_rules.dart';
 
 /// A Swap exchanges two sets of dated Shift codes after both Staff members
 /// agree and the Manager approves it.
-enum SwapStatus { proposed, accepted, declined, approved, voided }
+enum SwapStatus { proposed, accepted, declined, approved, withdrawn, voided }
 
 enum SwapProposalRefusal {
   differentStaffRequired,
@@ -88,6 +88,7 @@ abstract interface class SwapStore {
     required bool accept,
     String? reason,
   });
+  Future<void> withdrawSwap(String swapId);
   Future<void> approveSwap(String swapId);
   Future<void> declineSwap(String swapId, {String? reason});
 }

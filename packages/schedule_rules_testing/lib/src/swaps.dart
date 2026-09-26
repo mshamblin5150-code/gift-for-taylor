@@ -89,6 +89,22 @@ final class _InMemorySwapStore implements SwapStore {
   }
 
   @override
+  Future<void> withdrawSwap(String swapId) async {
+    final index = database._swaps.indexWhere((swap) => swap.id == swapId);
+    if (index < 0 ||
+        database._swaps[index].requesterId != actor ||
+        (database._swaps[index].status != SwapStatus.proposed &&
+            database._swaps[index].status != SwapStatus.accepted)) {
+      throw StateError('This Swap cannot be withdrawn');
+    }
+    database._swaps[index] = _copy(
+      database._swaps[index],
+      SwapStatus.withdrawn,
+      null,
+    );
+  }
+
+  @override
   Future<void> approveSwap(String swapId) async {
     final index = database._swaps.indexWhere((swap) => swap.id == swapId);
     final swap = database._swaps[index];

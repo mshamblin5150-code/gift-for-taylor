@@ -95,10 +95,12 @@ final class ApprovalQueueSession extends ChangeNotifier {
       final openShifts = values.$2;
       final shiftById = {for (final shift in openShifts) shift.id: shift};
       final months = <DateTime>{
-        for (final swap in pending.swaps)
-          for (final shift in swap.requesterShifts) _month(shift.date),
-        for (final swap in pending.swaps)
-          for (final shift in swap.colleagueShifts) _month(shift.date),
+        for (final swap in [...pending.swaps, ...pending.swapOutcomes])
+          for (final shift in [
+            ...swap.requesterShifts,
+            ...swap.colleagueShifts,
+          ])
+            _month(shift.date),
         for (final pickup in pending.pickups)
           if (shiftById[pickup.openShiftId] case final shift?)
             _month(shift.date),

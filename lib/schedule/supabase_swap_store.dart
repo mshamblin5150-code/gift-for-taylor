@@ -95,6 +95,11 @@ final class SupabaseSwapStore implements SwapStore {
   );
 
   @override
+  Future<void> withdrawSwap(String swapId) => mapAccessRejected(
+    () => client.rpc<void>('withdraw_swap', params: {'p_swap_id': swapId}),
+  );
+
+  @override
   Future<void> approveSwap(String swapId) => mapAccessRejected(
     () => client.rpc<void>('approve_swap', params: {'p_swap_id': swapId}),
   );
