@@ -54,7 +54,6 @@ void main() {
           giveawayStore: database.storeFor(viewer),
           month: DateTime(2027, 10),
           staffMemberId: viewer,
-          isManager: false,
         ),
       ),
     );
@@ -112,12 +111,11 @@ void main() {
           giveawayStore: store,
           month: DateTime(2027, 10),
           staffMemberId: 'manager',
-          isManager: true,
         ),
       ),
     );
     await tester.pumpAndSettle();
     expect(find.textContaining('Shortfall'), findsNothing);
-    expect(find.byTooltip('Approve Giveaway'), findsOneWidget);
+    expect(find.byTooltip('Approve Giveaway'), findsNothing);
   });
 }

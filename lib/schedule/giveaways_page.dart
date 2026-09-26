@@ -11,7 +11,6 @@ class GiveawaysPage extends StatefulWidget {
     required this.giveawayStore,
     required this.month,
     required this.staffMemberId,
-    required this.isManager,
     this.onAccessRejected,
   });
 
@@ -19,7 +18,6 @@ class GiveawaysPage extends StatefulWidget {
   final GiveawayStore giveawayStore;
   final DateTime month;
   final String? staffMemberId;
-  final bool isManager;
   final VoidCallback? onAccessRejected;
 
   @override
@@ -54,16 +52,6 @@ class _GiveawaysPageState extends State<GiveawaysPage> {
   Future<void> _withdraw(Giveaway item) => _write(
     _session.withdraw(item.id),
     "That Giveaway wasn't withdrawn. Try again.",
-  );
-
-  Future<void> _approve(Giveaway item) => _write(
-    _session.approve(item.id),
-    "That Giveaway wasn't approved. Try again.",
-  );
-
-  Future<void> _decline(Giveaway item) => _write(
-    _session.decline(item.id),
-    "That Giveaway wasn't declined. Try again.",
   );
 
   Future<void> _write(
@@ -144,16 +132,6 @@ class _GiveawaysPageState extends State<GiveawaysPage> {
         onSelected: (accept) => _answer(item, accept),
         itemBuilder: (_) => const [
           PopupMenuItem(value: true, child: Text('Accept')),
-          PopupMenuItem(value: false, child: Text('Decline')),
-        ],
-      );
-    }
-    if (widget.isManager && item.status == GiveawayStatus.accepted) {
-      return PopupMenuButton<bool>(
-        tooltip: 'Approve Giveaway',
-        onSelected: (approve) => approve ? _approve(item) : _decline(item),
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: true, child: Text('Approve')),
           PopupMenuItem(value: false, child: Text('Decline')),
         ],
       );
