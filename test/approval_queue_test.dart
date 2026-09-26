@@ -69,6 +69,7 @@ void main() {
         home: ApprovalQueuePage(
           rules: scheduleRulesInMemory(db, actingAs: 'manager'),
           swapStore: _Swaps(),
+          giveawayStore: emptyGiveawayStore('manager'),
           openShiftStore: _Pickups(),
           staffGateway: invites,
         ),
@@ -262,6 +263,7 @@ void main() {
           staffMemberId: 'alice',
           swapStaffMemberId: 'alice',
           swapStore: _Swaps(),
+          giveawayStore: emptyGiveawayStore('alice'),
           openShiftStore: _Pickups(),
         ),
       ),

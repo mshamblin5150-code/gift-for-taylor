@@ -98,6 +98,7 @@ void main() {
           staffMemberId: 'requester',
           swapStaffMemberId: 'requester',
           swapStore: swaps.storeFor('requester'),
+          giveawayStore: emptyGiveawayStore('requester'),
           messagesComposer: messages,
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
@@ -120,6 +121,7 @@ void main() {
           access: schedule.accessFor('requester'),
           month: month,
           swapStore: swaps.storeFor('requester'),
+          giveawayStore: emptyGiveawayStore('requester'),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
@@ -295,7 +297,7 @@ void main() {
 
       await pumpSchedule(tester);
       await openRequesterCell(tester);
-      await tester.tap(find.text('Propose a Swap'));
+      await tester.tap(find.text('Swap these'));
       await tester.pumpAndSettle();
 
       expect(find.text('Sep 11 — 7A'), findsOneWidget);
@@ -352,7 +354,7 @@ void main() {
 
     await pumpSchedule(tester);
     await openRequesterCell(tester);
-    await tester.tap(find.text('Propose a Swap'));
+    await tester.tap(find.text('Swap these'));
     await tester.pumpAndSettle();
 
     expect(

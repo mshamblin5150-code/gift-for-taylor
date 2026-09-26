@@ -231,7 +231,7 @@ const helpTopics = <HelpTopic>[
     title: 'Giveaway',
     who: 'Staff members, including Night schedulers',
     what: 'Want a named colleague to take one or more of your shifts without trading one back? A Giveaway moves the whole selected set only after the colleague accepts and the Manager approves.',
-    how: 'Open your working day on the Schedule and tap Give this away, or open Giveaways and tap Give shifts away. Add up to 31 future shifts. The list shows only colleagues who are off, on the Schedule, and eligible for every selected day. You may withdraw before the Manager decides. Withdrawn, declined, and voided are different outcomes.',
+    how: 'Open your working day on the Schedule and tap Give this away. Add up to 31 future shifts. The list shows only colleagues who are off, on the Schedule, and eligible for every selected day. You may withdraw before the Manager decides. Withdrawn, declined, and voided are different outcomes.',
     searchTerms: 'give shift away giveaway cover colleague withdraw',
   ),
   HelpTopic(

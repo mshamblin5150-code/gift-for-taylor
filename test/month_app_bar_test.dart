@@ -41,6 +41,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           swapStore: emptySwapStore(),
+          giveawayStore: emptyGiveawayStore(),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
@@ -83,6 +84,7 @@ void main() {
         MaterialApp(
           home: MonthGridPage(
             swapStore: emptySwapStore(),
+            giveawayStore: emptyGiveawayStore(),
             noticeGateway: const NoopNoticeGateway(),
             repairController: noopRepairController(),
             undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
@@ -139,6 +141,7 @@ void main() {
         MaterialApp(
           home: MonthGridPage(
             swapStore: emptySwapStore(),
+            giveawayStore: emptyGiveawayStore(),
             noticeGateway: const NoopNoticeGateway(),
             repairController: noopRepairController(),
             undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
@@ -186,6 +189,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           swapStore: emptySwapStore(),
+          giveawayStore: emptyGiveawayStore(),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           undeliveredInvitationLog: FakeUndeliveredInvitationLog(),

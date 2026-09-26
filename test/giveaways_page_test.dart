@@ -61,7 +61,6 @@ void main() {
 
     await pumpAs('giver');
     await tester.pumpAndSettle();
-    expect(find.text('Giveaways'), findsOneWidget);
     expect(find.byTooltip('Withdraw Giveaway'), findsOneWidget);
     await tester.tap(find.byTooltip('Withdraw Giveaway'));
     await tester.pumpAndSettle();
@@ -74,7 +73,7 @@ void main() {
     expect(find.byType(PopupMenuButton<bool>), findsOneWidget);
   });
 
-  testWidgets('Manager approval warns about a Shortfall without blocking', (
+  testWidgets('history does not show the Manager approval warning', (
     tester,
   ) async {
     final store = InMemoryGiveawayDatabase(
@@ -118,118 +117,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('Shortfall'), findsOneWidget);
+    expect(find.textContaining('Shortfall'), findsNothing);
     expect(find.byTooltip('Approve Giveaway'), findsOneWidget);
-  });
-
-  testWidgets(
-    'proposal lists only colleagues eligible for every selected day',
-    (tester) async {
-      final database = InMemoryGiveawayDatabase(
-        shifts: {('giver', date): '7A'},
-        eligibleColleagues: const [
-          GiveawayColleague(
-            staffMemberId: 'colleague',
-            displayName: 'Colleague RN',
-          ),
-        ],
-      );
-      final schedule =
-          InMemoryScheduleDatabase(
-            sections: [const ScheduleSection(id: 'section', name: 'RN')],
-            rows: [
-              ScheduleRow(
-                staffMemberId: 'giver',
-                displayName: 'Giver RN',
-                sectionId: 'section',
-                hasAcceptedInvite: true,
-              ),
-              ScheduleRow(
-                staffMemberId: 'colleague',
-                displayName: 'Colleague RN',
-                sectionId: 'section',
-                hasAcceptedInvite: true,
-              ),
-            ],
-            releasedMonths: {DateTime(2027, 10)},
-          )..loadFromPage(DateTime(2027, 10), [
-            ScheduleCell(
-              staffMemberId: 'giver',
-              sectionId: 'section',
-              date: date,
-              shiftCode: '7A',
-            ),
-          ]);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: GiveawaysPage(
-            rules: scheduleRulesInMemory(schedule, actingAs: 'giver'),
-            giveawayStore: database.storeFor('giver'),
-            month: DateTime(2027, 10),
-            staffMemberId: 'giver',
-            isManager: false,
-            initialDate: date,
-            now: () => DateTime(2027, 9, 1),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Colleague RN'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Propose'));
-      await tester.pumpAndSettle();
-      final proposed = (await database.storeFor('giver').giveaways()).single;
-      expect(proposed.colleagueId, 'colleague');
-      expect(proposed.shifts.single.date, date);
-    },
-  );
-
-  testWidgets('proposal explains when no colleague can take the whole set', (
-    tester,
-  ) async {
-    final database = InMemoryGiveawayDatabase(shifts: {('giver', date): '7A'});
-    final schedule =
-        InMemoryScheduleDatabase(
-          sections: [const ScheduleSection(id: 'section', name: 'RN')],
-          rows: [
-            ScheduleRow(
-              staffMemberId: 'giver',
-              displayName: 'Giver RN',
-              sectionId: 'section',
-            ),
-          ],
-          releasedMonths: {DateTime(2027, 10)},
-        )..loadFromPage(DateTime(2027, 10), [
-          ScheduleCell(
-            staffMemberId: 'giver',
-            sectionId: 'section',
-            date: date,
-            shiftCode: '7A',
-          ),
-        ]);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: GiveawaysPage(
-          rules: scheduleRulesInMemory(schedule, actingAs: 'giver'),
-          giveawayStore: database.storeFor('giver'),
-          month: DateTime(2027, 10),
-          staffMemberId: 'giver',
-          isManager: false,
-          initialDate: date,
-          now: () => DateTime(2027, 9, 1),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(
-      find.textContaining('No one colleague can take all these days'),
-      findsOneWidget,
-    );
-    expect(find.widgetWithText(FilledButton, 'Propose'), findsOneWidget);
-    expect(
-      tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Propose'))
-          .onPressed,
-      isNull,
-    );
   });
 }

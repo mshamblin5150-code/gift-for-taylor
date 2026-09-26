@@ -15,14 +15,14 @@ class ApprovalQueuePage extends StatefulWidget {
     required this.rules,
     required this.swapStore,
     required this.openShiftStore,
-    this.giveawayStore,
+    required this.giveawayStore,
     this.staffGateway,
   });
 
   final ScheduleRules rules;
   final SwapStore swapStore;
   final OpenShiftStore openShiftStore;
-  final GiveawayStore? giveawayStore;
+  final GiveawayStore giveawayStore;
   final StaffGateway? staffGateway;
 
   @override
@@ -52,8 +52,8 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
         widget.rules,
         widget.swapStore,
         widget.openShiftStore,
-        widget.staffGateway,
         widget.giveawayStore,
+        widget.staffGateway,
       ),
       widget.openShiftStore.openShifts(),
     ).wait;
@@ -143,8 +143,8 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
           detail:
               '${giveaway.shifts.map((shift) => '${DateFormat.yMMMd().format(shift.date)} ${shift.shiftCode}').join(', ')}'
               '${giveaway.createsShortfall ? '\nWarning: approval would create or deepen a Shortfall.' : ''}',
-          approve: () => widget.giveawayStore!.approveGiveaway(giveaway.id),
-          decline: () => widget.giveawayStore!.declineGiveaway(
+          approve: () => widget.giveawayStore.approveGiveaway(giveaway.id),
+          decline: () => widget.giveawayStore.declineGiveaway(
             giveaway.id,
             reason: _reason?.trim(),
           ),

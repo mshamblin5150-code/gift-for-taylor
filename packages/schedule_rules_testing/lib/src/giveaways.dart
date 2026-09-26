@@ -88,14 +88,8 @@ final class _InMemoryGiveawayStore implements GiveawayStore {
       _replace(giveawayId, GiveawayStatus.declined, reason);
 
   @override
-  Future<void> approveGiveaway(String giveawayId) async {
-    final giveaway = database._giveaways.firstWhere((g) => g.id == giveawayId);
-    for (final shift in giveaway.shifts) {
-      database._shifts[(giveaway.giverId, shift.date)] = 'X';
-      database._shifts[(giveaway.colleagueId, shift.date)] = shift.shiftCode;
-    }
-    _replace(giveawayId, GiveawayStatus.approved, giveaway.reason);
-  }
+  Future<void> approveGiveaway(String giveawayId) async =>
+      _replace(giveawayId, GiveawayStatus.approved, null);
 
   void _replace(String id, GiveawayStatus status, String? reason) {
     final index = database._giveaways.indexWhere((g) => g.id == id);

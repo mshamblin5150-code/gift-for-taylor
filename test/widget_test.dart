@@ -138,6 +138,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           swapStore: emptySwapStore(actingAs),
+          giveawayStore: emptyGiveawayStore(actingAs),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
@@ -212,6 +213,7 @@ void main() {
         theme: ThemeData.dark(),
         home: MonthGridPage(
           swapStore: emptySwapStore('manager'),
+          giveawayStore: emptyGiveawayStore('manager'),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
           undeliveredInvitationLog: FakeUndeliveredInvitationLog(),

@@ -74,6 +74,7 @@ void main() {
   late ScheduleRules alice;
   late _Swaps swaps;
   late _OpenShifts openShifts;
+  late GiveawayStore giveaways;
   late _PollTimer timer;
 
   setUp(() {
@@ -93,6 +94,7 @@ void main() {
     alice = scheduleRulesInMemory(database, actingAs: 'alice');
     swaps = _Swaps();
     openShifts = _OpenShifts();
+    giveaways = InMemoryGiveawayDatabase(shifts: {}).storeFor('manager');
   });
 
   tearDown(() async {
@@ -105,6 +107,7 @@ void main() {
     access: database.accessFor(viewer),
     swapStaffMemberId: viewer,
     swapStore: swaps,
+    giveawayStore: giveaways,
     openShiftStore: openShifts,
     timerFactory: (duration, callback) {
       expect(duration, const Duration(seconds: 15));

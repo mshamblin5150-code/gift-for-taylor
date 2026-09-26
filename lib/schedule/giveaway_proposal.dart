@@ -13,7 +13,8 @@ final class GiveawayProposalChoice {
 Future<GiveawayProposalChoice?> showGiveawayProposalDialog(
   BuildContext context, {
   required ScheduleRules rules,
-  required GiveawayStore giveawayStore,
+  required Future<List<GiveawayColleague>> Function(List<DateTime> dates)
+  eligibleColleagues,
   required MonthGrid initialGrid,
   required String giverId,
   required DateTime Function() now,
@@ -22,7 +23,7 @@ Future<GiveawayProposalChoice?> showGiveawayProposalDialog(
   context: context,
   builder: (context) => _GiveawayProposalDialog(
     rules: rules,
-    giveawayStore: giveawayStore,
+    eligibleColleagues: eligibleColleagues,
     initialGrid: initialGrid,
     giverId: giverId,
     now: now,
@@ -34,15 +35,12 @@ Future<void> textGiveawayColleague(
   BuildContext context, {
   required Giveaway giveaway,
   required GiveawayColleague colleague,
-  required GiveawayStore giveawayStore,
+  required String? cellNumber,
   required MessagesComposer? messagesComposer,
 }) async {
   if (messagesComposer == null) return;
   try {
-    final number = await giveawayStore.colleagueCellNumberForGiveaway(
-      giveaway.id,
-    );
-    if (number == null) return;
+    if (cellNumber == null || cellNumber.isEmpty) return;
     final dates = giveaway.shifts
         .map(
           (shift) =>
@@ -50,7 +48,7 @@ Future<void> textGiveawayColleague(
         )
         .join(', ');
     await messagesComposer.open(
-      [number],
+      [cellNumber],
       'Hi ${colleague.displayName}, can I give you $dates? Please answer in the ER Schedule app.',
     );
   } catch (_) {
@@ -85,14 +83,15 @@ String giveawayProposalRefusalMessage(GiveawayProposalRefusal reason) =>
 class _GiveawayProposalDialog extends StatefulWidget {
   const _GiveawayProposalDialog({
     required this.rules,
-    required this.giveawayStore,
+    required this.eligibleColleagues,
     required this.initialGrid,
     required this.giverId,
     required this.now,
     required this.initialDate,
   });
   final ScheduleRules rules;
-  final GiveawayStore giveawayStore;
+  final Future<List<GiveawayColleague>> Function(List<DateTime> dates)
+  eligibleColleagues;
   final MonthGrid initialGrid;
   final String giverId;
   final DateTime Function() now;
@@ -128,9 +127,7 @@ class _GiveawayProposalDialogState extends State<_GiveawayProposalDialog> {
     }
     setState(() => _loading = true);
     try {
-      final colleagues = await widget.giveawayStore.eligibleColleagues(
-        _sorted(_dates),
-      );
+      final colleagues = await widget.eligibleColleagues(_sorted(_dates));
       if (!mounted) return;
       setState(() {
         _colleagues = colleagues;

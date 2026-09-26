@@ -64,6 +64,7 @@ void main() {
       MaterialApp(
         home: MonthGridPage(
           swapStore: emptySwapStore('recorder'),
+          giveawayStore: emptyGiveawayStore('recorder'),
           rules: scheduleRulesInMemory(database, actingAs: 'recorder'),
           access: database.accessFor('recorder'),
           month: month,
