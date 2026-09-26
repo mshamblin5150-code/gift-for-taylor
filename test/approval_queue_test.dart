@@ -239,6 +239,69 @@ void main() {
     );
   });
 
+  testWidgets('Manager queue distinguishes terminal Swap outcomes', (
+    tester,
+  ) async {
+    final outcomeMonth = DateTime(2026, 10);
+    final outcomeDay = DateTime(2026, 10, 10);
+    final db = InMemoryScheduleDatabase(
+      sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],
+      rows: const [
+        ScheduleRow(
+          staffMemberId: 'alice',
+          displayName: 'Alice',
+          sectionId: 'nurses',
+        ),
+        ScheduleRow(
+          staffMemberId: 'bob',
+          displayName: 'Bob',
+          sectionId: 'nurses',
+        ),
+      ],
+      grants: {'manager': Grants(manager: true)},
+      releasedMonths: {outcomeMonth},
+    );
+    Swap outcome(String id, SwapStatus status) => Swap(
+      id: id,
+      requesterId: 'alice',
+      colleagueId: 'bob',
+      requesterShifts: [
+        SwapShift(date: outcomeDay, shiftCode: 'D', targetCode: 'X'),
+      ],
+      colleagueShifts: [
+        SwapShift(date: outcomeDay, shiftCode: 'N', targetCode: 'X'),
+      ],
+      status: status,
+      voidedStaffMemberId: status == SwapStatus.voided ? 'alice' : null,
+      voidedDate: status == SwapStatus.voided ? outcomeDay : null,
+    );
+    final swaps = _Swaps()
+      ..items.addAll([
+        outcome('withdrawn', SwapStatus.withdrawn),
+        outcome('declined', SwapStatus.declined),
+        outcome('voided', SwapStatus.voided),
+      ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ApprovalQueuePage(
+          rules: scheduleRulesInMemory(db, actingAs: 'manager'),
+          swapStore: swaps,
+          giveawayStore: emptyGiveawayStore('manager'),
+          openShiftStore: _Pickups(),
+          staffGateway: emptyStaffGateway(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Withdrawn by requester'), findsOneWidget);
+    expect(find.text('Declined'), findsOneWidget);
+    expect(find.text('Voided because the Schedule changed'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Approve'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Decline'), findsNothing);
+  });
+
   testWidgets('Staff member has no Manager queue entry', (tester) async {
     final db = InMemoryScheduleDatabase(
       sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],

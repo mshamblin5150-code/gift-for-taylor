@@ -4,6 +4,15 @@ import 'package:schedule_rules/schedule_rules.dart';
 
 import 'messages_composer.dart';
 
+String swapStatusWording(SwapStatus status) => switch (status) {
+  SwapStatus.proposed => 'Proposed',
+  SwapStatus.accepted => 'Accepted',
+  SwapStatus.declined => 'Declined',
+  SwapStatus.approved => 'Approved',
+  SwapStatus.withdrawn => 'Withdrawn by requester',
+  SwapStatus.voided => 'Voided because the Schedule changed',
+};
+
 final class SwapProposalChoice {
   const SwapProposalChoice({
     required this.colleague,

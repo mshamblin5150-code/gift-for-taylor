@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(34);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000281', 'swap-manager@example.test'),
@@ -29,11 +29,13 @@ select set_config('request.jwt.claims',
 select public.save_schedule_cell('00000000-0000-0000-0000-000000000286',
   '00000000-0000-0000-0000-000000000284', day, '7A')
 from unnest(array['2027-06-28'::date, '2027-06-29', '2027-07-01',
-  '2027-07-10', '2027-07-15', '2027-07-20', '2027-07-21']) day;
+  '2027-07-10', '2027-07-15', '2027-07-20', '2027-07-21',
+  '2027-07-24', '2027-07-26', '2027-07-28']) day;
 select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
   '00000000-0000-0000-0000-000000000284', day, '7P')
 from unnest(array['2027-06-30'::date, '2027-07-02', '2027-07-03',
-  '2027-07-10', '2027-07-16', '2027-07-22', '2027-07-23']) day;
+  '2027-07-10', '2027-07-16', '2027-07-22', '2027-07-23',
+  '2027-07-25', '2027-07-27', '2027-07-29']) day;
 select public.release_month_checked('2027-06-01', true);
 select public.release_month_checked('2027-07-01', true);
 
@@ -169,6 +171,82 @@ select set_config('request.jwt.claims',
 select throws_ok($$select public.approve_swap(
   (select id from public.swaps where status = 'voided'))$$,
   'This Swap is not awaiting approval', 'a voided Swap cannot be approved');
+
+-- The requester owns withdrawal until, but not after, Manager approval.
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select public.propose_swap('00000000-0000-0000-0000-000000000287',
+  array['2027-07-24'::date], array['2027-07-25'::date]);
+select lives_ok($$select public.withdraw_swap(
+  (select id from public.swaps where status = 'proposed'))$$,
+  'the requester can withdraw a proposed Swap');
+select is((select status::text from public.swaps where status = 'withdrawn'),
+  'withdrawn', 'withdrawn is distinct from declined and voided');
+reset role;
+select is((select count(*)::int from public.staff_notices
+  where kind = 'swap_withdrawn'), 0,
+  'withdrawing before acceptance sends no withdrawal notice');
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+
+select public.propose_swap('00000000-0000-0000-0000-000000000287',
+  array['2027-07-26'::date], array['2027-07-27'::date]);
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000283","role":"authenticated"}', true);
+select public.answer_swap((select id from public.swaps where status = 'proposed'), true);
+select throws_ok($$select public.withdraw_swap(
+  (select id from public.swaps swap where status = 'accepted'
+    and exists (select 1 from public.swap_shifts shift
+      where shift.swap_id = swap.id and shift.work_date = '2027-07-26')))$$,
+  'This Swap cannot be withdrawn', 'the colleague cannot withdraw a Swap');
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select throws_ok($$select public.withdraw_swap(
+  (select id from public.swaps swap where status = 'accepted'
+    and exists (select 1 from public.swap_shifts shift
+      where shift.swap_id = swap.id and shift.work_date = '2027-07-26')))$$,
+  'This Swap cannot be withdrawn', 'the Manager cannot withdraw a Swap');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select lives_ok($$select public.withdraw_swap(
+  (select id from public.swaps swap where status = 'accepted'
+    and exists (select 1 from public.swap_shifts shift
+      where shift.swap_id = swap.id and shift.work_date = '2027-07-26')))$$,
+  'the requester can withdraw an accepted Swap');
+reset role;
+select is((select count(*)::int from public.staff_notices
+  where kind = 'swap_withdrawn' and staff_member_id =
+    '00000000-0000-0000-0000-000000000287'), 1,
+  'the colleague receives one accepted-withdrawal notice');
+
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select public.propose_swap('00000000-0000-0000-0000-000000000287',
+  array['2027-07-28'::date], array['2027-07-29'::date]);
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000283","role":"authenticated"}', true);
+select public.answer_swap((select id from public.swaps where status = 'proposed'), true);
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select public.approve_swap((select id from public.swaps swap
+  where status = 'accepted' and exists (
+    select 1 from public.swap_shifts shift where shift.swap_id = swap.id
+      and shift.work_date = '2027-07-28')));
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000282","role":"authenticated"}', true);
+select throws_ok($$select public.withdraw_swap(
+  (select id from public.swaps swap where status = 'approved'
+    and exists (select 1 from public.swap_shifts shift
+      where shift.swap_id = swap.id and shift.work_date = '2027-07-28')))$$,
+  'This Swap cannot be withdrawn', 'an approved Swap cannot be withdrawn');
+select is((select status::text from public.swaps where status = 'approved'
+  and exists (select 1 from public.swap_shifts shift
+    where shift.swap_id = swaps.id and shift.work_date = '2027-07-28')),
+  'approved', 'a refused withdrawal leaves the approved Swap unchanged');
 
 select * from finish();
 rollback;

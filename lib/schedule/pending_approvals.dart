@@ -9,17 +9,20 @@ class PendingApprovals {
     required List<OpenShiftPickup> pickups,
     List<Giveaway> giveaways = const [],
     List<PendingInviteAcceptance> invites = const [],
+    List<Swap> swapOutcomes = const [],
   }) : requests = List.unmodifiable(requests),
        swaps = List.unmodifiable(swaps),
        pickups = List.unmodifiable(pickups),
        giveaways = List.unmodifiable(giveaways),
-       invites = List.unmodifiable(invites);
+       invites = List.unmodifiable(invites),
+       swapOutcomes = List.unmodifiable(swapOutcomes);
 
   final List<RequestOff> requests;
   final List<Swap> swaps;
   final List<OpenShiftPickup> pickups;
   final List<Giveaway> giveaways;
   final List<PendingInviteAcceptance> invites;
+  final List<Swap> swapOutcomes;
 
   int get count =>
       requests.length +
@@ -46,6 +49,14 @@ Future<PendingApprovals> readPendingApprovals(
   return PendingApprovals(
     requests: requests,
     swaps: swaps.where((s) => s.status == SwapStatus.accepted).toList(),
+    swapOutcomes: swaps
+        .where(
+          (swap) =>
+              swap.status == SwapStatus.withdrawn ||
+              swap.status == SwapStatus.declined ||
+              swap.status == SwapStatus.voided,
+        )
+        .toList(),
     pickups: pickups.where((p) => p.status == PickupStatus.pending).toList(),
     giveaways: giveaways
         .where((giveaway) => giveaway.status == GiveawayStatus.accepted)

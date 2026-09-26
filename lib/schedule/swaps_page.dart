@@ -130,6 +130,13 @@ class _SwapsPageState extends State<SwapsPage> {
     }
   }
 
+  Future<void> _withdraw(Swap swap) async {
+    final outcome = await _session.withdraw(swap.id);
+    if (outcome is SwapsWriteFailed && mounted) {
+      _message("That Swap wasn't withdrawn. Try again.");
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -177,47 +184,12 @@ class _SwapsPageState extends State<SwapsPage> {
                     '${grid.displayNameOf(swap.colleagueId)}',
                   ),
                   subtitle: Text(
-                    '${_summary(grid, swap)}\n${swap.status.name}'
+                    '${_summary(grid, swap)}\n${swapStatusWording(swap.status)}'
                     '${swap.status == SwapStatus.voided && swap.voidedDate != null ? ' — ${grid.displayNameOf(swap.voidedStaffMemberId!)} on ${DateFormat.MMMd().format(swap.voidedDate!)} changed' : ''}'
                     '${swap.reason == null ? '' : ' — ${swap.reason}'}',
                   ),
                   isThreeLine: true,
-                  trailing: state.busy
-                      ? null
-                      : swap.status == SwapStatus.proposed &&
-                            swap.colleagueId == widget.staffMemberId
-                      ? PopupMenuButton<bool>(
-                          tooltip: 'Answer Swap',
-                          onSelected: (accept) => _answer(swap, accept),
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(value: true, child: Text('Accept')),
-                            PopupMenuItem(value: false, child: Text('Decline')),
-                          ],
-                        )
-                      : swap.status == SwapStatus.accepted && widget.isManager
-                      ? FilledButton(
-                          onPressed: () => _approve(swap),
-                          child: const Text('Approve'),
-                        )
-                      : swap.status == SwapStatus.proposed &&
-                            swap.requesterId == widget.staffMemberId &&
-                            grid.rows.any(
-                              (row) => row.staffMemberId == swap.colleagueId,
-                            )
-                      ? IconButton(
-                          tooltip: 'Text colleague',
-                          icon: const Icon(Icons.sms_outlined),
-                          onPressed: () => textSwapColleague(
-                            context,
-                            swap: swap,
-                            colleague: grid.rows.firstWhere(
-                              (row) => row.staffMemberId == swap.colleagueId,
-                            ),
-                            swapStore: widget.swapStore,
-                            messagesComposer: widget.messagesComposer,
-                          ),
-                        )
-                      : null,
+                  trailing: state.busy ? null : _action(grid, swap),
                 ),
               ),
           ],
@@ -240,5 +212,55 @@ class _SwapsPageState extends State<SwapsPage> {
       requesterName: grid.displayNameOf(swap.requesterId),
       colleagueName: grid.displayNameOf(swap.colleagueId),
     );
+  }
+
+  Widget? _action(MonthGrid grid, Swap swap) {
+    if (swap.requesterId == widget.staffMemberId &&
+        (swap.status == SwapStatus.proposed ||
+            swap.status == SwapStatus.accepted)) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (swap.status == SwapStatus.proposed &&
+              grid.rows.any((row) => row.staffMemberId == swap.colleagueId))
+            IconButton(
+              tooltip: 'Text colleague',
+              icon: const Icon(Icons.sms_outlined),
+              onPressed: () => textSwapColleague(
+                context,
+                swap: swap,
+                colleague: grid.rows.firstWhere(
+                  (row) => row.staffMemberId == swap.colleagueId,
+                ),
+                swapStore: widget.swapStore,
+                messagesComposer: widget.messagesComposer,
+              ),
+            ),
+          IconButton(
+            tooltip: 'Withdraw Swap',
+            icon: const Icon(Icons.undo),
+            onPressed: () => _withdraw(swap),
+          ),
+        ],
+      );
+    }
+    if (swap.status == SwapStatus.proposed &&
+        swap.colleagueId == widget.staffMemberId) {
+      return PopupMenuButton<bool>(
+        tooltip: 'Answer Swap',
+        onSelected: (accept) => _answer(swap, accept),
+        itemBuilder: (context) => const [
+          PopupMenuItem(value: true, child: Text('Accept')),
+          PopupMenuItem(value: false, child: Text('Decline')),
+        ],
+      );
+    }
+    if (swap.status == SwapStatus.accepted && widget.isManager) {
+      return FilledButton(
+        onPressed: () => _approve(swap),
+        child: const Text('Approve'),
+      );
+    }
+    return null;
   }
 }
