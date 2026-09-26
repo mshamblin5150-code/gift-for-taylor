@@ -90,8 +90,9 @@ _Avoid_: Nurses, RN/LPN, skill mix
 
 **Call-in**:
 A Staff member ringing in to say they will not work a shift they are on for,
-written in the cell as C/I. It is not worked and leaves the day short. Whoever
-takes the call records it, not only the Manager, and recording it opens the Open
+written in the cell as C/I. It is not worked and leaves the day short. The
+caller must speak to someone and give a reason, so they never record their own:
+whoever takes the call records it, not only the Manager, and recording it opens the Open
 shifts the day is now short by — up to the Staffing minimum she set, never past
 it, because anything past it is her decision to make. It can be withdrawn while
 nobody has taken the shift, and is settled once somebody has. It is what the
