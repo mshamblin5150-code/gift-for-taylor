@@ -26,6 +26,10 @@ _Avoid_: Fix, maintenance, admin session
 To open a Repair, naming the reason from a short list of the things the Maintainer hat is for. Outside a Repair the designer uses the app as an ordinary Staff member.
 _Avoid_: Elevate, sudo, admin mode
 
+**Ticket**:
+What a Staff member puts in to tell the designer something about the app: that something's wrong, an idea, or a question. It stays private to the Maintainer, who reads it wearing the hat without breaking the glass; publishing it as a GitHub issue is a separate, deliberate act. The sender can follow it from sent, to seen, to done or won't do, and is told why when it closes. The Maintainer may ask the sender a question on it, and it then waits on her answer; that conversation stays private too. A Ticket may lead to a Repair, which then names it as its cause without telling the Manager who sent it, but most never need one.
+_Avoid_: Report (on the floor, report is the shift handover of patients), feedback, bug, issue
+
 **Night scheduler**:
 A Staff member granted permission to edit specific Sections (today, the night sections). Their edits take effect at once; the Manager can override them. They can read unpublished Schedules and the Change log, so they can see when an edit of theirs was overridden.
 _Avoid_: Co-scheduler, assistant manager
@@ -38,7 +42,8 @@ _Avoid_: Role, access role, permission level
 A person on the Schedule who can see it, ask for a Request off, a Swap, a
 Giveaway or an Open shift pickup, but not change it. The single exception is a Call-in: a Staff
 member working that day may record one for anybody, because the Manager is not
-there at 03:00 and somebody in the department always is.
+there at 03:00 and somebody in the department always is. Separately from the
+Schedule, a Staff member may put in a Ticket about the app itself.
 _Avoid_: User, employee, member
 
 ### The schedule
