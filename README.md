@@ -79,12 +79,36 @@ localhost URL for `VAPID_SUBJECT`; Safari rejects it.
 That order lets historical Request off notices move into the shared feed
 without new pushes.
 
-In Supabase Dashboard, create a Database Webhook for **INSERT** on
-`public.staff_notices`, targeting the `send-push` Edge Function. Add the HTTP
-header `x-push-secret` with the exact value of `PUSH_WEBHOOK_SECRET`. The
-function rejects requests without this header; `verify_jwt = false` is set
+The `send_push_on_notice` database trigger is installed by migration on
+**INSERT** into `public.staff_notices`. Its `push_hooks.send_push` function posts
+to `https://ngtvpuslvrxtrdberhqy.supabase.co/functions/v1/send-push` through
+`pg_net`. It reads `push_webhook_secret` from database Vault and sends that value
+in the `x-push-secret` header. Store the **same value** in Vault and in the Edge
+Function's `PUSH_WEBHOOK_SECRET`; setting the Edge secret alone is insufficient.
+For a new project, create the Vault secret before Staff use Notices:
+
+```sql
+select vault.create_secret('<same value as PUSH_WEBHOOK_SECRET>',
+  'push_webhook_secret');
+```
+
+Do not create a second Dashboard webhook. When deployed, the migration replaces
+the original Dashboard-created `send_push_on_notice` trigger in the hosted
+project. If the Vault secret is missing, the function skips the network call
+with a database warning; the in-app Notice still exists. `send-push` rejects
+requests without the header. Its `verify_jwt = false` setting is required
 because database webhooks do not carry a Staff member's JWT. Keep the service
 role key in Supabase's Edge Function environment, never in the web build.
+The migration's function URL is for the production project; change it before
+deploying these migrations to another hosted project.
+
+To check delivery, sign in on an opted-in device and create a test Notice or
+release a Month. Inspect `send-push` Invocations and Logs in the Dashboard and
+the recent `net._http_response` rows in SQL Editor. HTTP 200 with
+`{"sent":1,"failures":0}` means the push service accepted one subscription;
+confirm the notification appeared on the device separately. A non-200 response
+or a `failures` count needs investigation in the function logs. The Manager app
+does not currently show push failures.
 
 Deploy the app over HTTPS with `push.js` and `push-service-worker.js` at the
 same base path as the Flutter app. On iPhone iOS 16.4 or later, add it to the
