@@ -125,8 +125,13 @@ class SettingsPage extends StatelessWidget {
               leading: const Icon(Icons.inbox_outlined),
               title: const Text('Tickets'),
               subtitle: const Text('Private messages from Staff'),
-              onTap: () =>
-                  open(TicketsPage(gateway: ticketGateway!, maintainer: true)),
+              onTap: () => open(
+                TicketsPage(
+                  gateway: ticketGateway!,
+                  maintainer: true,
+                  onAccessRejected: onAccessRejected,
+                ),
+              ),
             ),
           if (access.maintainer &&
               access.isRepairAccess &&

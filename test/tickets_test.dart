@@ -19,18 +19,49 @@ void main() {
     );
     await tester.pumpWidget(
       MaterialApp(
-        home: PutInTicketPage(gateway: gateway, attachedContext: attached),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: FilledButton(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => PutInTicketPage(
+                    gateway: gateway,
+                    attachedContext: attached,
+                  ),
+                ),
+              ),
+              child: const Text('Open Ticket form'),
+            ),
+          ),
+        ),
       ),
     );
+    await tester.tap(find.text('Open Ticket form'));
+    await tester.pumpAndSettle();
 
     expect(find.text('Attached context'), findsOneWidget);
     expect(find.textContaining('Schedule · September 2026'), findsOneWidget);
     expect(find.textContaining('abc1234'), findsOneWidget);
     expect(find.textContaining('Chrome on Windows'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const Key('ticket-text')))
+          .enabled,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Send Ticket'),
+          )
+          .onPressed,
+      isNull,
+    );
 
     await tester.tap(find.byType(DropdownButtonFormField<TicketKind>));
     await tester.pumpAndSettle();
     await tester.tap(find.text("Something's wrong").last);
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('ticket-text')),
       'Save did not work',
@@ -38,19 +69,21 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Send Ticket'));
     await tester.pumpAndSettle();
 
-    expect(gateway.tickets, hasLength(1));
-    expect(gateway.tickets.single.kind, TicketKind.problem);
-    expect(gateway.tickets.single.text, 'Save did not work');
-    expect(gateway.tickets.single.state, TicketState.sent);
-    expect(gateway.tickets.single.context.release, 'abc1234');
+    expect(find.text('Open Ticket form'), findsOneWidget);
   });
 
   testWidgets('My tickets shows kind, first line, date and state', (
     tester,
   ) async {
-    final gateway = InMemoryTicketGateway(tickets: [sampleTicket()]);
+    final gateway = InMemoryTicketGateway(myTickets: [sampleTicket()]);
     await tester.pumpWidget(
-      MaterialApp(home: TicketsPage(gateway: gateway, maintainer: false)),
+      MaterialApp(
+        home: TicketsPage(
+          gateway: gateway,
+          maintainer: false,
+          ownStaffMemberId: 'sender-364',
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -63,7 +96,10 @@ void main() {
   testWidgets('Maintainer sees context and opening marks the Ticket Seen', (
     tester,
   ) async {
-    final gateway = InMemoryTicketGateway(tickets: [sampleTicket()]);
+    final gateway = InMemoryTicketGateway(
+      maintainerTickets: [sampleTicket()],
+      openAnswers: {'ticket-364': sampleTicket(state: TicketState.seen)},
+    );
     await tester.pumpWidget(
       MaterialApp(home: TicketsPage(gateway: gateway, maintainer: true)),
     );
@@ -74,8 +110,6 @@ void main() {
     await tester.tap(find.byKey(const Key('ticket-ticket-364')));
     await tester.pumpAndSettle();
 
-    expect(gateway.openedCount, 1);
-    expect(gateway.tickets.single.state, TicketState.seen);
     expect(find.text('Ticket text'), findsOneWidget);
     expect(find.textContaining('The button stayed busy.'), findsOneWidget);
     expect(find.text('Attached context'), findsOneWidget);

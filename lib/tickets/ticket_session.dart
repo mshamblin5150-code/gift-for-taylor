@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:schedule_rules/schedule_rules.dart';
 
 import 'ticket_gateway.dart';
 
@@ -22,9 +23,10 @@ final class TicketPutInFailed extends PutInTicketOutcome {
 }
 
 final class TicketFormSession extends ChangeNotifier {
-  TicketFormSession(this._gateway);
+  TicketFormSession(this._gateway, {this.onAccessRejected});
 
   final TicketGateway _gateway;
+  final VoidCallback? onAccessRejected;
   TicketFormState _state = TicketFormState.idle;
   bool _disposed = false;
 
@@ -42,6 +44,9 @@ final class TicketFormSession extends ChangeNotifier {
       return const TicketSent();
     } on TicketSubmissionRefused catch (failure) {
       return TicketPutInRefused(failure.reason);
+    } on AccessRejected {
+      onAccessRejected?.call();
+      return const TicketPutInFailed();
     } catch (_) {
       return const TicketPutInFailed();
     } finally {
@@ -80,9 +85,17 @@ final class TicketsFailed extends TicketsState {
 }
 
 final class TicketsSession extends ChangeNotifier {
-  TicketsSession(this._gateway);
+  TicketsSession(
+    this._gateway, {
+    required this.maintainer,
+    this.ownStaffMemberId,
+    this.onAccessRejected,
+  }) : assert(maintainer || ownStaffMemberId != null);
 
   final TicketGateway _gateway;
+  final bool maintainer;
+  final String? ownStaffMemberId;
+  final VoidCallback? onAccessRejected;
   TicketsState _state = const TicketsLoading();
   bool _disposed = false;
 
@@ -91,7 +104,13 @@ final class TicketsSession extends ChangeNotifier {
   Future<void> load() async {
     _replace(const TicketsLoading());
     try {
-      _replace(TicketsLoaded(await _gateway.read()));
+      final tickets = maintainer
+          ? await _gateway.readForMaintainer()
+          : await _gateway.readMine(ownStaffMemberId!);
+      _replace(TicketsLoaded(tickets));
+    } on AccessRejected {
+      onAccessRejected?.call();
+      _replace(const TicketsFailed());
     } catch (_) {
       _replace(const TicketsFailed());
     }
@@ -128,11 +147,17 @@ final class TicketDetailFailed extends TicketDetailState {
 }
 
 final class TicketDetailSession extends ChangeNotifier {
-  TicketDetailSession(this._gateway, this._ticket, this._maintainer);
+  TicketDetailSession(
+    this._gateway,
+    this._ticket,
+    this._maintainer, {
+    this.onAccessRejected,
+  });
 
   final TicketGateway _gateway;
   final Ticket _ticket;
   final bool _maintainer;
+  final VoidCallback? onAccessRejected;
   TicketDetailState _state = const TicketDetailLoading();
   bool _disposed = false;
 
@@ -144,6 +169,9 @@ final class TicketDetailSession extends ChangeNotifier {
           ? await _gateway.openForMaintainer(_ticket.id)
           : _ticket;
       _replace(TicketDetailLoaded(ticket));
+    } on AccessRejected {
+      onAccessRejected?.call();
+      _replace(const TicketDetailFailed());
     } catch (_) {
       _replace(const TicketDetailFailed());
     }

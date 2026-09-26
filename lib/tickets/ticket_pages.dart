@@ -10,10 +10,12 @@ class PutInTicketPage extends StatefulWidget {
     super.key,
     required this.gateway,
     required this.attachedContext,
+    this.onAccessRejected,
   });
 
   final TicketGateway gateway;
   final TicketContext attachedContext;
+  final VoidCallback? onAccessRejected;
 
   @override
   State<PutInTicketPage> createState() => _PutInTicketPageState();
@@ -22,7 +24,10 @@ class PutInTicketPage extends StatefulWidget {
 class _PutInTicketPageState extends State<PutInTicketPage> {
   final _formKey = GlobalKey<FormState>();
   final _text = TextEditingController();
-  late final TicketFormSession _session = TicketFormSession(widget.gateway);
+  late final TicketFormSession _session = TicketFormSession(
+    widget.gateway,
+    onAccessRejected: widget.onAccessRejected,
+  );
   TicketKind? _kind;
   String? _error;
 
@@ -101,7 +106,7 @@ class _PutInTicketPageState extends State<PutInTicketPage> {
                 TextFormField(
                   key: const Key('ticket-text'),
                   controller: _text,
-                  enabled: !sending,
+                  enabled: !sending && _kind != null,
                   decoration: const InputDecoration(
                     labelText: 'What would you like the Maintainer to know?',
                     alignLabelWithHint: true,
@@ -140,7 +145,7 @@ class _PutInTicketPageState extends State<PutInTicketPage> {
                 ],
                 const SizedBox(height: 20),
                 FilledButton(
-                  onPressed: sending ? null : _send,
+                  onPressed: sending || _kind == null ? null : _send,
                   child: Text(sending ? 'Sending…' : 'Send Ticket'),
                 ),
               ],
@@ -157,17 +162,26 @@ class TicketsPage extends StatefulWidget {
     super.key,
     required this.gateway,
     required this.maintainer,
-  });
+    this.ownStaffMemberId,
+    this.onAccessRejected,
+  }) : assert(maintainer || ownStaffMemberId != null);
 
   final TicketGateway gateway;
   final bool maintainer;
+  final String? ownStaffMemberId;
+  final VoidCallback? onAccessRejected;
 
   @override
   State<TicketsPage> createState() => _TicketsPageState();
 }
 
 class _TicketsPageState extends State<TicketsPage> {
-  late final TicketsSession _session = TicketsSession(widget.gateway)..load();
+  late final TicketsSession _session = TicketsSession(
+    widget.gateway,
+    maintainer: widget.maintainer,
+    ownStaffMemberId: widget.ownStaffMemberId,
+    onAccessRejected: widget.onAccessRejected,
+  )..load();
 
   @override
   void dispose() {
@@ -182,6 +196,7 @@ class _TicketsPageState extends State<TicketsPage> {
           gateway: widget.gateway,
           ticket: ticket,
           maintainer: widget.maintainer,
+          onAccessRejected: widget.onAccessRejected,
         ),
       ),
     );
@@ -240,11 +255,13 @@ class TicketDetailPage extends StatefulWidget {
     required this.gateway,
     required this.ticket,
     required this.maintainer,
+    this.onAccessRejected,
   });
 
   final TicketGateway gateway;
   final Ticket ticket;
   final bool maintainer;
+  final VoidCallback? onAccessRejected;
 
   @override
   State<TicketDetailPage> createState() => _TicketDetailPageState();
@@ -255,6 +272,7 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
     widget.gateway,
     widget.ticket,
     widget.maintainer,
+    onAccessRejected: widget.onAccessRejected,
   )..load();
 
   @override

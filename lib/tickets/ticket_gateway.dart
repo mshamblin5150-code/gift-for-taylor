@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:schedule_rules/schedule_rules.dart';
 
 enum TicketKind {
   problem("Something's wrong", 'problem'),
@@ -96,7 +97,8 @@ abstract interface class TicketGateway {
     required TicketContext context,
   });
 
-  Future<List<Ticket>> read();
+  Future<List<Ticket>> readMine(String senderId);
+  Future<List<Ticket>> readForMaintainer();
   Future<Ticket> openForMaintainer(String id);
 }
 
@@ -134,22 +136,16 @@ final class SupabaseTicketGateway implements TicketGateway {
         _ => null,
       };
       if (reason != null) throw TicketSubmissionRefused(reason);
+      if (_isAccessRejection(error)) throw AccessRejected(error);
       rethrow;
     }
   }
 
   @override
-  Future<List<Ticket>> read() async {
-    final rows = await _client
-        .from('tickets')
-        .select(
-          'id,sender_id,sender_display_name,kind,text,state,screen_context,'
-          'schedule_month,release_id,device_context,context_captured_at,'
-          'created_at,seen_at',
-        )
-        .order('created_at', ascending: false);
-    return [for (final row in rows) _ticket(row)];
-  }
+  Future<List<Ticket>> readMine(String senderId) => _read(senderId);
+
+  @override
+  Future<List<Ticket>> readForMaintainer() => _read(null);
 
   @override
   Future<Ticket> openForMaintainer(String id) async {
@@ -161,6 +157,26 @@ final class SupabaseTicketGateway implements TicketGateway {
       return _ticket(row);
     } on PostgrestException catch (error) {
       if (error.code == 'P2834') throw const TicketUnavailable();
+      if (_isAccessRejection(error)) throw AccessRejected(error);
+      rethrow;
+    }
+  }
+
+  Future<List<Ticket>> _read(String? senderId) async {
+    const columns =
+        'id,sender_id,sender_display_name,kind,text,state,screen_context,'
+        'schedule_month,release_id,device_context,context_captured_at,'
+        'created_at,seen_at';
+    try {
+      final query = _client.from('tickets').select(columns);
+      final rows = senderId == null
+          ? await query.order('created_at', ascending: false)
+          : await query
+                .eq('sender_id', senderId)
+                .order('created_at', ascending: false);
+      return [for (final row in rows) _ticket(row)];
+    } on PostgrestException catch (error) {
+      if (_isAccessRejection(error)) throw AccessRejected(error);
       rethrow;
     }
   }
@@ -190,4 +206,7 @@ final class SupabaseTicketGateway implements TicketGateway {
   String _date(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-'
       '${value.month.toString().padLeft(2, '0')}-01';
+
+  bool _isAccessRejection(PostgrestException error) =>
+      error.code == '42501' || error.code == '401' || error.code == '403';
 }

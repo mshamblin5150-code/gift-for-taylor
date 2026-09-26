@@ -847,6 +847,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         onPressed: () => _open(
           (context) => PutInTicketPage(
             gateway: widget.ticketGateway!,
+            onAccessRejected: widget.onAccessRejected,
             attachedContext: captureTicketContext(
               screen: 'Schedule',
               month: _month,
@@ -860,8 +861,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
         icon: Icons.inbox_outlined,
         secondary: true,
         onPressed: () => _open(
-          (context) =>
-              TicketsPage(gateway: widget.ticketGateway!, maintainer: false),
+          (context) => TicketsPage(
+            gateway: widget.ticketGateway!,
+            maintainer: false,
+            ownStaffMemberId: _access.ownStaffMemberId,
+            onAccessRejected: widget.onAccessRejected,
+          ),
         ),
       ),
     if (_access.maintainer && !_access.isRepairAccess)

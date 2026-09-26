@@ -1,16 +1,31 @@
 import 'package:er_schedule/tickets/ticket_gateway.dart';
 
+final class RecordedTicketSubmission {
+  const RecordedTicketSubmission({
+    required this.kind,
+    required this.text,
+    required this.context,
+  });
+
+  final TicketKind kind;
+  final String text;
+  final TicketContext context;
+}
+
 final class InMemoryTicketGateway implements TicketGateway {
   InMemoryTicketGateway({
-    List<Ticket> tickets = const [],
-    this.senderId = 'sender-1',
-    this.senderDisplayName = 'Taylor Nurse',
-  }) : tickets = [...tickets];
+    List<Ticket> myTickets = const [],
+    List<Ticket> maintainerTickets = const [],
+    Map<String, Ticket> openAnswers = const {},
+  }) : myTickets = List.unmodifiable(myTickets),
+       maintainerTickets = List.unmodifiable(maintainerTickets),
+       openAnswers = Map.unmodifiable(openAnswers);
 
-  final String senderId;
-  final String senderDisplayName;
-  final List<Ticket> tickets;
-  int openedCount = 0;
+  final List<Ticket> myTickets;
+  final List<Ticket> maintainerTickets;
+  final Map<String, Ticket> openAnswers;
+  final List<RecordedTicketSubmission> submissions = [];
+  final List<String> openedIds = [];
   Object? failNext;
 
   @override
@@ -23,43 +38,26 @@ final class InMemoryTicketGateway implements TicketGateway {
       failNext = null;
       throw failure;
     }
-    tickets.insert(
-      0,
-      Ticket(
-        id: 'ticket-${tickets.length + 1}',
-        senderId: senderId,
-        senderDisplayName: senderDisplayName,
-        kind: kind,
-        text: text.trim(),
-        state: TicketState.sent,
-        context: context,
-        createdAt: context.capturedAt,
-      ),
+    submissions.add(
+      RecordedTicketSubmission(kind: kind, text: text, context: context),
     );
   }
 
   @override
-  Future<List<Ticket>> read() async => [...tickets];
+  Future<List<Ticket>> readMine(String senderId) async => myTickets;
+
+  @override
+  Future<List<Ticket>> readForMaintainer() async => maintainerTickets;
 
   @override
   Future<Ticket> openForMaintainer(String id) async {
-    openedCount += 1;
-    final index = tickets.indexWhere((ticket) => ticket.id == id);
-    final ticket = tickets[index];
-    if (ticket.state != TicketState.sent) return ticket;
-    final seen = Ticket(
-      id: ticket.id,
-      senderId: ticket.senderId,
-      senderDisplayName: ticket.senderDisplayName,
-      kind: ticket.kind,
-      text: ticket.text,
-      state: TicketState.seen,
-      context: ticket.context,
-      createdAt: ticket.createdAt,
-      seenAt: DateTime(2026, 9, 26, 15),
-    );
-    tickets[index] = seen;
-    return seen;
+    if (failNext case final failure?) {
+      failNext = null;
+      throw failure;
+    }
+    openedIds.add(id);
+    return openAnswers[id] ??
+        (throw StateError('No recorded open answer for Ticket $id.'));
   }
 }
 
