@@ -23,6 +23,7 @@ final class InMemoryScheduleDatabase {
     this.maintainerRepair,
     Map<String, String> names = const {},
     List<LegendCode> shiftCodes = shiftLegend,
+    List<ShiftCodeChangePlan> shiftCodeChangePlan = const [],
     this.managerEmail = 'manager@example.test',
     Set<DateTime> releasedMonths = const {},
     DateTime Function()? clock,
@@ -33,6 +34,7 @@ final class InMemoryScheduleDatabase {
        _sections = List.unmodifiable(sections),
        _rows = List.unmodifiable(rows),
        _shiftCodes = List.of(shiftCodes),
+       _shiftCodeChangePlan = List.of(shiftCodeChangePlan),
        _grants = Map.of(grants),
        _nightSchedulerSections = {
          for (final entry in grants.entries)
@@ -98,6 +100,7 @@ final class InMemoryScheduleDatabase {
   bool hasStaffingForMonth(DateTime month) =>
       _staffingAnswers.containsKey(DateTime(month.year, month.month));
   final List<LegendCode> _shiftCodes;
+  final List<ShiftCodeChangePlan> _shiftCodeChangePlan;
 
   /// Supplies the catalog returned by the next read, including SQL-derived fields.
   void seedShiftCodes(List<LegendCode> codes) {
@@ -320,6 +323,19 @@ final class _InMemoryScheduleStore implements ScheduleStore {
     _database._throwNextFailure(InMemoryStoreCall.shiftCodes);
     return List.unmodifiable(_database._shiftCodes);
   }
+
+  @override
+  Future<List<ShiftCodeChangePlan>> previewShiftCodeChange(
+    LegendCode code, {
+    String? originalCode,
+  }) async => List.unmodifiable(_database._shiftCodeChangePlan);
+
+  @override
+  Future<void> commitShiftCodeChange(
+    LegendCode code,
+    List<ShiftCodeChangePlan> plan, {
+    String? originalCode,
+  }) => saveShiftCode(code, originalCode: originalCode);
 
   @override
   Future<void> saveShiftCode(LegendCode code, {String? originalCode}) async {

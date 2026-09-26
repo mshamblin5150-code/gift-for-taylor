@@ -60,6 +60,15 @@ abstract interface class ScheduleRules {
 abstract interface class ScheduleStore {
   Future<List<ScheduleSection>> sections();
   Future<List<LegendCode>> shiftCodes();
+  Future<List<ShiftCodeChangePlan>> previewShiftCodeChange(
+    LegendCode code, {
+    String? originalCode,
+  });
+  Future<void> commitShiftCodeChange(
+    LegendCode code,
+    List<ShiftCodeChangePlan> plan, {
+    String? originalCode,
+  });
   Future<void> saveShiftCode(LegendCode code, {String? originalCode});
   Future<void> deleteShiftCode(String code);
 
@@ -577,6 +586,43 @@ final class LegendCode {
   /// Day or Night coverage; null means the code counts toward neither window.
   final String? coverageWindow;
   final bool active;
+}
+
+/// One date and delivery method affected by a proposed Shift code edit.
+final class ShiftCodeChangePlan {
+  const ShiftCodeChangePlan({
+    required this.workDate,
+    required this.shiftCode,
+    required this.method,
+    required this.count,
+    required this.staffMemberIds,
+  });
+
+  factory ShiftCodeChangePlan.fromJson(Map<String, dynamic> json) =>
+      ShiftCodeChangePlan(
+        workDate: DateTime.parse(json['work_date'] as String),
+        shiftCode: json['shift_code'] as String,
+        method: json['method'] as String,
+        count: json['count'] as int,
+        staffMemberIds: List<String>.from(json['staff_member_ids'] as List),
+      );
+
+  final DateTime workDate;
+  final String shiftCode;
+  final String method;
+  final int count;
+  final List<String> staffMemberIds;
+
+  Map<String, dynamic> toJson() => {
+    'work_date':
+        '${workDate.year.toString().padLeft(4, '0')}-'
+        '${workDate.month.toString().padLeft(2, '0')}-'
+        '${workDate.day.toString().padLeft(2, '0')}',
+    'shift_code': shiftCode,
+    'method': method,
+    'count': count,
+    'staff_member_ids': staffMemberIds,
+  };
 }
 
 String? coverageWindowForHours(String? start, String? end) {
