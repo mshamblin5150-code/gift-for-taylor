@@ -138,12 +138,38 @@ final class TicketDetailLoading extends TicketDetailState {
 }
 
 final class TicketDetailLoaded extends TicketDetailState {
-  const TicketDetailLoaded(this.ticket);
+  TicketDetailLoaded(
+    this.ticket,
+    List<TicketThreadEntry> thread, {
+    this.working = false,
+  }) : thread = List.unmodifiable(thread);
   final Ticket ticket;
+  final List<TicketThreadEntry> thread;
+  final bool working;
+
+  TicketDetailLoaded withWorking(bool value) =>
+      TicketDetailLoaded(ticket, thread, working: value);
 }
 
 final class TicketDetailFailed extends TicketDetailState {
   const TicketDetailFailed();
+}
+
+sealed class TicketThreadCommandOutcome {
+  const TicketThreadCommandOutcome();
+}
+
+final class TicketThreadCommandCompleted extends TicketThreadCommandOutcome {
+  const TicketThreadCommandCompleted();
+}
+
+final class TicketThreadCommandRefused extends TicketThreadCommandOutcome {
+  const TicketThreadCommandRefused(this.reason);
+  final TicketThreadRefusal reason;
+}
+
+final class TicketThreadCommandFailed extends TicketThreadCommandOutcome {
+  const TicketThreadCommandFailed();
 }
 
 final class TicketDetailSession extends ChangeNotifier {
@@ -155,7 +181,7 @@ final class TicketDetailSession extends ChangeNotifier {
   });
 
   final TicketGateway _gateway;
-  final Ticket _ticket;
+  Ticket _ticket;
   final bool _maintainer;
   final VoidCallback? onAccessRejected;
   TicketDetailState _state = const TicketDetailLoading();
@@ -168,12 +194,65 @@ final class TicketDetailSession extends ChangeNotifier {
       final ticket = _maintainer
           ? await _gateway.openForMaintainer(_ticket.id)
           : _ticket;
-      _replace(TicketDetailLoaded(ticket));
+      _ticket = ticket;
+      final thread = await _gateway.readThread(_ticket.id);
+      _replace(TicketDetailLoaded(ticket, thread));
     } on AccessRejected {
       onAccessRejected?.call();
       _replace(const TicketDetailFailed());
     } catch (_) {
       _replace(const TicketDetailFailed());
+    }
+  }
+
+  Future<TicketThreadCommandOutcome> askQuestion({
+    required String question,
+    String? suggestedAnswer,
+  }) async => _runThreadCommand(() async {
+    _ticket = await _gateway.askQuestion(
+      _ticket.id,
+      question: question,
+      suggestedAnswer: suggestedAnswer,
+    );
+  });
+
+  Future<TicketThreadCommandOutcome> answerQuestion(
+    String questionId, {
+    String? answer,
+    required bool acceptSuggestion,
+  }) async => _runThreadCommand(() async {
+    _ticket = await _gateway.answerQuestion(
+      _ticket.id,
+      questionId,
+      answer: answer,
+      acceptSuggestion: acceptSuggestion,
+    );
+  });
+
+  Future<TicketThreadCommandOutcome> _runThreadCommand(
+    Future<void> Function() command,
+  ) async {
+    final current = _state;
+    if (current is! TicketDetailLoaded || current.working) {
+      return const TicketThreadCommandFailed();
+    }
+    _replace(current.withWorking(true));
+    try {
+      await command();
+      final thread = await _gateway.readThread(_ticket.id);
+      _replace(TicketDetailLoaded(_ticket, thread, working: true));
+      return const TicketThreadCommandCompleted();
+    } on TicketThreadRefused catch (failure) {
+      return TicketThreadCommandRefused(failure.reason);
+    } on AccessRejected {
+      onAccessRejected?.call();
+      return const TicketThreadCommandFailed();
+    } catch (_) {
+      return const TicketThreadCommandFailed();
+    } finally {
+      if (_state case final TicketDetailLoaded loaded) {
+        _replace(loaded.withWorking(false));
+      }
     }
   }
 

@@ -67,4 +67,23 @@ void main() {
       expect(rejected, isTrue);
     },
   );
+
+  test('detail session exposes a typed Ticket thread refusal', () async {
+    final seen = sampleTicket(state: TicketState.seen);
+    final gateway = InMemoryTicketGateway(openAnswers: {seen.id: seen});
+    final session = TicketDetailSession(gateway, seen, true);
+    await session.load();
+    gateway.failNext = const TicketThreadRefused(
+      TicketThreadRefusal.questionInvalid,
+    );
+
+    final outcome = await session.askQuestion(question: 'Question');
+
+    expect(outcome, isA<TicketThreadCommandRefused>());
+    expect(
+      (outcome as TicketThreadCommandRefused).reason,
+      TicketThreadRefusal.questionInvalid,
+    );
+    expect((session.state as TicketDetailLoaded).working, isFalse);
+  });
 }
