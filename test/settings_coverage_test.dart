@@ -17,6 +17,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           maintainerRepairController: noopRepairController(),
+          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           scheduleRules: scheduleRulesInMemory(database, actingAs: 'manager'),
           noticeGateway: const NoopNoticeGateway(),
           openShiftStore: database.openShiftStoreFor('manager'),

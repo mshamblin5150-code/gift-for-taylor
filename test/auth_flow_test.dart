@@ -79,6 +79,7 @@ void main() {
       MaterialApp(
         home: SettingsPage(
           maintainerRepairController: noopRepairController(),
+          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           scheduleRules: ScheduleRules(_scheduleStore(const [])),
           noticeGateway: const NoopNoticeGateway(),
           access: Access(grants: Grants()),

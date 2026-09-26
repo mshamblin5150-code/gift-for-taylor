@@ -601,6 +601,8 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
           printWordingGateway: widget.dependencies.printWordingGateway,
           settingsHistory: widget.dependencies.settingsHistory,
           signInFailureLog: widget.dependencies.signInFailureLog,
+          undeliveredInvitationLog:
+              widget.dependencies.undeliveredInvitationLog,
           repairController: widget.dependencies.repairController,
           onCalendarFeed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(

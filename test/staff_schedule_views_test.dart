@@ -83,6 +83,7 @@ void main() {
           swapStore: emptySwapStore(actingAs),
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
+          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           access: database.accessFor(actingAs),
           rules: scheduleRulesInMemory(database, actingAs: actingAs),
           month: month,

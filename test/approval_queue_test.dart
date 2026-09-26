@@ -157,6 +157,7 @@ void main() {
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
+          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           access: db.accessFor('manager'),
           rules: manager,
           month: month,
@@ -232,6 +233,7 @@ void main() {
         home: MonthGridPage(
           noticeGateway: const NoopNoticeGateway(),
           repairController: noopRepairController(),
+          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           access: db.accessFor('alice'),
           rules: scheduleRulesInMemory(db, actingAs: 'alice'),
           month: month,
