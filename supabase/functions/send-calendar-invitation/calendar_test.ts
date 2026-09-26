@@ -3,6 +3,7 @@ import {
   type Invitation,
   invitationCalendar,
   invitationMessage,
+  sender,
 } from "./calendar.ts";
 
 const shift: Invitation = {
@@ -16,6 +17,7 @@ const shift: Invitation = {
   ends_at: "2027-01-05T00:00:00Z",
   sequence: 0,
   last_modified: "2026-12-01T10:01:02Z",
+  sender: "no-reply@calendar.axion.healthcare",
 };
 
 Deno.test("Calendar invitation requests a shift without asking for a reply", () => {
@@ -26,7 +28,7 @@ Deno.test("Calendar invitation requests a shift without asking for a reply", () 
       "UID:00000000-0000-0000-0000-000000000001-20270104@er-schedule",
       "SEQUENCE:0",
       "LAST-MODIFIED:20261201T100102Z",
-      "ORGANIZER;CN=ER Schedule:mailto:no-reply@axion.healthcare",
+      "ORGANIZER;CN=ER Schedule:mailto:no-reply@calendar.axion.healthcare",
       "ATTENDEE;RSVP=FALSE;PARTSTAT=ACCEPTED:mailto:staff@example.test",
       "SUMMARY:7A",
       "DTSTART:20270104T120000Z",
@@ -103,7 +105,10 @@ Deno.test("Email carries an iMIP request rather than a calendar import", async (
   ) {
     throw new Error("Email lacks a calendar REQUEST MIME part");
   }
-  if (!raw.includes("From: ER Schedule <no-reply@axion.healthcare>")) {
+  if (
+    sender !== "no-reply@calendar.axion.healthcare" ||
+    !raw.includes("From: ER Schedule <no-reply@calendar.axion.healthcare>")
+  ) {
     throw new Error("Email sender is not the no-reply app identity");
   }
   const cancelled = await transport.sendMail(invitationMessage({
@@ -117,6 +122,37 @@ Deno.test("Email carries an iMIP request rather than a calendar import", async (
     )
   ) {
     throw new Error("Email lacks a calendar CANCEL MIME part");
+  }
+});
+
+Deno.test("Organizer transition can withdraw the old sender", () => {
+  const oldCancellation = {
+    ...shift,
+    method: "CANCEL" as const,
+    sender: "no-reply@axion.healthcare",
+  };
+  const calendar = invitationCalendar(oldCancellation);
+  const message = invitationMessage(oldCancellation);
+  if (
+    !calendar.includes(
+      "ORGANIZER;CN=ER Schedule:mailto:no-reply@axion.healthcare\r\n",
+    ) || message.from !== "ER Schedule <no-reply@axion.healthcare>"
+  ) {
+    throw new Error("Old-organizer cancellation changed authority");
+  }
+});
+
+Deno.test("Pre-migration delivery keeps the old organizer", () => {
+  const preMigration = { ...shift };
+  delete preMigration.sender;
+  const calendar = invitationCalendar(preMigration);
+  const message = invitationMessage(preMigration);
+  if (
+    !calendar.includes(
+      "ORGANIZER;CN=ER Schedule:mailto:no-reply@axion.healthcare\r\n",
+    ) || message.from !== "ER Schedule <no-reply@axion.healthcare>"
+  ) {
+    throw new Error("Rolling deployment lost the pre-migration organizer");
   }
 });
 

@@ -2,7 +2,7 @@ import {
   createCalendarInvitationHandler,
   type DeliveryDependencies,
 } from "./delivery.ts";
-import type { Invitation } from "./calendar.ts";
+import { type Invitation, invitationSender } from "./calendar.ts";
 
 const invitation = (id: string): Invitation & { delivery_claim: string } => ({
   id,
@@ -16,6 +16,7 @@ const invitation = (id: string): Invitation & { delivery_claim: string } => ({
   ends_at: "2027-01-05T00:00:00Z",
   sequence: 0,
   last_modified: "2026-12-01T10:01:02Z",
+  sender: "no-reply@calendar.axion.healthcare",
 });
 
 function request(id: string): Request {
@@ -127,6 +128,40 @@ Deno.test("a calendar message never mixes REQUEST and CANCEL", async () => {
 
   if (JSON.stringify(methods) !== JSON.stringify([["REQUEST"], ["CANCEL"]])) {
     throw new Error(`Methods were mixed in one message: ${methods}`);
+  }
+});
+
+Deno.test("a calendar message never mixes organizers", async () => {
+  const senders: string[][] = [];
+  const handler = createCalendarInvitationHandler({
+    secret: "secret",
+    claim: () =>
+      Promise.resolve([
+        invitation("new-organizer"),
+        {
+          ...invitation("old-organizer"),
+          sender: "no-reply@axion.healthcare",
+        },
+      ]),
+    beginSend: (invitations) => Promise.resolve(invitations),
+    send: (events) => {
+      senders.push(events.map(invitationSender));
+      return Promise.resolve();
+    },
+    markSent: () => Promise.resolve(),
+    release: () => Promise.resolve(),
+  });
+
+  await handler(request("organizer-transition"));
+
+  if (
+    JSON.stringify(senders) !==
+      JSON.stringify([
+        ["no-reply@calendar.axion.healthcare"],
+        ["no-reply@axion.healthcare"],
+      ])
+  ) {
+    throw new Error(`Organizers were mixed in one message: ${senders}`);
   }
 });
 
