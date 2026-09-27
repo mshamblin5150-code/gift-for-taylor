@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(25);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000003431', 'giveaway-manager@example.test'),
@@ -106,6 +106,20 @@ select public.set_pool_date_minimum('nurses', 'day', '2027-10-01', 1, 1);
 select is(public.giveaway_creates_shortfall(
   (select id from public.giveaways where status = 'accepted')), true,
   'an RN-to-LPN Giveaway that breaches the RN floor warns without blocking');
+reset role;
+insert into public.coverage_pools(id, created_on)
+values ('giveaway_lpn', '2027-10-01');
+insert into public.coverage_pool_versions
+  (pool, effective_from, name, sort_order, floor_role)
+values ('giveaway_lpn', '2027-10-01', 'Giveaway LPN pool', 99, null);
+insert into public.coverage_pool_memberships(job_role, effective_from, pool)
+values ('lpn', '2027-10-01', 'giveaway_lpn');
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000003431","role":"authenticated"}', true);
+select is(public.giveaway_creates_shortfall(
+  (select id from public.giveaways where status = 'accepted')), true,
+  'the RN source pool is checked when RN and LPN pools differ');
 select lives_ok($$select public.approve_giveaway(
   (select id from public.giveaways where status = 'accepted'))$$,
   'the Manager approves every given shift atomically');

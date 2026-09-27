@@ -312,6 +312,7 @@ final class _InMemoryOpenShiftStore implements OpenShiftStore {
       openShiftId: pickup.openShiftId,
       staffMemberId: pickup.staffMemberId,
       status: status,
+      createsShortfall: pickup.createsShortfall,
     );
   }
 

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(36);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000000271', 'open-manager@example.test'),
@@ -74,6 +74,15 @@ select lives_ok($$select public.request_open_shift_pickup((select id from public
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000271","role":"authenticated"}', true);
 select is((select count(*)::int from public.staff_notices where kind = 'open_shift_pickup' and title = 'Open shift pickup requested'), 2,
   'Manager receives both pickup requests');
+select public.set_pool_date_minimum('nurses', 'day', '2027-02-10', 1, 1);
+select is(public.open_shift_pickup_creates_shortfall((select id
+  from public.open_shift_pickups where staff_member_id =
+    '00000000-0000-0000-0000-000000000279')), true,
+  'an LPN taking an RN Open shift warns before approval');
+select is(public.open_shift_pickup_creates_shortfall((select id
+  from public.open_shift_pickups where staff_member_id =
+    '00000000-0000-0000-0000-000000000280')), false,
+  'an RN taking an RN Open shift does not warn');
 select lives_ok($$select public.approve_open_shift_pickup((select id from public.open_shift_pickups
   where staff_member_id = '00000000-0000-0000-0000-000000000279'))$$, 'Manager approves pickup');
 select is((select status from public.open_shift_pickups where staff_member_id = '00000000-0000-0000-0000-000000000280'),

@@ -202,7 +202,7 @@ const helpTopics = <HelpTopic>[
     title: 'Approval queue',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'The Approval queue is where the Manager makes pending decisions. It includes Requests off, accepted Swaps and Giveaways, Open shift pickups needing approval, and accepted Invites waiting for identity confirmation. Managers and Administrators can also confirm Invites from the Staff list.',
-    how: 'Manager only: open Approval queue from the Schedule. Read the person, dates, and details before choosing Approve or Decline. A Giveaway warning says when approval would create or deepen a Shortfall; it does not block the decision. An Invite uses Confirm or Reject; an Administrator can do that from Staff list. Add a reason when offered. The item leaves the queue after the decision; use Browse requests to find earlier decisions.',
+    how: 'Manager only: open Approval queue from the Schedule. Read the person, dates, and details before choosing Approve or Decline. A warning on a Swap, Giveaway, or Open shift pickup says when approval would create or deepen a Shortfall; it does not block the decision. An Invite uses Confirm or Reject; an Administrator can do that from Staff list. Add a reason when offered. The item leaves the queue after the decision; use Browse requests to find earlier decisions.',
     searchTerms: 'pending approval requests off swaps giveaways pickups decisions invite confirmation shortfall',
     roles: _manager,
   ),
@@ -224,7 +224,7 @@ const helpTopics = <HelpTopic>[
     title: 'Approve a Swap',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'The Manager decides an accepted Swap before either shift changes. A proposal that the colleague has not accepted is not ready for this decision.',
-    how: 'Manager only: open Approval queue from the Schedule and find the accepted Swap. Check both people and both dates, then tap Approve or Decline. The decision removes it from the pending queue; use Browse requests, then Swaps, to review it later.',
+    how: 'Manager only: open Approval queue from the Schedule and find the accepted Swap. Check both people and both dates, including any Shortfall warning, then tap Approve or Decline. The warning never blocks approval. The decision removes it from the pending queue; use Browse requests, then Swaps, to review it later.',
     roles: _manager,
   ),
   HelpTopic(
@@ -253,7 +253,7 @@ const helpTopics = <HelpTopic>[
     title: 'Open shift pickup approvals',
     who: 'Manager for pickup decisions; Manager or Administrator for the Unit default',
     what: 'Some Open shift pickups wait for the Manager; others take effect when a Staff member picks them up. The listing shows which rule applies.',
-    how: 'Manager only: open Approval queue from the Schedule and check the person, date, and Shift code before approving or declining a pending pickup. Managers and Administrators can change the Unit default in Settings, then Open shift pickup approval. For one available shift, the Manager can open Browse requests, then Open shifts, and use its switch. The decision removes a pending pickup from the queue.',
+    how: 'Manager only: open Approval queue from the Schedule and check the person, date, Shift code, and any Shortfall warning before approving or declining a pending pickup. The warning never blocks approval. Managers and Administrators can change the Unit default in Settings, then Open shift pickup approval. For one available shift, the Manager can open Browse requests, then Open shifts, and use its switch. The decision removes a pending pickup from the queue.',
     roles: _manager,
   ),
   HelpTopic(
