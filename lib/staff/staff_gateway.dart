@@ -1,6 +1,8 @@
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../refusal_code.dart';
+
 import '../schedule/access_rejected_write.dart';
 import 'staff_contacts.dart';
 import 'access_row.dart';
@@ -129,10 +131,12 @@ enum InviteAcceptanceResult { accepted, cellMismatch, throttled }
 
 final class StaffInviteAlreadyLinkedException implements Exception {
   const StaffInviteAlreadyLinkedException();
+  String get refusalCode => 'P2793';
 }
 
 final class InvalidInviteException implements Exception {
   const InvalidInviteException();
+  String get refusalCode => 'P2794';
 }
 
 enum ManagerHandoverRefusal {
@@ -148,6 +152,21 @@ enum ManagerHandoverRefusal {
   successorNoCurrentSection,
 }
 
+extension ManagerHandoverRefusalCode on ManagerHandoverRefusal {
+  String get code => switch (this) {
+    ManagerHandoverRefusal.managerAccessChanged => 'P2797',
+    ManagerHandoverRefusal.noActiveManager => 'P2798',
+    ManagerHandoverRefusal.sameStaffMember => 'P2799',
+    ManagerHandoverRefusal.retainedSectionMissing => 'P2800',
+    ManagerHandoverRefusal.successorNoAccount => 'P2801',
+    ManagerHandoverRefusal.successorInvitePending => 'P2802',
+    ManagerHandoverRefusal.successorAccountRevoked => 'P2803',
+    ManagerHandoverRefusal.successorInactive => 'P2804',
+    ManagerHandoverRefusal.successorAlreadyManager => 'P2805',
+    ManagerHandoverRefusal.successorNoCurrentSection => 'P2806',
+  };
+}
+
 final class ManagerHandoverRefused implements Exception {
   const ManagerHandoverRefused(this.reason);
 
@@ -161,6 +180,15 @@ enum InviteAcceptanceRefusal {
   accountMissingEmail,
 }
 
+extension InviteAcceptanceRefusalCode on InviteAcceptanceRefusal {
+  String get code => switch (this) {
+    InviteAcceptanceRefusal.staffAcceptancePending => 'P2807',
+    InviteAcceptanceRefusal.staffAlreadyAccepted => 'P2808',
+    InviteAcceptanceRefusal.emailAcceptancePending => 'P2809',
+    InviteAcceptanceRefusal.accountMissingEmail => 'P2810',
+  };
+}
+
 final class InviteAcceptanceRefused implements Exception {
   const InviteAcceptanceRefused(this.reason);
 
@@ -171,19 +199,11 @@ Future<T> mapManagerHandoverRefusal<T>(Future<T> Function() command) async {
   try {
     return await command();
   } on PostgrestException catch (error) {
-    final reason = switch (error.code) {
-      'P2797' => ManagerHandoverRefusal.managerAccessChanged,
-      'P2798' => ManagerHandoverRefusal.noActiveManager,
-      'P2799' => ManagerHandoverRefusal.sameStaffMember,
-      'P2800' => ManagerHandoverRefusal.retainedSectionMissing,
-      'P2801' => ManagerHandoverRefusal.successorNoAccount,
-      'P2802' => ManagerHandoverRefusal.successorInvitePending,
-      'P2803' => ManagerHandoverRefusal.successorAccountRevoked,
-      'P2804' => ManagerHandoverRefusal.successorInactive,
-      'P2805' => ManagerHandoverRefusal.successorAlreadyManager,
-      'P2806' => ManagerHandoverRefusal.successorNoCurrentSection,
-      _ => null,
-    };
+    final reason = valueForRefusalCode(
+      ManagerHandoverRefusal.values,
+      error.code,
+      (reason) => reason.code,
+    );
     if (reason != null) throw ManagerHandoverRefused(reason);
     rethrow;
   }
@@ -193,13 +213,11 @@ Future<T> mapInviteAcceptanceRefusal<T>(Future<T> Function() command) async {
   try {
     return await command();
   } on PostgrestException catch (error) {
-    final reason = switch (error.code) {
-      'P2807' => InviteAcceptanceRefusal.staffAcceptancePending,
-      'P2808' => InviteAcceptanceRefusal.staffAlreadyAccepted,
-      'P2809' => InviteAcceptanceRefusal.emailAcceptancePending,
-      'P2810' => InviteAcceptanceRefusal.accountMissingEmail,
-      _ => null,
-    };
+    final reason = valueForRefusalCode(
+      InviteAcceptanceRefusal.values,
+      error.code,
+      (reason) => reason.code,
+    );
     if (reason != null) throw InviteAcceptanceRefused(reason);
     rethrow;
   }
@@ -207,6 +225,7 @@ Future<T> mapInviteAcceptanceRefusal<T>(Future<T> Function() command) async {
 
 final class SectionInUseException implements Exception {
   const SectionInUseException();
+  String get refusalCode => 'P2795';
 }
 
 final class PendingInviteAcceptance {
@@ -547,50 +566,62 @@ final class SupabaseStaffGateway implements StaffGateway {
     StaffMemberDraft draft, {
     bool allowRecycledCell = false,
   }) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'create_staff_member_with_invite',
-      params: {
-        'p_display_name': draft.displayName,
-        'p_cell_number': normalizeCellNumber(draft.cellNumber),
-        'p_section_id': draft.sectionId,
-        'p_allow_recycled_cell': allowRecycledCell,
-      },
+    final rows = await mapAccessRejected(
+      () => _client.rpc<List<dynamic>>(
+        'create_staff_member_with_invite',
+        params: {
+          'p_display_name': draft.displayName,
+          'p_cell_number': normalizeCellNumber(draft.cellNumber),
+          'p_section_id': draft.sectionId,
+          'p_allow_recycled_cell': allowRecycledCell,
+        },
+      ),
     );
     return _inviteFromRow(rows.single as Map<String, dynamic>);
   }
 
   @override
   Future<void> reorderSection(String sectionId, List<String> memberIds) async {
-    await _client.rpc<void>(
-      'reorder_staff_section',
-      params: {'p_section_id': sectionId, 'p_staff_member_ids': memberIds},
+    await mapAccessRejected(
+      () => _client.rpc<void>(
+        'reorder_staff_section',
+        params: {'p_section_id': sectionId, 'p_staff_member_ids': memberIds},
+      ),
     );
   }
 
   @override
-  Future<void> reorderSections(List<String> sectionIds) => _client.rpc<void>(
-    'reorder_sections',
-    params: {'p_section_ids': sectionIds},
+  Future<void> reorderSections(List<String> sectionIds) => mapAccessRejected(
+    () => _client.rpc<void>(
+      'reorder_sections',
+      params: {'p_section_ids': sectionIds},
+    ),
   );
 
   @override
   Future<void> addSection(String name) async {
-    await _client.rpc<String>('add_section', params: {'p_name': name});
+    await mapAccessRejected(
+      () => _client.rpc<String>('add_section', params: {'p_name': name}),
+    );
   }
 
   @override
   Future<void> renameSection(String sectionId, String name) =>
-      _client.rpc<void>(
-        'rename_section',
-        params: {'p_section_id': sectionId, 'p_name': name},
+      mapAccessRejected(
+        () => _client.rpc<void>(
+          'rename_section',
+          params: {'p_section_id': sectionId, 'p_name': name},
+        ),
       );
 
   @override
   Future<void> deleteEmptySection(String sectionId) async {
     try {
-      await _client.rpc<void>(
-        'delete_empty_section',
-        params: {'p_section_id': sectionId},
+      await mapAccessRejected(
+        () => _client.rpc<void>(
+          'delete_empty_section',
+          params: {'p_section_id': sectionId},
+        ),
       );
     } on PostgrestException catch (error) {
       if (error.code == 'P2795') throw const SectionInUseException();

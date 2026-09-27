@@ -34,6 +34,7 @@ void main() {
     release: 'abc1234',
     device: 'Chrome on Windows',
     capturedAt: DateTime(2026, 9, 26, 14, 30),
+    recentActions: const ['Screen: Schedule'],
   );
 
   test('form session records the exact submission', () async {

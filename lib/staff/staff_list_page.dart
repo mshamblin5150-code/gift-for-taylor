@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import '../help/help_page.dart';
+import '../tickets/ticket_refusal.dart';
 import 'contact_picker.dart';
 import 'invite_composer.dart';
 import 'past_staff_page.dart';
@@ -11,6 +12,7 @@ import 'staff_dialogs.dart';
 import 'staff_details_page.dart';
 import 'staff_gateway.dart';
 import 'staff_contacts.dart';
+import 'staff_list_session.dart';
 
 export 'invite_composer.dart' show InviteComposer;
 
@@ -37,36 +39,42 @@ class StaffListPage extends StatefulWidget {
 }
 
 class _StaffListPageState extends State<StaffListPage> {
-  StaffList? _staffList;
-  List<PendingInviteAcceptance> _pendingInvites = const [];
-  Object? _loadError;
-  Access _access = Access(grants: Grants());
-  bool _savingSectionOrder = false;
+  late final StaffListSession _session = StaffListSession(
+    widget.gateway,
+    widget.rules,
+    widget.onAccessRejected,
+  );
+  StaffList? get _staffList => _session.state.list;
+  List<PendingInviteAcceptance> get _pendingInvites =>
+      _session.state.pendingInvites;
+  Object? get _loadError => _session.state.loadError;
+  Access get _access => _session.state.access;
+  bool get _savingSectionOrder => _session.state.savingSectionOrder;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    recordTicketScreenVisit(context, 'Staff list');
+  }
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _session.addListener(_sessionChanged);
   }
 
-  Future<void> _load() async {
-    try {
-      final (staffList, access, pendingInvites) = await (
-        widget.gateway.loadStaffList(),
-        widget.gateway.currentAccess(),
-        widget.gateway.pendingInviteAcceptances(),
-      ).wait;
-      if (mounted) {
-        setState(() {
-          _staffList = staffList;
-          _pendingInvites = pendingInvites;
-          _access = access;
-          _loadError = null;
-        });
-      }
-    } catch (error) {
-      if (mounted) setState(() => _loadError = error);
-    }
+  void _sessionChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _load() => _session.load();
+
+  @override
+  void dispose() {
+    _session
+      ..removeListener(_sessionChanged)
+      ..dispose();
+    super.dispose();
   }
 
   Future<void> _addStaffMember() async {
@@ -81,61 +89,73 @@ class _StaffListPageState extends State<StaffListPage> {
     );
     if (draft == null) return;
 
-    try {
-      final pastStaff = await widget.gateway.loadPastStaff();
-      if (!mounted) return;
-      final matches = pastStaff
-          .where((member) => member.cellNumber == draft.cellNumber)
-          .toList();
-      var allowRecycledCell = false;
-      for (final match in matches) {
-        final bringBack = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Past Staff member found'),
-            content: Text(
-              match.lastDay == null
-                  ? '${match.displayName} was on the Staff list before. Bring them back?'
-                  : '${match.displayName} was on the Staff list until '
-                        '${DateFormat.MMMM().format(match.lastDay!)}. Bring them back?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(
-                  matches.length == 1
-                      ? 'Add different person'
-                      : 'Not this person',
-                ),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Bring them back'),
-              ),
-            ],
-          ),
-        );
-        if (bringBack == null || !mounted) return;
-        if (bringBack) {
-          await _reactivateMatchedStaff(match, staffList.sections);
-          return;
-        }
-        allowRecycledCell = true;
-      }
-      final invite = await widget.gateway.addStaffMember(
-        draft,
-        allowRecycledCell: allowRecycledCell,
-      );
-      await widget.inviteComposer.open(invite);
-      await _load();
-    } catch (error) {
-      if (mounted) {
+    final pastStaffOutcome = await _session.loadPastStaff();
+    if (!mounted) return;
+    switch (pastStaffOutcome) {
+      case PastStaffLoadFailed():
         _showError('Could not add the Staff member or open Messages.');
-      }
+        return;
+      case PastStaffLoaded(:final staff):
+        final pastStaff = staff;
+        final matches = pastStaff
+            .where((member) => member.cellNumber == draft.cellNumber)
+            .toList();
+        var allowRecycledCell = false;
+        for (final match in matches) {
+          final bringBack = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Past Staff member found'),
+              content: Text(
+                match.lastDay == null
+                    ? '${match.displayName} was on the Staff list before. Bring them back?'
+                    : '${match.displayName} was on the Staff list until '
+                          '${DateFormat.MMMM().format(match.lastDay!)}. Bring them back?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(
+                    matches.length == 1
+                        ? 'Add different person'
+                        : 'Not this person',
+                  ),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Bring them back'),
+                ),
+              ],
+            ),
+          );
+          if (bringBack == null || !mounted) return;
+          if (bringBack) {
+            await _reactivateMatchedStaff(match, staffList.sections);
+            return;
+          }
+          allowRecycledCell = true;
+        }
+        final outcome = await _session.addStaffMember(
+          draft,
+          allowRecycledCell: allowRecycledCell,
+        );
+        if (!mounted) return;
+        switch (outcome) {
+          case StaffListInviteReady(:final invite):
+            try {
+              await widget.inviteComposer.open(invite);
+            } catch (_) {
+              if (mounted) {
+                _showError('Could not add the Staff member or open Messages.');
+              }
+            }
+          case StaffListInviteFailed():
+            _showError('Could not add the Staff member or open Messages.');
+        }
     }
   }
 
@@ -149,38 +169,52 @@ class _StaffListPageState extends State<StaffListPage> {
           ReactivateDialog(member: member, sections: sections),
     );
     if (reactivation == null || !mounted) return;
-    try {
-      await widget.rules.store.reactivate(
-        Reactivate(
-          staffMemberId: member.id,
-          sectionId: reactivation.sectionId,
-          firstDay: reactivation.firstDay,
-        ),
-      );
-    } catch (_) {
-      if (mounted) _showError('Could not reactivate ${member.displayName}.');
+    final outcome = await _session.reactivate(
+      Reactivate(
+        staffMemberId: member.id,
+        sectionId: reactivation.sectionId,
+        firstDay: reactivation.firstDay,
+      ),
+    );
+    if (!mounted) return;
+    if (outcome is StaffListWriteFailed) {
+      _showError('Could not reactivate ${member.displayName}.');
       return;
     }
-    await _load();
-    try {
-      final invite = await widget.gateway.resendInvite(member.id);
-      await widget.inviteComposer.open(invite);
-    } catch (_) {
-      if (mounted) {
+    final inviteOutcome = await _session.resendInvite(member.id);
+    if (!mounted) return;
+    switch (inviteOutcome) {
+      case StaffListInviteReady(:final invite):
+        try {
+          await widget.inviteComposer.open(invite);
+        } catch (_) {
+          if (mounted) {
+            _showError(
+              '${member.displayName} is back on the Staff list. '
+              'Resend their Invite from there.',
+            );
+          }
+        }
+      case StaffListInviteFailed():
         _showError(
           '${member.displayName} is back on the Staff list. '
           'Resend their Invite from there.',
         );
-      }
     }
   }
 
   Future<void> _resendInvite(StaffListMember member) async {
-    try {
-      final invite = await widget.gateway.resendInvite(member.id);
-      await widget.inviteComposer.open(invite);
-    } catch (error) {
-      if (mounted) _showError('Could not create or text a fresh Invite.');
+    final outcome = await _session.resendInvite(member.id);
+    if (!mounted) return;
+    switch (outcome) {
+      case StaffListInviteReady(:final invite):
+        try {
+          await widget.inviteComposer.open(invite);
+        } catch (_) {
+          if (mounted) _showError('Could not create or text a fresh Invite.');
+        }
+      case StaffListInviteFailed():
+        _showError('Could not create or text a fresh Invite.');
     }
   }
 
@@ -190,13 +224,11 @@ class _StaffListPageState extends State<StaffListPage> {
       builder: (context) => SetLastDayDialog(displayName: member.displayName),
     );
     if (lastDay == null) return;
-    try {
-      await widget.rules.store.setLastDay(
-        SetLastDay(staffMemberId: member.id, lastDay: lastDay),
-      );
-      await _load();
-    } catch (error) {
-      if (mounted) _showError('Could not set the Last day.');
+    final outcome = await _session.setLastDay(
+      SetLastDay(staffMemberId: member.id, lastDay: lastDay),
+    );
+    if (mounted && outcome is StaffListWriteFailed) {
+      _showError('Could not set the Last day.');
     }
   }
 
@@ -213,27 +245,25 @@ class _StaffListPageState extends State<StaffListPage> {
       ),
     );
     if (change == null) return;
-    try {
-      if (change.sectionId case final sectionId?) {
-        await widget.rules.store.changeSection(
-          ChangeSection(
-            staffMemberId: member.id,
-            sectionId: sectionId,
-            from: change.from,
-          ),
-        );
-      }
-      if (change.jobRole case final jobRole?) {
-        await widget.rules.store.changeJobRole(
-          ChangeJobRole(
-            staffMemberId: member.id,
-            jobRole: jobRole,
-            from: change.from,
-          ),
-        );
-      }
-      await _load();
-    } catch (error) {
+    final outcome = await _session.changeSectionOrRole(
+      section: switch (change.sectionId) {
+        final sectionId? => ChangeSection(
+          staffMemberId: member.id,
+          sectionId: sectionId,
+          from: change.from,
+        ),
+        null => null,
+      },
+      jobRole: switch (change.jobRole) {
+        final jobRole? => ChangeJobRole(
+          staffMemberId: member.id,
+          jobRole: jobRole,
+          from: change.from,
+        ),
+        null => null,
+      },
+    );
+    if (mounted && outcome is StaffListWriteFailed) {
       await _load();
       if (mounted) _showError('Could not save the change.');
     }
@@ -282,41 +312,20 @@ class _StaffListPageState extends State<StaffListPage> {
     final moved = reordered.removeAt(oldIndex);
     reordered.insert(newIndex, moved);
 
-    final current = _staffList!;
-    setState(() {
-      _staffList = current.withSectionOrder(section.id, reordered);
-    });
-
-    try {
-      await widget.gateway.reorderSection(
-        section.id,
-        reordered.map((member) => member.id).toList(growable: false),
-      );
-    } catch (error) {
-      await _load();
-      if (mounted) _showError('Could not save the new Staff list order.');
+    final outcome = await _session.reorderMembers(section, reordered);
+    if (mounted && outcome is StaffReorderFailed) {
+      _showError('Could not save the new Staff list order.');
     }
   }
 
   Future<void> _moveSection(int index, int offset) async {
     if (_savingSectionOrder) return;
-    final current = _staffList!;
-    final ordered = [...current.sections];
+    final ordered = [..._staffList!.sections];
     final moved = ordered.removeAt(index);
     ordered.insert(index + offset, moved);
-    setState(() {
-      _staffList = current.withSections(ordered);
-      _savingSectionOrder = true;
-    });
-    try {
-      await widget.gateway.reorderSections([
-        for (final section in ordered) section.id,
-      ]);
-    } catch (_) {
-      await _load();
-      if (mounted) _showError('Could not save the new Section order.');
-    } finally {
-      if (mounted) setState(() => _savingSectionOrder = false);
+    final outcome = await _session.reorderSections(ordered);
+    if (mounted && outcome is StaffReorderFailed) {
+      _showError('Could not save the new Section order.');
     }
   }
 
@@ -328,22 +337,18 @@ class _StaffListPageState extends State<StaffListPage> {
   Future<void> _addSection() async {
     final name = await _sectionName();
     if (name == null) return;
-    try {
-      await widget.gateway.addSection(name);
-      await _load();
-    } catch (_) {
-      if (mounted) _showError('Could not add the Section. Check its name.');
+    final outcome = await _session.addSection(name);
+    if (mounted && outcome is StaffListWriteFailed) {
+      _showError('Could not add the Section. Check its name.');
     }
   }
 
   Future<void> _renameSection(StaffSection section) async {
     final name = await _sectionName(initialName: section.name);
     if (name == null || name == section.name) return;
-    try {
-      await widget.gateway.renameSection(section.id, name);
-      await _load();
-    } catch (_) {
-      if (mounted) _showError('Could not rename the Section. Check its name.');
+    final outcome = await _session.renameSection(section.id, name);
+    if (mounted && outcome is StaffListWriteFailed) {
+      _showError('Could not rename the Section. Check its name.');
     }
   }
 
@@ -368,35 +373,41 @@ class _StaffListPageState extends State<StaffListPage> {
       ),
     );
     if (confirmed != true) return;
-    try {
-      await widget.gateway.deleteEmptySection(section.id);
-      await _load();
-    } on SectionInUseException {
-      if (mounted) {
+    final outcome = await _session.deleteSection(section.id);
+    if (!mounted) return;
+    switch (outcome) {
+      case SectionDeleted():
+        break;
+      case SectionDeleteRefused(:final code):
         _showError(
           'This Section has Staff members or Schedule history and cannot be deleted.',
+          refusalCode: code,
         );
-      }
-    } catch (_) {
-      if (mounted) _showError('Could not delete the Section. Try again.');
+      case SectionDeleteFailed():
+        _showError('Could not delete the Section. Try again.');
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+  void _showError(String message, {String? refusalCode}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      refusalCode == null
+          ? SnackBar(content: Text(message))
+          : mappedRefusalSnackBar(
+              context,
+              message: message,
+              refusal: TicketRefusalContext(
+                screen: 'Staff list',
+                code: refusalCode,
+              ),
+              onAccessRejected: widget.onAccessRejected,
+            ),
+    );
   }
 
   Future<void> _decideInvite(String inviteId, {required bool confirm}) async {
-    try {
-      if (confirm) {
-        await widget.gateway.confirmInviteAcceptance(inviteId);
-      } else {
-        await widget.gateway.rejectInviteAcceptance(inviteId);
-      }
-      await _load();
-    } catch (_) {
-      if (mounted) _showError('Could not update the Invite acceptance.');
+    final outcome = await _session.decideInvite(inviteId, confirm: confirm);
+    if (mounted && outcome is StaffListWriteFailed) {
+      _showError('Could not update the Invite acceptance.');
     }
   }
 

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(29);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000003641', 'maintainer-364@example.test'),
@@ -39,15 +39,19 @@ select set_config('request.jwt.claims',
 
 select lives_ok($$select public.put_in_ticket(
   'problem', 'The Save button did not work.', 'Schedule', '2026-09-01',
-  'abc1234', 'Chrome on Windows', '2026-09-26 14:30:00+00')$$,
+  'abc1234', 'Chrome on Windows', '2026-09-26 14:30:00+00',
+  array['Screen: Schedule', 'RPC: propose_swap', 'Refusal: P2814'],
+  'P2814')$$,
   'a Staff member can put in a problem Ticket');
 select lives_ok($$select public.put_in_ticket(
   'idea', 'Please add a week view.', 'Schedule', '2026-09-01',
-  'abc1234', 'Chrome on Windows', '2026-09-26 14:31:00+00')$$,
+  'abc1234', 'Chrome on Windows', '2026-09-26 14:31:00+00',
+  array['Screen: Schedule'], null)$$,
   'a Staff member can put in an idea Ticket');
 select lives_ok($$select public.put_in_ticket(
   'question', 'Where do I find next month?', 'Schedule', '2026-09-01',
-  'abc1234', 'Chrome on Windows', '2026-09-26 14:32:00+00')$$,
+  'abc1234', 'Chrome on Windows', '2026-09-26 14:32:00+00',
+  array['Screen: Schedule'], null)$$,
   'a Staff member can put in a question Ticket');
 select is((select count(*)::integer from public.tickets), 3,
   'the sender reads all of their own Tickets');
@@ -62,15 +66,27 @@ select is((select device_context from public.tickets order by created_at limit 1
   'Chrome on Windows', 'the device and browser context is retained');
 select is((select schedule_month::text from public.tickets order by created_at limit 1),
   '2026-09-01', 'the viewed Month is retained');
+select is((select recent_actions from public.tickets order by created_at limit 1),
+  array['Screen: Schedule', 'RPC: propose_swap', 'Refusal: P2814'],
+  'recent actions are retained');
+select is((select refusal_code from public.tickets order by created_at limit 1),
+  'P2814', 'the refusal code is retained');
 
 select throws_ok($$select public.put_in_ticket(
-  'problem', '   ', 'Schedule', null, 'abc1234', 'Chrome', now())$$,
+  'problem', '   ', 'Schedule', null, 'abc1234', 'Chrome', now(),
+  array['Screen: Schedule'], null)$$,
   'P2832', 'Ticket text must be between 1 and 2000 characters',
   'blank Ticket text has a stable refusal code');
 select throws_ok($$select public.put_in_ticket(
-  'problem', 'A valid explanation', '', null, 'abc1234', 'Chrome', now())$$,
+  'problem', 'A valid explanation', '', null, 'abc1234', 'Chrome', now(),
+  array['Screen: Schedule'], null)$$,
   'P2833', 'Ticket context is incomplete',
   'missing attached context has a stable refusal code');
+select throws_ok($$select public.put_in_ticket(
+  'problem', 'A valid explanation', 'Schedule', null, 'abc1234', 'Chrome',
+  now(), array[]::text[], null)$$,
+  'P2833', 'Ticket context is incomplete',
+  'a Ticket cannot omit recent actions');
 select throws_ok($$insert into public.tickets(
   sender_id, sender_display_name, kind, text, screen_context,
   release_id, device_context, context_captured_at
@@ -92,7 +108,7 @@ select is((select count(*)::integer from public.tickets), 0,
   'the Manager cannot read another person''s Tickets');
 select lives_ok($$select public.put_in_ticket(
   'question', 'Manager question', 'Schedule', null,
-  'abc1234', 'Safari on iPhone', now())$$,
+  'abc1234', 'Safari on iPhone', now(), array['Screen: Schedule'], null)$$,
   'the Manager can put in their own Ticket');
 
 select set_config('request.jwt.claims',
@@ -102,7 +118,7 @@ select is((select count(*)::integer from public.tickets), 0,
   'an Administrator cannot read another person''s Tickets');
 select lives_ok($$select public.put_in_ticket(
   'idea', 'Administrator idea', 'Schedule', null,
-  'abc1234', 'Edge on Windows', now())$$,
+  'abc1234', 'Edge on Windows', now(), array['Screen: Schedule'], null)$$,
   'an Administrator can put in their own Ticket');
 
 select set_config('request.jwt.claims',
@@ -112,7 +128,7 @@ select is((select count(*)::integer from public.tickets), 0,
   'a Night scheduler cannot read another person''s Tickets');
 select lives_ok($$select public.put_in_ticket(
   'problem', 'Night scheduler problem', 'Schedule', null,
-  'abc1234', 'Chrome on Android', now())$$,
+  'abc1234', 'Chrome on Android', now(), array['Screen: Schedule'], null)$$,
   'a Night scheduler can put in their own Ticket');
 
 select set_config('request.jwt.claims',
@@ -120,7 +136,7 @@ select set_config('request.jwt.claims',
   true);
 select throws_ok($$select public.put_in_ticket(
   'problem', 'No Staff account', 'Schedule', null,
-  'abc1234', 'Chrome', now())$$,
+  'abc1234', 'Chrome', now(), array['Screen: Schedule'], null)$$,
   'P2831', 'A current Staff account is required',
   'an account not linked to Staff cannot put in a Ticket');
 

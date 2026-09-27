@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
@@ -23,6 +24,7 @@ import 'staff/staff_gateway.dart';
 import 'settings/appearance.dart';
 import 'settings/settings_history.dart';
 import 'tickets/ticket_gateway.dart';
+import 'tickets/ticket_activity.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,9 +41,11 @@ Future<void> main() async {
   }
 
   final navigatorKey = GlobalKey<NavigatorState>();
+  final ticketActivity = TicketActivityLog();
   await Supabase.initialize(
     url: supabaseUrl,
     publishableKey: supabasePublishableKey,
+    httpClient: TicketActivityHttpClient(http.Client(), ticketActivity),
   );
 
   final client = Supabase.instance.client;
@@ -51,7 +55,10 @@ Future<void> main() async {
       dependencies: AppDependencies(
         authGateway: SupabaseAuthGateway(
           client,
-          onSignedOut: () => repairController.synchronize(null),
+          onSignedOut: () {
+            ticketActivity.clear();
+            repairController.synchronize(null);
+          },
         ),
         signInFailureLog: SupabaseSignInFailureLog(client),
         scheduleStore: SupabaseScheduleStore(client),
@@ -72,6 +79,7 @@ Future<void> main() async {
         settingsHistory: SupabaseSettingsHistory(client),
         repairController: repairController,
         ticketGateway: SupabaseTicketGateway(client),
+        ticketActivity: ticketActivity,
       ),
       navigatorKey: navigatorKey,
       inviteToken: Uri.base.queryParameters['invite'],

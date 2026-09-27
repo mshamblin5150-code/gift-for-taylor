@@ -2,16 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import '../tickets/ticket_refusal.dart';
 import 'shift_code_change_dialog.dart';
+import 'shift_codes_session.dart';
 
 /// The Shift code catalog. The Manager may edit it; Staff members may read it.
 /// A used code can change meaning or hours; renaming keeps its historical
 /// definition for existing cells, and deletion is refused.
 class ShiftCodesPage extends StatefulWidget {
-  const ShiftCodesPage({super.key, required this.rules, this.readOnly = false});
+  const ShiftCodesPage({
+    super.key,
+    required this.rules,
+    this.readOnly = false,
+    this.onAccessRejected,
+  });
 
   final ScheduleRules rules;
   final bool readOnly;
+  final VoidCallback? onAccessRejected;
 
   @override
   State<ShiftCodesPage> createState() => _ShiftCodesPageState();
@@ -19,11 +27,22 @@ class ShiftCodesPage extends StatefulWidget {
 
 class _ShiftCodesPageState extends State<ShiftCodesPage> {
   static final _validTime = RegExp(r'^([01][0-9]|2[0-3]):[0-5][0-9]$');
-  late Future<List<LegendCode>> _codes = widget.rules.store.shiftCodes();
+  late final ShiftCodesSession _session = ShiftCodesSession(
+    widget.rules.store,
+    widget.onAccessRejected,
+  );
 
-  void _reload() => setState(() {
-    _codes = widget.rules.store.shiftCodes();
-  });
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    recordTicketScreenVisit(context, 'Shift codes');
+  }
+
+  @override
+  void dispose() {
+    _session.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickTime(
     BuildContext context,
@@ -194,26 +213,33 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
     start.dispose();
     end.dispose();
     if (result == null) return;
-    try {
-      final plan = await widget.rules.store.previewShiftCodeChange(
-        result,
-        originalCode: original?.code,
-      );
-      if (!mounted) return;
-      if (plan.isNotEmpty && !await confirmShiftCodeChange(context, plan)) {
+    final review = await _session.review(result, originalCode: original?.code);
+    if (!mounted) return;
+    switch (review) {
+      case ShiftCodeReviewFailed():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not review the Shift code. Try again.'),
+          ),
+        );
         return;
-      }
-      await widget.rules.store.commitShiftCodeChange(
-        result,
-        plan,
-        originalCode: original?.code,
-      );
-      _reload();
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
-      }
+      case ShiftCodeReviewReady(:final plan):
+        if (plan.isNotEmpty && !await confirmShiftCodeChange(context, plan)) {
+          return;
+        }
+        final outcome = await _session.save(
+          result,
+          plan,
+          originalCode: original?.code,
+        );
+        if (!mounted) return;
+        if (outcome case ShiftCodeWriteFailed()) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not save the Shift code. Try again.'),
+            ),
+          );
+        }
     }
   }
 
@@ -236,92 +262,96 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
       ),
     );
     if (confirmed != true) return;
-    try {
-      await widget.rules.store.deleteShiftCode(code.code);
-      _reload();
-    } on ShiftCodeInUse {
-      if (mounted) {
+    final outcome = await _session.delete(code.code);
+    if (!mounted) return;
+    switch (outcome) {
+      case ShiftCodeDeleted() || ShiftCodeSaved():
+        break;
+      case ShiftCodeDeleteRefused(:final code):
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Codes used on the Schedule cannot be deleted.'),
+          mappedRefusalSnackBar(
+            context,
+            message: 'Codes used on the Schedule cannot be deleted.',
+            refusal: TicketRefusalContext(screen: 'Shift codes', code: code),
           ),
         );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
-      }
+      case ShiftCodeWriteFailed():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not delete the Shift code. Try again.'),
+          ),
+        );
     }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Shift codes')),
-    floatingActionButton: widget.readOnly
-        ? null
-        : FloatingActionButton.extended(
-            onPressed: () => _edit(),
-            icon: const Icon(Icons.add),
-            label: const Text('Add code'),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: _session,
+    builder: (context, _) {
+      final state = _session.state;
+      return Scaffold(
+        appBar: AppBar(title: const Text('Shift codes')),
+        floatingActionButton: widget.readOnly
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: () => _edit(),
+                icon: const Icon(Icons.add),
+                label: const Text('Add code'),
+              ),
+        body: switch ((state.codes, state.loadError)) {
+          (_, Object()) => const Center(
+            child: Text('Could not load Shift codes. Try again.'),
           ),
-    body: FutureBuilder<List<LegendCode>>(
-      future: _codes,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Text('Could not load Shift codes: ${snapshot.error}'),
-          );
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        return ListView(
-          children: [
-            if (!widget.readOnly &&
-                snapshot.data!.any(
-                  (code) =>
-                      code.isWorking &&
-                      code.startTime == null &&
-                      code.endTime == null,
-                ))
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Working Shift codes without times appear as all-day calendar events. Tap a code to set its hours or mark it not worked.',
-                  style: Theme.of(context).textTheme.bodyMedium,
+          (null, null) => const Center(child: CircularProgressIndicator()),
+          (final codes?, null) => _codeList(codes),
+        },
+      );
+    },
+  );
+
+  Widget _codeList(List<LegendCode> codes) => ListView(
+    children: [
+      if (!widget.readOnly &&
+          codes.any(
+            (code) =>
+                code.isWorking &&
+                code.startTime == null &&
+                code.endTime == null,
+          ))
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'Working Shift codes without times appear as all-day calendar events. Tap a code to set its hours or mark it not worked.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+      for (final code in codes)
+        ListTile(
+          title: Text(code.code),
+          subtitle: Text(
+            [
+              if (code.hours != null) code.hours!,
+              if (code.isWorking &&
+                  code.startTime == null &&
+                  code.endTime == null)
+                'Time not set',
+              if (code.meaning?.isNotEmpty == true) code.meaning!,
+              if (code.coverageWindow != null)
+                code.coverageWindow == 'day' ? 'Day' : 'Night',
+              if (code.isWorking && code.coverageWindow == null)
+                'No Coverage window',
+              code.isWorking ? 'Worked shift' : 'Not worked',
+            ].join(' · '),
+          ),
+          onTap: widget.readOnly ? null : () => _edit(code),
+          trailing: widget.readOnly
+              ? null
+              : IconButton(
+                  tooltip: 'Delete ${code.code}',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => _delete(code),
                 ),
-              ),
-            for (final code in snapshot.data!)
-              ListTile(
-                title: Text(code.code),
-                subtitle: Text(
-                  [
-                    if (code.hours != null) code.hours!,
-                    if (code.isWorking &&
-                        code.startTime == null &&
-                        code.endTime == null)
-                      'Time not set',
-                    if (code.meaning?.isNotEmpty == true) code.meaning!,
-                    if (code.coverageWindow != null)
-                      code.coverageWindow == 'day' ? 'Day' : 'Night',
-                    if (code.isWorking && code.coverageWindow == null)
-                      'No Coverage window',
-                    code.isWorking ? 'Worked shift' : 'Not worked',
-                  ].join(' · '),
-                ),
-                onTap: widget.readOnly ? null : () => _edit(code),
-                trailing: widget.readOnly
-                    ? null
-                    : IconButton(
-                        tooltip: 'Delete ${code.code}',
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _delete(code),
-                      ),
-              ),
-          ],
-        );
-      },
-    ),
+        ),
+    ],
   );
 }

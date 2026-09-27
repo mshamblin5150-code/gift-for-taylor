@@ -12,6 +12,7 @@ import 'package:er_schedule/auth/sign_in_page.dart';
 import 'package:er_schedule/auth/sign_in_session.dart';
 import 'package:er_schedule/notifications/notice_gateway.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
+import 'package:er_schedule/tickets/ticket_activity.dart';
 import 'package:er_schedule/schedule_theme.dart';
 import 'package:er_schedule/settings/appearance.dart';
 import 'package:er_schedule/settings/settings_page.dart';
@@ -308,10 +309,12 @@ void main() {
 
   testWidgets('signed-in Manager can sign out', (tester) async {
     final gateway = FakeAuthGateway(true);
+    final ticketActivity = TicketActivityLog()..screenVisited('Schedule');
     await tester.pumpWidget(
       ScheduleApp(
         dependencies: appDependencies(
           authGateway: gateway,
+          ticketActivity: ticketActivity,
           scheduleStore: _scheduleStore(const [
             ScheduleSection(id: 'days', name: 'State dayshift RN'),
           ]),
@@ -326,6 +329,33 @@ void main() {
     await tester.pump();
 
     expect(gateway.signOutCount, 1);
+    expect(ticketActivity.snapshot(), isEmpty);
+    expect(find.text('Email me a code'), findsOneWidget);
+  });
+
+  testWidgets('an externally ended auth session clears Ticket activity', (
+    tester,
+  ) async {
+    final gateway = FakeAuthGateway(true);
+    final ticketActivity = TicketActivityLog();
+    await tester.pumpWidget(
+      ScheduleApp(
+        dependencies: appDependencies(
+          authGateway: gateway,
+          ticketActivity: ticketActivity,
+          scheduleStore: _scheduleStore(const [
+            ScheduleSection(id: 'days', name: 'State dayshift RN'),
+          ]),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    ticketActivity.screenVisited('Private session screen');
+
+    gateway.expireSession();
+    await tester.pumpAndSettle();
+
+    expect(ticketActivity.snapshot(), isEmpty);
     expect(find.text('Email me a code'), findsOneWidget);
   });
 
@@ -530,6 +560,7 @@ void main() {
   ) async {
     final authGateway = FakeAuthGateway(true);
     final staffGateway = InMemoryStaffGateway();
+    final ticketActivity = TicketActivityLog()..screenVisited('Schedule');
 
     await tester.pumpWidget(
       ScheduleApp(
@@ -537,6 +568,7 @@ void main() {
           authGateway: authGateway,
           scheduleStore: _scheduleStore(const []),
           staffGateway: staffGateway,
+          ticketActivity: ticketActivity,
         ),
         inviteToken: 'fresh-token',
       ),
@@ -544,6 +576,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(authGateway.signOutCount, 1);
+    expect(ticketActivity.snapshot(), isEmpty);
     expect(find.text('Cell number'), findsOneWidget);
     expect(staffGateway.acceptedToken, isNull);
   });
@@ -637,6 +670,9 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('23505'), findsNothing);
+    await tester.tap(find.text('Put in a ticket about this'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Refusal P2793'), findsOneWidget);
   });
 
   testWidgets('Invite refusals explain what unblocks acceptance', (

@@ -13,6 +13,7 @@ import 'settings/settings_history.dart';
 import 'staff/invite_composer.dart';
 import 'staff/staff_gateway.dart';
 import 'tickets/ticket_gateway.dart';
+import 'tickets/ticket_activity.dart';
 
 /// The adapters wired into one running Schedule app.
 final class AppDependencies {
@@ -34,6 +35,7 @@ final class AppDependencies {
     required this.settingsHistory,
     required this.repairController,
     required this.ticketGateway,
+    required this.ticketActivity,
   }) : rules = ScheduleRules(scheduleStore);
 
   final AuthGateway authGateway;
@@ -53,5 +55,6 @@ final class AppDependencies {
   final SettingsHistory settingsHistory;
   final RepairController repairController;
   final TicketGateway ticketGateway;
+  final TicketActivityLog ticketActivity;
   final ScheduleRules rules;
 }

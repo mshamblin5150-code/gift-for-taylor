@@ -240,7 +240,12 @@ class SettingsPage extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.schedule_outlined),
               title: const Text('Shift codes'),
-              onTap: () => open(ShiftCodesPage(rules: scheduleRules)),
+              onTap: () => open(
+                ShiftCodesPage(
+                  rules: scheduleRules,
+                  onAccessRejected: onAccessRejected,
+                ),
+              ),
             ),
             if (onManageStaff != null) ...[
               ListTile(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +20,8 @@ import 'staff/staff_details_page.dart';
 import 'schedule_theme.dart';
 import 'settings/appearance.dart';
 import 'setup/app_setup_page.dart';
+import 'tickets/ticket_activity.dart';
+import 'tickets/ticket_refusal.dart';
 
 const notificationSetupShownPreferenceKey = 'notification_setup_shown';
 
@@ -60,20 +64,26 @@ class ScheduleApp extends StatelessWidget {
         theme: ScheduleTheme.light,
         darkTheme: ScheduleTheme.dark,
         themeMode: mode,
-        builder: (context, child) => Stack(
-          fit: StackFit.expand,
-          children: [
-            child ?? const SizedBox.shrink(),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: RepairBanner(
-                controller: dependencies.repairController,
-                onClosed: () => navigatorKey?.currentState?.popUntil(
-                  (route) => route.isFirst,
+        builder: (context, child) => TicketLauncherScope(
+          launcher: TicketLauncher(
+            gateway: dependencies.ticketGateway,
+            actions: dependencies.ticketActivity,
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              child ?? const SizedBox.shrink(),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: RepairBanner(
+                  controller: dependencies.repairController,
+                  onClosed: () => navigatorKey?.currentState?.popUntil(
+                    (route) => route.isFirst,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         home: _AuthGate(dependencies: dependencies, inviteToken: inviteToken),
       ),
@@ -93,13 +103,37 @@ class _AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<_AuthGate> {
   late final Future<void> _prepareInviteSignIn = _prepareInvite();
+  late bool _wasSignedIn;
+  late final StreamSubscription<bool> _authActivitySubscription;
   String? _inviteCellNumber;
+
+  @override
+  void initState() {
+    super.initState();
+    _wasSignedIn = widget.dependencies.authGateway.isSignedIn;
+    _authActivitySubscription = widget.dependencies.authGateway.signedInChanges
+        .listen(_authStateChanged);
+  }
+
+  void _authStateChanged(bool signedIn) {
+    if (signedIn != _wasSignedIn) {
+      widget.dependencies.ticketActivity.clear();
+      _wasSignedIn = signedIn;
+    }
+  }
 
   Future<void> _prepareInvite() async {
     if (widget.inviteToken != null &&
         widget.dependencies.authGateway.isSignedIn) {
+      widget.dependencies.ticketActivity.clear();
       await widget.dependencies.authGateway.signOut();
     }
+  }
+
+  @override
+  void dispose() {
+    _authActivitySubscription.cancel();
+    super.dispose();
   }
 
   @override
@@ -298,6 +332,12 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
   final _retryNumber = TextEditingController();
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    recordTicketScreenVisit(context, 'Accept Invite');
+  }
+
+  @override
   void dispose() {
     _retryNumber.dispose();
     super.dispose();
@@ -314,6 +354,13 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
           );
         }
         if (snapshot.hasError) {
+          final refusalCode = switch (snapshot.error) {
+            InviteAcceptanceRefused(:final reason) => reason.code,
+            StaffInviteAlreadyLinkedException(:final refusalCode) =>
+              refusalCode,
+            InvalidInviteException(:final refusalCode) => refusalCode,
+            _ => null,
+          };
           final message = switch (snapshot.error) {
             StaffInviteAlreadyLinkedException() =>
               'This email is already signed in as another Staff member.',
@@ -338,7 +385,19 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(message, textAlign: TextAlign.center),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(message, textAlign: TextAlign.center),
+                    if (refusalCode case final code?)
+                      TicketRefusalButton(
+                        refusal: TicketRefusalContext(
+                          screen: 'Accept Invite',
+                          code: code,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           );
@@ -445,6 +504,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
     try {
       await widget.dependencies.noticeGateway.disablePush();
     } finally {
+      widget.dependencies.ticketActivity.clear();
       await widget.dependencies.authGateway.signOut();
       widget.dependencies.repairController.synchronize(null);
     }

@@ -4,6 +4,10 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  test('used Shift code refusal exposes its SQLSTATE', () {
+    expect(const ShiftCodeInUse().refusalCode, 'P2796');
+  });
+
   for (final code in ['42501', '401', '403']) {
     test('Postgrest $code becomes AccessRejected with its cause', () async {
       final original = PostgrestException(message: 'Access denied', code: code);
@@ -71,6 +75,7 @@ void main() {
           isA<CallInRefused>().having((error) => error.reason, 'reason', value),
         ),
       );
+      expect(value.code, key);
     }
   });
 
@@ -106,6 +111,7 @@ void main() {
           ),
         ),
       );
+      expect(value.code, key);
     }
   });
 
@@ -132,6 +138,7 @@ void main() {
           ),
         ),
       );
+      expect(value.code, key);
     }
   });
 }

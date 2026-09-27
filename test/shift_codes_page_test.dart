@@ -1,10 +1,39 @@
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/shift_codes_page.dart';
+import 'package:er_schedule/tickets/ticket_activity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'support/tickets.dart';
+
 void main() {
+  testWidgets('used Shift code refusal offers a Ticket with P2796', (
+    tester,
+  ) async {
+    final tickets = InMemoryTicketGateway();
+    final rules = _RefusingShiftCodeRules();
+    await tester.pumpWidget(
+      TicketLauncherScope(
+        launcher: TicketLauncher(
+          gateway: tickets,
+          actions: TicketActivityLog(),
+        ),
+        child: MaterialApp(home: ShiftCodesPage(rules: rules)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Delete 7A'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Put in a ticket about this'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Refusal P2796'), findsOneWidget);
+  });
+
   for (final size in [const Size(390, 844), const Size(1280, 800)]) {
     testWidgets('Manager picks and edits 24-hour Shift code times at $size', (
       tester,
@@ -312,4 +341,18 @@ void main() {
       '08:00',
     );
   });
+}
+
+final class _RefusingShiftCodeRules extends Fake implements ScheduleRules {
+  @override
+  final ScheduleStore store = _RefusingShiftCodeStore();
+}
+
+final class _RefusingShiftCodeStore extends Fake implements ScheduleStore {
+  @override
+  Future<List<LegendCode>> shiftCodes() async => const [LegendCode('7A')];
+
+  @override
+  Future<void> deleteShiftCode(String code) =>
+      Future.error(const ShiftCodeInUse());
 }

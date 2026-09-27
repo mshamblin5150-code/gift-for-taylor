@@ -3,6 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  test('standalone Staff refusal exceptions expose their SQLSTATEs', () {
+    expect(const StaffInviteAlreadyLinkedException().refusalCode, 'P2793');
+    expect(const InvalidInviteException().refusalCode, 'P2794');
+    expect(const SectionInUseException().refusalCode, 'P2795');
+  });
+
   test('Manager handover SQLSTATEs map to typed refusal reasons', () async {
     const cases = {
       'P2797': ManagerHandoverRefusal.managerAccessChanged,
@@ -29,6 +35,7 @@ void main() {
           ),
         ),
       );
+      expect(reason.code, code);
     }
   });
 
@@ -61,6 +68,7 @@ void main() {
           ),
         ),
       );
+      expect(reason.code, code);
     }
   });
 

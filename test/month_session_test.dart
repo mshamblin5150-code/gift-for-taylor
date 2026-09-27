@@ -502,7 +502,9 @@ void main() {
         InMemoryStoreCall.startMonth,
         const MonthAlreadyStarted(),
       );
-      expect(await session.startMonth(empty: false), isA<AlreadyStarted>());
+      final alreadyStarted = await session.startMonth(empty: false);
+      expect(alreadyStarted, isA<AlreadyStarted>());
+      expect((alreadyStarted as AlreadyStarted).refusalCode, 'P2791');
       session.dispose();
       final november = create(viewingMonth: DateTime(2026, 11));
       await november.load();
@@ -519,7 +521,9 @@ void main() {
         InMemoryStoreCall.startMonth,
         PreviousMonthNotStarted(),
       );
-      expect(await january.startMonth(empty: false), isA<NoPreviousMonth>());
+      final noPreviousMonth = await january.startMonth(empty: false);
+      expect(noPreviousMonth, isA<NoPreviousMonth>());
+      expect((noPreviousMonth as NoPreviousMonth).refusalCode, 'P2792');
       january.dispose();
     },
   );

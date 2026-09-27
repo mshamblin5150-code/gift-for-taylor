@@ -9,10 +9,16 @@ TicketContext captureTicketContext({
   String release = appReleaseId,
   String? deviceDescription,
   DateTime? capturedAt,
+  List<String> recentActions = const [],
+  String? refusalCode,
 }) => TicketContext(
   screen: screen,
   month: month == null ? null : DateTime(month.year, month.month),
   release: release,
   device: deviceDescription ?? device.ticketDeviceDescription(),
   capturedAt: capturedAt ?? DateTime.now(),
+  recentActions: recentActions.isEmpty
+      ? List.unmodifiable(['Screen: $screen'])
+      : List.unmodifiable(recentActions),
+  refusalCode: refusalCode,
 );
