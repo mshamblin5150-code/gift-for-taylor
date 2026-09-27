@@ -337,6 +337,52 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
     }
   }
 
+  Future<bool> _confirmRedaction(String subject) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Redact $subject?'),
+          content: const Text(
+            'The original text will be removed at once and cannot be restored.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Redact'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+
+  Future<void> _redactTicketText() async {
+    if (!await _confirmRedaction('Ticket text')) return;
+    final outcome = await _session.redactText();
+    if (!mounted) return;
+    setState(() {
+      _message = switch (outcome) {
+        TicketMutationSucceeded() => 'Ticket text redacted.',
+        _ => 'The Ticket text could not be redacted. Try again.',
+      };
+    });
+  }
+
+  Future<void> _redactThreadEntry(TicketThreadEntry entry) async {
+    if (!await _confirmRedaction('this message')) return;
+    final outcome = await _session.redactThreadEntry(entry.id);
+    if (!mounted) return;
+    setState(() {
+      _threadError = switch (outcome) {
+        TicketThreadCommandCompleted() => null,
+        _ => 'The message could not be redacted. Try again.',
+      };
+    });
+  }
+
   Future<String?> _prompt({
     required String title,
     required String label,
@@ -535,7 +581,19 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 6),
-                Text(ticket.text),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: Text(ticket.text)),
+                    if (widget.maintainer && ticket.textRemoval == null)
+                      IconButton(
+                        key: const Key('ticket-redact-text'),
+                        onPressed: working ? null : _redactTicketText,
+                        tooltip: 'Redact Ticket text',
+                        icon: const Icon(Icons.hide_source),
+                      ),
+                  ],
+                ),
                 const SizedBox(height: 20),
                 Text(
                   'Attached context',
@@ -623,7 +681,21 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
                         : ticket.senderDisplayName,
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
-                  Text(entry.text),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: Text(entry.text)),
+                      if (widget.maintainer && entry.textRemoval == null)
+                        IconButton(
+                          key: Key('ticket-redact-entry-${entry.id}'),
+                          onPressed: working
+                              ? null
+                              : () => _redactThreadEntry(entry),
+                          tooltip: 'Redact this message',
+                          icon: const Icon(Icons.hide_source),
+                        ),
+                    ],
+                  ),
                   if (entry.suggestedAnswer case final suggestion?)
                     Text('Suggested answer: $suggestion'),
                   const SizedBox(height: 12),

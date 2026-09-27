@@ -70,6 +70,8 @@ final class InMemoryTicketGateway implements TicketGateway {
     Map<String, Ticket> linkAnswers = const {},
     Map<String, Ticket> closeAnswers = const {},
     Map<String, Ticket> reopenAnswers = const {},
+    Map<String, Ticket> redactTicketAnswers = const {},
+    Map<String, TicketThreadEntry> redactThreadAnswers = const {},
   }) : myTickets = List.unmodifiable(myTickets),
        maintainerTickets = List.unmodifiable(maintainerTickets),
        openAnswers = Map.unmodifiable(openAnswers),
@@ -82,7 +84,9 @@ final class InMemoryTicketGateway implements TicketGateway {
        answerAnswers = Map.unmodifiable(answerAnswers),
        linkAnswers = Map.unmodifiable(linkAnswers),
        closeAnswers = Map.unmodifiable(closeAnswers),
-       reopenAnswers = Map.unmodifiable(reopenAnswers);
+       reopenAnswers = Map.unmodifiable(reopenAnswers),
+       redactTicketAnswers = Map.unmodifiable(redactTicketAnswers),
+       redactThreadAnswers = Map.unmodifiable(redactThreadAnswers);
 
   final List<Ticket> myTickets;
   final List<Ticket> maintainerTickets;
@@ -99,9 +103,13 @@ final class InMemoryTicketGateway implements TicketGateway {
   final Map<String, Ticket> linkAnswers;
   final Map<String, Ticket> closeAnswers;
   final Map<String, Ticket> reopenAnswers;
+  final Map<String, Ticket> redactTicketAnswers;
+  final Map<String, TicketThreadEntry> redactThreadAnswers;
   final List<RecordedGitHubLink> githubLinks = [];
   final List<RecordedTicketClose> closes = [];
   final List<RecordedTicketReopen> reopens = [];
+  final List<String> redactedTicketIds = [];
+  final List<String> redactedThreadEntryIds = [];
   Object? failNext;
 
   @override
@@ -225,6 +233,22 @@ final class InMemoryTicketGateway implements TicketGateway {
         (throw StateError('No recorded reopen answer for Ticket $id.'));
   }
 
+  @override
+  Future<Ticket> redactText(String id) async {
+    _throwFailure();
+    redactedTicketIds.add(id);
+    return redactTicketAnswers[id] ??
+        (throw StateError('No recorded redact answer for Ticket $id.'));
+  }
+
+  @override
+  Future<TicketThreadEntry> redactThreadEntry(String id) async {
+    _throwFailure();
+    redactedThreadEntryIds.add(id);
+    return redactThreadAnswers[id] ??
+        (throw StateError('No recorded redact answer for thread entry $id.'));
+  }
+
   void _throwFailure() {
     if (failNext case final failure?) {
       failNext = null;
@@ -235,6 +259,7 @@ final class InMemoryTicketGateway implements TicketGateway {
 
 Ticket sampleTicket({
   String id = 'ticket-364',
+  String text = 'Save did not work\nThe button stayed busy.',
   TicketState state = TicketState.sent,
   int questionCount = 0,
   bool hasNewReply = false,
@@ -245,12 +270,13 @@ Ticket sampleTicket({
   String? reopenNote,
   bool canReopen = false,
   DateTime? reopenUntil,
+  TicketTextRemoval? textRemoval,
 }) => Ticket(
   id: id,
   senderId: 'sender-364',
   senderDisplayName: 'Taylor Nurse',
   kind: TicketKind.problem,
-  text: 'Save did not work\nThe button stayed busy.',
+  text: text,
   state: state,
   questionCount: questionCount,
   hasNewReply: hasNewReply,
@@ -261,6 +287,7 @@ Ticket sampleTicket({
   reopenNote: reopenNote,
   canReopen: canReopen,
   reopenUntil: reopenUntil,
+  textRemoval: textRemoval,
   context: TicketContext(
     screen: 'Schedule',
     month: DateTime(2026, 9),
@@ -275,13 +302,16 @@ Ticket sampleTicket({
 TicketThreadEntry sampleQuestion({
   String id = 'question-366',
   String ticketId = 'ticket-364',
+  String text = 'Was it the swap with the 14th in it?',
   String? suggestedAnswer = 'It was the swap with the 14th in it.',
+  TicketTextRemoval? textRemoval,
 }) => TicketThreadEntry(
   id: id,
   ticketId: ticketId,
   author: TicketThreadAuthor.maintainer,
-  text: 'Was it the swap with the 14th in it?',
+  text: text,
   suggestedAnswer: suggestedAnswer,
+  textRemoval: textRemoval,
   createdAt: DateTime(2026, 9, 26, 15),
 );
 

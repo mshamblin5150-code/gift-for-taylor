@@ -1,6 +1,18 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+const ticketTextRemovedByMaintainer = 'Text removed by the Maintainer';
+
+enum TicketTextRemoval {
+  maintainer,
+  retention;
+
+  static TicketTextRemoval fromDatabase(String value) => values.firstWhere(
+    (removal) => removal.name == value,
+    orElse: () => throw FormatException('Unknown Ticket text removal: $value'),
+  );
+}
+
 enum TicketKind {
   problem("Something's wrong", 'problem'),
   idea('An idea', 'idea'),
@@ -80,6 +92,7 @@ final class Ticket {
     this.reopenNote,
     this.canReopen = false,
     this.reopenUntil,
+    this.textRemoval,
   });
 
   final String id;
@@ -100,6 +113,7 @@ final class Ticket {
   final String? reopenNote;
   final bool canReopen;
   final DateTime? reopenUntil;
+  final TicketTextRemoval? textRemoval;
 
   String get firstLine => text.split(RegExp(r'\r?\n')).first;
 }
@@ -116,6 +130,7 @@ final class TicketThreadEntry {
     this.suggestedAnswer,
     this.replyToId,
     this.acceptedSuggestion,
+    this.textRemoval,
   });
 
   final String id;
@@ -125,6 +140,7 @@ final class TicketThreadEntry {
   final String? suggestedAnswer;
   final String? replyToId;
   final bool? acceptedSuggestion;
+  final TicketTextRemoval? textRemoval;
   final DateTime createdAt;
 }
 
@@ -199,6 +215,8 @@ abstract interface class TicketGateway {
     required String reason,
   });
   Future<Ticket> reopen(String id, {required String note});
+  Future<Ticket> redactText(String id);
+  Future<TicketThreadEntry> redactThreadEntry(String id);
 }
 
 final class SupabaseTicketGateway implements TicketGateway {
@@ -284,7 +302,7 @@ final class SupabaseTicketGateway implements TicketGateway {
       final rows = await _client
           .from('ticket_thread_entries')
           .select(
-            'id,ticket_id,author,text,suggested_answer,reply_to_id,'
+            'id,ticket_id,author,text,text_removal,suggested_answer,reply_to_id,'
             'accepted_suggestion,created_at',
           )
           .eq('ticket_id', ticketId)
@@ -390,6 +408,29 @@ final class SupabaseTicketGateway implements TicketGateway {
     ),
   );
 
+  @override
+  Future<Ticket> redactText(String id) => _mutation(
+    () => _client.rpc<Map<String, dynamic>>(
+      'redact_ticket_text',
+      params: {'p_ticket_id': id},
+    ),
+  );
+
+  @override
+  Future<TicketThreadEntry> redactThreadEntry(String id) async {
+    try {
+      final row = await _client.rpc<Map<String, dynamic>>(
+        'redact_ticket_thread_entry',
+        params: {'p_entry_id': id},
+      );
+      return _threadEntry(row);
+    } on PostgrestException catch (error) {
+      if (error.code == 'P2845') throw const TicketUnavailable();
+      if (_isAccessRejection(error)) throw AccessRejected(error);
+      rethrow;
+    }
+  }
+
   Future<Ticket> _mutation(Future<Map<String, dynamic>> Function() call) async {
     try {
       final row = await call();
@@ -416,7 +457,8 @@ final class SupabaseTicketGateway implements TicketGateway {
       final query = _client
           .from('tickets')
           .select(
-            'id,sender_id,sender_display_name,kind,text,state,screen_context,'
+            'id,sender_id,sender_display_name,kind,text,text_removal,state,'
+            'screen_context,'
             'schedule_month,release_id,device_context,context_captured_at,'
             'recent_actions,refusal_code,created_at,seen_at,question_count,'
             'latest_reply_at,reply_seen_at,close_reason,closed_at,reopened_at,'
@@ -440,6 +482,9 @@ final class SupabaseTicketGateway implements TicketGateway {
     senderDisplayName: row['sender_display_name'] as String,
     kind: TicketKind.fromDatabase(row['kind'] as String),
     text: row['text'] as String,
+    textRemoval: row['text_removal'] == null
+        ? null
+        : TicketTextRemoval.fromDatabase(row['text_removal'] as String),
     state: TicketState.fromDatabase(row['state'] as String),
     context: TicketContext(
       screen: row['screen_context'] as String,
@@ -489,6 +534,9 @@ final class SupabaseTicketGateway implements TicketGateway {
       ),
     },
     text: row['text'] as String,
+    textRemoval: row['text_removal'] == null
+        ? null
+        : TicketTextRemoval.fromDatabase(row['text_removal'] as String),
     suggestedAnswer: row['suggested_answer'] as String?,
     replyToId: row['reply_to_id'] as String?,
     acceptedSuggestion: row['accepted_suggestion'] as bool?,

@@ -220,6 +220,74 @@ void main() {
     expect(find.byKey(const Key('ticket-question')), findsOneWidget);
   });
 
+  testWidgets('Maintainer can redact Ticket text and one thread message', (
+    tester,
+  ) async {
+    final seen = sampleTicket(state: TicketState.seen);
+    final redacted = sampleTicket(
+      state: TicketState.seen,
+      text: ticketTextRemovedByMaintainer,
+      textRemoval: TicketTextRemoval.maintainer,
+    );
+    final question = sampleQuestion();
+    final redactedQuestion = sampleQuestion(
+      text: ticketTextRemovedByMaintainer,
+      suggestedAnswer: null,
+      textRemoval: TicketTextRemoval.maintainer,
+    );
+    final gateway = InMemoryTicketGateway(
+      openAnswers: {seen.id: seen},
+      threadAnswers: {
+        seen.id: [
+          [question],
+          [redactedQuestion],
+        ],
+      },
+      redactTicketAnswers: {seen.id: redacted},
+      redactThreadAnswers: {question.id: redactedQuestion},
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TicketDetailPage(
+          gateway: gateway,
+          ticket: seen,
+          maintainer: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('ticket-redact-text')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Redact'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(ticketTextRemovedByMaintainer), findsOneWidget);
+    expect(gateway.redactedTicketIds, [seen.id]);
+
+    final redactMessage = find.byKey(
+      const Key('ticket-redact-entry-question-366'),
+    );
+    await tester.scrollUntilVisible(
+      redactMessage,
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.ensureVisible(redactMessage);
+    await tester.pumpAndSettle();
+    await tester.tap(redactMessage);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Redact'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(ticketTextRemovedByMaintainer, skipOffstage: false),
+      findsNWidgets(2),
+    );
+    expect(gateway.redactedThreadEntryIds, [question.id]);
+    expect(find.textContaining('Suggested answer:'), findsNothing);
+  });
+
   testWidgets('Maintainer asks a question with a suggested answer', (
     tester,
   ) async {
