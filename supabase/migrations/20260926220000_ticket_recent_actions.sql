@@ -92,3 +92,40 @@ revoke all on function public.put_in_ticket(
 grant execute on function public.put_in_ticket(
   public.ticket_kind, text, text, date, text, text, timestamptz, text[], text
 ) to authenticated;
+
+-- Keep callers from earlier Ticket migrations working while they adopt the
+-- richer context contract. New app code always uses the overload above.
+create function public.put_in_ticket(
+  p_kind public.ticket_kind,
+  p_text text,
+  p_screen_context text,
+  p_schedule_month date,
+  p_release_id text,
+  p_device_context text,
+  p_context_captured_at timestamptz
+)
+returns uuid
+language sql
+volatile
+security definer
+set search_path = ''
+as $$
+  select public.put_in_ticket(
+    p_kind,
+    p_text,
+    p_screen_context,
+    p_schedule_month,
+    p_release_id,
+    p_device_context,
+    p_context_captured_at,
+    array['Recent actions were not recorded'],
+    null
+  )
+$$;
+
+revoke all on function public.put_in_ticket(
+  public.ticket_kind, text, text, date, text, text, timestamptz
+) from public;
+grant execute on function public.put_in_ticket(
+  public.ticket_kind, text, text, date, text, text, timestamptz
+) to authenticated;
