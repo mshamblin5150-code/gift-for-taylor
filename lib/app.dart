@@ -77,6 +77,7 @@ class ScheduleApp extends StatelessWidget {
                 alignment: Alignment.bottomCenter,
                 child: RepairBanner(
                   controller: dependencies.repairController,
+                  ticketGateway: dependencies.ticketGateway,
                   onClosed: () => navigatorKey?.currentState?.popUntil(
                     (route) => route.isFirst,
                   ),

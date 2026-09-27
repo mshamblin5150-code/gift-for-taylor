@@ -951,38 +951,26 @@ class _MonthGridPageState extends State<MonthGridPage> {
         label: 'Maintainer repairs (break glass)',
         icon: Icons.build_outlined,
         secondary: true,
-        onPressed: () => _open(
-          (context) =>
-              MaintainerRepairPage(controller: widget.repairController),
-        ),
+        onPressed: () => _open((context) => _maintainerRepairPage()),
       ),
     if (_access.maintainer && !_access.isRepairAccess) ...[
       _ScheduleAction(
         label: 'Schedule and Month controls (requires Repair)',
         icon: Icons.lock_outline,
         secondary: true,
-        onPressed: () => _open(
-          (context) =>
-              MaintainerRepairPage(controller: widget.repairController),
-        ),
+        onPressed: () => _open((context) => _maintainerRepairPage()),
       ),
       _ScheduleAction(
         label: 'Approvals (requires Repair)',
         icon: Icons.lock_outline,
         secondary: true,
-        onPressed: () => _open(
-          (context) =>
-              MaintainerRepairPage(controller: widget.repairController),
-        ),
+        onPressed: () => _open((context) => _maintainerRepairPage()),
       ),
       _ScheduleAction(
         label: 'Staff and Invite changes (requires Repair)',
         icon: Icons.lock_outline,
         secondary: true,
-        onPressed: () => _open(
-          (context) =>
-              MaintainerRepairPage(controller: widget.repairController),
-        ),
+        onPressed: () => _open((context) => _maintainerRepairPage()),
       ),
     ],
     _ScheduleAction(
@@ -1227,6 +1215,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
         onPressed: widget.onSignOut,
       ),
   ];
+
+  MaintainerRepairPage _maintainerRepairPage() => MaintainerRepairPage(
+    controller: widget.repairController,
+    ticketGateway: widget.ticketGateway,
+  );
 
   PopupMenuItem<_ScheduleAction> _actionMenuItem(_ScheduleAction action) =>
       PopupMenuItem<_ScheduleAction>(

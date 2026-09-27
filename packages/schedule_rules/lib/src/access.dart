@@ -27,6 +27,7 @@ final class MaintainerRepair {
     required this.expiresAt,
     this.detail,
     this.remaining,
+    this.ticketId,
   });
 
   final String id;
@@ -35,6 +36,7 @@ final class MaintainerRepair {
   final DateTime openedAt;
   final DateTime expiresAt;
   final Duration? remaining;
+  final String? ticketId;
 
   @override
   bool operator ==(Object other) =>
@@ -44,11 +46,19 @@ final class MaintainerRepair {
       detail == other.detail &&
       openedAt == other.openedAt &&
       expiresAt == other.expiresAt &&
-      remaining == other.remaining;
+      remaining == other.remaining &&
+      ticketId == other.ticketId;
 
   @override
-  int get hashCode =>
-      Object.hash(id, category, detail, openedAt, expiresAt, remaining);
+  int get hashCode => Object.hash(
+    id,
+    category,
+    detail,
+    openedAt,
+    expiresAt,
+    remaining,
+    ticketId,
+  );
 }
 
 /// Independent Access grants held by a Staff member.

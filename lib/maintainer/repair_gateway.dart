@@ -1,7 +1,11 @@
 import 'package:schedule_rules/schedule_rules.dart';
 
 abstract interface class RepairGateway {
-  Future<MaintainerRepair> open(RepairReasonCategory category, String? detail);
+  Future<MaintainerRepair> open(
+    RepairReasonCategory category,
+    String? detail, {
+    String? ticketId,
+  });
   Future<void> close(String repairId);
 }
 
@@ -25,5 +29,6 @@ MaintainerRepair? maintainerRepairFromRow(Map<String, dynamic> row) {
             microseconds: (remainingSeconds.toDouble() * 1000000).round(),
           )
         : null,
+    ticketId: (row['repair_ticket_id'] ?? row['ticket_id']) as String?,
   );
 }

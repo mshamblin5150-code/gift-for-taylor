@@ -20,8 +20,12 @@ final class RepairController extends ChangeNotifier {
     _setRepair(repair);
   }
 
-  Future<void> open(RepairReasonCategory category, String? detail) async {
-    _setRepair(await gateway.open(category, detail));
+  Future<void> open(
+    RepairReasonCategory category,
+    String? detail, {
+    String? ticketId,
+  }) async {
+    _setRepair(await gateway.open(category, detail, ticketId: ticketId));
     accessRevision.value += 1;
   }
 

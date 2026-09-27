@@ -66,8 +66,12 @@ class SettingsPage extends StatelessWidget {
       Navigator.push(context, MaterialPageRoute<void>(builder: (_) => page));
     }
 
-    void openRepair() =>
-        open(MaintainerRepairPage(controller: maintainerRepairController));
+    void openRepair() => open(
+      MaintainerRepairPage(
+        controller: maintainerRepairController,
+        ticketGateway: ticketGateway,
+      ),
+    );
 
     ListTile repairRequired(String title, IconData icon) => ListTile(
       leading: Icon(icon),
