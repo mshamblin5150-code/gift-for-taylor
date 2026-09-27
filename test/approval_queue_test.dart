@@ -13,11 +13,17 @@ import 'support/repair.dart';
 
 class _Swaps extends Fake implements SwapStore {
   final items = <Swap>[];
+  SwapProposalRefusal? approvalRefusal;
   @override
   Future<List<Swap>> swaps() async => items;
   @override
-  Future<void> approveSwap(String id) async =>
-      items.removeWhere((s) => s.id == id);
+  Future<void> approveSwap(String id) async {
+    if (approvalRefusal case final reason?) {
+      throw SwapProposalRefused(reason);
+    }
+    items.removeWhere((s) => s.id == id);
+  }
+
   @override
   Future<void> declineSwap(String id, {String? reason}) async =>
       items.removeWhere((s) => s.id == id);
@@ -47,6 +53,66 @@ void main() {
   final requestDay = DateTime(2026, 9, 20);
   final pickupDay = DateTime(2026, 9, 23);
   final swapDay = DateTime(2026, 10, 10);
+
+  testWidgets('Manager sees the pickup refusal when Swap approval fails', (
+    tester,
+  ) async {
+    final swaps = _Swaps()
+      ..approvalRefusal = SwapProposalRefusal.pickupIneligible
+      ..items.add(
+        Swap(
+          id: 'swap',
+          requesterId: 'alice',
+          colleagueId: 'bob',
+          requesterShifts: [
+            SwapShift(date: swapDay, shiftCode: '7A', targetCode: 'X'),
+          ],
+          colleagueShifts: [
+            SwapShift(date: swapDay, shiftCode: '7P', targetCode: 'X'),
+          ],
+          status: SwapStatus.accepted,
+        ),
+      );
+    final db = InMemoryScheduleDatabase(
+      sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],
+      rows: const [
+        ScheduleRow(
+          staffMemberId: 'alice',
+          displayName: 'Alice',
+          sectionId: 'nurses',
+        ),
+        ScheduleRow(
+          staffMemberId: 'bob',
+          displayName: 'Bob',
+          sectionId: 'nurses',
+        ),
+      ],
+      releasedMonths: {DateTime(2026, 10)},
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ApprovalQueuePage(
+          rules: scheduleRulesInMemory(db, actingAs: 'manager'),
+          swapStore: swaps,
+          giveawayStore: emptyGiveawayStore('manager'),
+          openShiftStore: _Pickups(),
+          staffGateway: InMemoryStaffGateway(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Approve'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('A Staff member cannot work one of those shifts.'),
+      findsOneWidget,
+    );
+    expect(swaps.items.single.status, SwapStatus.accepted);
+  });
 
   testWidgets('Manager confirms a pending Invite in the approval queue', (
     tester,

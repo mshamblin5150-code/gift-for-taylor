@@ -5,13 +5,19 @@ final class InMemorySwapDatabase {
   InMemorySwapDatabase({
     required Map<(String, DateTime), String> shifts,
     Map<String, String> cellNumbers = const {},
+    Map<(String, String), List<DateTime>> eligibleDates = const {},
     List<Swap> swaps = const [],
   }) : _shifts = Map.of(shifts),
        _cellNumbers = Map.of(cellNumbers),
+       _eligibleDates = {
+         for (final MapEntry(:key, :value) in eligibleDates.entries)
+           key: value.map(_day).toSet(),
+       },
        _swaps = List.of(swaps);
 
   final Map<(String, DateTime), String> _shifts;
   final Map<String, String> _cellNumbers;
+  final Map<(String, String), Set<DateTime>> _eligibleDates;
   final List<Swap> _swaps;
 
   SwapStore storeFor(String staffMemberId) =>
@@ -32,6 +38,20 @@ final class _InMemorySwapStore implements SwapStore {
 
   @override
   Stream<void> updates() => const Stream<void>.empty();
+
+  @override
+  Future<List<DateTime>> eligibleSwapDates(
+    String fromStaffMemberId,
+    String toStaffMemberId,
+    List<DateTime> dates,
+  ) async {
+    final eligible =
+        database._eligibleDates[(fromStaffMemberId, toStaffMemberId)];
+    return [
+      for (final date in dates.map(_day))
+        if (eligible?.contains(date) ?? false) date,
+    ];
+  }
 
   @override
   Future<String?> colleagueCellNumberForSwap(String swapId) async {

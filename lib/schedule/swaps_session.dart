@@ -51,6 +51,12 @@ final class SwapsWriteFailed extends SwapsWriteOutcome {
   const SwapsWriteFailed();
 }
 
+final class SwapsWriteRefused extends SwapsWriteOutcome {
+  const SwapsWriteRefused(this.reason);
+
+  final SwapProposalRefusal reason;
+}
+
 /// Owns the Swaps page's data, liveness and commands.
 final class SwapsSession extends ChangeNotifier {
   SwapsSession({
@@ -150,6 +156,8 @@ final class SwapsSession extends ChangeNotifier {
       await command();
       await refresh();
       return const SwapsWriteSucceeded();
+    } on SwapProposalRefused catch (error) {
+      return SwapsWriteRefused(error.reason);
     } catch (error) {
       _rejected(error);
       return const SwapsWriteFailed();

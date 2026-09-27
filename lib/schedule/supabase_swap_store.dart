@@ -59,6 +59,23 @@ final class SupabaseSwapStore implements SwapStore {
   }
 
   @override
+  Future<List<DateTime>> eligibleSwapDates(
+    String fromStaffMemberId,
+    String toStaffMemberId,
+    List<DateTime> dates,
+  ) async {
+    final rows = await client.rpc<List<dynamic>>(
+      'eligible_swap_dates',
+      params: {
+        'p_from_staff_member_id': fromStaffMemberId,
+        'p_to_staff_member_id': toStaffMemberId,
+        'p_dates': dates.map(_date).toList(),
+      },
+    );
+    return [for (final value in rows) DateTime.parse(value as String)];
+  }
+
+  @override
   Future<String?> colleagueCellNumberForSwap(String swapId) =>
       client.rpc<String?>(
         'swap_colleague_cell_number',
@@ -111,7 +128,7 @@ final class SupabaseSwapStore implements SwapStore {
   );
 
   @override
-  Future<void> approveSwap(String swapId) => mapAccessRejected(
+  Future<void> approveSwap(String swapId) => mapSwapProposalRefusal(
     () => client.rpc<void>('approve_swap', params: {'p_swap_id': swapId}),
   );
 

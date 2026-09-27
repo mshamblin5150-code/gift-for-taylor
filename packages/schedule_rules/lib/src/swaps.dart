@@ -14,6 +14,7 @@ enum SwapProposalRefusal {
   sourceUnavailable,
   destinationUnavailable,
   noChange,
+  pickupIneligible,
 }
 
 final class SwapProposalRefused implements Exception {
@@ -79,6 +80,11 @@ final class Swap {
 abstract interface class SwapStore {
   Future<List<Swap>> swaps();
   Stream<void> updates();
+  Future<List<DateTime>> eligibleSwapDates(
+    String fromStaffMemberId,
+    String toStaffMemberId,
+    List<DateTime> dates,
+  );
   Future<String?> colleagueCellNumberForSwap(String swapId);
   Future<Swap> proposeSwap(
     String colleagueId,

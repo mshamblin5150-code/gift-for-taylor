@@ -79,6 +79,10 @@ void main() {
         (colleague.staffMemberId, colleagueDay): '7P',
       },
       cellNumbers: {colleague.staffMemberId: '5553334444'},
+      eligibleDates: {
+        (requester.staffMemberId, colleague.staffMemberId): [requesterDay],
+        (colleague.staffMemberId, requester.staffMemberId): [colleagueDay],
+      },
     );
     messages = _RecordingMessagesComposer();
   }
@@ -227,6 +231,16 @@ void main() {
         (colleague.staffMemberId, colleagueDay): '7P',
         (colleague.staffMemberId, colleagueDayTwo): '7P',
       },
+      eligibleDates: {
+        (requester.staffMemberId, colleague.staffMemberId): [
+          requesterDay,
+          requesterDayTwo,
+        ],
+        (colleague.staffMemberId, requester.staffMemberId): [
+          colleagueDay,
+          colleagueDayTwo,
+        ],
+      },
     );
 
     await pumpSchedule(tester);
@@ -295,6 +309,16 @@ void main() {
           (colleague.staffMemberId, colleagueDayTwo): '7P',
         },
         cellNumbers: {colleague.staffMemberId: '5553334444'},
+        eligibleDates: {
+          (requester.staffMemberId, colleague.staffMemberId): [
+            requesterDay,
+            requesterDayTwo,
+          ],
+          (colleague.staffMemberId, requester.staffMemberId): [
+            colleagueDay,
+            colleagueDayTwo,
+          ],
+        },
       );
 
       await pumpSchedule(tester);
@@ -341,18 +365,18 @@ void main() {
     },
   );
 
-  testWidgets('own-cell entry discloses when no colleague can take the set', (
+  testWidgets('own-cell entry names a shift that no colleague can work', (
     tester,
   ) async {
-    await scheduleRulesInMemory(schedule, actingAs: 'manager').saveCell(
-      SaveCell(
-        staffMemberId: colleague.staffMemberId,
-        sectionId: section.id,
-        date: requesterDay,
-        shiftCode: '7P',
-      ),
+    swaps = InMemorySwapDatabase(
+      shifts: {
+        (requester.staffMemberId, requesterDay): '7A',
+        (colleague.staffMemberId, colleagueDay): '7P',
+      },
+      eligibleDates: {
+        (colleague.staffMemberId, requester.staffMemberId): [colleagueDay],
+      },
     );
-    schedule.markAllAnnounced();
 
     await pumpSchedule(tester);
     await openRequesterCell(tester);
@@ -360,12 +384,54 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text(
-        'No one colleague can take all these days. This would need two separate Swaps, and either can be declined on its own.',
-      ),
+      find.text("No colleague in the app can work your Sep 11 7A."),
       findsOneWidget,
     );
+    expect(
+      find.textContaining('This would need two separate Swaps'),
+      findsNothing,
+    );
   });
+
+  testWidgets(
+    'a selected colleague stays selected when a later day is ineligible',
+    (tester) async {
+      final secondDay = DateTime(2026, 9, 12);
+      final manager = scheduleRulesInMemory(schedule, actingAs: 'manager');
+      await manager.saveCell(
+        SaveCell(
+          staffMemberId: requester.staffMemberId,
+          sectionId: section.id,
+          date: secondDay,
+          shiftCode: '7A',
+        ),
+      );
+      schedule.markAllAnnounced();
+      swaps = InMemorySwapDatabase(
+        shifts: {
+          (requester.staffMemberId, requesterDay): '7A',
+          (requester.staffMemberId, secondDay): '7A',
+          (colleague.staffMemberId, colleagueDay): '7P',
+        },
+        eligibleDates: {
+          (requester.staffMemberId, colleague.staffMemberId): [requesterDay],
+          (colleague.staffMemberId, requester.staffMemberId): [colleagueDay],
+        },
+      );
+
+      await pumpSchedule(tester);
+      await openRequesterCell(tester);
+      await tester.tap(find.text('Swap these'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(TextButton, 'Add another shift').first,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sep 12 — 7A'), findsNothing);
+      expect(find.text('Colleague RN'), findsWidgets);
+    },
+  );
 
   testWidgets('Manager-linked Staff edits without a Swap proposal action', (
     tester,
@@ -473,6 +539,10 @@ void main() {
         (colleague.staffMemberId, colleagueDay): '7P',
       },
       cellNumbers: {colleague.staffMemberId: '5553334444'},
+      eligibleDates: {
+        (requester.staffMemberId, colleague.staffMemberId): [octoberDay],
+        (colleague.staffMemberId, requester.staffMemberId): [colleagueDay],
+      },
     );
 
     await pumpSchedule(tester);
