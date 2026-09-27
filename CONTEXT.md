@@ -199,6 +199,8 @@ An exchange two Staff members agree to, of a set of shifts each, which takes
 effect only when the Manager approves it. Both sides offer the same number of
 shifts, and the whole set moves together or not at all, so nobody is left half
 swapped. Its days need not be consecutive and need not share a Schedule month.
+Each of the two could have picked up every shift they receive had it been an
+Open shift, so a Swap opens no route around who may work a shift.
 A stretch no single colleague can cover is two Swaps, and either can be declined
 on its own; the app says so before she proposes.
 _Avoid_: Trade, partial swap
