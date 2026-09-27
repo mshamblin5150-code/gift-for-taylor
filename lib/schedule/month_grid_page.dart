@@ -330,6 +330,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     final choice = await showSwapProposalDialog(
       context,
       rules: widget.rules,
+      swapStore: widget.swapStore,
       initialGrid: grid,
       requesterId: requesterId,
       now: widget.now ?? DateTime.now,

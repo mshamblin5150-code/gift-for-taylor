@@ -43,6 +43,12 @@ final class ApprovalDecisionFailed extends ApprovalDecisionOutcome {
   const ApprovalDecisionFailed();
 }
 
+final class ApprovalDecisionRefused extends ApprovalDecisionOutcome {
+  const ApprovalDecisionRefused(this.reason);
+
+  final SwapProposalRefusal reason;
+}
+
 /// Owns the approval queue's reads, polling, and decision commands.
 final class ApprovalQueueSession extends ChangeNotifier {
   ApprovalQueueSession({
@@ -191,6 +197,8 @@ final class ApprovalQueueSession extends ChangeNotifier {
       _setBusy(false);
       await refresh();
       return const ApprovalDecisionSucceeded();
+    } on SwapProposalRefused catch (error) {
+      return ApprovalDecisionRefused(error.reason);
     } catch (error) {
       _rejected(error);
       return const ApprovalDecisionFailed();

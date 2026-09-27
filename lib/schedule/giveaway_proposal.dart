@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'proposal_disclosure.dart';
+
 import 'messages_composer.dart';
 
 final class GiveawayProposalChoice {
@@ -106,10 +108,14 @@ class _GiveawayProposalDialogState extends State<_GiveawayProposalDialog> {
   late final Set<DateTime> _dates = {
     if (widget.initialDate case final date?) _day(date),
   };
+  late final Map<DateTime, MonthGrid> _grids = {
+    if (widget.initialDate case final date?) _day(date): widget.initialGrid,
+  };
   late MonthGrid _pickerGrid = widget.initialGrid;
   List<GiveawayColleague> _colleagues = const [];
   String? _colleagueId;
   bool _loading = false;
+  Set<DateTime> _uncoveredDates = const {};
 
   @override
   void initState() {
@@ -122,15 +128,25 @@ class _GiveawayProposalDialogState extends State<_GiveawayProposalDialog> {
       setState(() {
         _colleagues = const [];
         _colleagueId = null;
+        _uncoveredDates = const {};
       });
       return;
     }
     setState(() => _loading = true);
     try {
-      final colleagues = await widget.eligibleColleagues(_sorted(_dates));
+      final dates = _sorted(_dates);
+      final results = await Future.wait([
+        widget.eligibleColleagues(dates),
+        for (final date in dates) widget.eligibleColleagues([date]),
+      ]);
+      final colleagues = results.first;
       if (!mounted) return;
       setState(() {
         _colleagues = colleagues;
+        _uncoveredDates = {
+          for (final (index, date) in dates.indexed)
+            if (results[index + 1].isEmpty) date,
+        };
         if (!colleagues.any((c) => c.staffMemberId == _colleagueId)) {
           _colleagueId = colleagues.firstOrNull?.staffMemberId;
         }
@@ -154,6 +170,7 @@ class _GiveawayProposalDialogState extends State<_GiveawayProposalDialog> {
     if (picked == null || !mounted) return;
     setState(() {
       _dates.add(_day(picked.date));
+      _grids[_day(picked.date)] = picked.grid;
       _pickerGrid = picked.grid;
     });
     await _refreshColleagues();
@@ -178,7 +195,10 @@ class _GiveawayProposalDialogState extends State<_GiveawayProposalDialog> {
                 trailing: IconButton(
                   tooltip: 'Remove shift',
                   onPressed: () {
-                    setState(() => _dates.remove(date));
+                    setState(() {
+                      _dates.remove(date);
+                      _grids.remove(date);
+                    });
                     _refreshColleagues();
                   },
                   icon: const Icon(Icons.close),
@@ -195,8 +215,14 @@ class _GiveawayProposalDialogState extends State<_GiveawayProposalDialog> {
             else if (_dates.isEmpty)
               const Text('Choose at least one of your future working shifts.')
             else if (_colleagues.isEmpty)
-              const Text(
-                'No one colleague can take all these days. Choose a smaller set of shifts.',
+              Text(
+                _uncoveredDates.isNotEmpty
+                    ? _noGiveawayColleagueMessage(
+                        _uncoveredDates,
+                        _grids,
+                        widget.giverId,
+                      )
+                    : 'No one colleague can take all these days. Choose a smaller set of shifts.',
               )
             else
               DropdownButtonFormField<String>(
@@ -344,3 +370,17 @@ class _GiveawayDayPickerState extends State<_GiveawayDayPicker> {
 List<DateTime> _sorted(Iterable<DateTime> dates) =>
     [...dates]..sort((a, b) => a.compareTo(b));
 DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
+
+String _noGiveawayColleagueMessage(
+  Iterable<DateTime> dates,
+  Map<DateTime, MonthGrid> grids,
+  String giverId,
+) {
+  final labels = [
+    for (final date in _sorted(dates))
+      '${DateFormat.MMMd().format(date)} '
+              '${grids[date]?.shiftCodeFor(giverId, date) ?? ''}'
+          .trim(),
+  ];
+  return noColleagueCanWorkMessage(labels);
+}

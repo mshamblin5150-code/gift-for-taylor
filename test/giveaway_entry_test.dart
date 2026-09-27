@@ -66,6 +66,9 @@ void main() {
           ),
         ]);
     final rules = scheduleRulesInMemory(schedule, actingAs: 'giver');
+    await rules.store.saveShiftCode(
+      const LegendCode('7A', hours: '7A–7P', isWorking: true),
+    );
     final grid = await rules.monthGrid(DateTime(2027, 10));
     final giveaways = InMemoryGiveawayDatabase(
       shifts: {('giver', date): '7A'},
@@ -108,7 +111,7 @@ void main() {
     );
   });
 
-  testWidgets('Giveaway picker explains when nobody can take the whole set', (
+  testWidgets('Giveaway picker names a day that nobody can work', (
     tester,
   ) async {
     final date = DateTime(2027, 10, 4);
@@ -133,8 +136,6 @@ void main() {
         ]);
     final rules = scheduleRulesInMemory(schedule, actingAs: 'giver');
     final grid = await rules.monthGrid(DateTime(2027, 10));
-    final giveaways = InMemoryGiveawayDatabase(shifts: {('giver', date): '7A'})
-        .storeFor('giver');
 
     await tester.pumpWidget(
       MaterialApp(
@@ -144,7 +145,7 @@ void main() {
               onPressed: () => showGiveawayProposalDialog(
                 context,
                 rules: rules,
-                eligibleColleagues: giveaways.eligibleColleagues,
+                eligibleColleagues: (_) async => const [],
                 initialGrid: grid,
                 giverId: 'giver',
                 now: () => DateTime(2027, 9, 1),
@@ -158,15 +159,11 @@ void main() {
     );
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
+
     expect(
-      find.textContaining('No one colleague can take all these days'),
+      find.text('No colleague in the app can work your Oct 4 7A.'),
       findsOneWidget,
     );
-    expect(
-      tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Propose'))
-          .onPressed,
-      isNull,
-    );
+    expect(find.textContaining('Choose a smaller set'), findsNothing);
   });
 }

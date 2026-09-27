@@ -201,7 +201,12 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
     final outcome = await (approve
         ? item.approve(reason)
         : item.decline(reason));
-    if (outcome is ApprovalDecisionFailed && mounted) {
+    if (!mounted) return;
+    if (outcome case ApprovalDecisionRefused(:final reason)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(swapProposalRefusalMessage(reason))),
+      );
+    } else if (outcome is ApprovalDecisionFailed) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('That decision was not saved. Try again.'),

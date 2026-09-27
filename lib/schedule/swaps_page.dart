@@ -66,6 +66,7 @@ class _SwapsPageState extends State<SwapsPage> {
     final choice = await showSwapProposalDialog(
       context,
       rules: widget.rules,
+      swapStore: widget.swapStore,
       initialGrid: grid,
       requesterId: me,
       now: widget.now,
@@ -145,7 +146,10 @@ class _SwapsPageState extends State<SwapsPage> {
 
   Future<void> _approve(Swap swap) async {
     final outcome = await _session.approve(swap.id);
-    if (outcome is SwapsWriteFailed && mounted) {
+    if (!mounted) return;
+    if (outcome case SwapsWriteRefused(:final reason)) {
+      _message(swapProposalRefusalMessage(reason), refusalCode: reason.code);
+    } else if (outcome is SwapsWriteFailed) {
       _message("That Swap wasn't approved. Try again.");
     }
   }

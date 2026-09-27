@@ -98,6 +98,7 @@ void main() {
       'P2820': SwapProposalRefusal.sourceUnavailable,
       'P2821': SwapProposalRefusal.destinationUnavailable,
       'P2822': SwapProposalRefusal.noChange,
+      'P2831': SwapProposalRefusal.pickupIneligible,
     };
     for (final MapEntry(:key, :value) in reasons.entries) {
       final error = PostgrestException(message: 'backend wording', code: key);

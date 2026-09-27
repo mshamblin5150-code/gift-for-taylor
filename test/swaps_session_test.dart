@@ -83,4 +83,37 @@ void main() {
       SwapStatus.approved,
     );
   });
+
+  test('approval reports pickup eligibility refusal', () async {
+    final store = _RefusingApprovalStore();
+    final session = SwapsSession(
+      rules: scheduleRulesInMemory(
+        InMemoryScheduleDatabase(sections: const []),
+        actingAs: 'manager',
+      ),
+      swapStore: store,
+      month: DateTime(2027, 6),
+    );
+    addTearDown(session.dispose);
+
+    final outcome = await session.approve('swap');
+
+    expect(outcome, isA<SwapsWriteRefused>());
+    expect(
+      (outcome as SwapsWriteRefused).reason,
+      SwapProposalRefusal.pickupIneligible,
+    );
+  });
+}
+
+final class _RefusingApprovalStore extends Fake implements SwapStore {
+  @override
+  Stream<void> updates() => const Stream.empty();
+
+  @override
+  Future<List<Swap>> swaps() async => const [];
+
+  @override
+  Future<void> approveSwap(String swapId) =>
+      throw const SwapProposalRefused(SwapProposalRefusal.pickupIneligible);
 }

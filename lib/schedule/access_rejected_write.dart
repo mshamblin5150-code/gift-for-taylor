@@ -22,6 +22,7 @@ extension SwapProposalRefusalCode on SwapProposalRefusal {
     SwapProposalRefusal.sourceUnavailable => 'P2820',
     SwapProposalRefusal.destinationUnavailable => 'P2821',
     SwapProposalRefusal.noChange => 'P2822',
+    SwapProposalRefusal.pickupIneligible => 'P2831',
   };
 }
 

@@ -22,6 +22,10 @@ insert into public.staff_section_assignments
   (staff_member_id, section_id, display_order, effective_from) values
   ('00000000-0000-0000-0000-000000000286', '00000000-0000-0000-0000-000000000284', 0, '2000-01-01'),
   ('00000000-0000-0000-0000-000000000287', '00000000-0000-0000-0000-000000000284', 1, '2000-01-01');
+insert into public.staff_job_roles
+  (staff_member_id, job_role, effective_from) values
+  ('00000000-0000-0000-0000-000000000286', 'rn', '2000-01-01'),
+  ('00000000-0000-0000-0000-000000000287', 'lpn', '2000-01-01');
 
 set local role authenticated;
 select set_config('request.jwt.claims',
