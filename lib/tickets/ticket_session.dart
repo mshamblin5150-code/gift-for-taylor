@@ -1,7 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'ticket_gateway.dart';
+
+typedef TicketTimerFactory = Timer Function(
+  Duration delay,
+  void Function() callback,
+);
 
 enum TicketFormState { idle, sending }
 
@@ -172,19 +179,42 @@ final class TicketThreadCommandFailed extends TicketThreadCommandOutcome {
   const TicketThreadCommandFailed();
 }
 
+sealed class TicketMutationOutcome {
+  const TicketMutationOutcome();
+}
+
+final class TicketMutationSucceeded extends TicketMutationOutcome {
+  const TicketMutationSucceeded();
+}
+
+final class TicketMutationRefused extends TicketMutationOutcome {
+  const TicketMutationRefused(this.reason);
+  final TicketMutationRefusal reason;
+}
+
+final class TicketMutationFailed extends TicketMutationOutcome {
+  const TicketMutationFailed();
+}
+
 final class TicketDetailSession extends ChangeNotifier {
   TicketDetailSession(
     this._gateway,
     this._ticket,
     this._maintainer, {
     this.onAccessRejected,
-  });
+    DateTime Function()? now,
+    TicketTimerFactory? timerFactory,
+  }) : _now = now ?? DateTime.now,
+       _timerFactory = timerFactory ?? Timer.new;
 
   final TicketGateway _gateway;
   Ticket _ticket;
   final bool _maintainer;
   final VoidCallback? onAccessRejected;
+  final DateTime Function() _now;
+  final TicketTimerFactory _timerFactory;
   TicketDetailState _state = const TicketDetailLoading();
+  Timer? _reopenExpiry;
   bool _disposed = false;
 
   TicketDetailState get state => _state;
@@ -193,10 +223,11 @@ final class TicketDetailSession extends ChangeNotifier {
     try {
       final ticket = _maintainer
           ? await _gateway.openForMaintainer(_ticket.id)
-          : _ticket;
+          : await _gateway.openForSender(_ticket.id);
       _ticket = ticket;
       final thread = await _gateway.readThread(_ticket.id);
       _replace(TicketDetailLoaded(ticket, thread));
+      _scheduleReopenRefresh(ticket);
     } on AccessRejected {
       onAccessRejected?.call();
       _replace(const TicketDetailFailed());
@@ -256,6 +287,75 @@ final class TicketDetailSession extends ChangeNotifier {
     }
   }
 
+  Future<TicketMutationOutcome> linkToGitHub(GitHubIssueLink issue) =>
+      _mutate((ticket) => _gateway.linkToGitHub(ticket.id, issue));
+
+  Future<TicketMutationOutcome> close({
+    required TicketState outcome,
+    required String reason,
+  }) => _mutate(
+    (ticket) => _gateway.close(ticket.id, outcome: outcome, reason: reason),
+  );
+
+  Future<TicketMutationOutcome> reopen({required String note}) =>
+      _mutate((ticket) => _gateway.reopen(ticket.id, note: note));
+
+  Future<TicketMutationOutcome> _mutate(
+    Future<Ticket> Function(Ticket ticket) action,
+  ) async {
+    final current = _state;
+    if (current is! TicketDetailLoaded || current.working) {
+      return const TicketMutationFailed();
+    }
+    _replace(current.withWorking(true));
+    try {
+      final ticket = await action(current.ticket);
+      _ticket = ticket;
+      _replace(TicketDetailLoaded(ticket, current.thread));
+      _scheduleReopenRefresh(ticket);
+      return const TicketMutationSucceeded();
+    } on TicketMutationRejected catch (failure) {
+      _replace(current);
+      return TicketMutationRefused(failure.reason);
+    } on AccessRejected {
+      onAccessRejected?.call();
+      _replace(current);
+      return const TicketMutationFailed();
+    } catch (_) {
+      _replace(current);
+      return const TicketMutationFailed();
+    }
+  }
+
+  void _scheduleReopenRefresh(Ticket ticket) {
+    _reopenExpiry?.cancel();
+    if (_maintainer || !ticket.canReopen || ticket.reopenUntil == null) return;
+    final delay = ticket.reopenUntil!.difference(_now().toUtc());
+    _reopenExpiry = _timerFactory(
+      delay.isNegative
+          ? Duration.zero
+          : delay + const Duration(milliseconds: 10),
+      _refreshReopenVerdict,
+    );
+  }
+
+  Future<void> _refreshReopenVerdict() async {
+    try {
+      final ticket = await _gateway.openForSender(_ticket.id);
+      _ticket = ticket;
+      final current = _state;
+      final thread = current is TicketDetailLoaded
+          ? current.thread
+          : await _gateway.readThread(_ticket.id);
+      _replace(TicketDetailLoaded(ticket, thread));
+      _scheduleReopenRefresh(ticket);
+    } on AccessRejected {
+      onAccessRejected?.call();
+    } catch (_) {
+      // The SQL write path still enforces expiry; refresh again on next open.
+    }
+  }
+
   void _replace(TicketDetailState state) {
     if (_disposed) return;
     _state = state;
@@ -265,6 +365,7 @@ final class TicketDetailSession extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _reopenExpiry?.cancel();
     super.dispose();
   }
 }

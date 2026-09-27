@@ -38,27 +38,57 @@ final class RecordedTicketAnswer {
   final bool acceptSuggestion;
 }
 
+final class RecordedGitHubLink {
+  const RecordedGitHubLink(this.ticketId, this.issue);
+  final String ticketId;
+  final GitHubIssueLink issue;
+}
+
+final class RecordedTicketClose {
+  const RecordedTicketClose(this.ticketId, this.outcome, this.reason);
+  final String ticketId;
+  final TicketState outcome;
+  final String reason;
+}
+
+final class RecordedTicketReopen {
+  const RecordedTicketReopen(this.ticketId, this.note);
+  final String ticketId;
+  final String note;
+}
+
 final class InMemoryTicketGateway implements TicketGateway {
   InMemoryTicketGateway({
     List<Ticket> myTickets = const [],
     List<Ticket> maintainerTickets = const [],
     Map<String, Ticket> openAnswers = const {},
+    Map<String, Ticket> senderOpenAnswers = const {},
+    this.senderOpenAnswer,
     Map<String, List<List<TicketThreadEntry>>> threadAnswers = const {},
     Map<String, Ticket> askAnswers = const {},
     Map<String, Ticket> answerAnswers = const {},
+    Map<String, Ticket> linkAnswers = const {},
+    Map<String, Ticket> closeAnswers = const {},
+    Map<String, Ticket> reopenAnswers = const {},
   }) : myTickets = List.unmodifiable(myTickets),
        maintainerTickets = List.unmodifiable(maintainerTickets),
        openAnswers = Map.unmodifiable(openAnswers),
+       senderOpenAnswers = Map.unmodifiable(senderOpenAnswers),
        threadAnswers = {
          for (final entry in threadAnswers.entries)
            entry.key: [for (final answer in entry.value) List.of(answer)],
        },
        askAnswers = Map.unmodifiable(askAnswers),
-       answerAnswers = Map.unmodifiable(answerAnswers);
+       answerAnswers = Map.unmodifiable(answerAnswers),
+       linkAnswers = Map.unmodifiable(linkAnswers),
+       closeAnswers = Map.unmodifiable(closeAnswers),
+       reopenAnswers = Map.unmodifiable(reopenAnswers);
 
   final List<Ticket> myTickets;
   final List<Ticket> maintainerTickets;
   final Map<String, Ticket> openAnswers;
+  final Map<String, Ticket> senderOpenAnswers;
+  final Ticket Function(String id)? senderOpenAnswer;
   final Map<String, List<List<TicketThreadEntry>>> threadAnswers;
   final Map<String, Ticket> askAnswers;
   final Map<String, Ticket> answerAnswers;
@@ -66,6 +96,12 @@ final class InMemoryTicketGateway implements TicketGateway {
   final List<String> openedIds = [];
   final List<RecordedTicketQuestion> questions = [];
   final List<RecordedTicketAnswer> answers = [];
+  final Map<String, Ticket> linkAnswers;
+  final Map<String, Ticket> closeAnswers;
+  final Map<String, Ticket> reopenAnswers;
+  final List<RecordedGitHubLink> githubLinks = [];
+  final List<RecordedTicketClose> closes = [];
+  final List<RecordedTicketReopen> reopens = [];
   Object? failNext;
 
   @override
@@ -98,6 +134,15 @@ final class InMemoryTicketGateway implements TicketGateway {
     openedIds.add(id);
     return openAnswers[id] ??
         (throw StateError('No recorded open answer for Ticket $id.'));
+  }
+
+  @override
+  Future<Ticket> openForSender(String id) async {
+    _throwFailure();
+    openedIds.add(id);
+    if (senderOpenAnswer case final answer?) return answer(id);
+    return senderOpenAnswers[id] ??
+        (throw StateError('No recorded sender answer for Ticket $id.'));
   }
 
   @override
@@ -151,6 +196,41 @@ final class InMemoryTicketGateway implements TicketGateway {
     return answerAnswers[ticketId] ??
         (throw StateError('No recorded answer result for Ticket $ticketId.'));
   }
+
+  @override
+  Future<Ticket> linkToGitHub(String id, GitHubIssueLink issue) async {
+    _throwFailure();
+    githubLinks.add(RecordedGitHubLink(id, issue));
+    return linkAnswers[id] ??
+        (throw StateError('No recorded link answer for Ticket $id.'));
+  }
+
+  @override
+  Future<Ticket> close(
+    String id, {
+    required TicketState outcome,
+    required String reason,
+  }) async {
+    _throwFailure();
+    closes.add(RecordedTicketClose(id, outcome, reason));
+    return closeAnswers[id] ??
+        (throw StateError('No recorded close answer for Ticket $id.'));
+  }
+
+  @override
+  Future<Ticket> reopen(String id, {required String note}) async {
+    _throwFailure();
+    reopens.add(RecordedTicketReopen(id, note));
+    return reopenAnswers[id] ??
+        (throw StateError('No recorded reopen answer for Ticket $id.'));
+  }
+
+  void _throwFailure() {
+    if (failNext case final failure?) {
+      failNext = null;
+      throw failure;
+    }
+  }
 }
 
 Ticket sampleTicket({
@@ -158,6 +238,13 @@ Ticket sampleTicket({
   TicketState state = TicketState.sent,
   int questionCount = 0,
   bool hasNewReply = false,
+  GitHubIssueLink? githubIssue,
+  String? closeReason,
+  DateTime? closedAt,
+  DateTime? reopenedAt,
+  String? reopenNote,
+  bool canReopen = false,
+  DateTime? reopenUntil,
 }) => Ticket(
   id: id,
   senderId: 'sender-364',
@@ -167,6 +254,13 @@ Ticket sampleTicket({
   state: state,
   questionCount: questionCount,
   hasNewReply: hasNewReply,
+  githubIssue: githubIssue,
+  closeReason: closeReason,
+  closedAt: closedAt,
+  reopenedAt: reopenedAt,
+  reopenNote: reopenNote,
+  canReopen: canReopen,
+  reopenUntil: reopenUntil,
   context: TicketContext(
     screen: 'Schedule',
     month: DateTime(2026, 9),

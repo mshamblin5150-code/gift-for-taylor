@@ -93,6 +93,36 @@ void main() {
     expect(find.textContaining('Sent'), findsOneWidget);
   });
 
+  testWidgets('My tickets shows a closed outcome and its reason', (
+    tester,
+  ) async {
+    final gateway = InMemoryTicketGateway(
+      myTickets: [
+        sampleTicket(
+          state: TicketState.wontDo,
+          closeReason: 'This would make the Schedule harder to read.',
+          closedAt: DateTime(2026, 9, 26),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TicketsPage(
+          gateway: gateway,
+          maintainer: false,
+          ownStaffMemberId: 'sender-364',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining("Won't do"), findsOneWidget);
+    expect(
+      find.textContaining('This would make the Schedule harder to read.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('Maintainer sees context and opening marks the Ticket Seen', (
     tester,
   ) async {
@@ -134,6 +164,11 @@ void main() {
 
     expect(find.text('Private thread'), findsOneWidget);
     expect(find.text('Questions asked: 0 of 2'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('ticket-question')),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.byKey(const Key('ticket-question')), findsOneWidget);
   });
 
@@ -163,6 +198,11 @@ void main() {
     await tester.tap(find.byKey(const Key('ticket-ticket-364')));
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('ticket-question')),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.enterText(
       find.byKey(const Key('ticket-question')),
       'Was it the swap with the 14th in it?',
@@ -201,6 +241,7 @@ void main() {
     );
     final gateway = InMemoryTicketGateway(
       myTickets: [waiting],
+      senderOpenAnswers: {waiting.id: waiting},
       threadAnswers: {
         waiting.id: [
           [sampleQuestion()],
@@ -246,6 +287,7 @@ void main() {
     );
     final gateway = InMemoryTicketGateway(
       myTickets: [waiting],
+      senderOpenAnswers: {waiting.id: waiting},
       threadAnswers: {
         waiting.id: [
           [sampleQuestion()],
@@ -308,6 +350,7 @@ void main() {
     );
     final gateway = InMemoryTicketGateway(
       myTickets: [waiting],
+      senderOpenAnswers: {waiting.id: waiting},
       threadAnswers: {
         waiting.id: [
           [sampleQuestion(suggestedAnswer: null)],
@@ -345,5 +388,139 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('New reply'), findsOneWidget);
+  });
+
+  testWidgets('Maintainer links GitHub and closes Done only after release', (
+    tester,
+  ) async {
+    final seen = sampleTicket(state: TicketState.seen);
+    final linked = sampleTicket(
+      state: TicketState.seen,
+      githubIssue: const GitHubIssueLink(
+        number: 365,
+        url: 'https://github.com/mshamblin5150-code/gift-for-taylor/issues/365',
+      ),
+    );
+    final done = sampleTicket(
+      state: TicketState.done,
+      githubIssue: linked.githubIssue,
+      closeReason: 'The fix is live in release 1.2.3.',
+      closedAt: DateTime.now(),
+    );
+    final gateway = InMemoryTicketGateway(
+      openAnswers: {seen.id: seen},
+      linkAnswers: {seen.id: linked},
+      closeAnswers: {seen.id: done},
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TicketDetailPage(
+          gateway: gateway,
+          ticket: seen,
+          maintainer: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Record GitHub issue'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('ticket-github-url')),
+      'https://github.com/mshamblin5150-code/gift-for-taylor/issues/365',
+    );
+    await tester.tap(find.text('Record issue'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('GitHub issue #365'), findsOneWidget);
+
+    await tester.tap(find.text('Close as Done'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('only when the fix is live in a release'),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const Key('ticket-close-reason')),
+      'The fix is live in release 1.2.3.',
+    );
+    await tester.tap(find.text('Close Ticket'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Done'), findsOneWidget);
+    expect(find.text('The fix is live in release 1.2.3.'), findsOneWidget);
+    expect(gateway.closes.single.outcome, TicketState.done);
+  });
+
+  testWidgets('sender sees the outcome and can reopen within 14 days', (
+    tester,
+  ) async {
+    final done = sampleTicket(
+      state: TicketState.done,
+      closeReason: 'The fix is live now.',
+      closedAt: DateTime.now().subtract(const Duration(days: 13)),
+      canReopen: true,
+      reopenUntil: DateTime.now().add(const Duration(days: 1)),
+    );
+    final reopened = sampleTicket(
+      state: TicketState.seen,
+      closeReason: done.closeReason,
+      closedAt: done.closedAt,
+      reopenedAt: DateTime.now(),
+      reopenNote: 'The same failure happened again.',
+    );
+    final gateway = InMemoryTicketGateway(
+      senderOpenAnswers: {done.id: done},
+      reopenAnswers: {done.id: reopened},
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TicketDetailPage(
+          gateway: gateway,
+          ticket: done,
+          maintainer: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('The fix is live now.'), findsOneWidget);
+    expect(find.textContaining('GitHub issue'), findsNothing);
+    await tester.tap(find.text('Reopen Ticket'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('ticket-reopen-note')),
+      'The same failure happened again.',
+    );
+    await tester.tap(find.text('Reopen'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Reopened · regression'), findsOneWidget);
+    expect(gateway.reopens.single.note, 'The same failure happened again.');
+  });
+
+  testWidgets('sender is pointed to a new Ticket after 14 days', (
+    tester,
+  ) async {
+    final closed = sampleTicket(
+      state: TicketState.wontDo,
+      closeReason: 'This would make the Schedule harder to read.',
+      closedAt: DateTime.now().subtract(const Duration(days: 15)),
+    );
+    final gateway = InMemoryTicketGateway(
+      senderOpenAnswers: {closed.id: closed},
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TicketDetailPage(
+          gateway: gateway,
+          ticket: closed,
+          maintainer: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reopen Ticket'), findsNothing);
+    expect(find.textContaining('put in a new Ticket'), findsOneWidget);
   });
 }
