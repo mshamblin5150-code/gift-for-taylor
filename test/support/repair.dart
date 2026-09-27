@@ -11,8 +11,9 @@ final class NoopRepairGateway implements RepairGateway {
   @override
   Future<MaintainerRepair> open(
     RepairReasonCategory category,
-    String? detail,
-  ) => throw UnsupportedError('No Repair gateway configured');
+    String? detail, {
+    String? ticketId,
+  }) => throw UnsupportedError('No Repair gateway configured');
 
   @override
   Future<void> close(String repairId) async {}

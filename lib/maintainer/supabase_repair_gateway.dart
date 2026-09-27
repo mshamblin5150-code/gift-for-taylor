@@ -11,11 +11,16 @@ final class SupabaseRepairGateway implements RepairGateway {
   @override
   Future<MaintainerRepair> open(
     RepairReasonCategory category,
-    String? detail,
-  ) async {
+    String? detail, {
+    String? ticketId,
+  }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'open_maintainer_repair',
-      params: {'p_reason_category': category.value, 'p_detail': detail},
+      params: {
+        'p_reason_category': category.value,
+        'p_detail': detail,
+        'p_ticket_id': ticketId,
+      },
     );
     final repair = maintainerRepairFromRow(
       rows.single as Map<String, dynamic>,
@@ -27,6 +32,7 @@ final class SupabaseRepairGateway implements RepairGateway {
       openedAt: repair.openedAt,
       expiresAt: repair.expiresAt,
       remaining: repair.expiresAt.difference(repair.openedAt),
+      ticketId: repair.ticketId,
     );
   }
 

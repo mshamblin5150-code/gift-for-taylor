@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import 'ticket_gateway.dart';
+import 'ticket_close_dialog.dart';
 import 'ticket_session.dart';
 
 class PutInTicketPage extends StatefulWidget {
@@ -427,16 +428,7 @@ class _TicketDetailPageState extends State<TicketDetailPage> {
   ).firstMatch(value);
 
   Future<void> _close(TicketState outcome) async {
-    final reason = await _prompt(
-      title: 'Close as ${outcome.label}',
-      label: 'Reason for the sender',
-      fieldKey: const Key('ticket-close-reason'),
-      action: 'Close Ticket',
-      maxLength: 1000,
-      explanation: outcome == TicketState.done
-          ? 'Use Done only when the fix is live in a release, not when its pull request merges.'
-          : 'Explain in plain language why this Ticket will not be done.',
-    );
+    final reason = await showTicketCloseReasonDialog(context, outcome);
     if (reason == null) return;
     await _act(
       _session.close(outcome: outcome, reason: reason),
