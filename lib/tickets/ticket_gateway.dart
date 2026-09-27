@@ -449,7 +449,7 @@ final class SupabaseTicketGateway implements TicketGateway {
       release: row['release_id'] as String,
       device: row['device_context'] as String,
       capturedAt: DateTime.parse(row['context_captured_at'] as String),
-      recentActions: List<String>.from(row['recent_actions'] as List),
+      recentActions: (row['recent_actions'] as List).cast<String>(),
       refusalCode: row['refusal_code'] as String?,
     ),
     createdAt: DateTime.parse(row['created_at'] as String),
