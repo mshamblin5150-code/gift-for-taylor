@@ -300,6 +300,14 @@ final class TicketDetailSession extends ChangeNotifier {
   Future<TicketMutationOutcome> reopen({required String note}) =>
       _mutate((ticket) => _gateway.reopen(ticket.id, note: note));
 
+  Future<TicketMutationOutcome> redactText() =>
+      _mutate((ticket) => _gateway.redactText(ticket.id));
+
+  Future<TicketThreadCommandOutcome> redactThreadEntry(String entryId) =>
+      _runThreadCommand(() async {
+        await _gateway.redactThreadEntry(entryId);
+      });
+
   Future<TicketMutationOutcome> _mutate(
     Future<Ticket> Function(Ticket ticket) action,
   ) async {
