@@ -160,11 +160,13 @@ final class OpenShiftPickup {
     required this.openShiftId,
     required this.staffMemberId,
     required this.status,
+    this.createsShortfall = false,
   });
   final String id;
   final String openShiftId;
   final String staffMemberId;
   final PickupStatus status;
+  final bool createsShortfall;
 }
 
 abstract interface class OpenShiftStore {

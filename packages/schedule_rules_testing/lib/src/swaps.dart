@@ -144,4 +144,5 @@ Swap _copy(Swap swap, SwapStatus status, String? reason) => Swap(
   reason: reason,
   voidedStaffMemberId: swap.voidedStaffMemberId,
   voidedDate: swap.voidedDate,
+  createsShortfall: swap.createsShortfall,
 );

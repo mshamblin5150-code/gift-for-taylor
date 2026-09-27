@@ -99,11 +99,14 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
           title:
               'Swap — ${name(swap.requesterId, swap.firstDate)} ↔ '
               '${name(swap.colleagueId, swap.firstDate)}',
-          detail: swapSummaryFor(
-            swap,
-            perspective: SwapSummaryPerspective.neutral,
-            requesterName: name(swap.requesterId, swap.firstDate),
-            colleagueName: name(swap.colleagueId, swap.firstDate),
+          detail: _withShortfallWarning(
+            swapSummaryFor(
+              swap,
+              perspective: SwapSummaryPerspective.neutral,
+              requesterName: name(swap.requesterId, swap.firstDate),
+              colleagueName: name(swap.colleagueId, swap.firstDate),
+            ),
+            swap.createsShortfall,
           ),
           approve: (reason) =>
               _session.decideSwap(swap.id, approve: true, reason: reason),
@@ -116,9 +119,15 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
           title:
               'Giveaway — ${name(giveaway.giverId, giveaway.firstDate)} → '
               '${name(giveaway.colleagueId, giveaway.firstDate)}',
-          detail:
-              '${giveaway.shifts.map((shift) => '${DateFormat.yMMMd().format(shift.date)} ${shift.shiftCode}').join(', ')}'
-              '${giveaway.createsShortfall ? '\nWarning: approval would create or deepen a Shortfall.' : ''}',
+          detail: _withShortfallWarning(
+            giveaway.shifts
+                .map(
+                  (shift) =>
+                      '${DateFormat.yMMMd().format(shift.date)} ${shift.shiftCode}',
+                )
+                .join(', '),
+            giveaway.createsShortfall,
+          ),
           approve: (reason) => _session.decideGiveaway(
             giveaway.id,
             approve: true,
@@ -136,8 +145,10 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
             date: shift.date,
             title:
                 'Open shift pickup — ${name(pickup.staffMemberId, shift.date)}',
-            detail:
-                '${DateFormat.yMMMd().format(shift.date)} ${shift.shiftCode} • ${shift.jobRole.label}',
+            detail: _withShortfallWarning(
+              '${DateFormat.yMMMd().format(shift.date)} ${shift.shiftCode} • ${shift.jobRole.label}',
+              pickup.createsShortfall,
+            ),
             approve: (reason) =>
                 _session.decidePickup(pickup.id, approve: true, reason: reason),
             decline: (reason) => _session.decidePickup(
@@ -303,6 +314,11 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
     ),
   );
 }
+
+String _withShortfallWarning(String detail, bool createsShortfall) =>
+    createsShortfall
+    ? '$detail\nWarning: approval would create or deepen a Shortfall.'
+    : detail;
 
 final class _Decision {
   const _Decision({

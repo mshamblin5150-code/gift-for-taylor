@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(36);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000281', 'swap-manager@example.test'),
@@ -22,6 +22,10 @@ insert into public.staff_section_assignments
   (staff_member_id, section_id, display_order, effective_from) values
   ('00000000-0000-0000-0000-000000000286', '00000000-0000-0000-0000-000000000284', 0, '2000-01-01'),
   ('00000000-0000-0000-0000-000000000287', '00000000-0000-0000-0000-000000000284', 1, '2000-01-01');
+insert into public.staff_job_roles
+  (staff_member_id, job_role, effective_from) values
+  ('00000000-0000-0000-0000-000000000286', 'rn', '2000-01-01'),
+  ('00000000-0000-0000-0000-000000000287', 'lpn', '2000-01-01');
 
 set local role authenticated;
 select set_config('request.jwt.claims',
@@ -34,8 +38,10 @@ from unnest(array['2027-06-28'::date, '2027-06-29', '2027-07-01',
 select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
   '00000000-0000-0000-0000-000000000284', day, '7P')
 from unnest(array['2027-06-30'::date, '2027-07-02', '2027-07-03',
-  '2027-07-10', '2027-07-16', '2027-07-22', '2027-07-23',
+  '2027-07-16', '2027-07-22', '2027-07-23',
   '2027-07-25', '2027-07-27', '2027-07-29']) day;
+select public.save_schedule_cell('00000000-0000-0000-0000-000000000287',
+  '00000000-0000-0000-0000-000000000284', '2027-07-10', 'D');
 select public.release_month_checked('2027-06-01', true);
 select public.release_month_checked('2027-07-01', true);
 
@@ -77,6 +83,9 @@ select is((select status::text from public.swaps), 'accepted',
 
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select public.set_pool_date_minimum('nurses', 'day', '2027-06-28', 1, 1);
+select is(public.swap_creates_shortfall((select id from public.swaps)), true,
+  'a cross-date RN-to-LPN move warns before Swap approval');
 select lives_ok($$select public.approve_swap((select id from public.swaps))$$,
   'the Manager approves every offered shift atomically');
 select is((select count(*)::int from public.schedule_changes
@@ -103,12 +112,16 @@ select set_config('request.jwt.claims',
 select public.answer_swap((select id from public.swaps where status = 'proposed'), true);
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000281","role":"authenticated"}', true);
+select public.set_pool_date_minimum('nurses', 'day', '2027-07-10', 1, 1);
+select is(public.swap_creates_shortfall(
+  (select id from public.swaps where status = 'accepted')), false,
+  'same-date RN and LPN movements net out before warning');
 select lives_ok($$select public.approve_swap(
   (select id from public.swaps where status = 'accepted'))$$,
   'same-date exchange approves without a special branch');
 select is((select shift_code from public.schedule_cells where staff_member_id =
   '00000000-0000-0000-0000-000000000286' and work_date = '2027-07-10'),
-  '7P', 'requester receives the same-date colleague code');
+  'D', 'requester receives the same-date colleague code');
 select is((select shift_code from public.schedule_cells where staff_member_id =
   '00000000-0000-0000-0000-000000000287' and work_date = '2027-07-10'),
   '7A', 'colleague receives the same-date requester code');

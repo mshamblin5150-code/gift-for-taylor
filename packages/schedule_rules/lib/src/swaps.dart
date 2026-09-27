@@ -56,6 +56,7 @@ final class Swap {
     this.reason,
     this.voidedStaffMemberId,
     this.voidedDate,
+    this.createsShortfall = false,
   });
 
   final String id;
@@ -67,6 +68,7 @@ final class Swap {
   final String? reason;
   final String? voidedStaffMemberId;
   final DateTime? voidedDate;
+  final bool createsShortfall;
 
   DateTime get firstDate => [
     ...requesterShifts,

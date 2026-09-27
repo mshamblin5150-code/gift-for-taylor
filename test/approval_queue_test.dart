@@ -133,6 +133,7 @@ void main() {
             SwapShift(date: swapDay, shiftCode: 'N', targetCode: ''),
           ],
           status: SwapStatus.accepted,
+          createsShortfall: true,
         ),
       );
     final pickups = _Pickups()
@@ -151,6 +152,7 @@ void main() {
           openShiftId: 'open',
           staffMemberId: 'bob',
           status: PickupStatus.pending,
+          createsShortfall: true,
         ),
       );
     final giveaways = InMemoryGiveawayDatabase(
@@ -205,7 +207,7 @@ void main() {
     expect(find.textContaining('Open shift pickup — Bob'), findsOneWidget);
     expect(find.textContaining('Swap — Alice ↔ Bob'), findsOneWidget);
     expect(find.textContaining('Giveaway — Alice → Bob'), findsOneWidget);
-    expect(find.textContaining('Shortfall'), findsOneWidget);
+    expect(find.textContaining('Shortfall'), findsNWidgets(3));
     final requestY = tester
         .getTopLeft(find.textContaining('Request off — Alice'))
         .dy;

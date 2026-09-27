@@ -45,6 +45,12 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
           openShiftId: row['short_shift_id'] as String,
           staffMemberId: row['staff_member_id'] as String,
           status: PickupStatus.values.byName(row['status'] as String),
+          createsShortfall:
+              row['status'] == 'pending' &&
+              await client.rpc<bool>(
+                'open_shift_pickup_creates_shortfall',
+                params: {'p_pickup_id': row['id']},
+              ),
         ),
     ];
   }

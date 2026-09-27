@@ -20,7 +20,18 @@ final class SupabaseSwapStore implements SwapStore {
           'swap_shifts(side, work_date, shift_code, target_code)',
         )
         .order('created_at', ascending: false);
-    return [for (final row in rows) _swap(row)];
+    return [
+      for (final row in rows)
+        _swap(
+          row,
+          createsShortfall:
+              row['status'] == 'accepted' &&
+              await client.rpc<bool>(
+                'swap_creates_shortfall',
+                params: {'p_swap_id': row['id']},
+              ),
+        ),
+    ];
   }
 
   @override
@@ -113,7 +124,7 @@ final class SupabaseSwapStore implements SwapStore {
         ),
       );
 
-  Swap _swap(Map<String, dynamic> row) {
+  Swap _swap(Map<String, dynamic> row, {bool createsShortfall = false}) {
     final shifts = (row['swap_shifts'] as List<dynamic>)
         .cast<Map<String, dynamic>>();
     List<SwapShift> side(String side) => [
@@ -136,6 +147,7 @@ final class SupabaseSwapStore implements SwapStore {
       voidedDate: row['voided_work_date'] == null
           ? null
           : DateTime.parse(row['voided_work_date'] as String),
+      createsShortfall: createsShortfall,
     );
   }
 }
