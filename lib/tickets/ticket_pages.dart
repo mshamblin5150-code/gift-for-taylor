@@ -68,6 +68,8 @@ class _PutInTicketPageState extends State<PutInTicketPage> {
             TicketSubmissionRefusal.textInvalid =>
               'Write between 1 and 2000 characters.',
             TicketSubmissionRefusal.contextIncomplete => 'The attached context is incomplete. Reopen this form and try again.',
+            TicketSubmissionRefusal.tooManyRecently =>
+              'You have sent a lot today; the designer will see them all.',
           };
         });
       case TicketPutInFailed():

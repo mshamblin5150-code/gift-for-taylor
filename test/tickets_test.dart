@@ -120,6 +120,45 @@ void main() {
     expect(find.textContaining('RPC: propose_swap'), findsOneWidget);
   });
 
+  testWidgets('Staff sees the friendly Ticket activity bound refusal', (
+    tester,
+  ) async {
+    final gateway = InMemoryTicketGateway()
+      ..failNext = const TicketSubmissionRefused(
+        TicketSubmissionRefusal.tooManyRecently,
+      );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PutInTicketPage(
+          gateway: gateway,
+          attachedContext: TicketContext(
+            screen: 'Schedule',
+            month: DateTime(2026, 9),
+            release: 'abc1234',
+            device: 'Chrome on Windows',
+            capturedAt: DateTime(2026, 9, 26, 14, 30),
+            recentActions: const ['Screen: Schedule'],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(DropdownButtonFormField<TicketKind>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Something's wrong").last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('ticket-text')),
+      'The Save button did not work.',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Send Ticket'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('You have sent a lot today; the designer will see them all.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('My tickets shows kind, first line, date and state', (
     tester,
   ) async {

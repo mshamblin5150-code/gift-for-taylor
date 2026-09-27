@@ -132,6 +132,7 @@ enum TicketSubmissionRefusal {
   staffAccountRequired,
   textInvalid,
   contextIncomplete,
+  tooManyRecently,
 }
 
 final class TicketSubmissionRefused implements Exception {
@@ -234,6 +235,7 @@ final class SupabaseTicketGateway implements TicketGateway {
         'P2831' => TicketSubmissionRefusal.staffAccountRequired,
         'P2832' => TicketSubmissionRefusal.textInvalid,
         'P2833' => TicketSubmissionRefusal.contextIncomplete,
+        'P2845' => TicketSubmissionRefusal.tooManyRecently,
         _ => null,
       };
       if (reason != null) throw TicketSubmissionRefused(reason);
