@@ -1,8 +1,6 @@
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../refusal_code.dart';
-
 import '../schedule/access_rejected_write.dart';
 import 'staff_contacts.dart';
 import 'access_row.dart';
@@ -131,62 +129,18 @@ enum InviteAcceptanceResult { accepted, cellMismatch, throttled }
 
 final class StaffInviteAlreadyLinkedException implements Exception {
   const StaffInviteAlreadyLinkedException();
-  String get refusalCode => 'P2793';
+  String get refusalCode => InviteLinkRefusal.alreadyLinked.code;
 }
 
 final class InvalidInviteException implements Exception {
   const InvalidInviteException();
-  String get refusalCode => 'P2794';
-}
-
-enum ManagerHandoverRefusal {
-  managerAccessChanged,
-  noActiveManager,
-  sameStaffMember,
-  retainedSectionMissing,
-  successorNoAccount,
-  successorInvitePending,
-  successorAccountRevoked,
-  successorInactive,
-  successorAlreadyManager,
-  successorNoCurrentSection,
-}
-
-extension ManagerHandoverRefusalCode on ManagerHandoverRefusal {
-  String get code => switch (this) {
-    ManagerHandoverRefusal.managerAccessChanged => 'P2797',
-    ManagerHandoverRefusal.noActiveManager => 'P2798',
-    ManagerHandoverRefusal.sameStaffMember => 'P2799',
-    ManagerHandoverRefusal.retainedSectionMissing => 'P2800',
-    ManagerHandoverRefusal.successorNoAccount => 'P2801',
-    ManagerHandoverRefusal.successorInvitePending => 'P2802',
-    ManagerHandoverRefusal.successorAccountRevoked => 'P2803',
-    ManagerHandoverRefusal.successorInactive => 'P2804',
-    ManagerHandoverRefusal.successorAlreadyManager => 'P2805',
-    ManagerHandoverRefusal.successorNoCurrentSection => 'P2806',
-  };
+  String get refusalCode => InviteLinkRefusal.invalid.code;
 }
 
 final class ManagerHandoverRefused implements Exception {
   const ManagerHandoverRefused(this.reason);
 
   final ManagerHandoverRefusal reason;
-}
-
-enum InviteAcceptanceRefusal {
-  staffAcceptancePending,
-  staffAlreadyAccepted,
-  emailAcceptancePending,
-  accountMissingEmail,
-}
-
-extension InviteAcceptanceRefusalCode on InviteAcceptanceRefusal {
-  String get code => switch (this) {
-    InviteAcceptanceRefusal.staffAcceptancePending => 'P2807',
-    InviteAcceptanceRefusal.staffAlreadyAccepted => 'P2808',
-    InviteAcceptanceRefusal.emailAcceptancePending => 'P2809',
-    InviteAcceptanceRefusal.accountMissingEmail => 'P2810',
-  };
 }
 
 final class InviteAcceptanceRefused implements Exception {
@@ -199,12 +153,9 @@ Future<T> mapManagerHandoverRefusal<T>(Future<T> Function() command) async {
   try {
     return await command();
   } on PostgrestException catch (error) {
-    final reason = valueForRefusalCode(
-      ManagerHandoverRefusal.values,
-      error.code,
-      (reason) => reason.code,
-    );
-    if (reason != null) throw ManagerHandoverRefused(reason);
+    if (refusalFor(error.code) case final ManagerHandoverRefusal reason) {
+      throw ManagerHandoverRefused(reason);
+    }
     rethrow;
   }
 }
@@ -213,24 +164,21 @@ Future<T> mapInviteAcceptanceRefusal<T>(Future<T> Function() command) async {
   try {
     return await command();
   } on PostgrestException catch (error) {
-    final reason = valueForRefusalCode(
-      InviteAcceptanceRefusal.values,
-      error.code,
-      (reason) => reason.code,
-    );
-    if (reason != null) throw InviteAcceptanceRefused(reason);
+    if (refusalFor(error.code) case final InviteAcceptanceRefusal reason) {
+      throw InviteAcceptanceRefused(reason);
+    }
     rethrow;
   }
 }
 
 final class SectionInUseException implements Exception {
   const SectionInUseException();
-  String get refusalCode => 'P2795';
+  String get refusalCode => SectionRefusal.staffMembersAssigned.code;
 }
 
 final class SectionHasScheduleHistoryException implements Exception {
   const SectionHasScheduleHistoryException();
-  String get refusalCode => 'P2849';
+  String get refusalCode => SectionRefusal.scheduleHistory.code;
 }
 
 final class PendingInviteAcceptance {
@@ -629,9 +577,11 @@ final class SupabaseStaffGateway implements StaffGateway {
         ),
       );
     } on PostgrestException catch (error) {
-      if (error.code == 'P2795') throw const SectionInUseException();
-      if (error.code == 'P2849') {
-        throw const SectionHasScheduleHistoryException();
+      switch (refusalFor(error.code)) {
+        case SectionRefusal.staffMembersAssigned:
+          throw const SectionInUseException();
+        case SectionRefusal.scheduleHistory:
+          throw const SectionHasScheduleHistoryException();
       }
       rethrow;
     }
@@ -662,10 +612,12 @@ final class SupabaseStaffGateway implements StaffGateway {
         ),
       );
     } on PostgrestException catch (error) {
-      if (error.code == 'P2793') {
-        throw const StaffInviteAlreadyLinkedException();
+      switch (refusalFor(error.code)) {
+        case InviteLinkRefusal.alreadyLinked:
+          throw const StaffInviteAlreadyLinkedException();
+        case InviteLinkRefusal.invalid:
+          throw const InvalidInviteException();
       }
-      if (error.code == 'P2794') throw const InvalidInviteException();
       rethrow;
     }
     return switch (result) {

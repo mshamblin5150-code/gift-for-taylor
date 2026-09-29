@@ -3,10 +3,12 @@ library;
 import 'dart:async';
 
 import 'src/access.dart';
+import 'src/refusals.dart';
 
 export 'src/access.dart';
 export 'src/book_page.dart';
 export 'src/first_month_transcript.dart';
+export 'src/refusals.dart';
 
 part 'src/change_announcement.dart';
 part 'src/swaps.dart';
@@ -175,13 +177,6 @@ abstract interface class ScheduleStore {
 
 enum CallInWithdrawalState { withdrawable, settled, notRecorded }
 
-enum CallInRefusal {
-  recorderNotWorking,
-  targetNotWorking,
-  settled,
-  notRecorded,
-}
-
 final class CallInRefused implements Exception {
   const CallInRefused(this.reason);
 
@@ -210,7 +205,7 @@ final class MonthAlreadyStarted implements Exception {
 /// A Shift code used by a Schedule cannot be deleted.
 final class ShiftCodeInUse implements Exception {
   const ShiftCodeInUse();
-  String get refusalCode => 'P2796';
+  String get refusalCode => ShiftCodeRefusal.inUse.code;
 }
 
 /// The month to copy from has no Schedule yet.

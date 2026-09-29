@@ -144,41 +144,18 @@ final class TicketThreadEntry {
   final DateTime createdAt;
 }
 
-enum TicketSubmissionRefusal {
-  staffAccountRequired,
-  textInvalid,
-  contextIncomplete,
-  tooManyRecently,
-}
-
 final class TicketSubmissionRefused implements Exception {
   const TicketSubmissionRefused(this.reason);
   final TicketSubmissionRefusal reason;
 }
 
-final class TicketUnavailable implements Exception {
-  const TicketUnavailable();
-}
-
-enum TicketThreadRefusal {
-  questionInvalid,
-  ticketNotReady,
-  answerInvalid,
-  questionNotWaiting,
+final class TicketUnavailableException implements Exception {
+  const TicketUnavailableException();
 }
 
 final class TicketThreadRefused implements Exception {
   const TicketThreadRefused(this.reason);
   final TicketThreadRefusal reason;
-}
-
-enum TicketMutationRefusal {
-  invalidGitHubIssue,
-  closingReasonRequired,
-  cannotClose,
-  reopeningNoteRequired,
-  cannotReopen,
-  reopenExpired,
 }
 
 final class TicketMutationRejected implements Exception {
@@ -249,14 +226,9 @@ final class SupabaseTicketGateway implements TicketGateway {
         },
       );
     } on PostgrestException catch (error) {
-      final reason = switch (error.code) {
-        'P2831' => TicketSubmissionRefusal.staffAccountRequired,
-        'P2832' => TicketSubmissionRefusal.textInvalid,
-        'P2833' => TicketSubmissionRefusal.contextIncomplete,
-        'P2845' => TicketSubmissionRefusal.tooManyRecently,
-        _ => null,
-      };
-      if (reason != null) throw TicketSubmissionRefused(reason);
+      if (refusalFor(error.code) case final TicketSubmissionRefusal reason) {
+        throw TicketSubmissionRefused(reason);
+      }
       if (_isAccessRejection(error)) throw AccessRejected(error);
       rethrow;
     }
@@ -277,7 +249,9 @@ final class SupabaseTicketGateway implements TicketGateway {
       );
       return _ticket(row);
     } on PostgrestException catch (error) {
-      if (error.code == 'P2834') throw const TicketUnavailable();
+      if (refusalFor(error.code) == TicketUnavailable.ticketNotFound) {
+        throw const TicketUnavailableException();
+      }
       if (_isAccessRejection(error)) throw AccessRejected(error);
       rethrow;
     }
@@ -292,7 +266,9 @@ final class SupabaseTicketGateway implements TicketGateway {
       );
       return _ticket(row);
     } on PostgrestException catch (error) {
-      if (error.code == 'P2834') throw const TicketUnavailable();
+      if (refusalFor(error.code) == TicketUnavailable.ticketNotFound) {
+        throw const TicketUnavailableException();
+      }
       if (_isAccessRejection(error)) throw AccessRejected(error);
       rethrow;
     }
@@ -333,12 +309,9 @@ final class SupabaseTicketGateway implements TicketGateway {
       );
       return _ticket(row);
     } on PostgrestException catch (error) {
-      final reason = switch (error.code) {
-        'P2841' => TicketThreadRefusal.questionInvalid,
-        'P2842' => TicketThreadRefusal.ticketNotReady,
-        _ => null,
-      };
-      if (reason != null) throw TicketThreadRefused(reason);
+      if (refusalFor(error.code) case final TicketThreadRefusal reason) {
+        throw TicketThreadRefused(reason);
+      }
       if (_isAccessRejection(error)) throw AccessRejected(error);
       rethrow;
     }
@@ -363,12 +336,9 @@ final class SupabaseTicketGateway implements TicketGateway {
       );
       return _ticket(row);
     } on PostgrestException catch (error) {
-      final reason = switch (error.code) {
-        'P2843' => TicketThreadRefusal.answerInvalid,
-        'P2844' => TicketThreadRefusal.questionNotWaiting,
-        _ => null,
-      };
-      if (reason != null) throw TicketThreadRefused(reason);
+      if (refusalFor(error.code) case final TicketThreadRefusal reason) {
+        throw TicketThreadRefused(reason);
+      }
       if (_isAccessRejection(error)) throw AccessRejected(error);
       rethrow;
     }
@@ -427,7 +397,9 @@ final class SupabaseTicketGateway implements TicketGateway {
       );
       return _threadEntry(row);
     } on PostgrestException catch (error) {
-      if (error.code == 'P2847') throw const TicketUnavailable();
+      if (refusalFor(error.code) == TicketUnavailable.threadEntryNotFound) {
+        throw const TicketUnavailableException();
+      }
       if (_isAccessRejection(error)) throw AccessRejected(error);
       rethrow;
     }
@@ -438,17 +410,13 @@ final class SupabaseTicketGateway implements TicketGateway {
       final row = await call();
       return _ticket(row);
     } on PostgrestException catch (error) {
-      final reason = switch (error.code) {
-        'P2835' => TicketMutationRefusal.invalidGitHubIssue,
-        'P2836' => TicketMutationRefusal.closingReasonRequired,
-        'P2837' => TicketMutationRefusal.cannotClose,
-        'P2838' => TicketMutationRefusal.reopeningNoteRequired,
-        'P2839' => TicketMutationRefusal.cannotReopen,
-        'P2840' => TicketMutationRefusal.reopenExpired,
-        _ => null,
-      };
-      if (reason != null) throw TicketMutationRejected(reason);
-      if (error.code == 'P2834') throw const TicketUnavailable();
+      final refusal = refusalFor(error.code);
+      if (refusal case final TicketMutationRefusal reason) {
+        throw TicketMutationRejected(reason);
+      }
+      if (refusal == TicketUnavailable.ticketNotFound) {
+        throw const TicketUnavailableException();
+      }
       if (_isAccessRejection(error)) throw AccessRejected(error);
       rethrow;
     }

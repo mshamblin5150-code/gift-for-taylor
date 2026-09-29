@@ -5,7 +5,6 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'messages_composer.dart';
 import 'swap_proposal.dart';
 import 'swaps_session.dart';
-import 'access_rejected_write.dart';
 import '../tickets/ticket_refusal.dart';
 
 class SwapsPage extends StatefulWidget {

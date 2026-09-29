@@ -1,3 +1,5 @@
+import 'package:schedule_rules/schedule_rules.dart';
+
 import 'staff_gateway.dart';
 
 String? managerHandoverRefusalWording(Object? error) => switch (error) {

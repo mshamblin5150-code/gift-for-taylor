@@ -1,6 +1,7 @@
 import 'package:er_schedule/staff/refusal_wording.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:schedule_rules/schedule_rules.dart';
 
 void main() {
   test('every Manager handover refusal has actionable page wording', () {
