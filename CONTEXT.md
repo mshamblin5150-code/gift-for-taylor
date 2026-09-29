@@ -30,6 +30,10 @@ _Avoid_: Elevate, sudo, admin mode
 What a Staff member puts in to tell the designer something about the app: that something's wrong, an idea, or a question. It stays private to the Maintainer, who reads it wearing the hat without breaking the glass; publishing it as a GitHub issue is a separate, deliberate act. The sender can follow it from sent, to seen, to done or won't do, and is told why when it closes. The Maintainer may ask the sender a question on it, and it then waits on her answer; that conversation stays private too. A Ticket may lead to a Repair, which then names it as its cause without telling the Manager who sent it, but most never need one.
 _Avoid_: Report (on the floor, report is the shift handover of patients), feedback, bug, issue
 
+**Refusal**:
+The app declining something a Staff member asked for because a rule forbids it as things stand: the month is already started, that colleague cannot work the shift. She is told why in a sentence, and may put in a Ticket about it if she thinks the rule is wrong; the Ticket names the Refusal. It is not being asked to sign in again, which says nothing about the request, and not a failure that goes away if she tries again.
+_Avoid_: Error, rejection, denial
+
 **Night scheduler**:
 A Staff member granted permission to edit specific Sections (today, the night sections). Their edits take effect at once; the Manager can override them. They can read unpublished Schedules and the Change log, so they can see when an edit of theirs was overridden.
 _Avoid_: Co-scheduler, assistant manager
