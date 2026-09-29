@@ -70,7 +70,8 @@ select lives_ok($$select public.record_call_in('00000000-0000-0000-0000-00000000
 select public.withdraw_call_in('00000000-0000-0000-0000-000000000907', '2027-10-14');
 set local role authenticated;
 select throws_ok($$select public.withdraw_call_in('00000000-0000-0000-0000-000000000907', '2027-10-14')$$,
-  'There is no Call-in to withdraw', 'withdrawal cannot be repeated');
+  'P2848', 'There is no Call-in to withdraw',
+  'withdrawal cannot be repeated');
 
 reset role;
 insert into public.schedule_cells(schedule_month_id, staff_member_id, section_id, work_date, shift_code)

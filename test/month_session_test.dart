@@ -51,6 +51,7 @@ final class _ObservedRules extends Fake implements ScheduleRules {
   bool? acknowledged;
   String? releaseCall;
   Completer<void>? pairGate;
+  Object? withdrawCallInError;
   @override
   late final ScheduleStore store = _ObservedStore(this, delegate.store);
 
@@ -97,6 +98,14 @@ final class _ObservedStore extends Fake implements ScheduleStore {
   Future<void> writeCellPair(SaveCellPair action) async {
     await rules.pairGate?.future;
     await delegate.writeCellPair(action);
+  }
+
+  @override
+  Future<void> withdrawCallIn(String staffMemberId, DateTime date) {
+    if (rules.withdrawCallInError case final error?) {
+      return Future.error(error);
+    }
+    return delegate.withdrawCallIn(staffMemberId, date);
   }
 
   @override
@@ -209,6 +218,21 @@ void main() {
     expect(session.state, isNot(same(first)));
     expect(session.state, first);
     expect(session.state.hashCode, first.hashCode);
+    session.dispose();
+  });
+
+  test('missing Call-in withdrawal keeps its own refusal reason', () async {
+    final rules = _ObservedRules(manager)
+      ..withdrawCallInError = const CallInRefused(CallInRefusal.notRecorded);
+    final session = create(rules: rules);
+
+    final outcome = await session.withdrawCallIn(alice, DateTime(2026, 9, 18));
+
+    expect(outcome, isA<WithdrawCallInRefused>());
+    expect(
+      (outcome as WithdrawCallInRefused).reason,
+      CallInRefusal.notRecorded,
+    );
     session.dispose();
   });
 

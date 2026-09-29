@@ -162,7 +162,7 @@ select throws_ok($$select public.redact_ticket_text(
   'redacting requires an existing Ticket');
 select throws_ok($$select public.redact_ticket_thread_entry(
     'ffffffff-ffff-ffff-ffff-ffffffffffff')$$,
-  'P2845', 'Ticket thread message not found',
+  'P2847', 'Ticket thread message not found',
   'redacting requires an existing thread message');
 select is((select text from public.tickets
     where id = (select id from tickets_369 where kind = 'idea')),

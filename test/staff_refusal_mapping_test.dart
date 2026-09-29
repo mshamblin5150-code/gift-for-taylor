@@ -7,6 +7,7 @@ void main() {
     expect(const StaffInviteAlreadyLinkedException().refusalCode, 'P2793');
     expect(const InvalidInviteException().refusalCode, 'P2794');
     expect(const SectionInUseException().refusalCode, 'P2795');
+    expect(const SectionHasScheduleHistoryException().refusalCode, 'P2849');
   });
 
   test('Manager handover SQLSTATEs map to typed refusal reasons', () async {

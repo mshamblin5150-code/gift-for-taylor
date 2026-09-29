@@ -379,10 +379,12 @@ class _StaffListPageState extends State<StaffListPage> {
       case SectionDeleted():
         break;
       case SectionDeleteRefused(:final code):
-        _showError(
-          'This Section has Staff members or Schedule history and cannot be deleted.',
-          refusalCode: code,
-        );
+        _showError(switch (code) {
+          'P2795' => "This Section has Staff members, so it can't be deleted.",
+          'P2849' =>
+            "This Section has Schedule history, so it can't be deleted.",
+          _ => "This Section can't be deleted.",
+        }, refusalCode: code);
       case SectionDeleteFailed():
         _showError('Could not delete the Section. Try again.');
     }

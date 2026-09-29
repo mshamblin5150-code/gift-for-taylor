@@ -453,6 +453,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
         'That Staff member no longer has a working Shift to call in from.',
       RecordCallInRefused(reason: CallInRefusal.settled) =>
         'That Call-in is already settled.',
+      RecordCallInRefused(reason: CallInRefusal.notRecorded) =>
+        'There is no recorded Call-in.',
       RecordCallInFailed() => "The Call-in wasn't recorded. Try again.",
     };
     final refusalCode = switch (outcome) {
@@ -484,8 +486,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
       WithdrawCallInRefused(reason: CallInRefusal.recorderNotWorking) =>
         'You must be working now to withdraw a Call-in.',
       WithdrawCallInRefused(reason: CallInRefusal.targetNotWorking) =>
-        'There is no recorded Call-in to withdraw.',
+        'That Staff member no longer has a working Shift.',
       WithdrawCallInRefused(reason: CallInRefusal.settled) => 'This Call-in is settled because an Open shift was filled, so it cannot be withdrawn.',
+      WithdrawCallInRefused(reason: CallInRefusal.notRecorded) =>
+        'There is no recorded Call-in to withdraw.',
       WithdrawCallInFailed() => "The Call-in wasn't withdrawn. Try again.",
     };
     final refusalCode = switch (outcome) {

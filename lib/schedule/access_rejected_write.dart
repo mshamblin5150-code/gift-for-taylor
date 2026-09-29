@@ -8,6 +8,7 @@ extension CallInRefusalCode on CallInRefusal {
     CallInRefusal.recorderNotWorking => 'P2811',
     CallInRefusal.targetNotWorking => 'P2812',
     CallInRefusal.settled => 'P2813',
+    CallInRefusal.notRecorded => 'P2848',
   };
 }
 
@@ -22,7 +23,7 @@ extension SwapProposalRefusalCode on SwapProposalRefusal {
     SwapProposalRefusal.sourceUnavailable => 'P2820',
     SwapProposalRefusal.destinationUnavailable => 'P2821',
     SwapProposalRefusal.noChange => 'P2822',
-    SwapProposalRefusal.pickupIneligible => 'P2831',
+    SwapProposalRefusal.pickupIneligible => 'P2846',
   };
 }
 

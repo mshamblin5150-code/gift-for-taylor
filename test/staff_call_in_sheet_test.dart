@@ -162,6 +162,26 @@ void main() {
     );
   });
 
+  testWidgets('a vanished Call-in has its own withdrawal sentence', (
+    tester,
+  ) async {
+    await database.storeFor('recorder').recordCallIn('colleague', day);
+    await pumpSchedule(tester);
+    await openMonthCell(tester);
+    database.failNext(
+      InMemoryStoreCall.withdrawCallIn,
+      const CallInRefused(CallInRefusal.notRecorded),
+    );
+
+    await tester.tap(find.text('Withdraw the Call-in'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('There is no recorded Call-in to withdraw.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('a settled Call-in names why withdrawal is unavailable', (
     tester,
   ) async {

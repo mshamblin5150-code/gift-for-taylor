@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(15);
 
 insert into auth.users(id, email) values
   ('00000000-0000-0000-0000-000000003701', 'maintainer-370@example.test'),
@@ -34,6 +34,11 @@ select public.put_in_ticket(
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000003701","role":"authenticated"}',
   true);
+select throws_ok($$select public.open_maintainer_repair(
+  'investigation', 'Trace a missing Ticket',
+  'ffffffff-ffff-ffff-ffff-ffffffffffff')$$,
+  'P2834', 'Ticket not found',
+  'a missing Ticket uses the shared Ticket-not-found Refusal');
 select lives_ok($$select public.open_maintainer_repair(
   'investigation', 'Correct the Schedule failure',
   (select id from public.tickets limit 1))$$,
