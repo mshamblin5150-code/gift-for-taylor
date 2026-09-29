@@ -26,7 +26,10 @@ void main() {
     final outcome = await session.deleteSection('days');
 
     expect(outcome, isA<SectionDeleteRefused>());
-    expect((outcome as SectionDeleteRefused).code, 'P2795');
+    expect(
+      (outcome as SectionDeleteRefused).reason,
+      SectionRefusal.staffMembersAssigned,
+    );
     session.dispose();
   });
 
@@ -49,7 +52,10 @@ void main() {
     final outcome = await session.deleteSection('days');
 
     expect(outcome, isA<SectionDeleteRefused>());
-    expect((outcome as SectionDeleteRefused).code, 'P2849');
+    expect(
+      (outcome as SectionDeleteRefused).reason,
+      SectionRefusal.scheduleHistory,
+    );
     session.dispose();
   });
 

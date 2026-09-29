@@ -36,13 +36,8 @@ class StaffDetailsPage extends StatefulWidget {
 }
 
 class _StaffDetailsPageState extends State<StaffDetailsPage> {
+  final _ticketContextKey = GlobalKey();
   late final StaffDetailsSession _session;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    recordTicketScreenVisit(context, 'Staff details');
-  }
 
   @override
   void initState() {
@@ -61,21 +56,9 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
     super.dispose();
   }
 
-  void _showError(String message, {String? refusalCode}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      refusalCode == null
-          ? SnackBar(content: Text(message))
-          : mappedRefusalSnackBar(
-              context,
-              message: message,
-              refusal: TicketRefusalContext(
-                screen: 'Staff details',
-                code: refusalCode,
-              ),
-              onAccessRejected: widget.onAccessRejected,
-            ),
-    );
-  }
+  void _showError(String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
 
   Future<void> _editContact() async {
     final details = _session.state.details!;
@@ -207,127 +190,135 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
       formerAdministrator: selection.formerAdministrator,
       formerSections: selection.formerSections,
     );
-    if (outcome case StaffCommandFailed(:final error)) {
-      if (mounted) {
-        _showError(
-          managerHandoverRefusalWording(error) ??
-              'Could not change the access role.',
-          refusalCode: switch (error) {
-            Refused(refusal: final ManagerHandoverRefusal reason) =>
-              reason.code,
-            _ => null,
-          },
+    if (!mounted) return;
+    switch (outcome) {
+      case StaffCommandSaved():
+        break;
+      case StaffCommandRefused(:final reason):
+        showRefusal(
+          _ticketContextKey.currentContext!,
+          reason,
+          managerHandoverRefusalWording(reason),
         );
-      }
+      case StaffCommandFailed():
+        _showError('Could not change the access role.');
     }
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: _session,
-    builder: (context, _) {
-      final state = _session.state;
-      final details = state.details;
-      final sectionName = state.list?.sections
-          .where((section) => section.id == details?.sectionId)
-          .firstOrNull
-          ?.name;
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(details?.displayName ?? 'Staff member details'),
-        ),
-        body: switch ((details, state.loadError)) {
-          (_, Object()) => const Center(
-            child: Text('Could not load Staff member details.'),
+  Widget build(BuildContext context) => TicketScope(
+    screen: TicketScreen.staffDetails,
+    onAccessRejected: widget.onAccessRejected,
+    child: ListenableBuilder(
+      listenable: _session,
+      builder: (context, _) {
+        final state = _session.state;
+        final details = state.details;
+        final sectionName = state.list?.sections
+            .where((section) => section.id == details?.sectionId)
+            .firstOrNull
+            ?.name;
+        return Scaffold(
+          key: _ticketContextKey,
+          appBar: AppBar(
+            title: Text(details?.displayName ?? 'Staff member details'),
           ),
-          (null, _) => const Center(child: CircularProgressIndicator()),
-          (final StaffMemberDetails person, _) => ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _Detail(label: 'Name', value: person.displayName),
-              _Detail(
-                label: 'Cell number',
-                value: person.cellNumber ?? 'Add a cell number to finish setup',
-              ),
-              _Detail(label: 'Section', value: sectionName ?? 'No Section'),
-              _Detail(
-                label: 'Job role',
-                value: person.jobRole?.label ?? 'Not set',
-              ),
-              _Detail(
-                label: 'Access',
-                value: [
-                  if (state.targetGrants.manager) 'Manager',
-                  if (state.targetGrants.administrator) 'Administrator',
-                  if (state.targetGrants.nightSchedulerSectionIds.isNotEmpty)
-                    'Night scheduler',
-                  if (!state.targetGrants.manager &&
-                      !state.targetGrants.administrator &&
-                      state.targetGrants.nightSchedulerSectionIds.isEmpty)
-                    'Staff member',
-                ].join(' and '),
-              ),
-              _Detail(
-                label: 'Last day',
-                value: person.lastDay == null
-                    ? 'Not set'
-                    : DateFormat.yMMMd().format(person.lastDay!),
-              ),
-              _Detail(
-                label: 'Personal email',
-                value: person.personalEmail ?? 'Not signed up yet',
-              ),
-              const SizedBox(height: 16),
-              if (person.cellNumber?.trim().isNotEmpty ?? false)
-                OutlinedButton(
-                  onPressed: _saveToContacts,
-                  child: const Text('Add to contacts'),
+          body: switch ((details, state.loadError)) {
+            (_, Object()) => const Center(
+              child: Text('Could not load Staff member details.'),
+            ),
+            (null, _) => const Center(child: CircularProgressIndicator()),
+            (final StaffMemberDetails person, _) => ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _Detail(label: 'Name', value: person.displayName),
+                _Detail(
+                  label: 'Cell number',
+                  value:
+                      person.cellNumber ?? 'Add a cell number to finish setup',
                 ),
-              FilledButton(
-                onPressed: _editContact,
-                child: const Text('Edit name and cell number'),
-              ),
-              if (state.access.canChangeAccess(state.targetGrants))
-                OutlinedButton(
-                  onPressed: _changeAccessRole,
-                  child: const Text('Change access'),
+                _Detail(label: 'Section', value: sectionName ?? 'No Section'),
+                _Detail(
+                  label: 'Job role',
+                  value: person.jobRole?.label ?? 'Not set',
                 ),
-              if (person.lastDay == null) ...[
-                OutlinedButton(
-                  onPressed: _changeSectionOrRole,
-                  child: const Text('Change Section or Job role'),
+                _Detail(
+                  label: 'Access',
+                  value: [
+                    if (state.targetGrants.manager) 'Manager',
+                    if (state.targetGrants.administrator) 'Administrator',
+                    if (state.targetGrants.nightSchedulerSectionIds.isNotEmpty)
+                      'Night scheduler',
+                    if (!state.targetGrants.manager &&
+                        !state.targetGrants.administrator &&
+                        state.targetGrants.nightSchedulerSectionIds.isEmpty)
+                      'Staff member',
+                  ].join(' and '),
                 ),
-                OutlinedButton(
-                  onPressed: _setLastDay,
-                  child: const Text('Set Last day'),
+                _Detail(
+                  label: 'Last day',
+                  value: person.lastDay == null
+                      ? 'Not set'
+                      : DateFormat.yMMMd().format(person.lastDay!),
                 ),
-                if (person.personalEmail == null) ...[
+                _Detail(
+                  label: 'Personal email',
+                  value: person.personalEmail ?? 'Not signed up yet',
+                ),
+                const SizedBox(height: 16),
+                if (person.cellNumber?.trim().isNotEmpty ?? false)
                   OutlinedButton(
-                    onPressed: person.cellNumber == null ? null : _resendInvite,
-                    child: const Text('Resend Invite'),
+                    onPressed: _saveToContacts,
+                    child: const Text('Add to contacts'),
                   ),
-                  if (person.cellNumber == null)
-                    const Text('Add a cell number before sending an Invite'),
+                FilledButton(
+                  onPressed: _editContact,
+                  child: const Text('Edit name and cell number'),
+                ),
+                if (state.access.canChangeAccess(state.targetGrants))
+                  OutlinedButton(
+                    onPressed: _changeAccessRole,
+                    child: const Text('Change access'),
+                  ),
+                if (person.lastDay == null) ...[
+                  OutlinedButton(
+                    onPressed: _changeSectionOrRole,
+                    child: const Text('Change Section or Job role'),
+                  ),
+                  OutlinedButton(
+                    onPressed: _setLastDay,
+                    child: const Text('Set Last day'),
+                  ),
+                  if (person.personalEmail == null) ...[
+                    OutlinedButton(
+                      onPressed: person.cellNumber == null
+                          ? null
+                          : _resendInvite,
+                      child: const Text('Resend Invite'),
+                    ),
+                    if (person.cellNumber == null)
+                      const Text('Add a cell number before sending an Invite'),
+                  ],
+                ],
+                if (state.accessChanges.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('Access history'),
+                  for (final change in state.accessChanges)
+                    ListTile(
+                      title: Text(
+                        '${change.oldRole.replaceAll('_', ' ')} → ${change.newRole.replaceAll('_', ' ')}',
+                      ),
+                      subtitle: Text(
+                        DateFormat.yMMMd().add_jm().format(change.changedAt),
+                      ),
+                    ),
                 ],
               ],
-              if (state.accessChanges.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Text('Access history'),
-                for (final change in state.accessChanges)
-                  ListTile(
-                    title: Text(
-                      '${change.oldRole.replaceAll('_', ' ')} → ${change.newRole.replaceAll('_', ' ')}',
-                    ),
-                    subtitle: Text(
-                      DateFormat.yMMMd().add_jm().format(change.changedAt),
-                    ),
-                  ),
-              ],
-            ],
-          ),
-        },
-      );
-    },
+            ),
+          },
+        );
+      },
+    ),
   );
 }
 

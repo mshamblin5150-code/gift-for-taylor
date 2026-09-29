@@ -133,18 +133,13 @@ class MonthGridPage extends StatefulWidget {
 }
 
 class _MonthGridPageState extends State<MonthGridPage> {
+  final _ticketContextKey = GlobalKey();
   late DateTime _month = DateTime(widget.month.year, widget.month.month);
   late MonthSession _session;
   late final PendingWork _pendingWork;
   PrintWording? _wording;
 
   Access get _access => widget.access;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    recordTicketScreenVisit(context, 'Schedule');
-  }
 
   late ScheduleView _view = widget.staffMemberId == null
       ? ScheduleView.month
@@ -359,17 +354,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
         );
         _pendingWork.refresh();
       case SwapProposeRefused(:final reason):
-        ScaffoldMessenger.of(context).showSnackBar(
-          mappedRefusalSnackBar(
-            context,
-            message: swapProposalRefusalMessage(reason),
-            refusal: TicketRefusalContext(
-              screen: 'Schedule',
-              month: _month,
-              code: reason.code,
-            ),
-            onAccessRejected: widget.onAccessRejected,
-          ),
+        showRefusal(
+          _ticketContextKey.currentContext!,
+          reason,
+          swapProposalRefusalMessage(reason),
         );
       case ProposeSwapFailed():
         ScaffoldMessenger.of(context).showSnackBar(
@@ -416,17 +404,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
         );
         _pendingWork.refresh();
       case GiveawayProposeRefused(:final reason):
-        ScaffoldMessenger.of(context).showSnackBar(
-          mappedRefusalSnackBar(
-            context,
-            message: giveawayProposalRefusalMessage(reason),
-            refusal: TicketRefusalContext(
-              screen: 'Schedule',
-              month: _month,
-              code: reason.code,
-            ),
-            onAccessRejected: widget.onAccessRejected,
-          ),
+        showRefusal(
+          _ticketContextKey.currentContext!,
+          reason,
+          giveawayProposalRefusalMessage(reason),
         );
       case ProposeGiveawayFailed():
         ScaffoldMessenger.of(context).showSnackBar(
@@ -456,24 +437,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
         'There is no recorded Call-in.',
       RecordCallInFailed() => "The Call-in wasn't recorded. Try again.",
     };
-    final refusalCode = switch (outcome) {
-      RecordCallInRefused(:final reason) => reason.code,
-      _ => null,
-    };
-    ScaffoldMessenger.of(context).showSnackBar(
-      refusalCode == null
-          ? SnackBar(content: Text(message))
-          : mappedRefusalSnackBar(
-              context,
-              message: message,
-              refusal: TicketRefusalContext(
-                screen: 'Schedule',
-                month: _month,
-                code: refusalCode,
-              ),
-              onAccessRejected: widget.onAccessRejected,
-            ),
-    );
+    if (outcome case RecordCallInRefused(:final reason)) {
+      showRefusal(_ticketContextKey.currentContext!, reason, message);
+    } else {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   Future<void> _withdrawCallIn(ScheduleRow row, DateTime date) async {
@@ -491,24 +460,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
         'There is no recorded Call-in to withdraw.',
       WithdrawCallInFailed() => "The Call-in wasn't withdrawn. Try again.",
     };
-    final refusalCode = switch (outcome) {
-      WithdrawCallInRefused(:final reason) => reason.code,
-      _ => null,
-    };
-    ScaffoldMessenger.of(context).showSnackBar(
-      refusalCode == null
-          ? SnackBar(content: Text(message))
-          : mappedRefusalSnackBar(
-              context,
-              message: message,
-              refusal: TicketRefusalContext(
-                screen: 'Schedule',
-                month: _month,
-                code: refusalCode,
-              ),
-              onAccessRejected: widget.onAccessRejected,
-            ),
-    );
+    if (outcome case WithdrawCallInRefused(:final reason)) {
+      showRefusal(_ticketContextKey.currentContext!, reason, message);
+    } else {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   Future<void> _drop(
@@ -740,32 +697,17 @@ class _MonthGridPageState extends State<MonthGridPage> {
     switch (outcome) {
       case Started():
         break;
-      case AlreadyStarted(:final refusalCode):
-        ScaffoldMessenger.of(context).showSnackBar(
-          mappedRefusalSnackBar(
-            context,
-            message: 'This month has already been started.',
-            refusal: TicketRefusalContext(
-              screen: 'Schedule',
-              month: _month,
-              code: refusalCode,
-            ),
-            onAccessRejected: widget.onAccessRejected,
-          ),
+      case StartMonthRefused(reason: MonthStartRefusal.alreadyStarted):
+        showRefusal(
+          _ticketContextKey.currentContext!,
+          MonthStartRefusal.alreadyStarted,
+          'This month has already been started.',
         );
-      case NoPreviousMonth(:final refusalCode):
-        ScaffoldMessenger.of(context).showSnackBar(
-          mappedRefusalSnackBar(
-            context,
-            message:
-                '${DateFormat.MMMM().format(_previousMonth)} has no Schedule to start from.',
-            refusal: TicketRefusalContext(
-              screen: 'Schedule',
-              month: _month,
-              code: refusalCode,
-            ),
-            onAccessRejected: widget.onAccessRejected,
-          ),
+      case StartMonthRefused(reason: MonthStartRefusal.previousMonthNotStarted):
+        showRefusal(
+          _ticketContextKey.currentContext!,
+          MonthStartRefusal.previousMonthNotStarted,
+          '${DateFormat.MMMM().format(_previousMonth)} has no Schedule to start from.',
         );
       case StartMonthFailed():
         ScaffoldMessenger.of(context).showSnackBar(
@@ -927,7 +869,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
             gateway: widget.ticketGateway!,
             onAccessRejected: widget.onAccessRejected,
             attachedContext: captureTicketContext(
-              screen: 'Schedule',
+              screen: TicketScreen.schedule.label,
               month: _month,
               recentActions:
                   TicketLauncherScope.maybeOf(context)?.actions.snapshot() ??
@@ -1287,9 +1229,14 @@ class _MonthGridPageState extends State<MonthGridPage> {
       );
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([_pendingWork, _session]),
-    builder: (context, _) => _buildPage(context),
+  Widget build(BuildContext context) => TicketScope(
+    screen: TicketScreen.schedule,
+    month: _month,
+    onAccessRejected: widget.onAccessRejected,
+    child: ListenableBuilder(
+      listenable: Listenable.merge([_pendingWork, _session]),
+      builder: (context, _) => _buildPage(context),
+    ),
   );
 
   Widget _buildPage(BuildContext context) {
@@ -1308,6 +1255,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     final unreached = _session.state.unreached;
     final banner = grid == null ? null : _banner(grid);
     return Scaffold(
+      key: _ticketContextKey,
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,

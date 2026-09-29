@@ -193,14 +193,9 @@ final class Started extends StartMonthOutcome {
   const Started();
 }
 
-final class AlreadyStarted extends StartMonthOutcome {
-  const AlreadyStarted();
-  String get refusalCode => MonthStartRefusal.alreadyStarted.code;
-}
-
-final class NoPreviousMonth extends StartMonthOutcome {
-  const NoPreviousMonth();
-  String get refusalCode => MonthStartRefusal.previousMonthNotStarted.code;
+final class StartMonthRefused extends StartMonthOutcome {
+  const StartMonthRefused(this.reason);
+  final MonthStartRefusal reason;
 }
 
 final class StartMonthFailed extends StartMonthOutcome {
@@ -807,12 +802,9 @@ final class MonthSession extends ChangeNotifier {
       await refresh();
       return const Started();
     } on Refused catch (error) {
-      if (error.refusal == MonthStartRefusal.alreadyStarted) {
-        await refresh();
-        return const AlreadyStarted();
-      }
-      if (error.refusal == MonthStartRefusal.previousMonthNotStarted) {
-        return const NoPreviousMonth();
+      if (error.refusal case final MonthStartRefusal reason) {
+        if (reason == MonthStartRefusal.alreadyStarted) await refresh();
+        return StartMonthRefused(reason);
       }
       assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const StartMonthFailed();

@@ -2,13 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:schedule_rules/schedule_rules.dart';
 
 import 'ticket_context.dart';
 import 'ticket_gateway.dart';
 import 'ticket_pages.dart';
-import 'ticket_refusal_context.dart';
-
-export 'ticket_refusal_context.dart';
 
 /// A deliberately small, memory-only record of diagnostic actions.
 ///
@@ -106,11 +104,13 @@ final class TicketLauncher {
 
   Future<void> openRefusal(
     BuildContext context, {
-    required TicketRefusalContext refusal,
+    required Refusal refusal,
+    required String screen,
+    DateTime? month,
     VoidCallback? onAccessRejected,
   }) {
     actions
-      ..screenVisited(refusal.screen)
+      ..screenVisited(screen)
       ..refusalRecorded(refusal.code);
     return Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -120,8 +120,8 @@ final class TicketLauncher {
           initialKind: TicketKind.problem,
           onAccessRejected: onAccessRejected,
           attachedContext: captureTicketContext(
-            screen: refusal.screen,
-            month: refusal.month,
+            screen: screen,
+            month: month,
             refusalCode: refusal.code,
             recentActions: actions.snapshot(),
           ),

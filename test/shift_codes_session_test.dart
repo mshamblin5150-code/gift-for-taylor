@@ -9,7 +9,7 @@ void main() {
     final outcome = await session.delete('7A');
 
     expect(outcome, isA<ShiftCodeDeleteRefused>());
-    expect((outcome as ShiftCodeDeleteRefused).code, 'P2796');
+    expect((outcome as ShiftCodeDeleteRefused).reason, ShiftCodeRefusal.inUse);
     session.dispose();
   });
 

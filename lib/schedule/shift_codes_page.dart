@@ -26,17 +26,12 @@ class ShiftCodesPage extends StatefulWidget {
 }
 
 class _ShiftCodesPageState extends State<ShiftCodesPage> {
+  final _ticketContextKey = GlobalKey();
   static final _validTime = RegExp(r'^([01][0-9]|2[0-3]):[0-5][0-9]$');
   late final ShiftCodesSession _session = ShiftCodesSession(
     widget.rules.store,
     widget.onAccessRejected,
   );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    recordTicketScreenVisit(context, 'Shift codes');
-  }
 
   @override
   void dispose() {
@@ -267,13 +262,11 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
     switch (outcome) {
       case ShiftCodeDeleted() || ShiftCodeSaved():
         break;
-      case ShiftCodeDeleteRefused(:final code):
-        ScaffoldMessenger.of(context).showSnackBar(
-          mappedRefusalSnackBar(
-            context,
-            message: 'Codes used on the Schedule cannot be deleted.',
-            refusal: TicketRefusalContext(screen: 'Shift codes', code: code),
-          ),
+      case ShiftCodeDeleteRefused(:final reason):
+        showRefusal(
+          _ticketContextKey.currentContext!,
+          reason,
+          'Codes used on the Schedule cannot be deleted.',
         );
       case ShiftCodeWriteFailed():
         ScaffoldMessenger.of(context).showSnackBar(
@@ -285,28 +278,33 @@ class _ShiftCodesPageState extends State<ShiftCodesPage> {
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: _session,
-    builder: (context, _) {
-      final state = _session.state;
-      return Scaffold(
-        appBar: AppBar(title: const Text('Shift codes')),
-        floatingActionButton: widget.readOnly
-            ? null
-            : FloatingActionButton.extended(
-                onPressed: () => _edit(),
-                icon: const Icon(Icons.add),
-                label: const Text('Add code'),
-              ),
-        body: switch ((state.codes, state.loadError)) {
-          (_, Object()) => const Center(
-            child: Text('Could not load Shift codes. Try again.'),
-          ),
-          (null, null) => const Center(child: CircularProgressIndicator()),
-          (final codes?, null) => _codeList(codes),
-        },
-      );
-    },
+  Widget build(BuildContext context) => TicketScope(
+    screen: TicketScreen.shiftCodes,
+    onAccessRejected: widget.onAccessRejected,
+    child: ListenableBuilder(
+      listenable: _session,
+      builder: (context, _) {
+        final state = _session.state;
+        return Scaffold(
+          key: _ticketContextKey,
+          appBar: AppBar(title: const Text('Shift codes')),
+          floatingActionButton: widget.readOnly
+              ? null
+              : FloatingActionButton.extended(
+                  onPressed: () => _edit(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add code'),
+                ),
+          body: switch ((state.codes, state.loadError)) {
+            (_, Object()) => const Center(
+              child: Text('Could not load Shift codes. Try again.'),
+            ),
+            (null, null) => const Center(child: CircularProgressIndicator()),
+            (final codes?, null) => _codeList(codes),
+          },
+        );
+      },
+    ),
   );
 
   Widget _codeList(List<LegendCode> codes) => ListView(

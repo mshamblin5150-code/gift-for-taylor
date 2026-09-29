@@ -36,7 +36,7 @@ void main() {
     };
 
     for (final MapEntry(key: reason, value: wording) in cases.entries) {
-      expect(managerHandoverRefusalWording(Refused(reason)), wording);
+      expect(managerHandoverRefusalWording(reason), wording);
     }
   });
 
@@ -57,12 +57,7 @@ void main() {
     };
 
     for (final MapEntry(key: reason, value: wording) in cases.entries) {
-      expect(inviteAcceptanceRefusalWording(Refused(reason)), wording);
+      expect(inviteAcceptanceRefusalWording(reason), wording);
     }
-  });
-
-  test('unmapped failures keep the generic page fallback', () {
-    expect(managerHandoverRefusalWording(StateError('failure')), isNull);
-    expect(inviteAcceptanceRefusalWording(StateError('failure')), isNull);
   });
 }

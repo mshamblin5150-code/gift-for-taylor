@@ -33,9 +33,12 @@ final class StaffCommandSaved extends StaffCommandOutcome {
 }
 
 final class StaffCommandFailed extends StaffCommandOutcome {
-  const StaffCommandFailed([this.error]);
+  const StaffCommandFailed();
+}
 
-  final Object? error;
+final class StaffCommandRefused extends StaffCommandOutcome {
+  const StaffCommandRefused(this.reason);
+  final ManagerHandoverRefusal reason;
 }
 
 sealed class StaffInviteOutcome {
@@ -156,30 +159,45 @@ final class StaffDetailsSession extends ChangeNotifier {
     required bool transfer,
     required bool formerAdministrator,
     required Set<String> formerSections,
-  }) => _write(() async {
-    if (transfer) {
-      await _gateway.transferManagerWithAccess(
-        staffMemberId,
-        formerAdministrator,
-        formerSections,
-      );
-    } else {
-      await _gateway.setAccessGrants(staffMemberId, grants);
-    }
-  }, reloadOnFailure: false);
+  }) => _write(
+    () async {
+      if (transfer) {
+        await _gateway.transferManagerWithAccess(
+          staffMemberId,
+          formerAdministrator,
+          formerSections,
+        );
+      } else {
+        await _gateway.setAccessGrants(staffMemberId, grants);
+      }
+    },
+    reloadOnFailure: false,
+    expectsManagerHandoverRefusal: true,
+  );
 
   Future<StaffCommandOutcome> _write(
     Future<void> Function() command, {
     bool reloadOnFailure = true,
+    bool expectsManagerHandoverRefusal = false,
   }) async {
     try {
       await command();
       await load();
       return const StaffCommandSaved();
+    } on Refused catch (error) {
+      if (expectsManagerHandoverRefusal &&
+          error.refusal is ManagerHandoverRefusal) {
+        final reason = error.refusal as ManagerHandoverRefusal;
+        if (reloadOnFailure) await load();
+        return StaffCommandRefused(reason);
+      }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      if (reloadOnFailure) await load();
+      return const StaffCommandFailed();
     } catch (error) {
       if (error is AccessRejected) _onAccessRejected?.call();
       if (reloadOnFailure) await load();
-      return StaffCommandFailed(error);
+      return const StaffCommandFailed();
     }
   }
 

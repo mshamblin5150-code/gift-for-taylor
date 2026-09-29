@@ -333,12 +333,6 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
   final _retryNumber = TextEditingController();
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    recordTicketScreenVisit(context, 'Accept Invite');
-  }
-
-  @override
   void dispose() {
     _retryNumber.dispose();
     super.dispose();
@@ -346,109 +340,106 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<InviteAcceptanceResult>(
-      future: _acceptance,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError) {
-          final refusalCode = switch (snapshot.error) {
-            Refused(refusal: final Refusal refusal) => refusal.code,
-            _ => null,
-          };
-          final message = switch (snapshot.error) {
-            Refused(refusal: InviteLinkRefusal.alreadyLinked) =>
-              'This email is already signed in as another Staff member.',
-            Refused(refusal: InviteLinkRefusal.invalid) =>
-              'This Invite is invalid, expired, or has already been used. '
-                  'Ask your Manager to resend it.',
-            final error =>
-              inviteAcceptanceRefusalWording(error) ??
-                  'Could not check this Invite. Try again.',
-          };
-          return Scaffold(
-            appBar: AppBar(
-              actions: [
-                const AppearanceButton(),
-                IconButton(
-                  tooltip: 'Sign out',
-                  onPressed: widget.dependencies.authGateway.signOut,
-                  icon: const Icon(Icons.logout),
-                ),
-              ],
-            ),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(message, textAlign: TextAlign.center),
-                    if (refusalCode case final code?)
-                      TicketRefusalButton(
-                        refusal: TicketRefusalContext(
-                          screen: 'Accept Invite',
-                          code: code,
-                        ),
-                      ),
-                  ],
-                ),
+    return TicketScope(
+      screen: TicketScreen.acceptInvite,
+      child: FutureBuilder<InviteAcceptanceResult>(
+        future: _acceptance,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snapshot.hasError) {
+            final refusal = switch (snapshot.error) {
+              Refused(refusal: final Refusal refusal) => refusal,
+              _ => null,
+            };
+            final message = switch (snapshot.error) {
+              Refused(refusal: InviteLinkRefusal.alreadyLinked) =>
+                'This email is already signed in as another Staff member.',
+              Refused(refusal: InviteLinkRefusal.invalid) =>
+                'This Invite is invalid, expired, or has already been used. '
+                    'Ask your Manager to resend it.',
+              Refused(refusal: final InviteAcceptanceRefusal reason) =>
+                inviteAcceptanceRefusalWording(reason),
+              _ => 'Could not check this Invite. Try again.',
+            };
+            return Scaffold(
+              appBar: AppBar(
+                actions: [
+                  const AppearanceButton(),
+                  IconButton(
+                    tooltip: 'Sign out',
+                    onPressed: widget.dependencies.authGateway.signOut,
+                    icon: const Icon(Icons.logout),
+                  ),
+                ],
               ),
-            ),
-          );
-        }
-        if (snapshot.data != InviteAcceptanceResult.accepted) {
-          return Scaffold(
-            appBar: AppBar(actions: const [AppearanceButton()]),
-            body: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
+              body: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        snapshot.data == InviteAcceptanceResult.throttled
-                            ? 'Too many incorrect Cell numbers. Wait 10 minutes, then try again.'
-                            : "That number doesn't match the one on file — check with your Manager.",
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _retryNumber,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          labelText: 'Cell number',
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton(
-                        onPressed: () {
-                          if (_retryNumber.text.trim().isNotEmpty) {
-                            setState(() {
-                              _acceptance = widget.dependencies.staffGateway
-                                  .acceptInvite(
-                                    widget.inviteToken,
-                                    _retryNumber.text.trim(),
-                                  );
-                            });
-                          }
-                        },
-                        child: const Text('Try Cell number again'),
-                      ),
+                      Text(message, textAlign: TextAlign.center),
+                      if (refusal != null) RefusalTicketButton(refusal),
                     ],
                   ),
                 ),
               ),
-            ),
-          );
-        }
-        return _ScheduleAccess(dependencies: widget.dependencies);
-      },
+            );
+          }
+          if (snapshot.data != InviteAcceptanceResult.accepted) {
+            return Scaffold(
+              appBar: AppBar(actions: const [AppearanceButton()]),
+              body: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          snapshot.data == InviteAcceptanceResult.throttled
+                              ? 'Too many incorrect Cell numbers. Wait 10 minutes, then try again.'
+                              : "That number doesn't match the one on file — check with your Manager.",
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _retryNumber,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Cell number',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          onPressed: () {
+                            if (_retryNumber.text.trim().isNotEmpty) {
+                              setState(() {
+                                _acceptance = widget.dependencies.staffGateway
+                                    .acceptInvite(
+                                      widget.inviteToken,
+                                      _retryNumber.text.trim(),
+                                    );
+                              });
+                            }
+                          },
+                          child: const Text('Try Cell number again'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+          return _ScheduleAccess(dependencies: widget.dependencies);
+        },
+      ),
     );
   }
 }

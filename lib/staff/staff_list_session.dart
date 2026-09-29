@@ -28,8 +28,8 @@ final class SectionDeleted extends DeleteSectionOutcome {
 }
 
 final class SectionDeleteRefused extends DeleteSectionOutcome {
-  const SectionDeleteRefused(this.code);
-  final String code;
+  const SectionDeleteRefused(this.reason);
+  final SectionRefusal reason;
 }
 
 final class SectionDeleteFailed extends DeleteSectionOutcome {
@@ -57,8 +57,7 @@ final class StaffListWriteSaved extends StaffListWriteOutcome {
 }
 
 final class StaffListWriteFailed extends StaffListWriteOutcome {
-  const StaffListWriteFailed([this.error]);
-  final Object? error;
+  const StaffListWriteFailed();
 }
 
 sealed class StaffListInviteOutcome {
@@ -71,8 +70,7 @@ final class StaffListInviteReady extends StaffListInviteOutcome {
 }
 
 final class StaffListInviteFailed extends StaffListInviteOutcome {
-  const StaffListInviteFailed([this.error]);
-  final Object? error;
+  const StaffListInviteFailed();
 }
 
 sealed class PastStaffOutcome {
@@ -136,7 +134,7 @@ final class StaffListSession extends ChangeNotifier {
       return const SectionDeleted();
     } on Refused catch (error) {
       if (error.refusal case final SectionRefusal reason) {
-        return SectionDeleteRefused(reason.code);
+        return SectionDeleteRefused(reason);
       }
       assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const SectionDeleteFailed();
@@ -166,18 +164,24 @@ final class StaffListSession extends ChangeNotifier {
       );
       await load();
       return StaffListInviteReady(invite);
+    } on Refused catch (error) {
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      return const StaffListInviteFailed();
     } catch (error) {
       _rejected(error);
-      return StaffListInviteFailed(error);
+      return const StaffListInviteFailed();
     }
   }
 
   Future<StaffListInviteOutcome> resendInvite(String staffMemberId) async {
     try {
       return StaffListInviteReady(await _gateway.resendInvite(staffMemberId));
+    } on Refused catch (error) {
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      return const StaffListInviteFailed();
     } catch (error) {
       _rejected(error);
-      return StaffListInviteFailed(error);
+      return const StaffListInviteFailed();
     }
   }
 
@@ -215,9 +219,12 @@ final class StaffListSession extends ChangeNotifier {
       await command();
       await load();
       return const StaffListWriteSaved();
+    } on Refused catch (error) {
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      return const StaffListWriteFailed();
     } catch (error) {
       _rejected(error);
-      return StaffListWriteFailed(error);
+      return const StaffListWriteFailed();
     }
   }
 
