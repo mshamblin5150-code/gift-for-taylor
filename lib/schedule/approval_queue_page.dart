@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import '../staff/staff_gateway.dart';
+import '../tickets/ticket_refusal.dart';
 import 'approval_queue_session.dart';
 import 'swap_proposal.dart';
 
@@ -30,6 +31,7 @@ class ApprovalQueuePage extends StatefulWidget {
 }
 
 class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
+  final _ticketContextKey = GlobalKey();
   late final ApprovalQueueSession _session;
 
   @override
@@ -214,8 +216,10 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
         : item.decline(reason));
     if (!mounted) return;
     if (outcome case ApprovalDecisionRefused(:final reason)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(swapProposalRefusalMessage(reason))),
+      showRefusal(
+        _ticketContextKey.currentContext!,
+        reason,
+        swapProposalRefusalMessage(reason),
       );
     } else if (outcome is ApprovalDecisionFailed) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -242,80 +246,85 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Approval queue'),
-      actions: [
-        IconButton(
-          tooltip: 'Refresh approval queue',
-          onPressed: _session.refresh,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-    ),
-    body: ListenableBuilder(
-      listenable: _session,
-      builder: (context, _) {
-        final state = _session.state;
-        if (state.pending == null) {
-          return Center(
-            child: state.loadError != null
-                ? const Text('Approval queue could not be loaded.')
-                : const CircularProgressIndicator(),
-          );
-        }
-        final decisions = _decisions(state);
-        final outcomes = [...state.pending!.swapOutcomes]
-          ..sort((a, b) => a.firstDate.compareTo(b.firstDate));
-        if (decisions.isEmpty && outcomes.isEmpty) {
-          return const Center(child: Text('Nothing awaiting approval.'));
-        }
-        return ListView(
-          children: [
-            for (final item in decisions)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.title,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      Text(item.detail),
-                      Row(
-                        children: [
-                          TextButton(
-                            onPressed: state.busy
-                                ? null
-                                : () => _decide(item, false),
-                            child: Text(item.declineLabel),
-                          ),
-                          FilledButton(
-                            onPressed: state.busy
-                                ? null
-                                : () => _decide(item, true),
-                            child: Text(item.approveLabel),
-                          ),
-                        ],
-                      ),
-                    ],
+  Widget build(BuildContext context) => TicketScope(
+    screen: TicketScreen.approvalQueue,
+    onAccessRejected: widget.onAccessRejected,
+    child: Scaffold(
+      key: _ticketContextKey,
+      appBar: AppBar(
+        title: const Text('Approval queue'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh approval queue',
+            onPressed: _session.refresh,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: ListenableBuilder(
+        listenable: _session,
+        builder: (context, _) {
+          final state = _session.state;
+          if (state.pending == null) {
+            return Center(
+              child: state.loadError != null
+                  ? const Text('Approval queue could not be loaded.')
+                  : const CircularProgressIndicator(),
+            );
+          }
+          final decisions = _decisions(state);
+          final outcomes = [...state.pending!.swapOutcomes]
+            ..sort((a, b) => a.firstDate.compareTo(b.firstDate));
+          if (decisions.isEmpty && outcomes.isEmpty) {
+            return const Center(child: Text('Nothing awaiting approval.'));
+          }
+          return ListView(
+            children: [
+              for (final item in decisions)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Text(item.detail),
+                        Row(
+                          children: [
+                            TextButton(
+                              onPressed: state.busy
+                                  ? null
+                                  : () => _decide(item, false),
+                              child: Text(item.declineLabel),
+                            ),
+                            FilledButton(
+                              onPressed: state.busy
+                                  ? null
+                                  : () => _decide(item, true),
+                              child: Text(item.approveLabel),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            if (outcomes.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-                child: Text(
-                  'Swap outcomes',
-                  style: Theme.of(context).textTheme.titleMedium,
+              if (outcomes.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+                  child: Text(
+                    'Swap outcomes',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
-              ),
-            for (final swap in outcomes) _swapOutcome(state, swap),
-          ],
-        );
-      },
+              for (final swap in outcomes) _swapOutcome(state, swap),
+            ],
+          );
+        },
+      ),
     ),
   );
 }

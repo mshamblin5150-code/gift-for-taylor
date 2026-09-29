@@ -34,13 +34,8 @@ class SwapsPage extends StatefulWidget {
 }
 
 class _SwapsPageState extends State<SwapsPage> {
+  final _ticketContextKey = GlobalKey();
   late final SwapsSession _session;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    recordTicketScreenVisit(context, 'Swaps');
-  }
 
   @override
   void initState() {
@@ -87,7 +82,11 @@ class _SwapsPageState extends State<SwapsPage> {
           messagesComposer: widget.messagesComposer,
         );
       case SwapsProposalRejected(:final reason):
-        _message(swapProposalRefusalMessage(reason), refusalCode: reason.code);
+        showRefusal(
+          _ticketContextKey.currentContext!,
+          reason,
+          swapProposalRefusalMessage(reason),
+        );
       case SwapsProposeFailed():
         _message("That Swap wasn't proposed. Try again.");
     }
@@ -127,27 +126,19 @@ class _SwapsPageState extends State<SwapsPage> {
     }
   }
 
-  void _message(String message, {String? refusalCode}) =>
-      ScaffoldMessenger.of(context).showSnackBar(
-        refusalCode == null
-            ? SnackBar(content: Text(message))
-            : mappedRefusalSnackBar(
-                context,
-                message: message,
-                refusal: TicketRefusalContext(
-                  screen: 'Swaps',
-                  month: widget.month,
-                  code: refusalCode,
-                ),
-                onAccessRejected: widget.onAccessRejected,
-              ),
-      );
+  void _message(String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
 
   Future<void> _approve(Swap swap) async {
     final outcome = await _session.approve(swap.id);
     if (!mounted) return;
     if (outcome case SwapsWriteRefused(:final reason)) {
-      _message(swapProposalRefusalMessage(reason), refusalCode: reason.code);
+      showRefusal(
+        _ticketContextKey.currentContext!,
+        reason,
+        swapProposalRefusalMessage(reason),
+      );
     } else if (outcome is SwapsWriteFailed) {
       _message("That Swap wasn't approved. Try again.");
     }
@@ -161,63 +152,69 @@ class _SwapsPageState extends State<SwapsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Swaps'),
-      actions: [
-        IconButton(
-          tooltip: 'Refresh Swaps',
-          onPressed: _session.refresh,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-    ),
-    body: ListenableBuilder(
-      listenable: _session,
-      builder: (context, _) {
-        final state = _session.state;
-        final grid = state.grid;
-        if (grid == null) {
-          return Center(
-            child: state.loadError != null
-                ? const Text("Swaps couldn't be loaded. Try again.")
-                : const CircularProgressIndicator(),
+  Widget build(BuildContext context) => TicketScope(
+    screen: TicketScreen.swaps,
+    month: widget.month,
+    onAccessRejected: widget.onAccessRejected,
+    child: Scaffold(
+      key: _ticketContextKey,
+      appBar: AppBar(
+        title: const Text('Swaps'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh Swaps',
+            onPressed: _session.refresh,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: ListenableBuilder(
+        listenable: _session,
+        builder: (context, _) {
+          final state = _session.state;
+          final grid = state.grid;
+          if (grid == null) {
+            return Center(
+              child: state.loadError != null
+                  ? const Text("Swaps couldn't be loaded. Try again.")
+                  : const CircularProgressIndicator(),
+            );
+          }
+          final swaps = state.swaps;
+          return ListView(
+            children: [
+              if (widget.staffMemberId != null &&
+                  grid.status == MonthStatus.released &&
+                  !state.busy)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: FilledButton.icon(
+                    onPressed: () => _propose(grid),
+                    icon: const Icon(Icons.swap_horiz),
+                    label: const Text('Propose a Swap'),
+                  ),
+                ),
+              if (swaps.isEmpty) const ListTile(title: Text('No Swaps yet.')),
+              for (final swap in swaps)
+                Card(
+                  child: ListTile(
+                    title: Text(
+                      '${grid.displayNameOf(swap.requesterId)} ↔ '
+                      '${grid.displayNameOf(swap.colleagueId)}',
+                    ),
+                    subtitle: Text(
+                      '${_summary(grid, swap)}\n${swapStatusWording(swap.status)}'
+                      '${swap.status == SwapStatus.voided && swap.voidedDate != null ? ' — ${grid.displayNameOf(swap.voidedStaffMemberId!)} on ${DateFormat.MMMd().format(swap.voidedDate!)} changed' : ''}'
+                      '${swap.reason == null ? '' : ' — ${swap.reason}'}',
+                    ),
+                    isThreeLine: true,
+                    trailing: state.busy ? null : _action(grid, swap),
+                  ),
+                ),
+            ],
           );
-        }
-        final swaps = state.swaps;
-        return ListView(
-          children: [
-            if (widget.staffMemberId != null &&
-                grid.status == MonthStatus.released &&
-                !state.busy)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: FilledButton.icon(
-                  onPressed: () => _propose(grid),
-                  icon: const Icon(Icons.swap_horiz),
-                  label: const Text('Propose a Swap'),
-                ),
-              ),
-            if (swaps.isEmpty) const ListTile(title: Text('No Swaps yet.')),
-            for (final swap in swaps)
-              Card(
-                child: ListTile(
-                  title: Text(
-                    '${grid.displayNameOf(swap.requesterId)} ↔ '
-                    '${grid.displayNameOf(swap.colleagueId)}',
-                  ),
-                  subtitle: Text(
-                    '${_summary(grid, swap)}\n${swapStatusWording(swap.status)}'
-                    '${swap.status == SwapStatus.voided && swap.voidedDate != null ? ' — ${grid.displayNameOf(swap.voidedStaffMemberId!)} on ${DateFormat.MMMd().format(swap.voidedDate!)} changed' : ''}'
-                    '${swap.reason == null ? '' : ' — ${swap.reason}'}',
-                  ),
-                  isThreeLine: true,
-                  trailing: state.busy ? null : _action(grid, swap),
-                ),
-              ),
-          ],
-        );
-      },
+        },
+      ),
     ),
   );
 

@@ -1,6 +1,7 @@
 import 'package:er_schedule/tickets/ticket_gateway.dart';
 import 'package:er_schedule/tickets/ticket_pages.dart';
 import 'package:er_schedule/tickets/ticket_activity.dart';
+import 'package:er_schedule/tickets/ticket_refusal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
@@ -93,11 +94,9 @@ void main() {
               body: FilledButton(
                 onPressed: () => launcher.openRefusal(
                   context,
-                  refusal: TicketRefusalContext(
-                    screen: 'Swaps',
-                    month: DateTime(2026, 9),
-                    code: 'P2814',
-                  ),
+                  refusal: SwapProposalRefusal.differentStaffRequired,
+                  screen: 'Swaps',
+                  month: DateTime(2026, 9),
                 ),
                 child: const Text('Put in a ticket about this'),
               ),
@@ -120,6 +119,64 @@ void main() {
     expect(find.textContaining('Refusal P2814'), findsOneWidget);
     expect(find.textContaining('RPC: propose_swap'), findsOneWidget);
   });
+
+  testWidgets(
+    'a refusal from a dialog opens a Ticket with its screen month and code',
+    (tester) async {
+      final gateway = InMemoryTicketGateway();
+      final actions = TicketActivityLog();
+      final launcher = TicketLauncher(gateway: gateway, actions: actions);
+      await tester.pumpWidget(
+        TicketLauncherScope(
+          launcher: launcher,
+          child: MaterialApp(
+            home: TicketScope(
+              screen: TicketScreen.schedule,
+              month: DateTime(2026, 9),
+              child: Builder(
+                builder: (context) => Scaffold(
+                  body: FilledButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        content: TextButton(
+                          onPressed: () {
+                            showRefusal(
+                              context,
+                              SwapProposalRefusal.differentStaffRequired,
+                              'Choose a different colleague.',
+                            );
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('Show refusal'),
+                        ),
+                      ),
+                    ),
+                    child: const Text('Open dialog'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Open dialog'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Show refusal'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(putRefusalInTicketLabel));
+      await tester.pumpAndSettle();
+
+      final contextSummary = tester.widget<Text>(
+        find.byKey(const Key('ticket-attached-context')),
+      );
+      expect(contextSummary.data, contains('Schedule'));
+      expect(contextSummary.data, contains('September 2026'));
+      expect(contextSummary.data, contains('Refusal P2814'));
+      expect(actions.snapshot(), contains('Screen: Schedule'));
+    },
+  );
 
   testWidgets('Staff sees the friendly Ticket activity bound refusal', (
     tester,

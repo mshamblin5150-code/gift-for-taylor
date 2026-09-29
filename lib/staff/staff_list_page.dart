@@ -39,6 +39,7 @@ class StaffListPage extends StatefulWidget {
 }
 
 class _StaffListPageState extends State<StaffListPage> {
+  final _ticketContextKey = GlobalKey();
   late final StaffListSession _session = StaffListSession(
     widget.gateway,
     widget.rules,
@@ -50,12 +51,6 @@ class _StaffListPageState extends State<StaffListPage> {
   Object? get _loadError => _session.state.loadError;
   Access get _access => _session.state.access;
   bool get _savingSectionOrder => _session.state.savingSectionOrder;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    recordTicketScreenVisit(context, 'Staff list');
-  }
 
   @override
   void initState() {
@@ -378,33 +373,21 @@ class _StaffListPageState extends State<StaffListPage> {
     switch (outcome) {
       case SectionDeleted():
         break;
-      case SectionDeleteRefused(:final code):
-        _showError(switch (code) {
-          'P2795' => "This Section has Staff members, so it can't be deleted.",
-          'P2849' =>
+      case SectionDeleteRefused(:final reason):
+        showRefusal(_ticketContextKey.currentContext!, reason, switch (reason) {
+          SectionRefusal.staffMembersAssigned =>
+            "This Section has Staff members, so it can't be deleted.",
+          SectionRefusal.scheduleHistory =>
             "This Section has Schedule history, so it can't be deleted.",
-          _ => "This Section can't be deleted.",
-        }, refusalCode: code);
+        });
       case SectionDeleteFailed():
         _showError('Could not delete the Section. Try again.');
     }
   }
 
-  void _showError(String message, {String? refusalCode}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      refusalCode == null
-          ? SnackBar(content: Text(message))
-          : mappedRefusalSnackBar(
-              context,
-              message: message,
-              refusal: TicketRefusalContext(
-                screen: 'Staff list',
-                code: refusalCode,
-              ),
-              onAccessRejected: widget.onAccessRejected,
-            ),
-    );
-  }
+  void _showError(String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
 
   Future<void> _decideInvite(String inviteId, {required bool confirm}) async {
     final outcome = await _session.decideInvite(inviteId, confirm: confirm);
@@ -416,85 +399,92 @@ class _StaffListPageState extends State<StaffListPage> {
   @override
   Widget build(BuildContext context) {
     final staffList = _staffList;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Staff list'),
-        actions: [
-          IconButton(
-            tooltip: 'Help',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (context) => HelpPage(roles: helpRolesFor(_access)),
-              ),
-            ),
-            icon: const Icon(Icons.help_outline),
-          ),
-          if (staffList != null)
+    return TicketScope(
+      screen: TicketScreen.staffList,
+      onAccessRejected: widget.onAccessRejected,
+      child: Scaffold(
+        key: _ticketContextKey,
+        appBar: AppBar(
+          title: const Text('Staff list'),
+          actions: [
             IconButton(
-              tooltip: 'Past staff',
-              onPressed: _openPastStaff,
-              icon: const Icon(Icons.history),
-            ),
-          if (staffList != null && _access.canManageUnit)
-            IconButton(
-              tooltip: 'Add Section',
-              onPressed: _addSection,
-              icon: const Icon(Icons.create_new_folder_outlined),
-            ),
-        ],
-      ),
-      floatingActionButton: staffList == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _addStaffMember,
-              icon: const Icon(Icons.person_add),
-              label: const Text('Add Staff member'),
-            ),
-      body: switch ((staffList, _loadError)) {
-        (_, Object()) => const Center(
-          child: Text('Could not load the Staff list.'),
-        ),
-        (null, _) => const Center(child: CircularProgressIndicator()),
-        (final StaffList list, _) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
-          children: [
-            if (_pendingInvites.isNotEmpty) ...[
-              Text(
-                'Invite acceptances',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              for (final invite in _pendingInvites)
-                Card(
-                  child: Column(
-                    children: [
-                      ListTile(
-                        title: Text(invite.staffMemberName),
-                        subtitle: Text(invite.personalEmail),
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () =>
-                                _decideInvite(invite.inviteId, confirm: false),
-                            child: const Text('Reject'),
-                          ),
-                          TextButton(
-                            onPressed: () =>
-                                _decideInvite(invite.inviteId, confirm: true),
-                            child: const Text('Confirm'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+              tooltip: 'Help',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) => HelpPage(roles: helpRolesFor(_access)),
                 ),
-            ],
-            for (final (index, section) in list.sections.indexed)
-              _buildSection(list, section, index),
+              ),
+              icon: const Icon(Icons.help_outline),
+            ),
+            if (staffList != null)
+              IconButton(
+                tooltip: 'Past staff',
+                onPressed: _openPastStaff,
+                icon: const Icon(Icons.history),
+              ),
+            if (staffList != null && _access.canManageUnit)
+              IconButton(
+                tooltip: 'Add Section',
+                onPressed: _addSection,
+                icon: const Icon(Icons.create_new_folder_outlined),
+              ),
           ],
         ),
-      },
+        floatingActionButton: staffList == null
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: _addStaffMember,
+                icon: const Icon(Icons.person_add),
+                label: const Text('Add Staff member'),
+              ),
+        body: switch ((staffList, _loadError)) {
+          (_, Object()) => const Center(
+            child: Text('Could not load the Staff list.'),
+          ),
+          (null, _) => const Center(child: CircularProgressIndicator()),
+          (final StaffList list, _) => ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+            children: [
+              if (_pendingInvites.isNotEmpty) ...[
+                Text(
+                  'Invite acceptances',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                for (final invite in _pendingInvites)
+                  Card(
+                    child: Column(
+                      children: [
+                        ListTile(
+                          title: Text(invite.staffMemberName),
+                          subtitle: Text(invite.personalEmail),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => _decideInvite(
+                                invite.inviteId,
+                                confirm: false,
+                              ),
+                              child: const Text('Reject'),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  _decideInvite(invite.inviteId, confirm: true),
+                              child: const Text('Confirm'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+              for (final (index, section) in list.sections.indexed)
+                _buildSection(list, section, index),
+            ],
+          ),
+        },
+      ),
     );
   }
 

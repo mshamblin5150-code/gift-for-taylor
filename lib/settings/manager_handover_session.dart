@@ -41,9 +41,12 @@ final class ManagerTransferred extends ManagerTransferOutcome {
 }
 
 final class ManagerTransferFailed extends ManagerTransferOutcome {
-  const ManagerTransferFailed([this.error]);
+  const ManagerTransferFailed();
+}
 
-  final Object? error;
+final class ManagerTransferRefused extends ManagerTransferOutcome {
+  const ManagerTransferRefused(this.reason);
+  final ManagerHandoverRefusal reason;
 }
 
 final class ManagerHandoverSession extends ChangeNotifier {
@@ -82,9 +85,15 @@ final class ManagerHandoverSession extends ChangeNotifier {
         formerSections,
       );
       return const ManagerTransferred();
+    } on Refused catch (error) {
+      if (error.refusal case final ManagerHandoverRefusal reason) {
+        return ManagerTransferRefused(reason);
+      }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      return const ManagerTransferFailed();
     } catch (error) {
       if (error is AccessRejected) _onAccessRejected?.call();
-      return ManagerTransferFailed(error);
+      return const ManagerTransferFailed();
     } finally {
       _replace(_state.copyWith(saving: false));
     }

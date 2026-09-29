@@ -527,8 +527,11 @@ void main() {
         const Refused(MonthStartRefusal.alreadyStarted),
       );
       final alreadyStarted = await session.startMonth(empty: false);
-      expect(alreadyStarted, isA<AlreadyStarted>());
-      expect((alreadyStarted as AlreadyStarted).refusalCode, 'P2791');
+      expect(alreadyStarted, isA<StartMonthRefused>());
+      expect(
+        (alreadyStarted as StartMonthRefused).reason,
+        MonthStartRefusal.alreadyStarted,
+      );
       session.dispose();
       final november = create(viewingMonth: DateTime(2026, 11));
       await november.load();
@@ -546,8 +549,11 @@ void main() {
         const Refused(MonthStartRefusal.previousMonthNotStarted),
       );
       final noPreviousMonth = await january.startMonth(empty: false);
-      expect(noPreviousMonth, isA<NoPreviousMonth>());
-      expect((noPreviousMonth as NoPreviousMonth).refusalCode, 'P2792');
+      expect(noPreviousMonth, isA<StartMonthRefused>());
+      expect(
+        (noPreviousMonth as StartMonthRefused).reason,
+        MonthStartRefusal.previousMonthNotStarted,
+      );
       january.dispose();
     },
   );

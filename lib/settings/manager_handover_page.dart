@@ -35,13 +35,7 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
   bool _formerAdministrator = false;
   final Set<String> _formerSections = {};
   String? _error;
-  String? _refusalCode;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    recordTicketScreenVisit(context, 'Transfer Manager');
-  }
+  ManagerHandoverRefusal? _refusal;
 
   @override
   void initState() {
@@ -132,7 +126,7 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
     if (confirmed != true || !mounted) return;
     setState(() {
       _error = null;
-      _refusalCode = null;
+      _refusal = null;
     });
     final outcome = await _session.transfer(
       successorId: successorId,
@@ -143,106 +137,100 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
     switch (outcome) {
       case ManagerTransferred():
         Navigator.pop(context, true);
-      case ManagerTransferFailed(:final error):
+      case ManagerTransferRefused(:final reason):
         setState(() {
-          _error =
-              managerHandoverRefusalWording(error) ??
-              'Could not transfer Manager. Try again.';
-          _refusalCode = switch (error) {
-            Refused(refusal: final ManagerHandoverRefusal reason) =>
-              reason.code,
-            _ => null,
-          };
+          _error = managerHandoverRefusalWording(reason);
+          _refusal = reason;
         });
+      case ManagerTransferFailed():
+        setState(() => _error = 'Could not transfer Manager. Try again.');
     }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Transfer Manager')),
-    body: ListenableBuilder(
-      listenable: _session,
-      builder: (context, _) {
-        final state = _session.state;
-        if (state.loadError != null) {
-          return const Center(
-            child: Text('Could not load eligible Staff members.'),
-          );
-        }
-        if (state.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final list = state.list!;
-        final candidates = state.candidates!;
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Text('Choose the next Manager'),
-            const SizedBox(height: 8),
-            if (candidates.isEmpty)
-              const Text('No Staff members are available for handover yet.'),
-            for (final member in candidates) _candidateTile(member),
-            const Divider(),
-            if (!widget.isMaintainer) ...[
-              const Text('Your Staff access after handover'),
-              const Text(
-                'Staff member is the default. Your Manager access ends.',
-              ),
-              CheckboxListTile(
-                title: const Text('Administrator'),
-                value: _formerAdministrator,
-                onChanged: state.saving
-                    ? null
-                    : (value) =>
-                          setState(() => _formerAdministrator = value ?? false),
-              ),
-              const Text('Night scheduler Sections'),
-              for (final section in list.sections)
+  Widget build(BuildContext context) => TicketScope(
+    screen: TicketScreen.managerHandover,
+    onAccessRejected: widget.onAccessRejected,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('Transfer Manager')),
+      body: ListenableBuilder(
+        listenable: _session,
+        builder: (context, _) {
+          final state = _session.state;
+          if (state.loadError != null) {
+            return const Center(
+              child: Text('Could not load eligible Staff members.'),
+            );
+          }
+          if (state.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final list = state.list!;
+          final candidates = state.candidates!;
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text('Choose the next Manager'),
+              const SizedBox(height: 8),
+              if (candidates.isEmpty)
+                const Text('No Staff members are available for handover yet.'),
+              for (final member in candidates) _candidateTile(member),
+              const Divider(),
+              if (!widget.isMaintainer) ...[
+                const Text('Your Staff access after handover'),
+                const Text(
+                  'Staff member is the default. Your Manager access ends.',
+                ),
                 CheckboxListTile(
-                  title: Text(section.name),
-                  value: _formerSections.contains(section.id),
+                  title: const Text('Administrator'),
+                  value: _formerAdministrator,
                   onChanged: state.saving
                       ? null
-                      : (value) => setState(() {
-                          if (value == true) {
-                            _formerSections.add(section.id);
-                          } else {
-                            _formerSections.remove(section.id);
-                          }
-                        }),
+                      : (value) => setState(
+                          () => _formerAdministrator = value ?? false,
+                        ),
                 ),
-              const SizedBox(height: 12),
-              const Text(
-                'This transfer does not grant, remove, or replace the '
-                'database-bound Maintainer hat.',
-              ),
-            ],
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-              if (_refusalCode case final code?)
-                TicketRefusalButton(
-                  refusal: TicketRefusalContext(
-                    screen: 'Transfer Manager',
-                    code: code,
+                const Text('Night scheduler Sections'),
+                for (final section in list.sections)
+                  CheckboxListTile(
+                    title: Text(section.name),
+                    value: _formerSections.contains(section.id),
+                    onChanged: state.saving
+                        ? null
+                        : (value) => setState(() {
+                            if (value == true) {
+                              _formerSections.add(section.id);
+                            } else {
+                              _formerSections.remove(section.id);
+                            }
+                          }),
                   ),
-                  onAccessRejected: widget.onAccessRejected,
+                const SizedBox(height: 12),
+                const Text(
+                  'This transfer does not grant, remove, or replace the '
+                  'database-bound Maintainer hat.',
+                ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                if (_refusal case final refusal?) RefusalTicketButton(refusal),
+              ],
+              const SizedBox(height: 16),
+              if (_successorId != null)
+                FilledButton(
+                  onPressed: state.saving ? null : () => _transfer(candidates),
+                  child: Text(
+                    state.saving ? 'Transferring…' : 'Transfer Manager',
+                  ),
                 ),
             ],
-            const SizedBox(height: 16),
-            if (_successorId != null)
-              FilledButton(
-                onPressed: state.saving ? null : () => _transfer(candidates),
-                child: Text(
-                  state.saving ? 'Transferring…' : 'Transfer Manager',
-                ),
-              ),
-          ],
-        );
-      },
+          );
+        },
+      ),
     ),
   );
 }

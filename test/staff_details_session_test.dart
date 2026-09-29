@@ -105,7 +105,7 @@ void main() {
   });
 
   test('Manager handover session preserves a typed refusal', () async {
-    final refusal = Refused(ManagerHandoverRefusal.retainedSectionMissing);
+    const refusal = Refused(ManagerHandoverRefusal.retainedSectionMissing);
     final gateway = InMemoryStaffGateway(actorRole: 'manager')
       ..transferError = refusal;
     final session = ManagerHandoverSession(gateway);
@@ -116,13 +116,16 @@ void main() {
       formerSections: const {},
     );
 
-    expect(outcome, isA<ManagerTransferFailed>());
-    expect((outcome as ManagerTransferFailed).error, same(refusal));
+    expect(outcome, isA<ManagerTransferRefused>());
+    expect(
+      (outcome as ManagerTransferRefused).reason,
+      ManagerHandoverRefusal.retainedSectionMissing,
+    );
     session.dispose();
   });
 
   test('Staff details session preserves a typed handover refusal', () async {
-    final refusal = Refused(ManagerHandoverRefusal.successorInvitePending);
+    const refusal = Refused(ManagerHandoverRefusal.successorInvitePending);
     final gateway = InMemoryStaffGateway(actorRole: 'manager')
       ..transferError = refusal;
     final session = StaffDetailsSession('staff-1', gateway, rules);
@@ -134,8 +137,11 @@ void main() {
       formerSections: const {},
     );
 
-    expect(outcome, isA<StaffCommandFailed>());
-    expect((outcome as StaffCommandFailed).error, same(refusal));
+    expect(outcome, isA<StaffCommandRefused>());
+    expect(
+      (outcome as StaffCommandRefused).reason,
+      ManagerHandoverRefusal.successorInvitePending,
+    );
     session.dispose();
   });
 }

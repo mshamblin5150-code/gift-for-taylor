@@ -34,8 +34,8 @@ final class ShiftCodeDeleted extends ShiftCodeWriteOutcome {
 }
 
 final class ShiftCodeDeleteRefused extends ShiftCodeWriteOutcome {
-  const ShiftCodeDeleteRefused(this.code);
-  final String code;
+  const ShiftCodeDeleteRefused(this.reason);
+  final ShiftCodeRefusal reason;
 }
 
 final class ShiftCodeWriteFailed extends ShiftCodeWriteOutcome {
@@ -102,8 +102,8 @@ final class ShiftCodesSession extends ChangeNotifier {
       await load();
       return const ShiftCodeDeleted();
     } on Refused catch (error) {
-      if (error.refusal == ShiftCodeRefusal.inUse) {
-        return ShiftCodeDeleteRefused(error.refusal.code);
+      if (error.refusal case final ShiftCodeRefusal reason) {
+        return ShiftCodeDeleteRefused(reason);
       }
       assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const ShiftCodeWriteFailed();
