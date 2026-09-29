@@ -129,6 +129,7 @@ final class SwapsSession extends ChangeNotifier {
       if (error.refusal case final SwapProposalRefusal reason) {
         return SwapsProposalRejected(reason);
       }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const SwapsProposeFailed();
     } catch (error) {
       _rejected(error);
@@ -163,6 +164,7 @@ final class SwapsSession extends ChangeNotifier {
       if (error.refusal case final SwapProposalRefusal reason) {
         return SwapsWriteRefused(reason);
       }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const SwapsWriteFailed();
     } catch (error) {
       _rejected(error);

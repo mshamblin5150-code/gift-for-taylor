@@ -1,3 +1,4 @@
+import 'package:er_schedule/auth/auth_gateway.dart';
 import 'package:er_schedule/auth/sign_in_failure_log.dart';
 import 'package:er_schedule/calendar/calendar_feed_page.dart';
 import 'package:er_schedule/calendar/undelivered_invitation_log.dart';
@@ -29,10 +30,24 @@ final class _FailingDatabase extends Fake implements Database {
       guard.run((_) => Future<T>.error(error));
 }
 
+final class _AuthDatabase extends Fake implements Database {
+  _AuthDatabase(this.auth);
+
+  @override
+  final GoTrueClient auth;
+}
+
 void main() {
   final client = SupabaseClient('https://example.supabase.co', 'test-key');
   final guard = Database(client);
   tearDownAll(client.dispose);
+
+  test('Auth adapter uses the narrow Database auth member', () {
+    final gateway = SupabaseAuthGateway(_AuthDatabase(client.auth));
+
+    expect(gateway.isSignedIn, isFalse);
+    expect(gateway.currentUserId, isNull);
+  });
 
   final adapterCalls = <String, AdapterCall>{
     'sign-in failure log': (database) async {
@@ -91,22 +106,53 @@ void main() {
   };
 
   for (final MapEntry(key: name, value: call) in adapterCalls.entries) {
-    test('$name reaches Supabase only through Database.run', () async {
-      final error = PostgrestException(
-        message: 'No change',
-        code: SwapProposalRefusal.noChange.code,
-      );
+    group('$name reaches Supabase only through Database.run', () {
+      test('known code becomes Refused', () async {
+        final error = PostgrestException(
+          message: 'No change',
+          code: SwapProposalRefusal.noChange.code,
+        );
 
-      await expectLater(
-        call(_FailingDatabase(error, guard)),
-        throwsA(
-          isA<Refused>().having(
-            (value) => value.refusal,
-            'refusal',
-            SwapProposalRefusal.noChange,
+        await expectLater(
+          call(_FailingDatabase(error, guard)),
+          throwsA(
+            isA<Refused>().having(
+              (value) => value.refusal,
+              'refusal',
+              SwapProposalRefusal.noChange,
+            ),
           ),
-        ),
-      );
+        );
+      });
+
+      for (final code in ['42501', '401', '403']) {
+        test('$code becomes AccessRejected', () async {
+          final error = PostgrestException(
+            message: 'Access denied',
+            code: code,
+          );
+
+          await expectLater(
+            call(_FailingDatabase(error, guard)),
+            throwsA(
+              isA<AccessRejected>().having(
+                (value) => value.cause,
+                'cause',
+                same(error),
+              ),
+            ),
+          );
+        });
+      }
+
+      test('unknown code is rethrown untouched', () async {
+        final error = PostgrestException(message: 'Conflict', code: '23505');
+
+        await expectLater(
+          call(_FailingDatabase(error, guard)),
+          throwsA(same(error)),
+        );
+      });
     });
   }
 }

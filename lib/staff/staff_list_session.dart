@@ -138,6 +138,7 @@ final class StaffListSession extends ChangeNotifier {
       if (error.refusal case final SectionRefusal reason) {
         return SectionDeleteRefused(reason.code);
       }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const SectionDeleteFailed();
     } catch (error) {
       _rejected(error);

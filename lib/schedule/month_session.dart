@@ -640,6 +640,7 @@ final class MonthSession extends ChangeNotifier {
       if (error.refusal case final SwapProposalRefusal reason) {
         return SwapProposeRefused(reason);
       }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const ProposeSwapFailed();
     } catch (error) {
       _rejected(error);
@@ -669,6 +670,7 @@ final class MonthSession extends ChangeNotifier {
       if (error.refusal case final GiveawayProposalRefusal reason) {
         return GiveawayProposeRefused(reason);
       }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const ProposeGiveawayFailed();
     } catch (error) {
       _rejected(error);
@@ -750,6 +752,7 @@ final class MonthSession extends ChangeNotifier {
       if (error.refusal case final CallInRefusal reason) {
         return RecordCallInRefused(reason);
       }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const RecordCallInFailed();
     } catch (error) {
       _rejected(error);
@@ -769,6 +772,7 @@ final class MonthSession extends ChangeNotifier {
       if (error.refusal case final CallInRefusal reason) {
         return WithdrawCallInRefused(reason);
       }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const WithdrawCallInFailed();
     } catch (error) {
       _rejected(error);
@@ -810,6 +814,7 @@ final class MonthSession extends ChangeNotifier {
       if (error.refusal == MonthStartRefusal.previousMonthNotStarted) {
         return const NoPreviousMonth();
       }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
       return const StartMonthFailed();
     } catch (error) {
       _rejected(error);

@@ -53,6 +53,10 @@ final class TicketFormSession extends ChangeNotifier {
       if (failure.refusal case final TicketSubmissionRefusal reason) {
         return TicketPutInRefused(reason);
       }
+      assert(
+        false,
+        'Unexpected Refusal family: ${failure.refusal.runtimeType}',
+      );
       return const TicketPutInFailed();
     } on AccessRejected {
       onAccessRejected?.call();
@@ -280,6 +284,10 @@ final class TicketDetailSession extends ChangeNotifier {
       if (failure.refusal case final TicketThreadRefusal reason) {
         return TicketThreadCommandRefused(reason);
       }
+      assert(
+        false,
+        'Unexpected Refusal family: ${failure.refusal.runtimeType}',
+      );
       return const TicketThreadCommandFailed();
     } on AccessRejected {
       onAccessRejected?.call();
@@ -333,6 +341,10 @@ final class TicketDetailSession extends ChangeNotifier {
       if (failure.refusal case final TicketMutationRefusal reason) {
         return TicketMutationRefused(reason);
       }
+      assert(
+        false,
+        'Unexpected Refusal family: ${failure.refusal.runtimeType}',
+      );
       return const TicketMutationFailed();
     } on AccessRejected {
       onAccessRejected?.call();
