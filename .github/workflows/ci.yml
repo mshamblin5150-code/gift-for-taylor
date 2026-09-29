@@ -51,6 +51,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/check_migration_versions.py
+      - run: python3 -m unittest scripts.tests.test_check_bare_raise_exceptions -v
+      - run: python3 scripts/check_bare_raise_exceptions.py
       - uses: supabase/setup-cli@v1
         with:
           version: 2.107.0
