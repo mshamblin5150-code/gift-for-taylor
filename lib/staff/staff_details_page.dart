@@ -213,7 +213,8 @@ class _StaffDetailsPageState extends State<StaffDetailsPage> {
           managerHandoverRefusalWording(error) ??
               'Could not change the access role.',
           refusalCode: switch (error) {
-            ManagerHandoverRefused(:final reason) => reason.code,
+            Refused(refusal: final ManagerHandoverRefusal reason) =>
+              reason.code,
             _ => null,
           },
         );

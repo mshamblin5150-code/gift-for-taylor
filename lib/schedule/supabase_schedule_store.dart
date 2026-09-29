@@ -4,24 +4,26 @@ import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../database.dart';
 import '../staff/access_row.dart';
-import 'access_rejected_write.dart';
 
 final class SupabaseScheduleStore implements ScheduleStore {
-  SupabaseScheduleStore(this._client);
+  SupabaseScheduleStore(this._database);
 
-  final SupabaseClient _client;
+  final Database _database;
 
   @override
   Future<List<LegendCode>> shiftCodes() async {
-    final rows = await _client
-        .from('shift_codes')
-        .select(
-          'code, meaning, start_time, end_time, is_working, coverage_window',
-        )
-        .eq('active', true)
-        .order('display_order', ascending: true)
-        .order('code', ascending: true);
+    final rows = await _database.run(
+      (client) => client
+          .from('shift_codes')
+          .select(
+            'code, meaning, start_time, end_time, is_working, coverage_window',
+          )
+          .eq('active', true)
+          .order('display_order', ascending: true)
+          .order('code', ascending: true),
+    );
     return [
       for (final row in rows)
         LegendCode(
@@ -57,8 +59,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
     LegendCode code, {
     String? originalCode,
   }) async {
-    final result = await mapAccessRejected(
-      () => _client.rpc<List<dynamic>>(
+    final result = await _database.run(
+      (client) => client.rpc<List<dynamic>>(
         'preview_shift_code_change',
         params: _shiftCodeParams(code, originalCode),
       ),
@@ -74,8 +76,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
     LegendCode code,
     List<ShiftCodeChangePlan> plan, {
     String? originalCode,
-  }) => mapAccessRejected(
-    () => _client.rpc<void>(
+  }) => _database.run(
+    (client) => client.rpc<void>(
       'commit_shift_code_change',
       params: {
         ..._shiftCodeParams(code, originalCode),
@@ -86,8 +88,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<void> saveShiftCode(LegendCode code, {String? originalCode}) =>
-      mapAccessRejected(
-        () => _client.rpc<void>(
+      _database.run(
+        (client) => client.rpc<void>(
           'save_shift_code',
           params: _shiftCodeParams(code, originalCode),
         ),
@@ -95,26 +97,22 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<void> deleteShiftCode(String code) async {
-    try {
-      await mapAccessRejected(
-        () => _client.rpc<void>('delete_shift_code', params: {'p_code': code}),
-      );
-    } on PostgrestException catch (error) {
-      if (refusalFor(error.code) == ShiftCodeRefusal.inUse) {
-        throw const ShiftCodeInUse();
-      }
-      rethrow;
-    }
+    await _database.run(
+      (client) =>
+          client.rpc<void>('delete_shift_code', params: {'p_code': code}),
+    );
   }
 
   @override
   Future<RequestOffEmail> createRequestOff(RequestOffDraft draft) async {
-    final result = await _client.rpc<Map<String, dynamic>>(
-      'submit_request_off',
-      params: {
-        'p_dates': draft.dates.map(_date).toList(),
-        'p_reason': draft.reason,
-      },
+    final result = await _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
+        'submit_request_off',
+        params: {
+          'p_dates': draft.dates.map(_date).toList(),
+          'p_reason': draft.reason,
+        },
+      ),
     );
     return RequestOffEmail.forRequest(
       requestId: result['request_id'] as String,
@@ -126,23 +124,27 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<void> confirmRequestOffEmail(String requestId) => _client.rpc<void>(
-    'confirm_request_off_email',
-    params: {'p_request_id': requestId},
+  Future<void> confirmRequestOffEmail(String requestId) => _database.run(
+    (client) => client.rpc<void>(
+      'confirm_request_off_email',
+      params: {'p_request_id': requestId},
+    ),
   );
 
   @override
   Future<List<RequestOff>> requestsOff({required bool pendingOnly}) async {
     final rows = await _allPages((from, to) {
-      var query = _client
-          .from('requests_off')
-          .select(
-            'id, staff_member_id, reason, submitted_at, email_confirmed_at, '
-            'decision, decision_reason, decided_at, '
-            'staff_members!staff_member_id(display_name), request_off_dates(work_date)',
-          );
-      if (pendingOnly) query = query.eq('decision', 'pending');
-      return query.order('submitted_at', ascending: false).range(from, to);
+      return _database.run((client) {
+        var query = client
+            .from('requests_off')
+            .select(
+              'id, staff_member_id, reason, submitted_at, email_confirmed_at, '
+              'decision, decision_reason, decided_at, '
+              'staff_members!staff_member_id(display_name), request_off_dates(work_date)',
+            );
+        if (pendingOnly) query = query.eq('decision', 'pending');
+        return query.order('submitted_at', ascending: false).range(from, to);
+      });
     });
     return [
       for (final row in rows)
@@ -177,35 +179,42 @@ final class SupabaseScheduleStore implements ScheduleStore {
     String requestId,
     RequestOffDecision decision,
     String? reason,
-  ) => _client.rpc<void>(
-    'decide_request_off',
-    params: {
-      'p_request_id': requestId,
-      'p_decision': decision.name,
-      'p_reason': reason,
-    },
+  ) => _database.run(
+    (client) => client.rpc<void>(
+      'decide_request_off',
+      params: {
+        'p_request_id': requestId,
+        'p_decision': decision.name,
+        'p_reason': reason,
+      },
+    ),
   );
 
   @override
   Future<int> unreadRequestOffNotices() async {
-    final rows = await _client
-        .from('staff_notices')
-        .select('id')
-        .inFilter('kind', ['request_submitted', 'request_decided'])
-        .filter('read_at', 'is', null);
+    final rows = await _database.run(
+      (client) => client
+          .from('staff_notices')
+          .select('id')
+          .inFilter('kind', ['request_submitted', 'request_decided'])
+          .filter('read_at', 'is', null),
+    );
     return rows.length;
   }
 
   @override
-  Future<void> acknowledgeRequestOffNotices() =>
-      _client.rpc<void>('acknowledge_request_off_notices');
+  Future<void> acknowledgeRequestOffNotices() => _database.run(
+    (client) => client.rpc<void>('acknowledge_request_off_notices'),
+  );
 
   @override
   Future<List<ScheduleSection>> sections() async {
-    final rows = await _client
-        .from('sections')
-        .select('id, name')
-        .order('display_order', ascending: true);
+    final rows = await _database.run(
+      (client) => client
+          .from('sections')
+          .select('id, name')
+          .order('display_order', ascending: true),
+    );
     return rows
         .map(
           (row) => ScheduleSection(
@@ -218,9 +227,11 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ScheduleRow>> rows(DateTime month) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'schedule_rows',
-      params: {'p_month_start': _date(_monthStart(month))},
+    final rows = await _database.run(
+      (client) => client.rpc<List<dynamic>>(
+        'schedule_rows',
+        params: {'p_month_start': _date(_monthStart(month))},
+      ),
     );
     return [
       for (final row in rows.cast<Map<String, dynamic>>())
@@ -239,13 +250,15 @@ final class SupabaseScheduleStore implements ScheduleStore {
   @override
   Future<List<ScheduleCell>> cellsForMonth(DateTime month) async {
     final rows = await _allPages(
-      (from, to) => _client
-          .from('schedule_cells')
-          .select('staff_member_id, section_id, work_date, shift_code')
-          .gte('work_date', _date(_monthStart(month)))
-          .lt('work_date', _date(_nextMonthStart(month)))
-          .order('id', ascending: true)
-          .range(from, to),
+      (from, to) => _database.run(
+        (client) => client
+            .from('schedule_cells')
+            .select('staff_member_id, section_id, work_date, shift_code')
+            .gte('work_date', _date(_monthStart(month)))
+            .lt('work_date', _date(_nextMonthStart(month)))
+            .order('id', ascending: true)
+            .range(from, to),
+      ),
     );
     return rows
         .map(
@@ -262,19 +275,21 @@ final class SupabaseScheduleStore implements ScheduleStore {
   @override
   Future<List<ScheduleChange>> changesForMonth(DateTime month) async {
     final rows = await _allPages(
-      (from, to) => _client
-          .from('schedule_changes')
-          .select(
-            'id, staff_member_id, work_date, old_shift_code, new_shift_code, '
-            'changed_by_staff_member_id, changed_by_auth_user_id, '
-            'changed_at, announced_at, moot_at, reach, swap_id, giveaway_id, '
-            'changed_by:staff_members!changed_by_staff_member_id(display_name)',
-          )
-          .gte('work_date', _date(_monthStart(month)))
-          .lt('work_date', _date(_nextMonthStart(month)))
-          .order('changed_at', ascending: true)
-          .order('id', ascending: true)
-          .range(from, to),
+      (from, to) => _database.run(
+        (client) => client
+            .from('schedule_changes')
+            .select(
+              'id, staff_member_id, work_date, old_shift_code, new_shift_code, '
+              'changed_by_staff_member_id, changed_by_auth_user_id, '
+              'changed_at, announced_at, moot_at, reach, swap_id, giveaway_id, '
+              'changed_by:staff_members!changed_by_staff_member_id(display_name)',
+            )
+            .gte('work_date', _date(_monthStart(month)))
+            .lt('work_date', _date(_nextMonthStart(month)))
+            .order('changed_at', ascending: true)
+            .order('id', ascending: true)
+            .range(from, to),
+      ),
     );
     return rows
         .map(
@@ -340,13 +355,17 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<List<ShortShift>> shortShiftsForMonth(DateTime month) async {
-    final rows = await _client
-        .from('short_shifts')
-        .select('section_id, work_date, shift_code, staff_member_id, job_role')
-        .gte('work_date', _date(_monthStart(month)))
-        .lt('work_date', _date(_nextMonthStart(month)))
-        .filter('filled_at', 'is', null)
-        .order('work_date', ascending: true);
+    final rows = await _database.run(
+      (client) => client
+          .from('short_shifts')
+          .select(
+            'section_id, work_date, shift_code, staff_member_id, job_role',
+          )
+          .gte('work_date', _date(_monthStart(month)))
+          .lt('work_date', _date(_nextMonthStart(month)))
+          .filter('filled_at', 'is', null)
+          .order('work_date', ascending: true),
+    );
     final codes = await shiftCodes();
     final staffIds = rows
         .map((row) => row['staff_member_id'] as String?)
@@ -355,16 +374,17 @@ final class SupabaseScheduleStore implements ScheduleStore {
         .toList();
     final roles = staffIds.isEmpty
         ? <Map<String, dynamic>>[]
-        : (await _client
-                  .from('staff_job_roles')
-                  .select('staff_member_id, job_role, effective_from')
-                  .inFilter('staff_member_id', staffIds))
-              .cast<Map<String, dynamic>>();
-    final memberships =
-        (await _client
-                .from('coverage_pool_memberships')
-                .select('job_role, effective_from, pool'))
-            .cast<Map<String, dynamic>>();
+        : (await _database.run(
+            (client) => client
+                .from('staff_job_roles')
+                .select('staff_member_id, job_role, effective_from')
+                .inFilter('staff_member_id', staffIds),
+          )).cast<Map<String, dynamic>>();
+    final memberships = (await _database.run(
+      (client) => client
+          .from('coverage_pool_memberships')
+          .select('job_role, effective_from, pool'),
+    )).cast<Map<String, dynamic>>();
     return [
       for (final row in rows)
         ShortShift(
@@ -402,8 +422,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<void> writeCell(ScheduleCell cell) async {
-    await mapAccessRejected(
-      () => _client.rpc<void>(
+    await _database.run(
+      (client) => client.rpc<void>(
         'save_schedule_cell',
         params: {
           'p_staff_member_id': cell.staffMemberId,
@@ -417,8 +437,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<void> writeCellPair(SaveCellPair action) async {
-    await mapAccessRejected(
-      () => _client.rpc<void>(
+    await _database.run(
+      (client) => client.rpc<void>(
         'save_schedule_cell_pair',
         params: {
           'p_first_staff_member_id': action.first.staffMemberId,
@@ -437,13 +457,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
   }
 
   @override
-  Future<bool> isOnFloorNow() async =>
-      await _client.rpc<bool>('is_current_staff_member_on_floor');
+  Future<bool> isOnFloorNow() => _database.run(
+    (client) => client.rpc<bool>('is_current_staff_member_on_floor'),
+  );
 
   @override
   Future<int> recordCallIn(String staffMemberId, DateTime date) =>
-      mapCallInRefusal(
-        () => _client.rpc<int>(
+      _database.run(
+        (client) => client.rpc<int>(
           'record_call_in',
           params: {
             'p_staff_member_id': staffMemberId,
@@ -457,9 +478,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
     String staffMemberId,
     DateTime date,
   ) async {
-    final value = await _client.rpc<String>(
-      'call_in_withdrawal_state',
-      params: {'p_staff_member_id': staffMemberId, 'p_work_date': _date(date)},
+    final value = await _database.run(
+      (client) => client.rpc<String>(
+        'call_in_withdrawal_state',
+        params: {
+          'p_staff_member_id': staffMemberId,
+          'p_work_date': _date(date),
+        },
+      ),
     );
     return switch (value) {
       'withdrawable' => CallInWithdrawalState.withdrawable,
@@ -470,8 +496,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<void> withdrawCallIn(String staffMemberId, DateTime date) =>
-      mapCallInRefusal(
-        () => _client.rpc<void>(
+      _database.run(
+        (client) => client.rpc<void>(
           'withdraw_call_in',
           params: {
             'p_staff_member_id': staffMemberId,
@@ -486,7 +512,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
     RealtimeChannel? channel;
     controller = StreamController<void>(
       onListen: () {
-        channel = _client
+        channel = _database
             .channel('schedule-changes-${_date(_monthStart(month))}')
             .onPostgresChanges(
               event: PostgresChangeEvent.insert,
@@ -505,7 +531,7 @@ final class SupabaseScheduleStore implements ScheduleStore {
       },
       onCancel: () async {
         final subscribed = channel;
-        if (subscribed != null) await _client.removeChannel(subscribed);
+        if (subscribed != null) await _database.removeChannel(subscribed);
       },
     );
     return controller.stream;
@@ -513,7 +539,9 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<Access> currentAccess() async {
-    final rows = await _client.rpc<List<dynamic>>('current_access');
+    final rows = await _database.run(
+      (client) => client.rpc<List<dynamic>>('current_access'),
+    );
     return accessFromRow(rows.single as Map<String, dynamic>);
   }
 
@@ -522,29 +550,35 @@ final class SupabaseScheduleStore implements ScheduleStore {
     String staffMemberId,
     Set<String> sectionIds,
   ) async {
-    await _client.rpc<void>(
-      'assign_night_scheduler',
-      params: {
-        'p_staff_member_id': staffMemberId,
-        'p_section_ids': sectionIds.toList(),
-      },
+    await _database.run(
+      (client) => client.rpc<void>(
+        'assign_night_scheduler',
+        params: {
+          'p_staff_member_id': staffMemberId,
+          'p_section_ids': sectionIds.toList(),
+        },
+      ),
     );
   }
 
   @override
   Future<void> removeNightScheduler(String staffMemberId) async {
-    await _client.rpc<void>(
-      'remove_night_scheduler',
-      params: {'p_staff_member_id': staffMemberId},
+    await _database.run(
+      (client) => client.rpc<void>(
+        'remove_night_scheduler',
+        params: {'p_staff_member_id': staffMemberId},
+      ),
     );
   }
 
   @override
   Future<List<NightScheduler>> nightSchedulers() async {
-    final rows = await _client
-        .from('night_scheduler_sections')
-        .select('staff_member_id, section_id')
-        .order('created_at', ascending: true);
+    final rows = await _database.run(
+      (client) => client
+          .from('night_scheduler_sections')
+          .select('staff_member_id, section_id')
+          .order('created_at', ascending: true),
+    );
     final sections = <String, Set<String>>{};
     for (final row in rows) {
       sections
@@ -559,12 +593,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<List<DateTime>> monthsAwaitingConfirmation() async {
-    final rows = await _client
-        .from('schedule_months')
-        .select('month_start')
-        .not('loaded_from_page_at', 'is', null)
-        .isFilter('confirmed_at', null)
-        .order('month_start', ascending: true);
+    final rows = await _database.run(
+      (client) => client
+          .from('schedule_months')
+          .select('month_start')
+          .not('loaded_from_page_at', 'is', null)
+          .isFilter('confirmed_at', null)
+          .order('month_start', ascending: true),
+    );
     return [
       for (final row in rows) DateTime.parse(row['month_start'] as String),
     ];
@@ -575,8 +611,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
     DateTime month, {
     bool acknowledgeShortfalls = false,
   }) async {
-    await mapAccessRejected(
-      () => _client.rpc<void>(
+    await _database.run(
+      (client) => client.rpc<void>(
         'confirm_loaded_month_checked',
         params: {
           'p_month_start': _date(_monthStart(month)),
@@ -591,8 +627,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
     Set<String> changeIds,
     Set<String> draftOpenedStaffMemberIds,
   ) async {
-    await mapAccessRejected(
-      () => _client.rpc<void>(
+    await _database.run(
+      (client) => client.rpc<void>(
         'mark_changes_announced',
         params: {
           'p_change_ids': changeIds.toList(),
@@ -604,11 +640,13 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<MonthStatus> monthStatus(DateTime month) async {
-    final row = await _client
-        .from('schedule_months')
-        .select('release_state')
-        .eq('month_start', _date(_monthStart(month)))
-        .maybeSingle();
+    final row = await _database.run(
+      (client) => client
+          .from('schedule_months')
+          .select('release_state')
+          .eq('month_start', _date(_monthStart(month)))
+          .maybeSingle(),
+    );
     return switch (row?['release_state']) {
       'released' => MonthStatus.released,
       'unpublished' => MonthStatus.unpublished,
@@ -622,8 +660,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
     List<ScheduleCell> cells, {
     DateTime? sourceMonth,
   }) async {
-    await mapStartMonthRefusal(
-      () => _client.rpc<void>(
+    await _database.run(
+      (client) => client.rpc<void>(
         'start_month',
         params: {
           'p_month_start': _date(_monthStart(month)),
@@ -646,12 +684,14 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<void> setLastDay(SetLastDay action) async {
-    await _client.rpc<void>(
-      'set_staff_last_day',
-      params: {
-        'p_staff_member_id': action.staffMemberId,
-        'p_last_day': _date(action.lastDay),
-      },
+    await _database.run(
+      (client) => client.rpc<void>(
+        'set_staff_last_day',
+        params: {
+          'p_staff_member_id': action.staffMemberId,
+          'p_last_day': _date(action.lastDay),
+        },
+      ),
     );
   }
 
@@ -660,8 +700,8 @@ final class SupabaseScheduleStore implements ScheduleStore {
     DateTime month, {
     bool acknowledgeShortfalls = false,
   }) async {
-    await mapAccessRejected(
-      () => _client.rpc<void>(
+    await _database.run(
+      (client) => client.rpc<void>(
         'release_month_checked',
         params: {
           'p_month_start': _date(_monthStart(month)),
@@ -673,47 +713,55 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<void> reactivate(Reactivate action) async {
-    await _client.rpc<void>(
-      'reactivate_staff_member',
-      params: {
-        'p_staff_member_id': action.staffMemberId,
-        'p_section_id': action.sectionId,
-        'p_first_day': _date(action.firstDay),
-      },
+    await _database.run(
+      (client) => client.rpc<void>(
+        'reactivate_staff_member',
+        params: {
+          'p_staff_member_id': action.staffMemberId,
+          'p_section_id': action.sectionId,
+          'p_first_day': _date(action.firstDay),
+        },
+      ),
     );
   }
 
   @override
   Future<void> changeSection(ChangeSection action) async {
-    await _client.rpc<void>(
-      'change_staff_section',
-      params: {
-        'p_staff_member_id': action.staffMemberId,
-        'p_section_id': action.sectionId,
-        'p_from': _date(action.from),
-      },
+    await _database.run(
+      (client) => client.rpc<void>(
+        'change_staff_section',
+        params: {
+          'p_staff_member_id': action.staffMemberId,
+          'p_section_id': action.sectionId,
+          'p_from': _date(action.from),
+        },
+      ),
     );
   }
 
   @override
   Future<void> changeJobRole(ChangeJobRole action) async {
-    await _client.rpc<void>(
-      'change_staff_job_role',
-      params: {
-        'p_staff_member_id': action.staffMemberId,
-        'p_job_role': action.jobRole.value,
-        'p_from': _date(action.from),
-      },
+    await _database.run(
+      (client) => client.rpc<void>(
+        'change_staff_job_role',
+        params: {
+          'p_staff_member_id': action.staffMemberId,
+          'p_job_role': action.jobRole.value,
+          'p_from': _date(action.from),
+        },
+      ),
     );
   }
 
   @override
   Future<List<DatedJobRole>> jobRoles(String staffMemberId) async {
-    final rows = await _client
-        .from('staff_job_roles')
-        .select('job_role, effective_from, effective_through')
-        .eq('staff_member_id', staffMemberId)
-        .order('effective_from', ascending: true);
+    final rows = await _database.run(
+      (client) => client
+          .from('staff_job_roles')
+          .select('job_role, effective_from, effective_through')
+          .eq('staff_member_id', staffMemberId)
+          .order('effective_from', ascending: true),
+    );
     return [
       for (final row in rows)
         DatedJobRole(
@@ -726,13 +774,15 @@ final class SupabaseScheduleStore implements ScheduleStore {
 
   @override
   Future<List<StaffChange>> staffChanges() async {
-    final rows = await _client
-        .from('staff_changes')
-        .select(
-          'staff_member_id, kind, old_value, new_value, effective_from, '
-          'changed_by_staff_member_id, changed_by_auth_user_id, changed_at',
-        )
-        .order('changed_at', ascending: true);
+    final rows = await _database.run(
+      (client) => client
+          .from('staff_changes')
+          .select(
+            'staff_member_id, kind, old_value, new_value, effective_from, '
+            'changed_by_staff_member_id, changed_by_auth_user_id, changed_at',
+          )
+          .order('changed_at', ascending: true),
+    );
     return [
       for (final row in rows)
         StaffChange(

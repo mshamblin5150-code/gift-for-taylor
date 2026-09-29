@@ -19,7 +19,7 @@ class _Swaps extends Fake implements SwapStore {
   @override
   Future<void> approveSwap(String id) async {
     if (approvalRefusal case final reason?) {
-      throw SwapProposalRefused(reason);
+      throw Refused(reason);
     }
     items.removeWhere((s) => s.id == id);
   }
@@ -34,13 +34,17 @@ class _Swaps extends Fake implements SwapStore {
 class _Pickups extends Fake implements OpenShiftStore {
   final items = <OpenShiftPickup>[];
   final shifts = <OpenShift>[];
+  Object? approveError;
   @override
   Future<List<OpenShiftPickup>> pickups() async => items;
   @override
   Future<List<OpenShift>> openShifts() async => shifts;
   @override
-  Future<void> approvePickup(String id) async =>
-      items.removeWhere((p) => p.id == id);
+  Future<void> approvePickup(String id) async {
+    if (approveError case final error?) throw error;
+    items.removeWhere((p) => p.id == id);
+  }
+
   @override
   Future<void> declinePickup(String id, {String? reason}) async =>
       items.removeWhere((p) => p.id == id);
@@ -112,6 +116,89 @@ void main() {
       findsOneWidget,
     );
     expect(swaps.items.single.status, SwapStatus.accepted);
+  });
+
+  testWidgets('pickup Access rejection asks for Access again', (tester) async {
+    var accessRequests = 0;
+    final pickups = _Pickups()
+      ..approveError = const AccessRejected()
+      ..shifts.add(
+        OpenShift(
+          id: 'open',
+          sectionId: 'nurses',
+          date: pickupDay,
+          shiftCode: 'D',
+          jobRole: JobRole.rn,
+        ),
+      )
+      ..items.add(
+        const OpenShiftPickup(
+          id: 'pickup',
+          openShiftId: 'open',
+          staffMemberId: 'bob',
+          status: PickupStatus.pending,
+        ),
+      );
+    final db = InMemoryScheduleDatabase(
+      sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ApprovalQueuePage(
+          rules: scheduleRulesInMemory(db, actingAs: 'manager'),
+          swapStore: _Swaps(),
+          giveawayStore: emptyGiveawayStore('manager'),
+          openShiftStore: pickups,
+          staffGateway: InMemoryStaffGateway(),
+          onAccessRejected: () => accessRequests++,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Approve'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(accessRequests, 1);
+  });
+
+  testWidgets('Invite Access rejection asks for Access again', (tester) async {
+    var accessRequests = 0;
+    final invites = InMemoryStaffGateway()
+      ..confirmInviteError = const AccessRejected()
+      ..invites = [
+        PendingInviteAcceptance(
+          inviteId: 'invite',
+          staffMemberName: 'Jane Kemp',
+          personalEmail: 'jane@example.com',
+          acceptedAt: DateTime(2026, 9, 18),
+        ),
+      ];
+    final db = InMemoryScheduleDatabase(
+      sections: const [ScheduleSection(id: 'nurses', name: 'Nurses')],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ApprovalQueuePage(
+          rules: scheduleRulesInMemory(db, actingAs: 'manager'),
+          swapStore: _Swaps(),
+          giveawayStore: emptyGiveawayStore('manager'),
+          openShiftStore: _Pickups(),
+          staffGateway: invites,
+          onAccessRejected: () => accessRequests++,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm').last);
+    await tester.pumpAndSettle();
+
+    expect(accessRequests, 1);
   });
 
   testWidgets('Manager confirms a pending Invite in the approval queue', (

@@ -1,5 +1,4 @@
 import 'package:er_schedule/staff/refusal_wording.dart';
-import 'package:er_schedule/staff/staff_gateway.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
@@ -37,10 +36,7 @@ void main() {
     };
 
     for (final MapEntry(key: reason, value: wording) in cases.entries) {
-      expect(
-        managerHandoverRefusalWording(ManagerHandoverRefused(reason)),
-        wording,
-      );
+      expect(managerHandoverRefusalWording(Refused(reason)), wording);
     }
   });
 
@@ -61,10 +57,7 @@ void main() {
     };
 
     for (final MapEntry(key: reason, value: wording) in cases.entries) {
-      expect(
-        inviteAcceptanceRefusalWording(InviteAcceptanceRefused(reason)),
-        wording,
-      );
+      expect(inviteAcceptanceRefusalWording(Refused(reason)), wording);
     }
   });
 

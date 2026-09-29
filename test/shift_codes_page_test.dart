@@ -354,5 +354,5 @@ final class _RefusingShiftCodeStore extends Fake implements ScheduleStore {
 
   @override
   Future<void> deleteShiftCode(String code) =>
-      Future.error(const ShiftCodeInUse());
+      Future.error(const Refused(ShiftCodeRefusal.inUse));
 }

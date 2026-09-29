@@ -11,7 +11,7 @@ void main() {
     final gateway = InMemoryStaffGateway(
       actorRole: 'manager',
       list: const StaffList(sections: [], members: []),
-    )..deleteSectionError = const SectionInUseException();
+    )..deleteSectionError = const Refused(SectionRefusal.staffMembersAssigned);
     final session = StaffListSession(
       gateway,
       scheduleRulesInMemory(
@@ -34,7 +34,7 @@ void main() {
     final gateway = InMemoryStaffGateway(
       actorRole: 'manager',
       list: const StaffList(sections: [], members: []),
-    )..deleteSectionError = const SectionHasScheduleHistoryException();
+    )..deleteSectionError = const Refused(SectionRefusal.scheduleHistory);
     final session = StaffListSession(
       gateway,
       scheduleRulesInMemory(

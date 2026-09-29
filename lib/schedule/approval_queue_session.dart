@@ -197,8 +197,11 @@ final class ApprovalQueueSession extends ChangeNotifier {
       _setBusy(false);
       await refresh();
       return const ApprovalDecisionSucceeded();
-    } on SwapProposalRefused catch (error) {
-      return ApprovalDecisionRefused(error.reason);
+    } on Refused catch (error) {
+      if (error.refusal case final SwapProposalRefusal reason) {
+        return ApprovalDecisionRefused(reason);
+      }
+      return const ApprovalDecisionFailed();
     } catch (error) {
       _rejected(error);
       return const ApprovalDecisionFailed();

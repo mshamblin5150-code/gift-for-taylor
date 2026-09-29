@@ -1,7 +1,6 @@
 import 'package:schedule_rules/schedule_rules.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../schedule/access_rejected_write.dart';
+import '../database.dart';
 import 'staff_contacts.dart';
 import 'access_row.dart';
 
@@ -127,60 +126,6 @@ final class StaffInvite {
 
 enum InviteAcceptanceResult { accepted, cellMismatch, throttled }
 
-final class StaffInviteAlreadyLinkedException implements Exception {
-  const StaffInviteAlreadyLinkedException();
-  String get refusalCode => InviteLinkRefusal.alreadyLinked.code;
-}
-
-final class InvalidInviteException implements Exception {
-  const InvalidInviteException();
-  String get refusalCode => InviteLinkRefusal.invalid.code;
-}
-
-final class ManagerHandoverRefused implements Exception {
-  const ManagerHandoverRefused(this.reason);
-
-  final ManagerHandoverRefusal reason;
-}
-
-final class InviteAcceptanceRefused implements Exception {
-  const InviteAcceptanceRefused(this.reason);
-
-  final InviteAcceptanceRefusal reason;
-}
-
-Future<T> mapManagerHandoverRefusal<T>(Future<T> Function() command) async {
-  try {
-    return await command();
-  } on PostgrestException catch (error) {
-    if (refusalFor(error.code) case final ManagerHandoverRefusal reason) {
-      throw ManagerHandoverRefused(reason);
-    }
-    rethrow;
-  }
-}
-
-Future<T> mapInviteAcceptanceRefusal<T>(Future<T> Function() command) async {
-  try {
-    return await command();
-  } on PostgrestException catch (error) {
-    if (refusalFor(error.code) case final InviteAcceptanceRefusal reason) {
-      throw InviteAcceptanceRefused(reason);
-    }
-    rethrow;
-  }
-}
-
-final class SectionInUseException implements Exception {
-  const SectionInUseException();
-  String get refusalCode => SectionRefusal.staffMembersAssigned.code;
-}
-
-final class SectionHasScheduleHistoryException implements Exception {
-  const SectionHasScheduleHistoryException();
-  String get refusalCode => SectionRefusal.scheduleHistory.code;
-}
-
 final class PendingInviteAcceptance {
   const PendingInviteAcceptance({
     required this.inviteId,
@@ -300,14 +245,16 @@ abstract interface class StaffGateway {
 }
 
 final class SupabaseStaffGateway implements StaffGateway {
-  SupabaseStaffGateway(this._client, {this.onAccessLoaded});
+  SupabaseStaffGateway(this._database, {this.onAccessLoaded});
 
-  final SupabaseClient _client;
+  final Database _database;
   final void Function(Access access)? onAccessLoaded;
 
   @override
   Future<Access> currentAccess() async {
-    final row = await _client.rpc('current_access') as List<dynamic>;
+    final row = await _database.run(
+      (client) => client.rpc<List<dynamic>>('current_access'),
+    );
     final access = accessFromRow(row.single as Map<String, dynamic>);
     onAccessLoaded?.call(access);
     return access;
@@ -315,8 +262,8 @@ final class SupabaseStaffGateway implements StaffGateway {
 
   @override
   Future<List<ManagerHandoverCandidate>> loadManagerHandoverCandidates() async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'manager_handover_candidates',
+    final rows = await _database.run(
+      (client) => client.rpc<List<dynamic>>('manager_handover_candidates'),
     );
     return [
       for (final row in rows)
@@ -336,26 +283,26 @@ final class SupabaseStaffGateway implements StaffGateway {
     String newManagerId,
     bool formerAdministrator,
     Set<String> formerSectionIds,
-  ) => mapManagerHandoverRefusal(
-    () => mapAccessRejected(
-      () => _client.rpc<void>(
-        'transfer_manager_with_access',
-        params: {
-          'p_new_manager_id': newManagerId,
-          'p_former_administrator': formerAdministrator,
-          'p_former_section_ids': formerSectionIds.toList(),
-        },
-      ),
+  ) => _database.run(
+    (client) => client.rpc<void>(
+      'transfer_manager_with_access',
+      params: {
+        'p_new_manager_id': newManagerId,
+        'p_former_administrator': formerAdministrator,
+        'p_former_section_ids': formerSectionIds.toList(),
+      },
     ),
   );
 
   @override
   Future<Grants> loadAccessGrants(String staffMemberId) async {
     final details = await loadStaffMemberDetails(staffMemberId);
-    final rows = await _client
-        .from('night_scheduler_sections')
-        .select('section_id')
-        .eq('staff_member_id', staffMemberId);
+    final rows = await _database.run(
+      (client) => client
+          .from('night_scheduler_sections')
+          .select('section_id')
+          .eq('staff_member_id', staffMemberId),
+    );
     return details.grants.copyWith(
       nightSchedulerSectionIds: {
         for (final row in rows) row['section_id'] as String,
@@ -365,8 +312,8 @@ final class SupabaseStaffGateway implements StaffGateway {
 
   @override
   Future<void> setAccessGrants(String staffMemberId, Grants grants) =>
-      mapAccessRejected(
-        () => _client.rpc<void>(
+      _database.run(
+        (client) => client.rpc<void>(
           'set_staff_access_grants',
           params: {
             'p_staff_member_id': staffMemberId,
@@ -379,17 +326,21 @@ final class SupabaseStaffGateway implements StaffGateway {
   @override
   Future<StaffList> loadStaffList() async {
     final results = await Future.wait([
-      _client
-          .from('sections')
-          .select('id, name')
-          .order('display_order', ascending: true),
-      _client
-          .from('staff_list_entries')
-          .select(
-            'id, display_name, cell_number, section_id, display_order, '
-            'personal_email, job_role, invite_cell_mismatch_at',
-          )
-          .order('display_order', ascending: true),
+      _database.run(
+        (client) => client
+            .from('sections')
+            .select('id, name')
+            .order('display_order', ascending: true),
+      ),
+      _database.run(
+        (client) => client
+            .from('staff_list_entries')
+            .select(
+              'id, display_name, cell_number, section_id, display_order, '
+              'personal_email, job_role, invite_cell_mismatch_at',
+            )
+            .order('display_order', ascending: true),
+      ),
     ]);
     final sectionRows = results[0];
     final memberRows = results[1];
@@ -429,9 +380,11 @@ final class SupabaseStaffGateway implements StaffGateway {
   Future<StaffMemberDetails> loadStaffMemberDetails(
     String staffMemberId,
   ) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'staff_member_details',
-      params: {'p_staff_member_id': staffMemberId},
+    final rows = await _database.run(
+      (client) => client.rpc<List<dynamic>>(
+        'staff_member_details',
+        params: {'p_staff_member_id': staffMemberId},
+      ),
     );
     final row = rows.single as Map<String, dynamic>;
     return StaffMemberDetails(
@@ -459,12 +412,14 @@ final class SupabaseStaffGateway implements StaffGateway {
   Future<List<StaffAccessChange>> loadStaffAccessChanges(
     String staffMemberId,
   ) async {
-    final rows = await _client
-        .from('staff_changes')
-        .select('old_value, new_value, changed_at')
-        .eq('staff_member_id', staffMemberId)
-        .eq('kind', 'access_role')
-        .order('changed_at', ascending: false);
+    final rows = await _database.run(
+      (client) => client
+          .from('staff_changes')
+          .select('old_value, new_value, changed_at')
+          .eq('staff_member_id', staffMemberId)
+          .eq('kind', 'access_role')
+          .order('changed_at', ascending: false),
+    );
     return [
       for (final row in rows)
         StaffAccessChange(
@@ -480,8 +435,8 @@ final class SupabaseStaffGateway implements StaffGateway {
     String staffMemberId,
     String displayName,
     String? cellNumber,
-  ) => mapAccessRejected(
-    () => _client.rpc<void>(
+  ) => _database.run(
+    (client) => client.rpc<void>(
       'update_staff_contact',
       params: {
         'p_staff_member_id': staffMemberId,
@@ -495,10 +450,12 @@ final class SupabaseStaffGateway implements StaffGateway {
 
   @override
   Future<List<PastStaffMember>> loadPastStaff() async {
-    final rows = await _client
-        .from('past_staff_entries')
-        .select('id, display_name, cell_number, last_day, section_id')
-        .order('last_day', ascending: false);
+    final rows = await _database.run(
+      (client) => client
+          .from('past_staff_entries')
+          .select('id, display_name, cell_number, last_day, section_id')
+          .order('last_day', ascending: false),
+    );
     return [
       for (final row in rows)
         PastStaffMember(
@@ -519,8 +476,8 @@ final class SupabaseStaffGateway implements StaffGateway {
     StaffMemberDraft draft, {
     bool allowRecycledCell = false,
   }) async {
-    final rows = await mapAccessRejected(
-      () => _client.rpc<List<dynamic>>(
+    final rows = await _database.run(
+      (client) => client.rpc<List<dynamic>>(
         'create_staff_member_with_invite',
         params: {
           'p_display_name': draft.displayName,
@@ -535,8 +492,8 @@ final class SupabaseStaffGateway implements StaffGateway {
 
   @override
   Future<void> reorderSection(String sectionId, List<String> memberIds) async {
-    await mapAccessRejected(
-      () => _client.rpc<void>(
+    await _database.run(
+      (client) => client.rpc<void>(
         'reorder_staff_section',
         params: {'p_section_id': sectionId, 'p_staff_member_ids': memberIds},
       ),
@@ -544,8 +501,8 @@ final class SupabaseStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<void> reorderSections(List<String> sectionIds) => mapAccessRejected(
-    () => _client.rpc<void>(
+  Future<void> reorderSections(List<String> sectionIds) => _database.run(
+    (client) => client.rpc<void>(
       'reorder_sections',
       params: {'p_section_ids': sectionIds},
     ),
@@ -553,44 +510,33 @@ final class SupabaseStaffGateway implements StaffGateway {
 
   @override
   Future<void> addSection(String name) async {
-    await mapAccessRejected(
-      () => _client.rpc<String>('add_section', params: {'p_name': name}),
+    await _database.run(
+      (client) => client.rpc<String>('add_section', params: {'p_name': name}),
     );
   }
 
   @override
-  Future<void> renameSection(String sectionId, String name) =>
-      mapAccessRejected(
-        () => _client.rpc<void>(
-          'rename_section',
-          params: {'p_section_id': sectionId, 'p_name': name},
-        ),
-      );
+  Future<void> renameSection(String sectionId, String name) => _database.run(
+    (client) => client.rpc<void>(
+      'rename_section',
+      params: {'p_section_id': sectionId, 'p_name': name},
+    ),
+  );
 
   @override
   Future<void> deleteEmptySection(String sectionId) async {
-    try {
-      await mapAccessRejected(
-        () => _client.rpc<void>(
-          'delete_empty_section',
-          params: {'p_section_id': sectionId},
-        ),
-      );
-    } on PostgrestException catch (error) {
-      switch (refusalFor(error.code)) {
-        case SectionRefusal.staffMembersAssigned:
-          throw const SectionInUseException();
-        case SectionRefusal.scheduleHistory:
-          throw const SectionHasScheduleHistoryException();
-      }
-      rethrow;
-    }
+    await _database.run(
+      (client) => client.rpc<void>(
+        'delete_empty_section',
+        params: {'p_section_id': sectionId},
+      ),
+    );
   }
 
   @override
   Future<StaffInvite> resendInvite(String staffMemberId) async {
-    final rows = await mapAccessRejected(
-      () => _client.rpc<List<dynamic>>(
+    final rows = await _database.run(
+      (client) => client.rpc<List<dynamic>>(
         'resend_staff_invite',
         params: {'p_staff_member_id': staffMemberId},
       ),
@@ -603,23 +549,12 @@ final class SupabaseStaffGateway implements StaffGateway {
     String token,
     String cellNumber,
   ) async {
-    String result;
-    try {
-      result = await mapInviteAcceptanceRefusal(
-        () => _client.rpc<String>(
-          'accept_invite',
-          params: {'p_token': token, 'p_cell_number': cellNumber},
-        ),
-      );
-    } on PostgrestException catch (error) {
-      switch (refusalFor(error.code)) {
-        case InviteLinkRefusal.alreadyLinked:
-          throw const StaffInviteAlreadyLinkedException();
-        case InviteLinkRefusal.invalid:
-          throw const InvalidInviteException();
-      }
-      rethrow;
-    }
+    final result = await _database.run(
+      (client) => client.rpc<String>(
+        'accept_invite',
+        params: {'p_token': token, 'p_cell_number': cellNumber},
+      ),
+    );
     return switch (result) {
       'accepted' => InviteAcceptanceResult.accepted,
       'cell_mismatch' => InviteAcceptanceResult.cellMismatch,
@@ -630,12 +565,14 @@ final class SupabaseStaffGateway implements StaffGateway {
 
   @override
   Future<List<PendingInviteAcceptance>> pendingInviteAcceptances() async {
-    final rows = await _client
-        .from('pending_invite_acceptances')
-        .select(
-          'invite_id, personal_email, accepted_at, '
-          'staff_members!inner(display_name)',
-        );
+    final rows = await _database.run(
+      (client) => client
+          .from('pending_invite_acceptances')
+          .select(
+            'invite_id, personal_email, accepted_at, '
+            'staff_members!inner(display_name)',
+          ),
+    );
     return [
       for (final row in rows)
         PendingInviteAcceptance(
@@ -650,20 +587,25 @@ final class SupabaseStaffGateway implements StaffGateway {
   }
 
   @override
-  Future<void> confirmInviteAcceptance(String inviteId) => _client.rpc<void>(
-    'confirm_invite_acceptance',
-    params: {'p_invite_id': inviteId},
+  Future<void> confirmInviteAcceptance(String inviteId) => _database.run(
+    (client) => client.rpc<void>(
+      'confirm_invite_acceptance',
+      params: {'p_invite_id': inviteId},
+    ),
   );
 
   @override
-  Future<void> rejectInviteAcceptance(String inviteId) => _client.rpc<void>(
-    'reject_invite_acceptance',
-    params: {'p_invite_id': inviteId},
+  Future<void> rejectInviteAcceptance(String inviteId) => _database.run(
+    (client) => client.rpc<void>(
+      'reject_invite_acceptance',
+      params: {'p_invite_id': inviteId},
+    ),
   );
 
   @override
-  Future<bool> isInviteAcceptancePending() async =>
-      await _client.rpc<bool>('my_invite_acceptance_pending');
+  Future<bool> isInviteAcceptancePending() => _database.run(
+    (client) => client.rpc<bool>('my_invite_acceptance_pending'),
+  );
 
   StaffInvite _inviteFromRow(Map<String, dynamic> row) {
     return StaffInvite(

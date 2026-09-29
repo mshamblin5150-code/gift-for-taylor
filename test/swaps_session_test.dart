@@ -115,5 +115,5 @@ final class _RefusingApprovalStore extends Fake implements SwapStore {
 
   @override
   Future<void> approveSwap(String swapId) =>
-      throw const SwapProposalRefused(SwapProposalRefusal.pickupIneligible);
+      throw const Refused(SwapProposalRefusal.pickupIneligible);
 }

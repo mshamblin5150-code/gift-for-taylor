@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import 'auth_gateway.dart';
+import '../database.dart';
 
 final class SignInFailureRecord {
   const SignInFailureRecord({
@@ -23,22 +24,24 @@ abstract interface class SignInFailureLog {
 }
 
 final class SupabaseSignInFailureLog implements SignInFailureLog {
-  const SupabaseSignInFailureLog(this._client);
+  const SupabaseSignInFailureLog(this._database);
 
-  final SupabaseClient _client;
+  final Database _database;
 
   @override
   Future<void> record(Object error, StackTrace stackTrace) async {
     final cause = error is RequestCodeFailure ? error.cause : error;
     final authError = cause is AuthException ? cause : null;
     try {
-      await _client.rpc<void>(
-        'record_sign_in_failure',
-        params: {
-          'p_error_code': authError?.code,
-          'p_status_code': authError?.statusCode,
-          'p_error_message': authError?.message ?? cause.toString(),
-        },
+      await _database.run(
+        (client) => client.rpc<void>(
+          'record_sign_in_failure',
+          params: {
+            'p_error_code': authError?.code,
+            'p_status_code': authError?.statusCode,
+            'p_error_message': authError?.message ?? cause.toString(),
+          },
+        ),
       );
     } catch (recordingError, recordingStackTrace) {
       FlutterError.reportError(
@@ -57,7 +60,9 @@ final class SupabaseSignInFailureLog implements SignInFailureLog {
 
   @override
   Future<List<SignInFailureRecord>> read() async {
-    final rows = await _client.rpc<List<dynamic>>('read_sign_in_failures');
+    final rows = await _database.run(
+      (client) => client.rpc<List<dynamic>>('read_sign_in_failures'),
+    );
     return [
       for (final row in rows.cast<Map<String, dynamic>>())
         SignInFailureRecord(

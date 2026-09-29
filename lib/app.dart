@@ -356,16 +356,13 @@ class _InviteAcceptanceState extends State<_InviteAcceptance> {
         }
         if (snapshot.hasError) {
           final refusalCode = switch (snapshot.error) {
-            InviteAcceptanceRefused(:final reason) => reason.code,
-            StaffInviteAlreadyLinkedException(:final refusalCode) =>
-              refusalCode,
-            InvalidInviteException(:final refusalCode) => refusalCode,
+            Refused(refusal: final Refusal refusal) => refusal.code,
             _ => null,
           };
           final message = switch (snapshot.error) {
-            StaffInviteAlreadyLinkedException() =>
+            Refused(refusal: InviteLinkRefusal.alreadyLinked) =>
               'This email is already signed in as another Staff member.',
-            InvalidInviteException() =>
+            Refused(refusal: InviteLinkRefusal.invalid) =>
               'This Invite is invalid, expired, or has already been used. '
                   'Ask your Manager to resend it.',
             final error =>

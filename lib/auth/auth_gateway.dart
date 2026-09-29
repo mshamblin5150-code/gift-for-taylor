@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../database.dart';
+
 abstract interface class AuthGateway {
   bool get isSignedIn;
   String? get currentUserId;
@@ -27,26 +29,26 @@ final class SignInCodeDeliveryFailed extends RequestCodeFailure {
 }
 
 final class SupabaseAuthGateway implements AuthGateway {
-  SupabaseAuthGateway(this._client, {this.onSignedOut});
+  SupabaseAuthGateway(this._database, {this.onSignedOut});
 
-  final SupabaseClient _client;
+  final Database _database;
   final void Function()? onSignedOut;
 
   @override
-  bool get isSignedIn => _client.auth.currentSession != null;
+  bool get isSignedIn => _database.auth.currentSession != null;
 
   @override
-  String? get currentUserId => _client.auth.currentUser?.id;
+  String? get currentUserId => _database.auth.currentUser?.id;
 
   @override
-  Stream<bool> get signedInChanges => _client.auth.onAuthStateChange
+  Stream<bool> get signedInChanges => _database.auth.onAuthStateChange
       .map((state) => state.session != null)
       .distinct();
 
   @override
   Future<void> requestCode(String email) async {
     try {
-      await _client.auth.signInWithOtp(email: email, shouldCreateUser: true);
+      await _database.auth.signInWithOtp(email: email, shouldCreateUser: true);
     } on AuthException catch (error, stackTrace) {
       final failure = error.code == 'email_address_invalid'
           ? InvalidEmailAddress(error)
@@ -57,7 +59,7 @@ final class SupabaseAuthGateway implements AuthGateway {
 
   @override
   Future<void> verifyCode({required String email, required String code}) async {
-    await _client.auth.verifyOTP(
+    await _database.auth.verifyOTP(
       email: email,
       token: code,
       type: OtpType.email,
@@ -66,7 +68,7 @@ final class SupabaseAuthGateway implements AuthGateway {
 
   @override
   Future<void> signOut() async {
-    await _client.auth.signOut();
+    await _database.auth.signOut();
     onSignedOut?.call();
   }
 }

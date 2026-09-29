@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../database.dart';
 import 'calendar_link_stub.dart'
     if (dart.library.html) 'calendar_link_web.dart'
     as calendar_link;
@@ -74,19 +74,19 @@ abstract interface class CalendarFeedGateway {
 }
 
 final class SupabaseCalendarFeedGateway implements CalendarFeedGateway {
-  SupabaseCalendarFeedGateway(this._client, this._supabaseUrl);
+  SupabaseCalendarFeedGateway(this._database, this._supabaseUrl);
 
-  final SupabaseClient _client;
+  final Database _database;
   final String _supabaseUrl;
 
   @override
-  Future<String> channel() async =>
-      await _client.rpc<String>('my_calendar_channel');
+  Future<String> channel() =>
+      _database.run((client) => client.rpc<String>('my_calendar_channel'));
 
   @override
   Future<List<CalendarSubscription>> subscriptions() async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'list_calendar_subscriptions',
+    final rows = await _database.run(
+      (client) => client.rpc<List<dynamic>>('list_calendar_subscriptions'),
     );
     return rows
         .map(
@@ -98,8 +98,9 @@ final class SupabaseCalendarFeedGateway implements CalendarFeedGateway {
   @override
   Future<List<DisconnectedCalendarSubscription>>
   disconnectedSubscriptions() async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'list_disconnected_calendar_subscriptions',
+    final rows = await _database.run(
+      (client) =>
+          client.rpc<List<dynamic>>('list_disconnected_calendar_subscriptions'),
     );
     return rows
         .map(
@@ -112,9 +113,11 @@ final class SupabaseCalendarFeedGateway implements CalendarFeedGateway {
 
   @override
   Future<Uri> createSubscription(String name) async {
-    final result = await _client.rpc<Map<String, dynamic>>(
-      'create_calendar_subscription',
-      params: {'p_name': name},
+    final result = await _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
+        'create_calendar_subscription',
+        params: {'p_name': name},
+      ),
     );
     final token = result['token'] as String;
     return Uri.parse(
@@ -124,15 +127,19 @@ final class SupabaseCalendarFeedGateway implements CalendarFeedGateway {
 
   @override
   Future<void> revokeSubscription(String id) async {
-    await _client.rpc<void>(
-      'revoke_calendar_subscription',
-      params: {'p_id': id},
+    await _database.run(
+      (client) => client.rpc<void>(
+        'revoke_calendar_subscription',
+        params: {'p_id': id},
+      ),
     );
   }
 
   @override
   Future<void> useInvitations() async {
-    await _client.rpc('use_calendar_invitations');
+    await _database.run(
+      (client) => client.rpc<void>('use_calendar_invitations'),
+    );
   }
 }
 

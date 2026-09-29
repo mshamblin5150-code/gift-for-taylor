@@ -73,6 +73,7 @@ final class InMemoryStaffGateway implements StaffGateway {
   String? currentId;
   List<PendingInviteAcceptance> invites = [];
   String? confirmedInviteId;
+  Object? confirmInviteError;
   String? rejectedInviteId;
 
   @override
@@ -212,6 +213,7 @@ final class InMemoryStaffGateway implements StaffGateway {
 
   @override
   Future<void> confirmInviteAcceptance(String inviteId) async {
+    if (confirmInviteError case final error?) throw error;
     confirmedInviteId = inviteId;
     invites.removeWhere((invite) => invite.inviteId == inviteId);
   }

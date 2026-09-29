@@ -1,4 +1,4 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../database.dart';
 
 /// One recorded change to a Unit setting.
 final class SettingsHistoryEntry {
@@ -25,19 +25,21 @@ abstract interface class SettingsHistory {
 }
 
 final class SupabaseSettingsHistory implements SettingsHistory {
-  SupabaseSettingsHistory(this._client);
+  SupabaseSettingsHistory(this._database);
 
-  final SupabaseClient _client;
+  final Database _database;
 
   @override
   Future<List<SettingsHistoryEntry>> read() async {
-    final rows = await _client
-        .from('unit_setting_audit')
-        .select(
-          'kind, actor_name, changed_at, repair_reason, before_value, after_value',
-        )
-        .order('changed_at', ascending: false)
-        .limit(200);
+    final rows = await _database.run(
+      (client) => client
+          .from('unit_setting_audit')
+          .select(
+            'kind, actor_name, changed_at, repair_reason, before_value, after_value',
+          )
+          .order('changed_at', ascending: false)
+          .limit(200),
+    );
     return [
       for (final row in rows)
         SettingsHistoryEntry(

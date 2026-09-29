@@ -9,11 +9,6 @@ enum GiveawayStatus {
   voided,
 }
 
-final class GiveawayProposalRefused implements Exception {
-  const GiveawayProposalRefused(this.reason);
-  final GiveawayProposalRefusal reason;
-}
-
 final class GiveawayShift {
   const GiveawayShift({
     required this.date,

@@ -125,8 +125,11 @@ final class SwapsSession extends ChangeNotifier {
       );
       await refresh();
       return SwapsProposed(swap);
-    } on SwapProposalRefused catch (error) {
-      return SwapsProposalRejected(error.reason);
+    } on Refused catch (error) {
+      if (error.refusal case final SwapProposalRefusal reason) {
+        return SwapsProposalRejected(reason);
+      }
+      return const SwapsProposeFailed();
     } catch (error) {
       _rejected(error);
       return const SwapsProposeFailed();
@@ -156,8 +159,11 @@ final class SwapsSession extends ChangeNotifier {
       await command();
       await refresh();
       return const SwapsWriteSucceeded();
-    } on SwapProposalRefused catch (error) {
-      return SwapsWriteRefused(error.reason);
+    } on Refused catch (error) {
+      if (error.refusal case final SwapProposalRefusal reason) {
+        return SwapsWriteRefused(reason);
+      }
+      return const SwapsWriteFailed();
     } catch (error) {
       _rejected(error);
       return const SwapsWriteFailed();

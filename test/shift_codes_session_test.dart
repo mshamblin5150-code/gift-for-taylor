@@ -29,7 +29,9 @@ void main() {
 }
 
 final class _RefusingShiftCodeStore extends Fake implements ScheduleStore {
-  _RefusingShiftCodeStore([this.failure = const ShiftCodeInUse()]);
+  _RefusingShiftCodeStore([
+    this.failure = const Refused(ShiftCodeRefusal.inUse),
+  ]);
 
   final Object failure;
 

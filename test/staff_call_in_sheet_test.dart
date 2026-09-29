@@ -170,7 +170,7 @@ void main() {
     await openMonthCell(tester);
     database.failNext(
       InMemoryStoreCall.withdrawCallIn,
-      const CallInRefused(CallInRefusal.notRecorded),
+      const Refused(CallInRefusal.notRecorded),
     );
 
     await tester.tap(find.text('Withdraw the Call-in'));

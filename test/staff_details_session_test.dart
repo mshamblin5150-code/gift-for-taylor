@@ -105,9 +105,7 @@ void main() {
   });
 
   test('Manager handover session preserves a typed refusal', () async {
-    final refusal = ManagerHandoverRefused(
-      ManagerHandoverRefusal.retainedSectionMissing,
-    );
+    final refusal = Refused(ManagerHandoverRefusal.retainedSectionMissing);
     final gateway = InMemoryStaffGateway(actorRole: 'manager')
       ..transferError = refusal;
     final session = ManagerHandoverSession(gateway);
@@ -124,9 +122,7 @@ void main() {
   });
 
   test('Staff details session preserves a typed handover refusal', () async {
-    final refusal = ManagerHandoverRefused(
-      ManagerHandoverRefusal.successorInvitePending,
-    );
+    final refusal = Refused(ManagerHandoverRefusal.successorInvitePending);
     final gateway = InMemoryStaffGateway(actorRole: 'manager')
       ..transferError = refusal;
     final session = StaffDetailsSession('staff-1', gateway, rules);

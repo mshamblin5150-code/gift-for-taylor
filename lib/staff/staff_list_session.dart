@@ -134,10 +134,11 @@ final class StaffListSession extends ChangeNotifier {
       await _gateway.deleteEmptySection(sectionId);
       await load();
       return const SectionDeleted();
-    } on SectionInUseException catch (error) {
-      return SectionDeleteRefused(error.refusalCode);
-    } on SectionHasScheduleHistoryException catch (error) {
-      return SectionDeleteRefused(error.refusalCode);
+    } on Refused catch (error) {
+      if (error.refusal case final SectionRefusal reason) {
+        return SectionDeleteRefused(reason.code);
+      }
+      return const SectionDeleteFailed();
     } catch (error) {
       _rejected(error);
       return const SectionDeleteFailed();

@@ -38,11 +38,17 @@ void main() {
 
   test('pending acceptance follows a successful accepted Invite', () async {
     final gateway = InMemoryStaffGateway()
-      ..acceptanceError = const StaffInviteAlreadyLinkedException();
+      ..acceptanceError = const Refused(InviteLinkRefusal.alreadyLinked);
 
     await expectLater(
       gateway.acceptInvite('token', '555-0100'),
-      throwsA(isA<StaffInviteAlreadyLinkedException>()),
+      throwsA(
+        isA<Refused>().having(
+          (error) => error.refusal,
+          'refusal',
+          InviteLinkRefusal.alreadyLinked,
+        ),
+      ),
     );
     expect(await gateway.isInviteAcceptancePending(), isFalse);
     expect(

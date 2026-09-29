@@ -49,8 +49,11 @@ final class TicketFormSession extends ChangeNotifier {
     try {
       await _gateway.putIn(kind: kind, text: text, context: context);
       return const TicketSent();
-    } on TicketSubmissionRefused catch (failure) {
-      return TicketPutInRefused(failure.reason);
+    } on Refused catch (failure) {
+      if (failure.refusal case final TicketSubmissionRefusal reason) {
+        return TicketPutInRefused(reason);
+      }
+      return const TicketPutInFailed();
     } on AccessRejected {
       onAccessRejected?.call();
       return const TicketPutInFailed();
@@ -273,8 +276,11 @@ final class TicketDetailSession extends ChangeNotifier {
       final thread = await _gateway.readThread(_ticket.id);
       _replace(TicketDetailLoaded(_ticket, thread, working: true));
       return const TicketThreadCommandCompleted();
-    } on TicketThreadRefused catch (failure) {
-      return TicketThreadCommandRefused(failure.reason);
+    } on Refused catch (failure) {
+      if (failure.refusal case final TicketThreadRefusal reason) {
+        return TicketThreadCommandRefused(reason);
+      }
+      return const TicketThreadCommandFailed();
     } on AccessRejected {
       onAccessRejected?.call();
       return const TicketThreadCommandFailed();
@@ -322,9 +328,12 @@ final class TicketDetailSession extends ChangeNotifier {
       _replace(TicketDetailLoaded(ticket, current.thread));
       _scheduleReopenRefresh(ticket);
       return const TicketMutationSucceeded();
-    } on TicketMutationRejected catch (failure) {
+    } on Refused catch (failure) {
       _replace(current);
-      return TicketMutationRefused(failure.reason);
+      if (failure.refusal case final TicketMutationRefusal reason) {
+        return TicketMutationRefused(reason);
+      }
+      return const TicketMutationFailed();
     } on AccessRejected {
       onAccessRejected?.call();
       _replace(current);

@@ -880,7 +880,7 @@ void main() {
               ManagerHandoverCandidate(id: 'staff-1', displayName: 'Alex Tech'),
             ],
           )
-          ..transferError = const ManagerHandoverRefused(
+          ..transferError = const Refused(
             ManagerHandoverRefusal.successorInvitePending,
           );
     await tester.pumpWidget(
@@ -1358,7 +1358,7 @@ void main() {
     final gateway = InMemoryStaffGateway(
       actorRole: 'manager',
       list: const StaffList(sections: [days], members: []),
-    )..deleteSectionError = const SectionInUseException();
+    )..deleteSectionError = const Refused(SectionRefusal.staffMembersAssigned);
     await tester.pumpWidget(
       TicketLauncherScope(
         launcher: TicketLauncher(
@@ -1393,7 +1393,7 @@ void main() {
     final gateway = InMemoryStaffGateway(
       actorRole: 'manager',
       list: const StaffList(sections: [days], members: []),
-    )..deleteSectionError = const SectionHasScheduleHistoryException();
+    )..deleteSectionError = const Refused(SectionRefusal.scheduleHistory);
     await tester.pumpWidget(
       TicketLauncherScope(
         launcher: TicketLauncher(
@@ -1540,7 +1540,7 @@ void main() {
               ManagerHandoverCandidate(id: 'staff-1', displayName: 'Alex Tech'),
             ],
           )
-          ..transferError = const ManagerHandoverRefused(
+          ..transferError = const Refused(
             ManagerHandoverRefusal.retainedSectionMissing,
           );
     await tester.pumpWidget(
