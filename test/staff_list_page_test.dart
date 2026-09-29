@@ -1386,6 +1386,45 @@ void main() {
     expect(find.textContaining('Refusal P2795'), findsOneWidget);
   });
 
+  testWidgets('Schedule-history refusal has its own sentence and code', (
+    tester,
+  ) async {
+    final tickets = InMemoryTicketGateway();
+    final gateway = InMemoryStaffGateway(
+      actorRole: 'manager',
+      list: const StaffList(sections: [days], members: []),
+    )..deleteSectionError = const SectionHasScheduleHistoryException();
+    await tester.pumpWidget(
+      TicketLauncherScope(
+        launcher: TicketLauncher(
+          gateway: tickets,
+          actions: TicketActivityLog(),
+        ),
+        child: MaterialApp(
+          home: StaffListPage(
+            gateway: gateway,
+            rules: rules,
+            inviteComposer: _FakeInviteComposer(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Delete State dayshift RN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete Section'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text("This Section has Schedule history, so it can't be deleted."),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Put in a ticket about this'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Refusal P2849'), findsOneWidget);
+  });
+
   testWidgets('a Section with Staff members has no delete action', (
     tester,
   ) async {

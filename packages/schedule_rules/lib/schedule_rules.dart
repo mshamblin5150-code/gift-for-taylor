@@ -175,7 +175,12 @@ abstract interface class ScheduleStore {
 
 enum CallInWithdrawalState { withdrawable, settled, notRecorded }
 
-enum CallInRefusal { recorderNotWorking, targetNotWorking, settled }
+enum CallInRefusal {
+  recorderNotWorking,
+  targetNotWorking,
+  settled,
+  notRecorded,
+}
 
 final class CallInRefused implements Exception {
   const CallInRefused(this.reason);

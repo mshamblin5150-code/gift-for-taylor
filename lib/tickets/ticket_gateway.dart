@@ -427,7 +427,7 @@ final class SupabaseTicketGateway implements TicketGateway {
       );
       return _threadEntry(row);
     } on PostgrestException catch (error) {
-      if (error.code == 'P2845') throw const TicketUnavailable();
+      if (error.code == 'P2847') throw const TicketUnavailable();
       if (_isAccessRejection(error)) throw AccessRejected(error);
       rethrow;
     }

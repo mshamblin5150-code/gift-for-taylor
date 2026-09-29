@@ -90,17 +90,17 @@ select lives_ok($$select public.propose_swap(
 select throws_ok($$select public.propose_swap(
   '00000000-0000-0000-0000-000000003621',
   array['2027-11-03'::date], array['2027-11-04'::date])$$,
-  'P2831', 'A Staff member cannot work the offered shift on 2027-11-03',
+  'P2846', 'A Staff member cannot work the offered shift on 2027-11-03',
   'an RN and CNA Swap is refused at proposal');
 select throws_ok($$select public.propose_swap(
   '00000000-0000-0000-0000-000000003620',
   array['2027-11-09'::date], array['2027-11-12'::date])$$,
-  'P2831', 'A Staff member cannot work the offered shift on 2027-11-12',
+  'P2846', 'A Staff member cannot work the offered shift on 2027-11-12',
   'the pickup rule is checked in the reverse direction too');
 select throws_ok($$select public.propose_swap(
   '00000000-0000-0000-0000-000000003620',
   array['2027-11-16'::date], array['2027-11-17'::date])$$,
-  'P2831', 'A Staff member cannot work the offered shift on 2027-11-16',
+  'P2846', 'A Staff member cannot work the offered shift on 2027-11-16',
   'a Job role change mid-stretch is applied on the later date');
 
 -- A pending Swap is not voided when Job roles change, but approval rechecks.
@@ -123,7 +123,7 @@ select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000003611","role":"authenticated"}', true);
 select throws_ok($$select public.approve_swap((select id from public.swaps
   where status = 'accepted'))$$,
-  'P2831', 'A Staff member can no longer work one of the offered shifts',
+  'P2846', 'A Staff member can no longer work one of the offered shifts',
   'approval refuses a pending Swap that no longer qualifies');
 select is((select status::text from public.swaps where status = 'accepted'),
   'accepted', 'the pickup eligibility refusal does not void the pending Swap');

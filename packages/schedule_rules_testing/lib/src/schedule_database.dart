@@ -8,6 +8,7 @@ enum InMemoryStoreCall {
   staffingForMonth,
   writeCell,
   writeCellPair,
+  withdrawCallIn,
   markChangesAnnounced,
   startMonth,
   releaseMonth,
@@ -581,13 +582,14 @@ final class _InMemoryScheduleStore implements ScheduleStore {
 
   @override
   Future<void> withdrawCallIn(String staffMemberId, DateTime date) async {
+    _database._throwNextFailure(InMemoryStoreCall.withdrawCallIn);
     if (!await isOnFloorNow()) {
       throw const CallInRefused(CallInRefusal.recorderNotWorking);
     }
     final key = _cellKey(staffMemberId, date);
     final record = _database._callIns[key];
     if (record == null) {
-      throw const CallInRefused(CallInRefusal.targetNotWorking);
+      throw const CallInRefused(CallInRefusal.notRecorded);
     }
     if (record.settled) {
       throw const CallInRefused(CallInRefusal.settled);

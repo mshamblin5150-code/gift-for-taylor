@@ -30,6 +30,29 @@ void main() {
     session.dispose();
   });
 
+  test('Section with Schedule history returns its own refusal', () async {
+    final gateway = InMemoryStaffGateway(
+      actorRole: 'manager',
+      list: const StaffList(sections: [], members: []),
+    )..deleteSectionError = const SectionHasScheduleHistoryException();
+    final session = StaffListSession(
+      gateway,
+      scheduleRulesInMemory(
+        InMemoryScheduleDatabase(
+          sections: const [],
+          grants: {'manager': Grants(manager: true)},
+        ),
+        actingAs: 'manager',
+      ),
+    );
+
+    final outcome = await session.deleteSection('days');
+
+    expect(outcome, isA<SectionDeleteRefused>());
+    expect((outcome as SectionDeleteRefused).code, 'P2849');
+    session.dispose();
+  });
+
   test('Access rejection is reported by a Staff-list command', () async {
     var rejections = 0;
     final gateway = InMemoryStaffGateway(

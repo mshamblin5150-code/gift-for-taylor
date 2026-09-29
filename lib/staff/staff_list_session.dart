@@ -136,6 +136,8 @@ final class StaffListSession extends ChangeNotifier {
       return const SectionDeleted();
     } on SectionInUseException catch (error) {
       return SectionDeleteRefused(error.refusalCode);
+    } on SectionHasScheduleHistoryException catch (error) {
+      return SectionDeleteRefused(error.refusalCode);
     } catch (error) {
       _rejected(error);
       return const SectionDeleteFailed();

@@ -228,6 +228,11 @@ final class SectionInUseException implements Exception {
   String get refusalCode => 'P2795';
 }
 
+final class SectionHasScheduleHistoryException implements Exception {
+  const SectionHasScheduleHistoryException();
+  String get refusalCode => 'P2849';
+}
+
 final class PendingInviteAcceptance {
   const PendingInviteAcceptance({
     required this.inviteId,
@@ -625,6 +630,9 @@ final class SupabaseStaffGateway implements StaffGateway {
       );
     } on PostgrestException catch (error) {
       if (error.code == 'P2795') throw const SectionInUseException();
+      if (error.code == 'P2849') {
+        throw const SectionHasScheduleHistoryException();
+      }
       rethrow;
     }
   }
