@@ -9,17 +9,6 @@ enum GiveawayStatus {
   voided,
 }
 
-enum GiveawayProposalRefusal {
-  differentStaffRequired,
-  shiftsRequired,
-  shiftLimitExceeded,
-  duplicateDate,
-  colleagueNotInvited,
-  dayNotFuture,
-  sourceUnavailable,
-  colleagueIneligible,
-}
-
 final class GiveawayProposalRefused implements Exception {
   const GiveawayProposalRefused(this.reason);
   final GiveawayProposalRefusal reason;

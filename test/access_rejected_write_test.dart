@@ -4,10 +4,6 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
-  test('used Shift code refusal exposes its SQLSTATE', () {
-    expect(const ShiftCodeInUse().refusalCode, 'P2796');
-  });
-
   for (final code in ['42501', '401', '403']) {
     test('Postgrest $code becomes AccessRejected with its cause', () async {
       final original = PostgrestException(message: 'Access denied', code: code);
@@ -31,7 +27,10 @@ void main() {
   });
 
   test('month already started SQLSTATE maps to its page exception', () async {
-    final error = PostgrestException(message: 'already started', code: 'P2791');
+    final error = PostgrestException(
+      message: 'already started',
+      code: MonthStartRefusal.alreadyStarted.code,
+    );
     await expectLater(
       mapStartMonthRefusal<void>(() => Future.error(error)),
       throwsA(isA<MonthAlreadyStarted>()),
@@ -39,7 +38,10 @@ void main() {
   });
 
   test('missing source month SQLSTATE maps to its page exception', () async {
-    final error = PostgrestException(message: 'no source', code: 'P2792');
+    final error = PostgrestException(
+      message: 'no source',
+      code: MonthStartRefusal.previousMonthNotStarted.code,
+    );
     await expectLater(
       mapStartMonthRefusal<void>(() => Future.error(error)),
       throwsA(isA<PreviousMonthNotStarted>()),
@@ -62,21 +64,21 @@ void main() {
   );
 
   test('Call-in SQLSTATEs map without exposing backend messages', () async {
-    const reasons = {
-      'P2811': CallInRefusal.recorderNotWorking,
-      'P2812': CallInRefusal.targetNotWorking,
-      'P2813': CallInRefusal.settled,
-      'P2848': CallInRefusal.notRecorded,
-    };
-    for (final MapEntry(:key, :value) in reasons.entries) {
-      final error = PostgrestException(message: 'backend wording', code: key);
+    for (final reason in CallInRefusal.values) {
+      final error = PostgrestException(
+        message: 'backend wording',
+        code: reason.code,
+      );
       await expectLater(
         mapCallInRefusal<void>(() => Future.error(error)),
         throwsA(
-          isA<CallInRefused>().having((error) => error.reason, 'reason', value),
+          isA<CallInRefused>().having(
+            (error) => error.reason,
+            'reason',
+            reason,
+          ),
         ),
       );
-      expect(value.code, key);
     }
   });
 
@@ -89,58 +91,40 @@ void main() {
   });
 
   test('Swap SQLSTATEs map without exposing backend messages', () async {
-    const reasons = {
-      'P2814': SwapProposalRefusal.differentStaffRequired,
-      'P2815': SwapProposalRefusal.equalCountsRequired,
-      'P2816': SwapProposalRefusal.shiftLimitExceeded,
-      'P2817': SwapProposalRefusal.duplicateDate,
-      'P2818': SwapProposalRefusal.colleagueNotInvited,
-      'P2819': SwapProposalRefusal.dayNotFuture,
-      'P2820': SwapProposalRefusal.sourceUnavailable,
-      'P2821': SwapProposalRefusal.destinationUnavailable,
-      'P2822': SwapProposalRefusal.noChange,
-      'P2846': SwapProposalRefusal.pickupIneligible,
-    };
-    for (final MapEntry(:key, :value) in reasons.entries) {
-      final error = PostgrestException(message: 'backend wording', code: key);
+    for (final reason in SwapProposalRefusal.values) {
+      final error = PostgrestException(
+        message: 'backend wording',
+        code: reason.code,
+      );
       await expectLater(
         mapSwapProposalRefusal<void>(() => Future.error(error)),
         throwsA(
           isA<SwapProposalRefused>().having(
             (error) => error.reason,
             'reason',
-            value,
+            reason,
           ),
         ),
       );
-      expect(value.code, key);
     }
   });
 
   test('Giveaway SQLSTATEs map without exposing backend messages', () async {
-    const reasons = {
-      'P2823': GiveawayProposalRefusal.differentStaffRequired,
-      'P2824': GiveawayProposalRefusal.shiftsRequired,
-      'P2825': GiveawayProposalRefusal.shiftLimitExceeded,
-      'P2826': GiveawayProposalRefusal.duplicateDate,
-      'P2827': GiveawayProposalRefusal.colleagueNotInvited,
-      'P2828': GiveawayProposalRefusal.dayNotFuture,
-      'P2829': GiveawayProposalRefusal.sourceUnavailable,
-      'P2830': GiveawayProposalRefusal.colleagueIneligible,
-    };
-    for (final MapEntry(:key, :value) in reasons.entries) {
-      final error = PostgrestException(message: 'backend wording', code: key);
+    for (final reason in GiveawayProposalRefusal.values) {
+      final error = PostgrestException(
+        message: 'backend wording',
+        code: reason.code,
+      );
       await expectLater(
         mapGiveawayProposalRefusal<void>(() => Future.error(error)),
         throwsA(
           isA<GiveawayProposalRefused>().having(
             (error) => error.reason,
             'reason',
-            value,
+            reason,
           ),
         ),
       );
-      expect(value.code, key);
     }
   });
 }

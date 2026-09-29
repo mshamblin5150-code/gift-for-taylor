@@ -100,7 +100,9 @@ final class SupabaseScheduleStore implements ScheduleStore {
         () => _client.rpc<void>('delete_shift_code', params: {'p_code': code}),
       );
     } on PostgrestException catch (error) {
-      if (error.code == 'P2796') throw const ShiftCodeInUse();
+      if (refusalFor(error.code) == ShiftCodeRefusal.inUse) {
+        throw const ShiftCodeInUse();
+      }
       rethrow;
     }
   }

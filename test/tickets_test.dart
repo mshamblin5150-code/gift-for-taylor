@@ -3,6 +3,7 @@ import 'package:er_schedule/tickets/ticket_pages.dart';
 import 'package:er_schedule/tickets/ticket_activity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/tickets.dart';
 

@@ -4,19 +4,6 @@ part of '../schedule_rules.dart';
 /// agree and the Manager approves it.
 enum SwapStatus { proposed, accepted, declined, approved, withdrawn, voided }
 
-enum SwapProposalRefusal {
-  differentStaffRequired,
-  equalCountsRequired,
-  shiftLimitExceeded,
-  duplicateDate,
-  colleagueNotInvited,
-  dayNotFuture,
-  sourceUnavailable,
-  destinationUnavailable,
-  noChange,
-  pickupIneligible,
-}
-
 final class SwapProposalRefused implements Exception {
   const SwapProposalRefused(this.reason);
 
