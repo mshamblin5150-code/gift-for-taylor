@@ -1,9 +1,7 @@
 import 'package:schedule_rules/schedule_rules.dart';
 
-import 'staff_gateway.dart';
-
 String? managerHandoverRefusalWording(Object? error) => switch (error) {
-  ManagerHandoverRefused(:final reason) => switch (reason) {
+  Refused(refusal: final ManagerHandoverRefusal reason) => switch (reason) {
     ManagerHandoverRefusal.managerAccessChanged =>
       'Ask the Maintainer to restore your Manager access before transferring '
           'Manager.',
@@ -35,7 +33,7 @@ String? managerHandoverRefusalWording(Object? error) => switch (error) {
 };
 
 String? inviteAcceptanceRefusalWording(Object? error) => switch (error) {
-  InviteAcceptanceRefused(:final reason) => switch (reason) {
+  Refused(refusal: final InviteAcceptanceRefusal reason) => switch (reason) {
     InviteAcceptanceRefusal.staffAcceptancePending =>
       'Wait for the Manager or an Administrator to confirm your Invite '
           'acceptance before signing in.',

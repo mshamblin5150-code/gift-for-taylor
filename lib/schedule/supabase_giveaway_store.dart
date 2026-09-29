@@ -3,22 +3,24 @@ import 'dart:async';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'access_rejected_write.dart';
+import '../database.dart';
 
 final class SupabaseGiveawayStore implements GiveawayStore {
-  const SupabaseGiveawayStore(this.client);
-  final SupabaseClient client;
+  const SupabaseGiveawayStore(this.database);
+  final Database database;
 
   @override
   Future<List<Giveaway>> giveaways() async {
-    final rows = await client
-        .from('giveaways')
-        .select(
-          'id, giver_id, colleague_id, status, reason, '
-          'voided_staff_member_id, voided_work_date, '
-          'giveaway_shifts(work_date, shift_code, target_code)',
-        )
-        .order('created_at', ascending: false);
+    final rows = await database.run(
+      (client) => client
+          .from('giveaways')
+          .select(
+            'id, giver_id, colleague_id, status, reason, '
+            'voided_staff_member_id, voided_work_date, '
+            'giveaway_shifts(work_date, shift_code, target_code)',
+          )
+          .order('created_at', ascending: false),
+    );
     return Future.wait([for (final row in rows) _giveaway(row)]);
   }
 
@@ -28,7 +30,7 @@ final class SupabaseGiveawayStore implements GiveawayStore {
     RealtimeChannel? channel;
     controller = StreamController<void>(
       onListen: () {
-        channel = client
+        channel = database
             .channel('giveaways-inbox-${DateTime.now().microsecondsSinceEpoch}')
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
@@ -40,7 +42,7 @@ final class SupabaseGiveawayStore implements GiveawayStore {
       },
       onCancel: () async {
         final subscribed = channel;
-        if (subscribed != null) await client.removeChannel(subscribed);
+        if (subscribed != null) await database.removeChannel(subscribed);
       },
     );
     return controller.stream;
@@ -50,9 +52,11 @@ final class SupabaseGiveawayStore implements GiveawayStore {
   Future<List<GiveawayColleague>> eligibleColleagues(
     List<DateTime> dates,
   ) async {
-    final rows = await client.rpc<List<dynamic>>(
-      'eligible_giveaway_colleagues',
-      params: {'p_dates': dates.map(_date).toList()},
+    final rows = await database.run(
+      (client) => client.rpc<List<dynamic>>(
+        'eligible_giveaway_colleagues',
+        params: {'p_dates': dates.map(_date).toList()},
+      ),
     );
     return [
       for (final row in rows.cast<Map<String, dynamic>>())
@@ -65,9 +69,11 @@ final class SupabaseGiveawayStore implements GiveawayStore {
 
   @override
   Future<String?> colleagueCellNumberForGiveaway(String giveawayId) =>
-      client.rpc<String?>(
-        'giveaway_colleague_cell_number',
-        params: {'p_giveaway_id': giveawayId},
+      database.run(
+        (client) => client.rpc<String?>(
+          'giveaway_colleague_cell_number',
+          params: {'p_giveaway_id': giveawayId},
+        ),
       );
 
   @override
@@ -75,8 +81,8 @@ final class SupabaseGiveawayStore implements GiveawayStore {
     String colleagueId,
     List<DateTime> dates,
   ) async {
-    final id = await mapGiveawayProposalRefusal(
-      () => client.rpc<String>(
+    final id = await database.run(
+      (client) => client.rpc<String>(
         'propose_giveaway',
         params: {
           'p_colleague_id': colleagueId,
@@ -84,15 +90,17 @@ final class SupabaseGiveawayStore implements GiveawayStore {
         },
       ),
     );
-    final row = await client
-        .from('giveaways')
-        .select(
-          'id, giver_id, colleague_id, status, reason, '
-          'voided_staff_member_id, voided_work_date, '
-          'giveaway_shifts(work_date, shift_code, target_code)',
-        )
-        .eq('id', id)
-        .single();
+    final row = await database.run(
+      (client) => client
+          .from('giveaways')
+          .select(
+            'id, giver_id, colleague_id, status, reason, '
+            'voided_staff_member_id, voided_work_date, '
+            'giveaway_shifts(work_date, shift_code, target_code)',
+          )
+          .eq('id', id)
+          .single(),
+    );
     return _giveaway(row);
   }
 
@@ -101,8 +109,8 @@ final class SupabaseGiveawayStore implements GiveawayStore {
     String giveawayId, {
     required bool accept,
     String? reason,
-  }) => mapAccessRejected(
-    () => client.rpc<void>(
+  }) => database.run(
+    (client) => client.rpc<void>(
       'answer_giveaway',
       params: {
         'p_giveaway_id': giveawayId,
@@ -113,16 +121,16 @@ final class SupabaseGiveawayStore implements GiveawayStore {
   );
 
   @override
-  Future<void> withdrawGiveaway(String giveawayId) => mapAccessRejected(
-    () => client.rpc<void>(
+  Future<void> withdrawGiveaway(String giveawayId) => database.run(
+    (client) => client.rpc<void>(
       'withdraw_giveaway',
       params: {'p_giveaway_id': giveawayId},
     ),
   );
 
   @override
-  Future<void> approveGiveaway(String giveawayId) => mapAccessRejected(
-    () => client.rpc<void>(
+  Future<void> approveGiveaway(String giveawayId) => database.run(
+    (client) => client.rpc<void>(
       'approve_giveaway',
       params: {'p_giveaway_id': giveawayId},
     ),
@@ -130,8 +138,8 @@ final class SupabaseGiveawayStore implements GiveawayStore {
 
   @override
   Future<void> declineGiveaway(String giveawayId, {String? reason}) =>
-      mapAccessRejected(
-        () => client.rpc<void>(
+      database.run(
+        (client) => client.rpc<void>(
           'decline_giveaway',
           params: {'p_giveaway_id': giveawayId, 'p_reason': reason},
         ),
@@ -160,9 +168,11 @@ final class SupabaseGiveawayStore implements GiveawayStore {
       voidedDate: row['voided_work_date'] == null
           ? null
           : DateTime.parse(row['voided_work_date'] as String),
-      createsShortfall: await client.rpc<bool>(
-        'giveaway_creates_shortfall',
-        params: {'p_giveaway_id': id},
+      createsShortfall: await database.run(
+        (client) => client.rpc<bool>(
+          'giveaway_creates_shortfall',
+          params: {'p_giveaway_id': id},
+        ),
       ),
     );
   }

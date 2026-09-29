@@ -634,7 +634,7 @@ void main() {
     tester,
   ) async {
     final staffGateway = InMemoryStaffGateway()
-      ..acceptanceError = const StaffInviteAlreadyLinkedException();
+      ..acceptanceError = const Refused(InviteLinkRefusal.alreadyLinked);
     await tester.pumpWidget(
       ScheduleApp(
         dependencies: appDependencies(
@@ -695,7 +695,7 @@ void main() {
 
     for (final MapEntry(key: reason, value: wording) in cases.entries) {
       final staffGateway = InMemoryStaffGateway()
-        ..acceptanceError = InviteAcceptanceRefused(reason);
+        ..acceptanceError = Refused(reason);
       await tester.pumpWidget(
         ScheduleApp(
           key: ValueKey(reason),

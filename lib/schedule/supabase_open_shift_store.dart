@@ -3,13 +3,17 @@ import 'dart:async';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../database.dart';
+
 final class SupabaseOpenShiftStore implements OpenShiftStore {
-  const SupabaseOpenShiftStore(this.client);
-  final SupabaseClient client;
+  const SupabaseOpenShiftStore(this.database);
+  final Database database;
 
   @override
   Future<List<OpenShift>> openShifts() async {
-    final rows = await client.rpc<List<dynamic>>('visible_open_shifts');
+    final rows = await database.run(
+      (client) => client.rpc<List<dynamic>>('visible_open_shifts'),
+    );
     final seen = <String>{};
     return [
       for (final value in rows.cast<Map<String, dynamic>>())
@@ -27,17 +31,21 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
   }
 
   @override
-  Future<int> hiddenOpenShiftCount(DateTime month) => client.rpc<int>(
-    'hidden_open_shift_count',
-    params: {'p_month': _date(month)},
+  Future<int> hiddenOpenShiftCount(DateTime month) => database.run(
+    (client) => client.rpc<int>(
+      'hidden_open_shift_count',
+      params: {'p_month': _date(month)},
+    ),
   );
 
   @override
   Future<List<OpenShiftPickup>> pickups() async {
-    final rows = await client
-        .from('open_shift_pickups')
-        .select('id, short_shift_id, staff_member_id, status')
-        .order('requested_at', ascending: false);
+    final rows = await database.run(
+      (client) => client
+          .from('open_shift_pickups')
+          .select('id, short_shift_id, staff_member_id, status')
+          .order('requested_at', ascending: false),
+    );
     return [
       for (final row in rows)
         OpenShiftPickup(
@@ -47,51 +55,62 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
           status: PickupStatus.values.byName(row['status'] as String),
           createsShortfall:
               row['status'] == 'pending' &&
-              await client.rpc<bool>(
-                'open_shift_pickup_creates_shortfall',
-                params: {'p_pickup_id': row['id']},
+              await database.run(
+                (client) => client.rpc<bool>(
+                  'open_shift_pickup_creates_shortfall',
+                  params: {'p_pickup_id': row['id']},
+                ),
               ),
         ),
     ];
   }
 
   @override
-  Future<void> requestPickup(String openShiftId) => client.rpc<void>(
-    'request_open_shift_pickup',
-    params: {'p_short_shift_id': openShiftId},
+  Future<void> requestPickup(String openShiftId) => database.run(
+    (client) => client.rpc<void>(
+      'request_open_shift_pickup',
+      params: {'p_short_shift_id': openShiftId},
+    ),
   );
 
   @override
-  Future<void> approvePickup(String pickupId) => client.rpc<void>(
-    'approve_open_shift_pickup',
-    params: {'p_pickup_id': pickupId},
+  Future<void> approvePickup(String pickupId) => database.run(
+    (client) => client.rpc<void>(
+      'approve_open_shift_pickup',
+      params: {'p_pickup_id': pickupId},
+    ),
   );
 
   @override
-  Future<void> declinePickup(String pickupId, {String? reason}) =>
-      client.rpc<void>(
-        'decline_open_shift_pickup',
-        params: {'p_pickup_id': pickupId, 'p_reason': reason},
-      );
+  Future<void> declinePickup(String pickupId, {String? reason}) => database.run(
+    (client) => client.rpc<void>(
+      'decline_open_shift_pickup',
+      params: {'p_pickup_id': pickupId, 'p_reason': reason},
+    ),
+  );
 
   @override
   Future<bool> approvalDefault() =>
-      client.rpc<bool>('open_shift_approval_default');
+      database.run((client) => client.rpc<bool>('open_shift_approval_default'));
 
   @override
-  Future<void> setApprovalDefault(bool requiresApproval) => client.rpc<void>(
-    'set_open_shift_approval_default',
-    params: {'p_requires_approval': requiresApproval},
+  Future<void> setApprovalDefault(bool requiresApproval) => database.run(
+    (client) => client.rpc<void>(
+      'set_open_shift_approval_default',
+      params: {'p_requires_approval': requiresApproval},
+    ),
   );
 
   @override
   Future<void> setShiftApproval(String openShiftId, bool requiresApproval) =>
-      client.rpc<void>(
-        'set_open_shift_approval',
-        params: {
-          'p_short_shift_id': openShiftId,
-          'p_requires_approval': requiresApproval,
-        },
+      database.run(
+        (client) => client.rpc<void>(
+          'set_open_shift_approval',
+          params: {
+            'p_short_shift_id': openShiftId,
+            'p_requires_approval': requiresApproval,
+          },
+        ),
       );
 
   String _date(DateTime value) =>
@@ -99,18 +118,18 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<List<CoveragePoolConfig>> coveragePoolsOn(DateTime date) async {
-    final versions =
-        (await client
-                .from('coverage_pool_versions')
-                .select(
-                  'pool, effective_from, name, sort_order, retired, floor_role',
-                ))
-            .cast<Map<String, dynamic>>();
-    final memberships =
-        (await client
-                .from('coverage_pool_memberships')
-                .select('job_role, effective_from, pool'))
-            .cast<Map<String, dynamic>>();
+    final versions = (await database.run(
+      (client) => client
+          .from('coverage_pool_versions')
+          .select(
+            'pool, effective_from, name, sort_order, retired, floor_role',
+          ),
+    )).cast<Map<String, dynamic>>();
+    final memberships = (await database.run(
+      (client) => client
+          .from('coverage_pool_memberships')
+          .select('job_role, effective_from, pool'),
+    )).cast<Map<String, dynamic>>();
     final dateKey = _date(date);
     final current = <String, Map<String, dynamic>>{};
     for (final row in versions) {
@@ -163,15 +182,15 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
 
   @override
   Future<List<Map<String, dynamic>>> coverageRuleHistory() async {
-    final rows =
-        (await client
-                .from('coverage_rule_audit')
-                .select(
-                  'actor, actor_auth_user_id, changed_at, effective_from, action, before_value, after_value',
-                )
-                .order('changed_at', ascending: false)
-                .limit(50))
-            .cast<Map<String, dynamic>>();
+    final rows = (await database.run(
+      (client) => client
+          .from('coverage_rule_audit')
+          .select(
+            'actor, actor_auth_user_id, changed_at, effective_from, action, before_value, after_value',
+          )
+          .order('changed_at', ascending: false)
+          .limit(50),
+    )).cast<Map<String, dynamic>>();
     final ids = rows
         .map((row) => row['actor'] as String?)
         .whereType<String>()
@@ -179,11 +198,12 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
         .toList();
     final names = ids.isEmpty
         ? <Map<String, dynamic>>[]
-        : (await client
-                  .from('staff_members')
-                  .select('id, display_name')
-                  .inFilter('id', ids))
-              .cast<Map<String, dynamic>>();
+        : (await database.run(
+            (client) => client
+                .from('staff_members')
+                .select('id, display_name')
+                .inFilter('id', ids),
+          )).cast<Map<String, dynamic>>();
     final byId = {
       for (final row in names)
         row['id'] as String: row['display_name'] as String,
@@ -226,11 +246,16 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     DateTime effectiveFrom,
     List<CoveragePoolConfig> pools,
   ) async {
-    final result = await client.rpc<List<dynamic>>(
-      'preview_coverage_pools',
-      params: _poolParams(effectiveFrom, pools),
+    final result = await database.run(
+      (client) => client.rpc<List<dynamic>>(
+        'preview_coverage_pools',
+        params: _poolParams(effectiveFrom, pools),
+      ),
     );
-    return result.cast<Map<String, dynamic>>().map(CoverageRulePlan.fromJson).toList();
+    return result
+        .cast<Map<String, dynamic>>()
+        .map(CoverageRulePlan.fromJson)
+        .toList();
   }
 
   @override
@@ -240,13 +265,15 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     List<CoverageRulePlan> plan,
     List<CoverageRuleChoice> choices,
   ) async {
-    await client.rpc<dynamic>(
-      'commit_coverage_pools',
-      params: {
-        ..._poolParams(effectiveFrom, pools),
-        'p_expected_plan': [for (final row in plan) row.toJson()],
-        'p_choices': [for (final choice in choices) choice.toJson()],
-      },
+    await database.run(
+      (client) => client.rpc<dynamic>(
+        'commit_coverage_pools',
+        params: {
+          ..._poolParams(effectiveFrom, pools),
+          'p_expected_plan': [for (final row in plan) row.toJson()],
+          'p_choices': [for (final choice in choices) choice.toJson()],
+        },
+      ),
     );
   }
 
@@ -278,19 +305,24 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     JobRole? floorRole,
     int floor,
   ) async {
-    final result = await client.rpc<List<dynamic>>(
-      'preview_coverage_weekday_rule',
-      params: _standingParams(
-        pool,
-        window,
-        weekday,
-        effectiveFrom,
-        minimum,
-        floorRole,
-        floor,
+    final result = await database.run(
+      (client) => client.rpc<List<dynamic>>(
+        'preview_coverage_weekday_rule',
+        params: _standingParams(
+          pool,
+          window,
+          weekday,
+          effectiveFrom,
+          minimum,
+          floorRole,
+          floor,
+        ),
       ),
     );
-    return result.cast<Map<String, dynamic>>().map(CoverageRulePlan.fromJson).toList();
+    return result
+        .cast<Map<String, dynamic>>()
+        .map(CoverageRulePlan.fromJson)
+        .toList();
   }
 
   @override
@@ -305,21 +337,23 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     List<CoverageRulePlan> plan,
     List<CoverageRuleChoice> choices,
   ) async {
-    await client.rpc<dynamic>(
-      'commit_coverage_weekday_rule',
-      params: {
-        ..._standingParams(
-          pool,
-          window,
-          weekday,
-          effectiveFrom,
-          minimum,
-          floorRole,
-          floor,
-        ),
-        'p_expected_plan': [for (final row in plan) row.toJson()],
-        'p_choices': [for (final choice in choices) choice.toJson()],
-      },
+    await database.run(
+      (client) => client.rpc<dynamic>(
+        'commit_coverage_weekday_rule',
+        params: {
+          ..._standingParams(
+            pool,
+            window,
+            weekday,
+            effectiveFrom,
+            minimum,
+            floorRole,
+            floor,
+          ),
+          'p_expected_plan': [for (final row in plan) row.toJson()],
+          'p_choices': [for (final choice in choices) choice.toJson()],
+        },
+      ),
     );
   }
 
@@ -348,11 +382,16 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     JobRole? floorRole,
     int floor,
   ) async {
-    final result = await client.rpc<List<dynamic>>(
-      'preview_coverage_date_rule',
-      params: _dateParams(pool, window, date, minimum, floorRole, floor),
+    final result = await database.run(
+      (client) => client.rpc<List<dynamic>>(
+        'preview_coverage_date_rule',
+        params: _dateParams(pool, window, date, minimum, floorRole, floor),
+      ),
     );
-    return result.cast<Map<String, dynamic>>().map(CoverageRulePlan.fromJson).toList();
+    return result
+        .cast<Map<String, dynamic>>()
+        .map(CoverageRulePlan.fromJson)
+        .toList();
   }
 
   @override
@@ -366,29 +405,33 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     List<CoverageRulePlan> plan,
     List<CoverageRuleChoice> choices,
   ) async {
-    await client.rpc<dynamic>(
-      'commit_coverage_date_rule',
-      params: {
-        ..._dateParams(pool, window, date, minimum, floorRole, floor),
-        'p_expected_plan': [for (final row in plan) row.toJson()],
-        'p_choices': [for (final choice in choices) choice.toJson()],
-      },
+    await database.run(
+      (client) => client.rpc<dynamic>(
+        'commit_coverage_date_rule',
+        params: {
+          ..._dateParams(pool, window, date, minimum, floorRole, floor),
+          'p_expected_plan': [for (final row in plan) row.toJson()],
+          'p_choices': [for (final choice in choices) choice.toJson()],
+        },
+      ),
     );
   }
 
   @override
   Future<List<SectionStaffing>> staffingForMonth(DateTime month) async {
-    final rows = await client.rpc<List<dynamic>>(
-      'section_staffing_for_month',
-      params: {'p_month': _date(month)},
+    final rows = await database.run(
+      (client) => client.rpc<List<dynamic>>(
+        'section_staffing_for_month',
+        params: {'p_month': _date(month)},
+      ),
     );
-    final versions =
-        (await client
-                .from('coverage_pool_versions')
-                .select(
-                  'pool, effective_from, name, sort_order, retired, floor_role',
-                ))
-            .cast<Map<String, dynamic>>();
+    final versions = (await database.run(
+      (client) => client
+          .from('coverage_pool_versions')
+          .select(
+            'pool, effective_from, name, sort_order, retired, floor_role',
+          ),
+    )).cast<Map<String, dynamic>>();
     Map<String, dynamic>? latest(
       List<Map<String, dynamic>> history,
       String date,
@@ -469,15 +512,17 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     int weekday,
     int minimum,
     int rnFloor,
-  ) => client.rpc<void>(
-    'set_pool_weekday_minimum',
-    params: {
-      'p_pool': pool.value,
-      'p_window': window.value,
-      'p_weekday': weekday,
-      'p_minimum': minimum,
-      'p_rn_floor': rnFloor,
-    },
+  ) => database.run(
+    (client) => client.rpc<void>(
+      'set_pool_weekday_minimum',
+      params: {
+        'p_pool': pool.value,
+        'p_window': window.value,
+        'p_weekday': weekday,
+        'p_minimum': minimum,
+        'p_rn_floor': rnFloor,
+      },
+    ),
   );
 
   @override
@@ -487,15 +532,17 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     DateTime date,
     int? minimum,
     int? rnFloor,
-  ) => client.rpc<void>(
-    'set_pool_date_minimum',
-    params: {
-      'p_pool': pool.value,
-      'p_window': window.value,
-      'p_date': _date(date),
-      'p_minimum': minimum,
-      'p_rn_floor': rnFloor,
-    },
+  ) => database.run(
+    (client) => client.rpc<void>(
+      'set_pool_date_minimum',
+      params: {
+        'p_pool': pool.value,
+        'p_window': window.value,
+        'p_date': _date(date),
+        'p_minimum': minimum,
+        'p_rn_floor': rnFloor,
+      },
+    ),
   );
 
   @override
@@ -505,16 +552,18 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     CoveragePool pool,
     int count, {
     bool fillGap = false,
-  }) async => await client.rpc<int>(
-    'post_open_shifts',
-    params: {
-      'p_date': _date(date),
-      'p_shift_code': shiftCode,
-      'p_pool': pool.value,
-      'p_count': count,
-      'p_fill_gap': fillGap,
-      'p_requires_approval': null,
-    },
+  }) => database.run(
+    (client) => client.rpc<int>(
+      'post_open_shifts',
+      params: {
+        'p_date': _date(date),
+        'p_shift_code': shiftCode,
+        'p_pool': pool.value,
+        'p_count': count,
+        'p_fill_gap': fillGap,
+        'p_requires_approval': null,
+      },
+    ),
   );
 
   @override
@@ -523,7 +572,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
     RealtimeChannel? channel;
     controller = StreamController<void>(
       onListen: () {
-        channel = client
+        channel = database
             .channel('open-shifts-${DateTime.now().microsecondsSinceEpoch}')
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
@@ -541,7 +590,7 @@ final class SupabaseOpenShiftStore implements OpenShiftStore {
       },
       onCancel: () async {
         final subscribed = channel;
-        if (subscribed != null) await client.removeChannel(subscribed);
+        if (subscribed != null) await database.removeChannel(subscribed);
       },
     );
     return controller.stream;

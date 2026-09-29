@@ -1,5 +1,4 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:schedule_rules/schedule_rules.dart';
+import '../database.dart';
 
 const ticketTextRemovedByMaintainer = 'Text removed by the Maintainer';
 
@@ -144,25 +143,6 @@ final class TicketThreadEntry {
   final DateTime createdAt;
 }
 
-final class TicketSubmissionRefused implements Exception {
-  const TicketSubmissionRefused(this.reason);
-  final TicketSubmissionRefusal reason;
-}
-
-final class TicketUnavailableException implements Exception {
-  const TicketUnavailableException();
-}
-
-final class TicketThreadRefused implements Exception {
-  const TicketThreadRefused(this.reason);
-  final TicketThreadRefusal reason;
-}
-
-final class TicketMutationRejected implements Exception {
-  const TicketMutationRejected(this.reason);
-  final TicketMutationRefusal reason;
-}
-
 abstract interface class TicketGateway {
   Future<void> putIn({
     required TicketKind kind,
@@ -198,41 +178,33 @@ abstract interface class TicketGateway {
 }
 
 final class SupabaseTicketGateway implements TicketGateway {
-  const SupabaseTicketGateway(this._client);
+  const SupabaseTicketGateway(this._database);
 
-  final SupabaseClient _client;
+  final Database _database;
 
   @override
   Future<void> putIn({
     required TicketKind kind,
     required String text,
     required TicketContext context,
-  }) async {
-    try {
-      await _client.rpc<void>(
-        'put_in_ticket',
-        params: {
-          'p_kind': kind.databaseValue,
-          'p_text': text,
-          'p_screen_context': context.screen,
-          'p_schedule_month': context.month == null
-              ? null
-              : _date(context.month!),
-          'p_release_id': context.release,
-          'p_device_context': context.device,
-          'p_context_captured_at': context.capturedAt.toUtc().toIso8601String(),
-          'p_recent_actions': context.recentActions,
-          'p_refusal_code': context.refusalCode,
-        },
-      );
-    } on PostgrestException catch (error) {
-      if (refusalFor(error.code) case final TicketSubmissionRefusal reason) {
-        throw TicketSubmissionRefused(reason);
-      }
-      if (_isAccessRejection(error)) throw AccessRejected(error);
-      rethrow;
-    }
-  }
+  }) => _database.run(
+    (client) => client.rpc<void>(
+      'put_in_ticket',
+      params: {
+        'p_kind': kind.databaseValue,
+        'p_text': text,
+        'p_screen_context': context.screen,
+        'p_schedule_month': context.month == null
+            ? null
+            : _date(context.month!),
+        'p_release_id': context.release,
+        'p_device_context': context.device,
+        'p_context_captured_at': context.capturedAt.toUtc().toIso8601String(),
+        'p_recent_actions': context.recentActions,
+        'p_refusal_code': context.refusalCode,
+      },
+    ),
+  );
 
   @override
   Future<List<Ticket>> readMine(String senderId) => _read(senderId);
@@ -242,54 +214,39 @@ final class SupabaseTicketGateway implements TicketGateway {
 
   @override
   Future<Ticket> openForMaintainer(String id) async {
-    try {
-      final row = await _client.rpc<Map<String, dynamic>>(
+    final row = await _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
         'open_ticket_for_maintainer',
         params: {'p_ticket_id': id},
-      );
-      return _ticket(row);
-    } on PostgrestException catch (error) {
-      if (refusalFor(error.code) == TicketUnavailable.ticketNotFound) {
-        throw const TicketUnavailableException();
-      }
-      if (_isAccessRejection(error)) throw AccessRejected(error);
-      rethrow;
-    }
+      ),
+    );
+    return _ticket(row);
   }
 
   @override
   Future<Ticket> openForSender(String id) async {
-    try {
-      final row = await _client.rpc<Map<String, dynamic>>(
+    final row = await _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
         'open_ticket_for_sender',
         params: {'p_ticket_id': id},
-      );
-      return _ticket(row);
-    } on PostgrestException catch (error) {
-      if (refusalFor(error.code) == TicketUnavailable.ticketNotFound) {
-        throw const TicketUnavailableException();
-      }
-      if (_isAccessRejection(error)) throw AccessRejected(error);
-      rethrow;
-    }
+      ),
+    );
+    return _ticket(row);
   }
 
   @override
   Future<List<TicketThreadEntry>> readThread(String ticketId) async {
-    try {
-      final rows = await _client
+    final rows = await _database.run(
+      (client) => client
           .from('ticket_thread_entries')
           .select(
             'id,ticket_id,author,text,text_removal,suggested_answer,reply_to_id,'
             'accepted_suggestion,created_at',
           )
           .eq('ticket_id', ticketId)
-          .order('created_at');
-      return [for (final row in rows) _threadEntry(row)];
-    } on PostgrestException catch (error) {
-      if (_isAccessRejection(error)) throw AccessRejected(error);
-      rethrow;
-    }
+          .order('created_at'),
+    );
+    return [for (final row in rows) _threadEntry(row)];
   }
 
   @override
@@ -298,23 +255,17 @@ final class SupabaseTicketGateway implements TicketGateway {
     required String question,
     String? suggestedAnswer,
   }) async {
-    try {
-      final row = await _client.rpc<Map<String, dynamic>>(
+    final row = await _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
         'ask_ticket_question',
         params: {
           'p_ticket_id': ticketId,
           'p_question': question,
           'p_suggested_answer': suggestedAnswer,
         },
-      );
-      return _ticket(row);
-    } on PostgrestException catch (error) {
-      if (refusalFor(error.code) case final TicketThreadRefusal reason) {
-        throw TicketThreadRefused(reason);
-      }
-      if (_isAccessRejection(error)) throw AccessRejected(error);
-      rethrow;
-    }
+      ),
+    );
+    return _ticket(row);
   }
 
   @override
@@ -324,8 +275,8 @@ final class SupabaseTicketGateway implements TicketGateway {
     String? answer,
     required bool acceptSuggestion,
   }) async {
-    try {
-      final row = await _client.rpc<Map<String, dynamic>>(
+    final row = await _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
         'answer_ticket_question',
         params: {
           'p_ticket_id': ticketId,
@@ -333,26 +284,22 @@ final class SupabaseTicketGateway implements TicketGateway {
           'p_answer': answer,
           'p_accept_suggestion': acceptSuggestion,
         },
-      );
-      return _ticket(row);
-    } on PostgrestException catch (error) {
-      if (refusalFor(error.code) case final TicketThreadRefusal reason) {
-        throw TicketThreadRefused(reason);
-      }
-      if (_isAccessRejection(error)) throw AccessRejected(error);
-      rethrow;
-    }
+      ),
+    );
+    return _ticket(row);
   }
 
   @override
   Future<Ticket> linkToGitHub(String id, GitHubIssueLink issue) => _mutation(
-    () => _client.rpc<Map<String, dynamic>>(
-      'link_ticket_to_github',
-      params: {
-        'p_ticket_id': id,
-        'p_issue_number': issue.number,
-        'p_issue_url': issue.url,
-      },
+    () => _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
+        'link_ticket_to_github',
+        params: {
+          'p_ticket_id': id,
+          'p_issue_number': issue.number,
+          'p_issue_url': issue.url,
+        },
+      ),
     ),
   );
 
@@ -362,69 +309,57 @@ final class SupabaseTicketGateway implements TicketGateway {
     required TicketState outcome,
     required String reason,
   }) => _mutation(
-    () => _client.rpc<Map<String, dynamic>>(
-      'close_ticket',
-      params: {
-        'p_ticket_id': id,
-        'p_outcome': outcome.databaseValue,
-        'p_reason': reason,
-      },
+    () => _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
+        'close_ticket',
+        params: {
+          'p_ticket_id': id,
+          'p_outcome': outcome.databaseValue,
+          'p_reason': reason,
+        },
+      ),
     ),
   );
 
   @override
   Future<Ticket> reopen(String id, {required String note}) => _mutation(
-    () => _client.rpc<Map<String, dynamic>>(
-      'reopen_ticket',
-      params: {'p_ticket_id': id, 'p_note': note},
+    () => _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
+        'reopen_ticket',
+        params: {'p_ticket_id': id, 'p_note': note},
+      ),
     ),
   );
 
   @override
   Future<Ticket> redactText(String id) => _mutation(
-    () => _client.rpc<Map<String, dynamic>>(
-      'redact_ticket_text',
-      params: {'p_ticket_id': id},
+    () => _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
+        'redact_ticket_text',
+        params: {'p_ticket_id': id},
+      ),
     ),
   );
 
   @override
   Future<TicketThreadEntry> redactThreadEntry(String id) async {
-    try {
-      final row = await _client.rpc<Map<String, dynamic>>(
+    final row = await _database.run(
+      (client) => client.rpc<Map<String, dynamic>>(
         'redact_ticket_thread_entry',
         params: {'p_entry_id': id},
-      );
-      return _threadEntry(row);
-    } on PostgrestException catch (error) {
-      if (refusalFor(error.code) == TicketUnavailable.threadEntryNotFound) {
-        throw const TicketUnavailableException();
-      }
-      if (_isAccessRejection(error)) throw AccessRejected(error);
-      rethrow;
-    }
+      ),
+    );
+    return _threadEntry(row);
   }
 
   Future<Ticket> _mutation(Future<Map<String, dynamic>> Function() call) async {
-    try {
-      final row = await call();
-      return _ticket(row);
-    } on PostgrestException catch (error) {
-      final refusal = refusalFor(error.code);
-      if (refusal case final TicketMutationRefusal reason) {
-        throw TicketMutationRejected(reason);
-      }
-      if (refusal == TicketUnavailable.ticketNotFound) {
-        throw const TicketUnavailableException();
-      }
-      if (_isAccessRejection(error)) throw AccessRejected(error);
-      rethrow;
-    }
+    final row = await call();
+    return _ticket(row);
   }
 
   Future<List<Ticket>> _read(String? senderId) async {
-    try {
-      final query = _client
+    final rows = await _database.run((client) async {
+      final query = client
           .from('tickets')
           .select(
             'id,sender_id,sender_display_name,kind,text,text_removal,state,'
@@ -434,16 +369,13 @@ final class SupabaseTicketGateway implements TicketGateway {
             'latest_reply_at,reply_seen_at,close_reason,closed_at,reopened_at,'
             'reopen_note',
           );
-      final rows = senderId == null
+      return senderId == null
           ? await query.order('created_at', ascending: false)
           : await query
                 .eq('sender_id', senderId)
                 .order('created_at', ascending: false);
-      return [for (final row in rows) _ticket(row)];
-    } on PostgrestException catch (error) {
-      if (_isAccessRejection(error)) throw AccessRejected(error);
-      rethrow;
-    }
+    });
+    return [for (final row in rows) _ticket(row)];
   }
 
   Ticket _ticket(Map<String, dynamic> row) => Ticket(
@@ -516,7 +448,4 @@ final class SupabaseTicketGateway implements TicketGateway {
   String _date(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-'
       '${value.month.toString().padLeft(2, '0')}-01';
-
-  bool _isAccessRejection(PostgrestException error) =>
-      error.code == '42501' || error.code == '401' || error.code == '403';
 }

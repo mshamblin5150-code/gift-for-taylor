@@ -998,7 +998,7 @@ void main() {
     await pumpGrid(tester, month: october);
     database.failNext(
       InMemoryStoreCall.startMonth,
-      const MonthAlreadyStarted(),
+      const Refused(MonthStartRefusal.alreadyStarted),
     );
     await tester.tap(find.text('Start empty month'));
     await tester.pump();
@@ -1011,7 +1011,10 @@ void main() {
     await manager.startEmptyMonth(DateTime(2026, 11));
     await pumpGrid(tester, month: december);
     expect(find.text('Start from November'), findsOneWidget);
-    database.failNext(InMemoryStoreCall.startMonth, PreviousMonthNotStarted());
+    database.failNext(
+      InMemoryStoreCall.startMonth,
+      const Refused(MonthStartRefusal.previousMonthNotStarted),
+    );
     await tester.tap(find.text('Start from November'));
     await tester.pump();
     expect(

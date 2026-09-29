@@ -1,4 +1,4 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../database.dart';
 
 final class UndeliveredInvitation {
   const UndeliveredInvitation({
@@ -32,14 +32,15 @@ abstract interface class UndeliveredInvitationLog {
 
 final class SupabaseUndeliveredInvitationLog
     implements UndeliveredInvitationLog {
-  const SupabaseUndeliveredInvitationLog(this._client);
+  const SupabaseUndeliveredInvitationLog(this._database);
 
-  final SupabaseClient _client;
+  final Database _database;
 
   @override
   Future<List<UndeliveredInvitation>> read() async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'read_undelivered_calendar_invitations',
+    final rows = await _database.run(
+      (client) =>
+          client.rpc<List<dynamic>>('read_undelivered_calendar_invitations'),
     );
     return [
       for (final row in rows.cast<Map<String, dynamic>>())

@@ -125,9 +125,7 @@ void main() {
     tester,
   ) async {
     final gateway = InMemoryTicketGateway()
-      ..failNext = const TicketSubmissionRefused(
-        TicketSubmissionRefusal.tooManyRecently,
-      );
+      ..failNext = const Refused(TicketSubmissionRefusal.tooManyRecently);
     await tester.pumpWidget(
       MaterialApp(
         home: PutInTicketPage(

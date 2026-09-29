@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:schedule_rules/schedule_rules.dart';
 
 import '../staff/manager_handover_wording.dart';
 import '../staff/refusal_wording.dart';
@@ -148,7 +149,8 @@ class _ManagerHandoverPageState extends State<ManagerHandoverPage> {
               managerHandoverRefusalWording(error) ??
               'Could not transfer Manager. Try again.';
           _refusalCode = switch (error) {
-            ManagerHandoverRefused(:final reason) => reason.code,
+            Refused(refusal: final ManagerHandoverRefusal reason) =>
+              reason.code,
             _ => null,
           };
         });

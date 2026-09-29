@@ -1,7 +1,6 @@
 import 'dart:convert';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../database.dart';
 import 'push_browser.dart' as browser;
 
 final class StaffNotice {
@@ -40,9 +39,9 @@ abstract interface class NoticeGateway {
 }
 
 final class SupabaseNoticeGateway implements NoticeGateway {
-  SupabaseNoticeGateway(this._client, this._vapidPublicKey);
+  SupabaseNoticeGateway(this._database, this._vapidPublicKey);
 
-  final SupabaseClient _client;
+  final Database _database;
   final String _vapidPublicKey;
 
   @override
@@ -60,9 +59,11 @@ final class SupabaseNoticeGateway implements NoticeGateway {
     }
     final subscription = await browser.subscribe(_vapidPublicKey);
     try {
-      await _client.rpc(
-        'register_push_subscription',
-        params: {'p_subscription': jsonDecode(subscription)},
+      await _database.run(
+        (client) => client.rpc<void>(
+          'register_push_subscription',
+          params: {'p_subscription': jsonDecode(subscription)},
+        ),
       );
     } catch (_) {
       await browser.unsubscribe();
@@ -74,20 +75,24 @@ final class SupabaseNoticeGateway implements NoticeGateway {
   Future<void> disablePush() async {
     final endpoint = await browser.unsubscribe();
     if (endpoint.isNotEmpty) {
-      await _client.rpc(
-        'remove_push_subscription',
-        params: {'p_endpoint': endpoint},
+      await _database.run(
+        (client) => client.rpc<void>(
+          'remove_push_subscription',
+          params: {'p_endpoint': endpoint},
+        ),
       );
     }
   }
 
   @override
   Future<List<StaffNotice>> notices() async {
-    final rows = await _client
-        .from('staff_notices')
-        .select('id, title, body, created_at, read_at, rule_batch_id')
-        .order('created_at', ascending: false)
-        .limit(50);
+    final rows = await _database.run(
+      (client) => client
+          .from('staff_notices')
+          .select('id, title, body, created_at, read_at, rule_batch_id')
+          .order('created_at', ascending: false)
+          .limit(50),
+    );
     return rows
         .map(
           (row) => StaffNotice(
@@ -104,21 +109,32 @@ final class SupabaseNoticeGateway implements NoticeGateway {
 
   @override
   Future<void> markRead(String id) async {
-    await _client.rpc('mark_staff_notice_read', params: {'p_notice_id': id});
+    await _database.run(
+      (client) => client.rpc<void>(
+        'mark_staff_notice_read',
+        params: {'p_notice_id': id},
+      ),
+    );
   }
 
   @override
   Future<RuleBatchDetails> ruleBatchDetails(String id) async {
-    final batch = await _client
-        .from('coverage_rule_batches')
-        .select('plan')
-        .eq('id', id)
-        .single();
-    final shifts = await _client
-        .from('short_shifts')
-        .select('work_date, shift_code, job_role, filled_at, requires_approval')
-        .eq('rule_batch_id', id)
-        .order('work_date');
+    final batch = await _database.run(
+      (client) => client
+          .from('coverage_rule_batches')
+          .select('plan')
+          .eq('id', id)
+          .single(),
+    );
+    final shifts = await _database.run(
+      (client) => client
+          .from('short_shifts')
+          .select(
+            'work_date, shift_code, job_role, filled_at, requires_approval',
+          )
+          .eq('rule_batch_id', id)
+          .order('work_date'),
+    );
     return RuleBatchDetails(
       plan: (batch['plan'] as List<dynamic>).cast<Map<String, dynamic>>(),
       shifts: shifts.cast<Map<String, dynamic>>(),

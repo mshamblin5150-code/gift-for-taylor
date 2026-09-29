@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'app_dependencies.dart';
+import 'database.dart';
 import 'auth/auth_gateway.dart';
 import 'auth/sign_in_failure_log.dart';
 import 'calendar/calendar_feed_page.dart';
@@ -49,36 +50,37 @@ Future<void> main() async {
   );
 
   final client = Supabase.instance.client;
-  final repairController = RepairController(SupabaseRepairGateway(client));
+  final database = Database(client);
+  final repairController = RepairController(SupabaseRepairGateway(database));
   runApp(
     ScheduleApp(
       dependencies: AppDependencies(
         authGateway: SupabaseAuthGateway(
-          client,
+          database,
           onSignedOut: () {
             ticketActivity.clear();
             repairController.synchronize(null);
           },
         ),
-        signInFailureLog: SupabaseSignInFailureLog(client),
-        scheduleStore: SupabaseScheduleStore(client),
-        swapStore: SupabaseSwapStore(client),
-        giveawayStore: SupabaseGiveawayStore(client),
-        openShiftStore: SupabaseOpenShiftStore(client),
-        staffGateway: SupabaseStaffGateway(client),
+        signInFailureLog: SupabaseSignInFailureLog(database),
+        scheduleStore: SupabaseScheduleStore(database),
+        swapStore: SupabaseSwapStore(database),
+        giveawayStore: SupabaseGiveawayStore(database),
+        openShiftStore: SupabaseOpenShiftStore(database),
+        staffGateway: SupabaseStaffGateway(database),
         inviteComposer: SmsInviteComposer(Uri.base),
         messagesComposer: const SmsMessagesComposer(),
         noticeGateway: SupabaseNoticeGateway(
-          client,
+          database,
           const String.fromEnvironment('VAPID_PUBLIC_KEY'),
         ),
         bookPagePresenter: const BrowserBookPagePresenter(),
-        printWordingGateway: SupabasePrintWordingGateway(client),
-        calendarFeedGateway: SupabaseCalendarFeedGateway(client, supabaseUrl),
-        undeliveredInvitationLog: SupabaseUndeliveredInvitationLog(client),
-        settingsHistory: SupabaseSettingsHistory(client),
+        printWordingGateway: SupabasePrintWordingGateway(database),
+        calendarFeedGateway: SupabaseCalendarFeedGateway(database, supabaseUrl),
+        undeliveredInvitationLog: SupabaseUndeliveredInvitationLog(database),
+        settingsHistory: SupabaseSettingsHistory(database),
         repairController: repairController,
-        ticketGateway: SupabaseTicketGateway(client),
+        ticketGateway: SupabaseTicketGateway(database),
         ticketActivity: ticketActivity,
       ),
       navigatorKey: navigatorKey,

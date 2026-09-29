@@ -211,9 +211,7 @@ void main() {
     final gateway = InMemoryTicketGateway(openAnswers: {seen.id: seen});
     final session = TicketDetailSession(gateway, seen, true);
     await session.load();
-    gateway.failNext = const TicketThreadRefused(
-      TicketThreadRefusal.questionInvalid,
-    );
+    gateway.failNext = const Refused(TicketThreadRefusal.questionInvalid);
 
     final outcome = await session.askQuestion(question: 'Question');
 

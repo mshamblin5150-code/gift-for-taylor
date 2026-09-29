@@ -101,8 +101,12 @@ final class ShiftCodesSession extends ChangeNotifier {
       await _store.deleteShiftCode(code);
       await load();
       return const ShiftCodeDeleted();
-    } on ShiftCodeInUse catch (error) {
-      return ShiftCodeDeleteRefused(error.refusalCode);
+    } on Refused catch (error) {
+      if (error.refusal == ShiftCodeRefusal.inUse) {
+        return ShiftCodeDeleteRefused(error.refusal.code);
+      }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      return const ShiftCodeWriteFailed();
     } catch (error) {
       _rejected(error);
       return const ShiftCodeWriteFailed();

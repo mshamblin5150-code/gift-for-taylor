@@ -3,32 +3,36 @@ import 'dart:async';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'access_rejected_write.dart';
+import '../database.dart';
 
 final class SupabaseSwapStore implements SwapStore {
-  const SupabaseSwapStore(this.client);
+  const SupabaseSwapStore(this.database);
 
-  final SupabaseClient client;
+  final Database database;
 
   @override
   Future<List<Swap>> swaps() async {
-    final rows = await client
-        .from('swaps')
-        .select(
-          'id, requester_id, colleague_id, status, reason, '
-          'voided_staff_member_id, voided_work_date, '
-          'swap_shifts(side, work_date, shift_code, target_code)',
-        )
-        .order('created_at', ascending: false);
+    final rows = await database.run(
+      (client) => client
+          .from('swaps')
+          .select(
+            'id, requester_id, colleague_id, status, reason, '
+            'voided_staff_member_id, voided_work_date, '
+            'swap_shifts(side, work_date, shift_code, target_code)',
+          )
+          .order('created_at', ascending: false),
+    );
     return [
       for (final row in rows)
         _swap(
           row,
           createsShortfall:
               row['status'] == 'accepted' &&
-              await client.rpc<bool>(
-                'swap_creates_shortfall',
-                params: {'p_swap_id': row['id']},
+              await database.run(
+                (client) => client.rpc<bool>(
+                  'swap_creates_shortfall',
+                  params: {'p_swap_id': row['id']},
+                ),
               ),
         ),
     ];
@@ -40,7 +44,7 @@ final class SupabaseSwapStore implements SwapStore {
     RealtimeChannel? channel;
     controller = StreamController<void>(
       onListen: () {
-        channel = client
+        channel = database
             .channel('swaps-inbox-${DateTime.now().microsecondsSinceEpoch}')
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
@@ -52,7 +56,7 @@ final class SupabaseSwapStore implements SwapStore {
       },
       onCancel: () async {
         final subscribed = channel;
-        if (subscribed != null) await client.removeChannel(subscribed);
+        if (subscribed != null) await database.removeChannel(subscribed);
       },
     );
     return controller.stream;
@@ -64,23 +68,26 @@ final class SupabaseSwapStore implements SwapStore {
     String toStaffMemberId,
     List<DateTime> dates,
   ) async {
-    final rows = await client.rpc<List<dynamic>>(
-      'eligible_swap_dates',
-      params: {
-        'p_from_staff_member_id': fromStaffMemberId,
-        'p_to_staff_member_id': toStaffMemberId,
-        'p_dates': dates.map(_date).toList(),
-      },
+    final rows = await database.run(
+      (client) => client.rpc<List<dynamic>>(
+        'eligible_swap_dates',
+        params: {
+          'p_from_staff_member_id': fromStaffMemberId,
+          'p_to_staff_member_id': toStaffMemberId,
+          'p_dates': dates.map(_date).toList(),
+        },
+      ),
     );
     return [for (final value in rows) DateTime.parse(value as String)];
   }
 
   @override
-  Future<String?> colleagueCellNumberForSwap(String swapId) =>
-      client.rpc<String?>(
-        'swap_colleague_cell_number',
-        params: {'p_swap_id': swapId},
-      );
+  Future<String?> colleagueCellNumberForSwap(String swapId) => database.run(
+    (client) => client.rpc<String?>(
+      'swap_colleague_cell_number',
+      params: {'p_swap_id': swapId},
+    ),
+  );
 
   @override
   Future<Swap> proposeSwap(
@@ -88,8 +95,8 @@ final class SupabaseSwapStore implements SwapStore {
     List<DateTime> requesterDates,
     List<DateTime> colleagueDates,
   ) async {
-    final id = await mapSwapProposalRefusal(
-      () => client.rpc<String>(
+    final id = await database.run(
+      (client) => client.rpc<String>(
         'propose_swap',
         params: {
           'p_colleague_id': colleagueId,
@@ -98,15 +105,17 @@ final class SupabaseSwapStore implements SwapStore {
         },
       ),
     );
-    final row = await client
-        .from('swaps')
-        .select(
-          'id, requester_id, colleague_id, status, reason, '
-          'voided_staff_member_id, voided_work_date, '
-          'swap_shifts(side, work_date, shift_code, target_code)',
-        )
-        .eq('id', id)
-        .single();
+    final row = await database.run(
+      (client) => client
+          .from('swaps')
+          .select(
+            'id, requester_id, colleague_id, status, reason, '
+            'voided_staff_member_id, voided_work_date, '
+            'swap_shifts(side, work_date, shift_code, target_code)',
+          )
+          .eq('id', id)
+          .single(),
+    );
     return _swap(row);
   }
 
@@ -115,31 +124,31 @@ final class SupabaseSwapStore implements SwapStore {
     String swapId, {
     required bool accept,
     String? reason,
-  }) => mapAccessRejected(
-    () => client.rpc<void>(
+  }) => database.run(
+    (client) => client.rpc<void>(
       'answer_swap',
       params: {'p_swap_id': swapId, 'p_accept': accept, 'p_reason': reason},
     ),
   );
 
   @override
-  Future<void> withdrawSwap(String swapId) => mapAccessRejected(
-    () => client.rpc<void>('withdraw_swap', params: {'p_swap_id': swapId}),
+  Future<void> withdrawSwap(String swapId) => database.run(
+    (client) =>
+        client.rpc<void>('withdraw_swap', params: {'p_swap_id': swapId}),
   );
 
   @override
-  Future<void> approveSwap(String swapId) => mapSwapProposalRefusal(
-    () => client.rpc<void>('approve_swap', params: {'p_swap_id': swapId}),
+  Future<void> approveSwap(String swapId) => database.run(
+    (client) => client.rpc<void>('approve_swap', params: {'p_swap_id': swapId}),
   );
 
   @override
-  Future<void> declineSwap(String swapId, {String? reason}) =>
-      mapAccessRejected(
-        () => client.rpc<void>(
-          'decline_swap',
-          params: {'p_swap_id': swapId, 'p_reason': reason},
-        ),
-      );
+  Future<void> declineSwap(String swapId, {String? reason}) => database.run(
+    (client) => client.rpc<void>(
+      'decline_swap',
+      params: {'p_swap_id': swapId, 'p_reason': reason},
+    ),
+  );
 
   Swap _swap(Map<String, dynamic> row, {bool createsShortfall = false}) {
     final shifts = (row['swap_shifts'] as List<dynamic>)

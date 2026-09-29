@@ -544,7 +544,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   @override
   Future<int> recordCallIn(String staffMemberId, DateTime date) async {
     if (!await isOnFloorNow()) {
-      throw const CallInRefused(CallInRefusal.recorderNotWorking);
+      throw const Refused(CallInRefusal.recorderNotWorking);
     }
     final key = _cellKey(staffMemberId, date);
     final current = _database._cells[key];
@@ -552,7 +552,7 @@ final class _InMemoryScheduleStore implements ScheduleStore {
         .where((code) => code.code == current?.shiftCode.trim().toUpperCase())
         .firstOrNull;
     if (current == null || legend?.isWorking != true) {
-      throw const CallInRefused(CallInRefusal.targetNotWorking);
+      throw const Refused(CallInRefusal.targetNotWorking);
     }
     _database._callIns[key] = (previousCode: current.shiftCode, settled: false);
     _write(
@@ -584,15 +584,15 @@ final class _InMemoryScheduleStore implements ScheduleStore {
   Future<void> withdrawCallIn(String staffMemberId, DateTime date) async {
     _database._throwNextFailure(InMemoryStoreCall.withdrawCallIn);
     if (!await isOnFloorNow()) {
-      throw const CallInRefused(CallInRefusal.recorderNotWorking);
+      throw const Refused(CallInRefusal.recorderNotWorking);
     }
     final key = _cellKey(staffMemberId, date);
     final record = _database._callIns[key];
     if (record == null) {
-      throw const CallInRefused(CallInRefusal.notRecorded);
+      throw const Refused(CallInRefusal.notRecorded);
     }
     if (record.settled) {
-      throw const CallInRefused(CallInRefusal.settled);
+      throw const Refused(CallInRefusal.settled);
     }
     final current = _database._cells[key]!;
     _write(

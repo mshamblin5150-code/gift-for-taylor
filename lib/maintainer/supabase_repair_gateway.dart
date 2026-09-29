@@ -1,12 +1,12 @@
 import 'package:schedule_rules/schedule_rules.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../database.dart';
 import 'repair_gateway.dart';
 
 final class SupabaseRepairGateway implements RepairGateway {
-  const SupabaseRepairGateway(this._client);
+  const SupabaseRepairGateway(this._database);
 
-  final SupabaseClient _client;
+  final Database _database;
 
   @override
   Future<MaintainerRepair> open(
@@ -14,13 +14,15 @@ final class SupabaseRepairGateway implements RepairGateway {
     String? detail, {
     String? ticketId,
   }) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'open_maintainer_repair',
-      params: {
-        'p_reason_category': category.value,
-        'p_detail': detail,
-        'p_ticket_id': ticketId,
-      },
+    final rows = await _database.run(
+      (client) => client.rpc<List<dynamic>>(
+        'open_maintainer_repair',
+        params: {
+          'p_reason_category': category.value,
+          'p_detail': detail,
+          'p_ticket_id': ticketId,
+        },
+      ),
     );
     final repair = maintainerRepairFromRow(
       rows.single as Map<String, dynamic>,
@@ -37,8 +39,10 @@ final class SupabaseRepairGateway implements RepairGateway {
   }
 
   @override
-  Future<void> close(String repairId) => _client.rpc<void>(
-    'close_maintainer_repair',
-    params: {'p_repair_id': repairId},
+  Future<void> close(String repairId) => _database.run(
+    (client) => client.rpc<void>(
+      'close_maintainer_repair',
+      params: {'p_repair_id': repairId},
+    ),
   );
 }

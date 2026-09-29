@@ -223,7 +223,7 @@ void main() {
 
   test('missing Call-in withdrawal keeps its own refusal reason', () async {
     final rules = _ObservedRules(manager)
-      ..withdrawCallInError = const CallInRefused(CallInRefusal.notRecorded);
+      ..withdrawCallInError = const Refused(CallInRefusal.notRecorded);
     final session = create(rules: rules);
 
     final outcome = await session.withdrawCallIn(alice, DateTime(2026, 9, 18));
@@ -524,7 +524,7 @@ void main() {
       expect(session.state.grid!.status, MonthStatus.unpublished);
       database.failNext(
         InMemoryStoreCall.startMonth,
-        const MonthAlreadyStarted(),
+        const Refused(MonthStartRefusal.alreadyStarted),
       );
       final alreadyStarted = await session.startMonth(empty: false);
       expect(alreadyStarted, isA<AlreadyStarted>());
@@ -543,7 +543,7 @@ void main() {
       await january.load();
       database.failNext(
         InMemoryStoreCall.startMonth,
-        PreviousMonthNotStarted(),
+        const Refused(MonthStartRefusal.previousMonthNotStarted),
       );
       final noPreviousMonth = await january.startMonth(empty: false);
       expect(noPreviousMonth, isA<NoPreviousMonth>());

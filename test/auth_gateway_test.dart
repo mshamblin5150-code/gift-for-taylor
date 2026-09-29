@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:er_schedule/auth/auth_gateway.dart';
 import 'package:er_schedule/auth/sign_in_failure_log.dart';
 import 'package:er_schedule/auth/sign_in_failures_session.dart';
+import 'package:er_schedule/database.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -57,7 +58,7 @@ void main() {
       );
       addTearDown(client.dispose);
 
-      await SupabaseSignInFailureLog(client).record(
+      await SupabaseSignInFailureLog(Database(client)).record(
         const SignInCodeDeliveryFailed(
           AuthApiException(
             'mail quota reached',
@@ -115,7 +116,7 @@ SupabaseAuthGateway _gatewayReturning({
     ),
   );
   addTearDown(client.dispose);
-  return SupabaseAuthGateway(client);
+  return SupabaseAuthGateway(Database(client));
 }
 
 SupabaseClient _clientWith(http.Client httpClient) => SupabaseClient(

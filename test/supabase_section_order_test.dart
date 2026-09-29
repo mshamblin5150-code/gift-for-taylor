@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:er_schedule/schedule/supabase_schedule_store.dart';
 import 'package:er_schedule/staff/staff_gateway.dart';
+import 'package:er_schedule/database.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -12,7 +13,7 @@ void main() {
     final client = _client();
     addTearDown(client.dispose);
 
-    final sections = await SupabaseScheduleStore(client).sections();
+    final sections = await SupabaseScheduleStore(Database(client)).sections();
 
     expect(sections.map((section) => section.name), [
       'State dayshift RN',
@@ -24,7 +25,8 @@ void main() {
     final client = _client();
     addTearDown(client.dispose);
 
-    final staffList = await SupabaseStaffGateway(client).loadStaffList();
+    final staffList = await SupabaseStaffGateway(Database(client))
+        .loadStaffList();
 
     expect(staffList.sections.map((section) => section.name), [
       'State dayshift RN',

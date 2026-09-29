@@ -636,8 +636,12 @@ final class MonthSession extends ChangeNotifier {
         colleagueDates,
       );
       return SwapProposed(swap);
-    } on SwapProposalRefused catch (error) {
-      return SwapProposeRefused(error.reason);
+    } on Refused catch (error) {
+      if (error.refusal case final SwapProposalRefusal reason) {
+        return SwapProposeRefused(reason);
+      }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      return const ProposeSwapFailed();
     } catch (error) {
       _rejected(error);
       return const ProposeSwapFailed();
@@ -662,8 +666,12 @@ final class MonthSession extends ChangeNotifier {
     try {
       final giveaway = await _giveawayStore.proposeGiveaway(colleagueId, dates);
       return GiveawayProposed(giveaway);
-    } on GiveawayProposalRefused catch (error) {
-      return GiveawayProposeRefused(error.reason);
+    } on Refused catch (error) {
+      if (error.refusal case final GiveawayProposalRefusal reason) {
+        return GiveawayProposeRefused(reason);
+      }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      return const ProposeGiveawayFailed();
     } catch (error) {
       _rejected(error);
       return const ProposeGiveawayFailed();
@@ -740,8 +748,12 @@ final class MonthSession extends ChangeNotifier {
       final posted = await _rules.store.recordCallIn(row.staffMemberId, date);
       await refresh();
       return CallInRecorded(posted);
-    } on CallInRefused catch (error) {
-      return RecordCallInRefused(error.reason);
+    } on Refused catch (error) {
+      if (error.refusal case final CallInRefusal reason) {
+        return RecordCallInRefused(reason);
+      }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      return const RecordCallInFailed();
     } catch (error) {
       _rejected(error);
       return const RecordCallInFailed();
@@ -756,8 +768,12 @@ final class MonthSession extends ChangeNotifier {
       await _rules.store.withdrawCallIn(row.staffMemberId, date);
       await refresh();
       return const CallInWithdrawn();
-    } on CallInRefused catch (error) {
-      return WithdrawCallInRefused(error.reason);
+    } on Refused catch (error) {
+      if (error.refusal case final CallInRefusal reason) {
+        return WithdrawCallInRefused(reason);
+      }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      return const WithdrawCallInFailed();
     } catch (error) {
       _rejected(error);
       return const WithdrawCallInFailed();
@@ -790,11 +806,16 @@ final class MonthSession extends ChangeNotifier {
       }
       await refresh();
       return const Started();
-    } on MonthAlreadyStarted {
-      await refresh();
-      return const AlreadyStarted();
-    } on PreviousMonthNotStarted {
-      return const NoPreviousMonth();
+    } on Refused catch (error) {
+      if (error.refusal == MonthStartRefusal.alreadyStarted) {
+        await refresh();
+        return const AlreadyStarted();
+      }
+      if (error.refusal == MonthStartRefusal.previousMonthNotStarted) {
+        return const NoPreviousMonth();
+      }
+      assert(false, 'Unexpected Refusal family: ${error.refusal.runtimeType}');
+      return const StartMonthFailed();
     } catch (error) {
       _rejected(error);
       return const StartMonthFailed();

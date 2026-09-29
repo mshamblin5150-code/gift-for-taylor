@@ -3,7 +3,6 @@ library;
 import 'dart:async';
 
 import 'src/access.dart';
-import 'src/refusals.dart';
 
 export 'src/access.dart';
 export 'src/book_page.dart';
@@ -177,12 +176,6 @@ abstract interface class ScheduleStore {
 
 enum CallInWithdrawalState { withdrawable, settled, notRecorded }
 
-final class CallInRefused implements Exception {
-  const CallInRefused(this.reason);
-
-  final CallInRefusal reason;
-}
-
 enum MonthStatus {
   /// Nothing has been written to the month yet.
   notStarted,
@@ -192,25 +185,6 @@ enum MonthStatus {
 
   /// The live Schedule.
   released,
-}
-
-/// Thrown when starting a month that already holds a Schedule.
-final class MonthAlreadyStarted implements Exception {
-  const MonthAlreadyStarted();
-
-  @override
-  String toString() => 'That month has already been started';
-}
-
-/// A Shift code used by a Schedule cannot be deleted.
-final class ShiftCodeInUse implements Exception {
-  const ShiftCodeInUse();
-  String get refusalCode => ShiftCodeRefusal.inUse.code;
-}
-
-/// The month to copy from has no Schedule yet.
-final class PreviousMonthNotStarted extends StateError {
-  PreviousMonthNotStarted() : super('There is no Schedule to start from');
 }
 
 /// Thrown when the signed-in person may not change the Schedule.
