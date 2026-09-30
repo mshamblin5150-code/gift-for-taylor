@@ -19,6 +19,7 @@ Future<GiveawayProposalChoice?> showGiveawayProposalDialog(
   eligibleColleagues,
   required MonthGrid initialGrid,
   required String giverId,
+  required List<LegendCode> codes,
   required DateTime Function() now,
   DateTime? initialDate,
 }) => showDialog<GiveawayProposalChoice>(
@@ -28,6 +29,7 @@ Future<GiveawayProposalChoice?> showGiveawayProposalDialog(
     eligibleColleagues: eligibleColleagues,
     initialGrid: initialGrid,
     giverId: giverId,
+    codes: codes,
     now: now,
     initialDate: initialDate,
   ),
@@ -88,6 +90,7 @@ class _GiveawayProposalDialog extends StatefulWidget {
     required this.eligibleColleagues,
     required this.initialGrid,
     required this.giverId,
+    required this.codes,
     required this.now,
     required this.initialDate,
   });
@@ -96,6 +99,7 @@ class _GiveawayProposalDialog extends StatefulWidget {
   eligibleColleagues;
   final MonthGrid initialGrid;
   final String giverId;
+  final List<LegendCode> codes;
   final DateTime Function() now;
   final DateTime? initialDate;
 
@@ -163,6 +167,7 @@ class _GiveawayProposalDialogState extends State<_GiveawayProposalDialog> {
         rules: widget.rules,
         initialGrid: _pickerGrid,
         giverId: widget.giverId,
+        codes: widget.codes,
         now: widget.now(),
         selected: _dates,
       ),
@@ -267,12 +272,14 @@ class _GiveawayDayPicker extends StatefulWidget {
     required this.rules,
     required this.initialGrid,
     required this.giverId,
+    required this.codes,
     required this.now,
     required this.selected,
   });
   final ScheduleRules rules;
   final MonthGrid initialGrid;
   final String giverId;
+  final List<LegendCode> codes;
   final DateTime now;
   final Set<DateTime> selected;
 
@@ -291,6 +298,14 @@ class _GiveawayDayPickerState extends State<_GiveawayDayPicker> {
         DateTime(_grid.month.year, _grid.month.month + offset),
       );
       if (mounted) setState(() => _grid = grid);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This month could not be loaded. Try again.'),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -301,7 +316,10 @@ class _GiveawayDayPickerState extends State<_GiveawayDayPicker> {
     final dates = [
       for (final date in _grid.days)
         if (isFutureSwapDay(date, now: widget.now) &&
-            isWorkingShift(_grid.shiftCodeFor(widget.giverId, date) ?? ''))
+            isWorkingShift(
+              _grid.shiftCodeFor(widget.giverId, date) ?? '',
+              codes: widget.codes,
+            ))
           date,
     ];
     return AlertDialog(
