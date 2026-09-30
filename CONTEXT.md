@@ -19,7 +19,7 @@ The hat the system's designer wears to investigate and repair the app under thei
 _Avoid_: Administrator, Manager, owner
 
 **Repair**:
-One recorded stretch of Maintainer work: why it was needed, what changed, and who did it. Maintainer authority lasts only while a Repair is open, so closing it ends that authority and the Manager is told what was done and why.
+One recorded stretch of Maintainer work: why it was needed, what changed, and who did it. Maintainer authority lasts only while a Repair is open, so closing it ends that authority and the Manager is told what was done and why. Only one Repair is open at a time.
 _Avoid_: Fix, maintenance, admin session
 
 **Break the glass**:
