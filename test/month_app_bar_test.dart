@@ -161,7 +161,6 @@ void main() {
             ),
             access: database.accessFor('rn-1'),
             month: DateTime(2026, 9),
-            staffMemberId: 'rn-1',
             onSignOut: () {},
           ),
         ),

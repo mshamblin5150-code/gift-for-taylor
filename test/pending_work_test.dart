@@ -107,7 +107,6 @@ void main() {
   PendingWork create(ScheduleRules rules, String viewer) => PendingWork(
     rules: rules,
     access: database.accessFor(viewer),
-    swapStaffMemberId: viewer,
     swapStore: swaps,
     giveawayStore: giveaways,
     staffGateway: InMemoryStaffGateway(),

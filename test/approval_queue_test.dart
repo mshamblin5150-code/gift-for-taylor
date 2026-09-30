@@ -487,8 +487,6 @@ void main() {
           ),
           access: db.accessFor('alice'),
           month: month,
-          staffMemberId: 'alice',
-          swapStaffMemberId: 'alice',
         ),
       ),
     );

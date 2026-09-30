@@ -46,6 +46,8 @@ void main() {
       expect(access.canManageStaff, scenario['manageStaff']);
       expect(access.canManageUnit, scenario['manageUnit']);
       expect(access.canReadChangeLog, scenario['readChangeLog']);
+      expect(access.isOrdinaryStaffMember, scenario['ordinaryStaffMember']);
+      expect(access.canAskAsStaffMember, scenario['askAsStaffMember']);
     });
   }
 
