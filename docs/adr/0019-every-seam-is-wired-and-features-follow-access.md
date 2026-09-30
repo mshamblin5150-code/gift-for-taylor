@@ -6,6 +6,8 @@ status: accepted
 
 `lib/app.dart` declared the same dependencies four times, threading them through `ScheduleApp → _AuthGate → _InviteAcceptance → _ScheduleAccess`, and built `ScheduleRules` three times. Ten of the twelve were optional, and `null` doubled as a feature switch: `calendarFeedGateway == null` hid the Calendar feed, `staffGateway != null` guarded the Staff list, handover and Invite paths. Production supplies every one, so those branches existed only for tests. Worse, `month_grid_page.dart` checked `staffGateway is SupabaseStaffGateway` to decide whether to hand Settings a raw `SupabaseClient`, and Settings queried `unit_setting_audit` itself, so the Settings history tile appeared only behind one adapter and no test ever saw it. `StaffGateway` had three hand-written fakes, about 380 lines, that disagreed on the same methods. Grilled in #247.
 
+**Later decision:** ADR-0028 lets the month page, Settings and the Schedule destinations catalog take the dependency value whole. Every other page still names the gateways it uses.
+
 **Every dependency is required and non-null.** A feature is absent only when the viewer lacks `Access` (ADR-0015), never because a gateway was left unwired. A page never checks which adapter is behind a seam and never imports `supabase_flutter`; anything it needs from the backend goes through a gateway.
 
 **The dependencies travel as one value.** `main.dart` builds one immutable app dependency value and passes it through the four widgets that exist only to pass it on. It builds `ScheduleRules` once. Each page's constructor still names exactly the gateways it uses, so a page's dependencies stay visible at its call site. `inviteToken` and `navigatorKey` are not dependencies and stay separate arguments.
