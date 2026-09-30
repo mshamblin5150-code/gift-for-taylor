@@ -60,16 +60,21 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          swapStore: emptySwapStore(),
-          giveawayStore: emptyGiveawayStore(),
-          staffGateway: emptyStaffGateway(),
-          noticeGateway: const NoopNoticeGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+          dependencies: appDependencies(
+            swapStore: emptySwapStore(),
+            giveawayStore: emptyGiveawayStore(),
+            staffGateway: emptyStaffGateway(),
+            noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (scheduleRulesInMemory(
+              database,
+              actingAs: actingAs,
+            )).store,
+            messagesComposer: messages,
+          ),
           access: database.accessFor(actingAs),
-          rules: scheduleRulesInMemory(database, actingAs: actingAs),
           month: september,
-          messagesComposer: messages,
           now: now,
         ),
       ),

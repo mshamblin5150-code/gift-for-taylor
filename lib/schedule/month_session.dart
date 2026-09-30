@@ -463,7 +463,7 @@ final class MonthSession extends ChangeNotifier {
     required DateTime month,
     required SwapStore swapStore,
     required GiveawayStore giveawayStore,
-    OpenShiftStore? openShiftStore,
+    required OpenShiftStore openShiftStore,
     DateTime Function()? now,
     MonthSessionTimerFactory? timerFactory,
     VoidCallback? onAccessRejected,
@@ -478,15 +478,13 @@ final class MonthSession extends ChangeNotifier {
        _onAccessRejected = onAccessRejected {
     _state = MonthSessionState(today: _dateOnly(_now()));
     _updates = _rules.store.monthUpdates(this.month).listen((_) => refresh());
-    if (openShiftStore != null) {
-      _openShiftUpdates = openShiftStore.updates().listen((_) => refresh());
-    }
+    _openShiftUpdates = openShiftStore.updates().listen((_) => refresh());
     _scheduleMidnight();
   }
 
   final ScheduleRules _rules;
   final Access _access;
-  final OpenShiftStore? _openShiftStore;
+  final OpenShiftStore _openShiftStore;
   final SwapStore _swapStore;
   final GiveawayStore _giveawayStore;
   final DateTime month;
@@ -891,8 +889,7 @@ final class MonthSession extends ChangeNotifier {
     final grid = state.grid;
     if (grid == null) return const ReviewMonthReleaseFailed();
     try {
-      final staffing =
-          await _openShiftStore?.staffingForMonth(month) ?? state.staffing;
+      final staffing = await _openShiftStore.staffingForMonth(month);
       final reading = CoverageReading(grid, staffing);
       return ReleaseReady(
         MonthReleaseReview(
@@ -1015,9 +1012,7 @@ final class MonthSession extends ChangeNotifier {
         : _rules.changeAnnouncement(month);
     final codesRead = _adjunct(_rules.store.shiftCodes, const <LegendCode>[]);
     final staffingRead = _adjunct(
-      () async =>
-          await _openShiftStore?.staffingForMonth(month) ??
-          const <SectionStaffing>[],
+      () => _openShiftStore.staffingForMonth(month),
       const <SectionStaffing>[],
     );
     final unreachedRead = _access.canRunSchedule

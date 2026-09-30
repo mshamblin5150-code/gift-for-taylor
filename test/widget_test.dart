@@ -139,24 +139,24 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          swapStore: emptySwapStore(actingAs),
-          giveawayStore: emptyGiveawayStore(actingAs),
-          staffGateway: emptyStaffGateway(),
-          noticeGateway: const NoopNoticeGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+          dependencies: appDependencies(
+            swapStore: emptySwapStore(actingAs),
+            giveawayStore: emptyGiveawayStore(actingAs),
+            staffGateway: emptyStaffGateway(),
+            noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (rules).store,
+            openShiftStore: database.openShiftStoreFor(actingAs),
+            bookPagePresenter: bookPagePresenter,
+            printWordingGateway: printWordingGateway,
+            ticketGateway: ticketGateway,
+          ),
           access: database.accessFor(actingAs),
           key: ValueKey(month ?? september),
-          rules: rules,
           month: month ?? september,
           staffMemberId: staffMemberId,
-          openShiftStore: withStaffing
-              ? database.openShiftStoreFor(actingAs)
-              : null,
-          bookPagePresenter: bookPagePresenter,
-          printWordingGateway: printWordingGateway,
           now: now,
-          ticketGateway: ticketGateway,
         ),
       ),
     );
@@ -237,14 +237,19 @@ void main() {
       MaterialApp(
         theme: ThemeData.dark(),
         home: MonthGridPage(
-          swapStore: emptySwapStore('manager'),
-          giveawayStore: emptyGiveawayStore('manager'),
-          staffGateway: emptyStaffGateway(),
-          noticeGateway: const NoopNoticeGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+          dependencies: appDependencies(
+            swapStore: emptySwapStore('manager'),
+            giveawayStore: emptyGiveawayStore('manager'),
+            staffGateway: emptyStaffGateway(),
+            noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (scheduleRulesInMemory(
+              database,
+              actingAs: 'manager',
+            )).store,
+          ),
           access: database.accessFor('manager'),
-          rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: september,
           now: () => today,
         ),
@@ -1920,10 +1925,12 @@ void main() {
     expect(find.byTooltip('Change print wording'), findsNothing);
   });
 
-  testWidgets('there is no Print button without a printer', (tester) async {
+  testWidgets('Print stays available through the wired presenter', (
+    tester,
+  ) async {
     await pumpGrid(tester);
 
-    expect(find.byTooltip('Print the book page'), findsNothing);
+    expect(find.byTooltip('Print the book page'), findsOneWidget);
   });
 
   group('a month loaded from the printed page', () {

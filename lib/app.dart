@@ -9,14 +9,11 @@ import 'auth/auth_gateway.dart';
 import 'auth/sign_in_failure_log.dart';
 import 'auth/sign_in_page.dart';
 import 'auth/sign_in_session.dart';
-import 'calendar/calendar_feed_page.dart';
 import 'maintainer/maintainer_repair.dart';
 import 'notifications/notice_gateway.dart';
 import 'schedule/month_grid_page.dart';
 import 'staff/staff_gateway.dart';
 import 'staff/refusal_wording.dart';
-import 'staff/staff_list_page.dart';
-import 'staff/staff_details_page.dart';
 import 'schedule_theme.dart';
 import 'settings/appearance.dart';
 import 'setup/app_setup_page.dart';
@@ -629,7 +626,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
             data.staffMemberId,
             data.swapStaffMemberId,
           )),
-          rules: widget.dependencies.rules,
+          dependencies: widget.dependencies,
           access: data.access,
           onAccessRejected: _refreshAccess,
           viewerId: widget.dependencies.authGateway.currentUserId,
@@ -639,56 +636,8 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
               DateTime(now.year, now.month),
           staffMemberId: data.staffMemberId,
           swapStaffMemberId: data.swapStaffMemberId,
-          swapStore: widget.dependencies.swapStore,
-          giveawayStore: widget.dependencies.giveawayStore,
-          openShiftStore: widget.dependencies.openShiftStore,
           onSignOut: _signOut,
           onManagerTransferred: _refreshAccess,
-          messagesComposer: widget.dependencies.messagesComposer,
-          noticeGateway: widget.dependencies.noticeGateway,
-          staffGateway: widget.dependencies.staffGateway,
-          bookPagePresenter: widget.dependencies.bookPagePresenter,
-          printWordingGateway: widget.dependencies.printWordingGateway,
-          settingsHistory: widget.dependencies.settingsHistory,
-          signInFailureLog: widget.dependencies.signInFailureLog,
-          undeliveredInvitationLog:
-              widget.dependencies.undeliveredInvitationLog,
-          repairController: widget.dependencies.repairController,
-          ticketGateway: widget.dependencies.ticketGateway,
-          onCalendarFeed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (context) => CalendarFeedPage(
-                gateway: widget.dependencies.calendarFeedGateway,
-              ),
-            ),
-          ),
-          onManageStaff: data.access.canManageStaff
-              ? () async => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (context) => StaffListPage(
-                      gateway: widget.dependencies.staffGateway,
-                      rules: widget.dependencies.rules,
-                      inviteComposer: widget.dependencies.inviteComposer,
-                      onAccessRejected: _refreshAccess,
-                    ),
-                  ),
-                )
-              : null,
-          onOpenStaffDetails: data.access.canManageStaff
-              ? (staffMemberId) async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) => StaffDetailsPage(
-                        staffMemberId: staffMemberId,
-                        gateway: widget.dependencies.staffGateway,
-                        rules: widget.dependencies.rules,
-                        inviteComposer: widget.dependencies.inviteComposer,
-                        onAccessRejected: _refreshAccess,
-                      ),
-                    ),
-                  );
-                }
-              : null,
         );
       },
     );

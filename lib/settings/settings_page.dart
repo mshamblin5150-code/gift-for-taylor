@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
-import '../auth/sign_in_failure_log.dart';
+import '../app_dependencies.dart';
 import '../auth/sign_in_failures_page.dart';
-import '../calendar/undelivered_invitation_log.dart';
 import '../calendar/undelivered_invitations_page.dart';
-import '../notifications/notice_gateway.dart';
 import '../maintainer/maintainer_repair.dart';
-import '../maintainer/repair_controller.dart';
 import '../notifications/notices_page.dart';
 import '../help/help_page.dart';
 import '../schedule/print_wording_dialog.dart';
@@ -16,49 +13,29 @@ import '../schedule/shift_codes_page.dart';
 import '../schedule/coverage_settings_page.dart';
 import 'appearance.dart';
 import '../setup/app_setup_page.dart';
-import '../staff/staff_gateway.dart';
 import 'manager_handover_page.dart';
 import 'settings_history.dart';
-import '../tickets/ticket_gateway.dart';
 import '../tickets/ticket_pages.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
     super.key,
-    required this.scheduleRules,
-    required this.noticeGateway,
-    this.openShiftStore,
-    this.printWordingGateway,
-    this.onCalendarFeed,
-    this.onManageStaff,
-    this.onOpenStaffDetails,
+    required this.dependencies,
     required this.access,
-    this.settingsHistory,
-    this.signInFailureLog,
-    required this.undeliveredInvitationLog,
-    this.staffGateway,
+    required this.onCalendarFeed,
+    required this.onManageStaff,
+    required this.onOpenStaffDetails,
     this.onManagerTransferred,
     this.onAccessRejected,
-    required this.maintainerRepairController,
-    this.ticketGateway,
   });
 
-  final ScheduleRules scheduleRules;
-  final OpenShiftStore? openShiftStore;
-  final NoticeGateway noticeGateway;
-  final PrintWordingGateway? printWordingGateway;
-  final VoidCallback? onCalendarFeed;
-  final Future<void> Function()? onManageStaff;
-  final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
+  final AppDependencies dependencies;
   final Access access;
-  final SettingsHistory? settingsHistory;
-  final SignInFailureLog? signInFailureLog;
-  final UndeliveredInvitationLog undeliveredInvitationLog;
-  final StaffGateway? staffGateway;
+  final VoidCallback onCalendarFeed;
+  final Future<void> Function() onManageStaff;
+  final Future<void> Function(String staffMemberId) onOpenStaffDetails;
   final VoidCallback? onManagerTransferred;
   final VoidCallback? onAccessRejected;
-  final RepairController maintainerRepairController;
-  final TicketGateway? ticketGateway;
 
   @override
   Widget build(BuildContext context) {
@@ -68,8 +45,8 @@ class SettingsPage extends StatelessWidget {
 
     void openRepair() => open(
       MaintainerRepairPage(
-        controller: maintainerRepairController,
-        ticketGateway: ticketGateway,
+        controller: dependencies.repairController,
+        ticketGateway: dependencies.ticketGateway,
       ),
     );
 
@@ -93,13 +70,13 @@ class SettingsPage extends StatelessWidget {
             subtitle: const Text('Install on a phone or computer'),
             onTap: () => open(
               AppSetupPage(
-                noticeGateway: noticeGateway,
+                noticeGateway: dependencies.noticeGateway,
                 canAllowNotifications: access.ownStaffMemberId != null,
                 helpRoles: helpRolesFor(access),
               ),
             ),
           ),
-          if (access.canUseOwnSettings && onCalendarFeed != null)
+          if (access.canUseOwnSettings)
             ListTile(
               leading: const Icon(Icons.calendar_month_outlined),
               title: const Text('My calendar'),
@@ -111,7 +88,8 @@ class SettingsPage extends StatelessWidget {
               leading: const Icon(Icons.notifications_outlined),
               title: const Text('Notifications'),
               subtitle: const Text('Allow notices in this place'),
-              onTap: () => open(NoticesPage(gateway: noticeGateway)),
+              onTap: () =>
+                  open(NoticesPage(gateway: dependencies.noticeGateway)),
             ),
           if (access.maintainer)
             ListTile(
@@ -124,27 +102,26 @@ class SettingsPage extends StatelessWidget {
               ),
               onTap: access.isRepairAccess ? null : openRepair,
             ),
-          if (access.maintainer && ticketGateway != null)
+          if (access.maintainer)
             ListTile(
               leading: const Icon(Icons.inbox_outlined),
               title: const Text('Tickets'),
               subtitle: const Text('Private messages from Staff'),
               onTap: () => open(
                 TicketsPage(
-                  gateway: ticketGateway!,
+                  gateway: dependencies.ticketGateway,
                   maintainer: true,
                   onAccessRejected: onAccessRejected,
                 ),
               ),
             ),
-          if (access.maintainer &&
-              access.isRepairAccess &&
-              signInFailureLog != null)
+          if (access.maintainer && access.isRepairAccess)
             ListTile(
               leading: const Icon(Icons.mark_email_unread_outlined),
               title: const Text('Sign-in failures'),
               subtitle: const Text('Code emails the provider could not send'),
-              onTap: () => open(SignInFailuresPage(log: signInFailureLog!)),
+              onTap: () =>
+                  open(SignInFailuresPage(log: dependencies.signInFailureLog)),
             ),
           if (access.maintainer && access.isRepairAccess)
             ListTile(
@@ -154,27 +131,22 @@ class SettingsPage extends StatelessWidget {
                 'Calendar emails the provider could not send',
               ),
               onTap: () => open(
-                UndeliveredInvitationsPage(log: undeliveredInvitationLog),
+                UndeliveredInvitationsPage(
+                  log: dependencies.undeliveredInvitationLog,
+                ),
               ),
             ),
           if (access.maintainer && !access.isRepairAccess) ...[
             const _SectionHeading('Manager controls'),
-            if (staffGateway != null)
-              repairRequired(
-                'Transfer Manager',
-                Icons.manage_accounts_outlined,
-              ),
-            if (openShiftStore != null) ...[
-              repairRequired('Staffing minimums', Icons.people_outline),
-              repairRequired(
-                'Open shift pickup approval',
-                Icons.fact_check_outlined,
-              ),
-            ],
-            if (printWordingGateway != null)
-              repairRequired('Print wording', Icons.text_fields_outlined),
+            repairRequired('Transfer Manager', Icons.manage_accounts_outlined),
+            repairRequired('Staffing minimums', Icons.people_outline),
+            repairRequired(
+              'Open shift pickup approval',
+              Icons.fact_check_outlined,
+            ),
+            repairRequired('Print wording', Icons.text_fields_outlined),
             repairRequired('Shift codes', Icons.schedule_outlined),
-            if (onManageStaff != null) ...[
+            if (access.canManageStaff) ...[
               repairRequired('Sections', Icons.view_list_outlined),
               repairRequired(
                 'Permission assignments',
@@ -182,7 +154,7 @@ class SettingsPage extends StatelessWidget {
               ),
             ],
           ],
-          if (access.canTransferManager && staffGateway != null)
+          if (access.canTransferManager)
             ListTile(
               leading: const Icon(Icons.manage_accounts_outlined),
               title: const Text('Transfer Manager'),
@@ -196,7 +168,7 @@ class SettingsPage extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => ManagerHandoverPage(
-                      gateway: staffGateway!,
+                      gateway: dependencies.staffGateway,
                       isMaintainer: access.isRepairAccess,
                       onManageStaff: onManageStaff,
                       onOpenStaffDetails: onOpenStaffDetails,
@@ -212,46 +184,43 @@ class SettingsPage extends StatelessWidget {
             ),
           if (access.canManageUnit) ...[
             const _SectionHeading('Unit'),
-            if (openShiftStore != null) ...[
-              ListTile(
-                leading: const Icon(Icons.people_outline),
-                title: const Text('Staffing minimums'),
-                subtitle: const Text(
-                  'Coverage pools and standing weekday rules',
-                ),
-                onTap: () => open(
-                  CoverageSettingsPage(
-                    rules: openShiftStore!,
-                    scheduleRules: scheduleRules,
-                  ),
+            ListTile(
+              leading: const Icon(Icons.people_outline),
+              title: const Text('Staffing minimums'),
+              subtitle: const Text('Coverage pools and standing weekday rules'),
+              onTap: () => open(
+                CoverageSettingsPage(
+                  rules: dependencies.openShiftStore,
+                  scheduleRules: dependencies.rules,
                 ),
               ),
-              ListTile(
-                leading: const Icon(Icons.fact_check_outlined),
-                title: const Text('Open shift pickup approval'),
-                subtitle: const Text('Default for newly posted shifts'),
-                onTap: () => open(ApprovalDefaultPage(rules: openShiftStore!)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.fact_check_outlined),
+              title: const Text('Open shift pickup approval'),
+              subtitle: const Text('Default for newly posted shifts'),
+              onTap: () =>
+                  open(ApprovalDefaultPage(rules: dependencies.openShiftStore)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.text_fields_outlined),
+              title: const Text('Print wording'),
+              subtitle: const Text('Default for draft and future months'),
+              onTap: () => open(
+                _PrintWordingPage(gateway: dependencies.printWordingGateway),
               ),
-            ],
-            if (printWordingGateway != null)
-              ListTile(
-                leading: const Icon(Icons.text_fields_outlined),
-                title: const Text('Print wording'),
-                subtitle: const Text('Default for draft and future months'),
-                onTap: () =>
-                    open(_PrintWordingPage(gateway: printWordingGateway!)),
-              ),
+            ),
             ListTile(
               leading: const Icon(Icons.schedule_outlined),
               title: const Text('Shift codes'),
               onTap: () => open(
                 ShiftCodesPage(
-                  rules: scheduleRules,
+                  rules: dependencies.rules,
                   onAccessRejected: onAccessRejected,
                 ),
               ),
             ),
-            if (onManageStaff != null) ...[
+            if (access.canManageStaff) ...[
               ListTile(
                 leading: const Icon(Icons.view_list_outlined),
                 title: const Text('Sections'),
@@ -265,13 +234,13 @@ class SettingsPage extends StatelessWidget {
                 onTap: onManageStaff,
               ),
             ],
-            if (settingsHistory != null)
-              ListTile(
-                leading: const Icon(Icons.history),
-                title: const Text('Settings history'),
-                onTap: () =>
-                    open(_SettingsHistoryPage(history: settingsHistory!)),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('Settings history'),
+              onTap: () => open(
+                _SettingsHistoryPage(history: dependencies.settingsHistory),
               ),
+            ),
           ],
         ],
       ),

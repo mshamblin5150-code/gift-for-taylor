@@ -16,11 +16,19 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
-          maintainerRepairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-          scheduleRules: scheduleRulesInMemory(database, actingAs: 'manager'),
-          noticeGateway: const NoopNoticeGateway(),
-          openShiftStore: database.openShiftStoreFor('manager'),
+          dependencies: appDependencies(
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (scheduleRulesInMemory(
+              database,
+              actingAs: 'manager',
+            )).store,
+            noticeGateway: const NoopNoticeGateway(),
+            openShiftStore: database.openShiftStoreFor('manager'),
+          ),
+          onCalendarFeed: () {},
+          onManageStaff: () async {},
+          onOpenStaffDetails: (_) async {},
           access: Access(grants: Grants(administrator: true)),
         ),
       ),

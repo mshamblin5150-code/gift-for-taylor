@@ -31,12 +31,17 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
-          maintainerRepairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-          scheduleRules: rules,
-          noticeGateway: const NoopNoticeGateway(),
+          dependencies: appDependencies(
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (rules).store,
+            noticeGateway: const NoopNoticeGateway(),
+            settingsHistory: history,
+          ),
+          onCalendarFeed: () {},
+          onManageStaff: () async {},
+          onOpenStaffDetails: (_) async {},
           access: access,
-          settingsHistory: history,
         ),
       ),
     );
@@ -48,6 +53,11 @@ void main() {
   ) async {
     await showSettings(tester, Access(grants: Grants(administrator: true)));
 
+    await tester.scrollUntilVisible(
+      find.text('Settings history'),
+      200,
+      scrollable: find.byType(Scrollable),
+    );
     expect(find.text('Settings history'), findsOneWidget);
     await tester.tap(find.text('Settings history'));
     await tester.pumpAndSettle();
