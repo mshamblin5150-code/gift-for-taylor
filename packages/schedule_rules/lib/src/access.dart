@@ -128,6 +128,13 @@ final class Access {
   bool get canTransferManager => _managerLevel;
   bool get canUseOwnSettings => ownStaffMemberId != null;
   bool get canUseStaffCellActions => ownStaffMemberId != null;
+  bool get isOrdinaryStaffMember =>
+      ownStaffMemberId != null &&
+      !grants.manager &&
+      !grants.administrator &&
+      grants.nightSchedulerSectionIds.isEmpty &&
+      activeRepair == null;
+  bool get canAskAsStaffMember => ownStaffMemberId != null && !canRunSchedule;
   bool get canReadUnreleased =>
       _managerLevel ||
       grants.administrator ||

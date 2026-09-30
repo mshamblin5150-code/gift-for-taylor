@@ -71,8 +71,6 @@ void main() {
   Future<void> pumpSchedule(
     WidgetTester tester, {
     required String actingAs,
-    String? staffMemberId,
-    String? swapStaffMemberId,
   }) async {
     tester.view.physicalSize = const Size(1200, 1000);
     tester.view.devicePixelRatio = 1;
@@ -94,8 +92,6 @@ void main() {
           ),
           access: database.accessFor(actingAs),
           month: month,
-          staffMemberId: staffMemberId,
-          swapStaffMemberId: swapStaffMemberId,
           now: () => friday,
         ),
       ),
@@ -106,7 +102,7 @@ void main() {
   testWidgets('Staff Day lists only colleagues with overlapping timed shifts', (
     tester,
   ) async {
-    await pumpSchedule(tester, actingAs: 'me', staffMemberId: 'me');
+    await pumpSchedule(tester, actingAs: 'me');
     await tester.tap(find.text('Day'));
     await tester.pumpAndSettle();
 
@@ -118,7 +114,7 @@ void main() {
   });
 
   testWidgets('Staff Day says when they are not working', (tester) async {
-    await pumpSchedule(tester, actingAs: 'me', staffMemberId: 'me');
+    await pumpSchedule(tester, actingAs: 'me');
     await tester.tap(find.text('Day'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Next day'));
@@ -131,7 +127,7 @@ void main() {
   testWidgets('Night scheduler gets Staff Day and their own Person days', (
     tester,
   ) async {
-    await pumpSchedule(tester, actingAs: 'me', swapStaffMemberId: 'me');
+    await pumpSchedule(tester, actingAs: 'me');
     await tester.tap(find.text('Day'));
     await tester.pumpAndSettle();
 
@@ -147,7 +143,7 @@ void main() {
   testWidgets('Staff Person lists working days and keeps changed highlight', (
     tester,
   ) async {
-    await pumpSchedule(tester, actingAs: 'me', staffMemberId: 'me');
+    await pumpSchedule(tester, actingAs: 'me');
     await tester.scrollUntilVisible(find.text('Fri 18'), 400);
 
     expect(find.text('Fri 18'), findsOneWidget);

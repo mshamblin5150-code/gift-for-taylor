@@ -44,10 +44,6 @@ void main() {
           ),
           access: access,
           month: month,
-          staffMemberId: access.canRunSchedule ? null : access.ownStaffMemberId,
-          swapStaffMemberId: access.canRunSchedule
-              ? null
-              : access.ownStaffMemberId,
         ),
       ),
     );

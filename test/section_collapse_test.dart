@@ -83,6 +83,8 @@ void main() {
   ) async {
     final semantics = tester.ensureSemantics();
     await pumpSchedule(tester, person: 'day');
+    await tester.tap(find.text('Month'));
+    await tester.pumpAndSettle();
     expect(dayCell('day'), findsOneWidget);
     expect(dayCell('night'), findsOneWidget);
     expect(tester.getSize(band('days')).height, 48);

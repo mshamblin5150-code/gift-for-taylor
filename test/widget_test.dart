@@ -136,6 +136,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final rules = scheduleRulesInMemory(database, actingAs: actingAs);
+    final access = database.accessFor(actingAs);
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
@@ -152,10 +153,16 @@ void main() {
             printWordingGateway: printWordingGateway,
             ticketGateway: ticketGateway,
           ),
-          access: database.accessFor(actingAs),
+          access: staffMemberId == null
+              ? access
+              : Access(
+                  grants: access.grants,
+                  maintainer: access.maintainer,
+                  ownStaffMemberId: staffMemberId,
+                  activeRepair: access.activeRepair,
+                ),
           key: ValueKey(month ?? september),
           month: month ?? september,
-          staffMemberId: staffMemberId,
           now: now,
         ),
       ),
@@ -1354,6 +1361,8 @@ void main() {
       releasedMonths: {september},
     );
     await pumpGrid(tester, actingAs: 'rn-1');
+    await tester.tap(find.text('Month'));
+    await tester.pumpAndSettle();
 
     await tester.tap(cell('rn-1', september18));
     await tester.pumpAndSettle();

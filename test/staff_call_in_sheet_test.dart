@@ -77,7 +77,6 @@ void main() {
           ),
           access: database.accessFor('recorder'),
           month: month,
-          staffMemberId: 'recorder',
           now: () => day,
         ),
       ),

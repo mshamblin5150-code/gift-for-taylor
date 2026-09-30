@@ -515,12 +515,6 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
       invitePending,
       access,
       monthToCheck,
-      !access.canRunSchedule &&
-              access.editableSections.isEmpty &&
-              !access.canManageStaff
-          ? access.ownStaffMemberId
-          : null,
-      access.canRunSchedule ? null : access.ownStaffMemberId,
       showNotificationSetup,
     );
   }
@@ -621,11 +615,7 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
         // A month loaded from the printed page opens first until it is checked.
         final now = DateTime.now();
         return MonthGridPage(
-          key: ValueKey((
-            data.access,
-            data.staffMemberId,
-            data.swapStaffMemberId,
-          )),
+          key: ValueKey(data.access),
           dependencies: widget.dependencies,
           access: data.access,
           onAccessRejected: _refreshAccess,
@@ -634,8 +624,6 @@ class _ScheduleAccessState extends State<_ScheduleAccess>
               data.monthToCheck ??
               DateTime.tryParse(Uri.base.queryParameters['month'] ?? '') ??
               DateTime(now.year, now.month),
-          staffMemberId: data.staffMemberId,
-          swapStaffMemberId: data.swapStaffMemberId,
           onSignOut: _signOut,
           onManagerTransferred: _refreshAccess,
         );
@@ -650,8 +638,6 @@ final class _ScheduleData {
     this.invitePending,
     this.access,
     this.monthToCheck,
-    this.staffMemberId,
-    this.swapStaffMemberId,
     this.showNotificationSetup,
   );
 
@@ -659,7 +645,5 @@ final class _ScheduleData {
   final bool invitePending;
   final Access access;
   final DateTime? monthToCheck;
-  final String? staffMemberId;
-  final String? swapStaffMemberId;
   final bool showNotificationSetup;
 }

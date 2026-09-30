@@ -590,10 +590,10 @@ final class MonthSession extends ChangeNotifier {
     DateTime date,
     String code,
   ) {
-    final requesterId = _access.ownStaffMemberId;
-    if (_access.canRunSchedule || requesterId == null) {
+    if (!_access.canAskAsStaffMember) {
       return null;
     }
+    final requesterId = _access.ownStaffMemberId!;
     if (state.grid?.status != MonthStatus.released) {
       return const StaffCellSwapReview(
         unavailableReason: StaffCellSwapUnavailableReason.monthNotReleased,

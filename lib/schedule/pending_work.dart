@@ -53,7 +53,6 @@ final class PendingWork extends ChangeNotifier {
   PendingWork({
     required ScheduleRules rules,
     required Access access,
-    required String? swapStaffMemberId,
     required GiveawayStore giveawayStore,
     required StaffGateway staffGateway,
     required SwapStore swapStore,
@@ -61,7 +60,6 @@ final class PendingWork extends ChangeNotifier {
     PendingWorkTimerFactory? timerFactory,
   }) : _rules = rules,
        _access = access,
-       _swapStaffMemberId = swapStaffMemberId,
        _swapStore = swapStore,
        _giveawayStore = giveawayStore,
        _openShiftStore = openShiftStore,
@@ -84,7 +82,6 @@ final class PendingWork extends ChangeNotifier {
 
   final ScheduleRules _rules;
   final Access _access;
-  final String? _swapStaffMemberId;
   final SwapStore _swapStore;
   final GiveawayStore _giveawayStore;
   final OpenShiftStore _openShiftStore;
@@ -121,7 +118,8 @@ final class PendingWork extends ChangeNotifier {
               .where(
                 (swap) =>
                     swap.status == SwapStatus.proposed &&
-                    swap.colleagueId == _swapStaffMemberId,
+                    _access.canAskAsStaffMember &&
+                    swap.colleagueId == _access.ownStaffMemberId,
               )
               .length,
         ),

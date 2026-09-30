@@ -111,8 +111,6 @@ void main() {
           ),
           access: schedule.accessFor('requester'),
           month: month,
-          staffMemberId: 'requester',
-          swapStaffMemberId: 'requester',
           now: () => now,
         ),
       ),
