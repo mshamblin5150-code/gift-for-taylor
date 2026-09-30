@@ -30,20 +30,24 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          swapStore: emptySwapStore(),
-          giveawayStore: emptyGiveawayStore(),
-          staffGateway: emptyStaffGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-          rules: scheduleRulesInMemory(database, actingAs: 'manager'),
+          dependencies: appDependencies(
+            swapStore: emptySwapStore(),
+            giveawayStore: emptyGiveawayStore(),
+            staffGateway: emptyStaffGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (scheduleRulesInMemory(
+              database,
+              actingAs: 'manager',
+            )).store,
+            noticeGateway: _Notices(),
+          ),
           access: access,
           month: month,
           staffMemberId: access.canRunSchedule ? null : access.ownStaffMemberId,
           swapStaffMemberId: access.canRunSchedule
               ? null
               : access.ownStaffMemberId,
-          onCalendarFeed: () {},
-          noticeGateway: _Notices(),
         ),
       ),
     );
@@ -197,13 +201,15 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          swapStore: emptySwapStore(),
-          giveawayStore: emptyGiveawayStore(),
-          staffGateway: emptyStaffGateway(),
-          noticeGateway: const NoopNoticeGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-          rules: rules,
+          dependencies: appDependencies(
+            swapStore: emptySwapStore(),
+            giveawayStore: emptyGiveawayStore(),
+            staffGateway: emptyStaffGateway(),
+            noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (rules).store,
+          ),
           access: Access(
             grants: Grants(administrator: true),
             ownStaffMemberId: 'nurse',
@@ -245,13 +251,18 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: MonthGridPage(
-            swapStore: emptySwapStore(),
-            giveawayStore: emptyGiveawayStore(),
-            staffGateway: emptyStaffGateway(),
-            noticeGateway: const NoopNoticeGateway(),
-            repairController: noopRepairController(),
-            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-            rules: scheduleRulesInMemory(database, actingAs: 'manager'),
+            dependencies: appDependencies(
+              swapStore: emptySwapStore(),
+              giveawayStore: emptyGiveawayStore(),
+              staffGateway: emptyStaffGateway(),
+              noticeGateway: const NoopNoticeGateway(),
+              repairController: noopRepairController(),
+              undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+              scheduleStore: (scheduleRulesInMemory(
+                database,
+                actingAs: 'manager',
+              )).store,
+            ),
             access: Access(
               grants: Grants(
                 administrator: true,

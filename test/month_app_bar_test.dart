@@ -1,5 +1,6 @@
 import 'package:schedule_rules_testing/schedule_rules_testing.dart';
 import 'package:er_schedule/schedule/month_grid_page.dart';
+import 'package:er_schedule/calendar/calendar_feed_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
@@ -40,17 +41,20 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          swapStore: emptySwapStore(),
-          giveawayStore: emptyGiveawayStore(),
-          staffGateway: emptyStaffGateway(),
-          noticeGateway: const NoopNoticeGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+          dependencies: appDependencies(
+            swapStore: emptySwapStore(),
+            giveawayStore: emptyGiveawayStore(),
+            staffGateway: emptyStaffGateway(),
+            noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (scheduleRulesInMemory(
+              database,
+              actingAs: 'manager',
+            )).store,
+          ),
           access: database.accessFor('manager'),
-          rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: DateTime(2026, 9),
-          onCalendarFeed: () {},
-          onManageStaff: () async {},
           onSignOut: () => signOuts++,
         ),
       ),
@@ -84,17 +88,20 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: MonthGridPage(
-            swapStore: emptySwapStore(),
-            giveawayStore: emptyGiveawayStore(),
-            staffGateway: emptyStaffGateway(),
-            noticeGateway: const NoopNoticeGateway(),
-            repairController: noopRepairController(),
-            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            dependencies: appDependencies(
+              swapStore: emptySwapStore(),
+              giveawayStore: emptyGiveawayStore(),
+              staffGateway: emptyStaffGateway(),
+              noticeGateway: const NoopNoticeGateway(),
+              repairController: noopRepairController(),
+              undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+              scheduleStore: (scheduleRulesInMemory(
+                database,
+                actingAs: 'manager',
+              )).store,
+            ),
             access: database.accessFor('manager'),
-            rules: scheduleRulesInMemory(database, actingAs: 'manager'),
             month: DateTime(2026, 9),
-            onCalendarFeed: () {},
-            onManageStaff: () async {},
             onSignOut: () {},
           ),
         ),
@@ -137,22 +144,24 @@ void main() {
       tester.view.physicalSize = Size(width, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
-      var calendarOpens = 0;
-
       await tester.pumpWidget(
         MaterialApp(
           home: MonthGridPage(
-            swapStore: emptySwapStore(),
-            giveawayStore: emptyGiveawayStore(),
-            staffGateway: emptyStaffGateway(),
-            noticeGateway: const NoopNoticeGateway(),
-            repairController: noopRepairController(),
-            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            dependencies: appDependencies(
+              swapStore: emptySwapStore(),
+              giveawayStore: emptyGiveawayStore(),
+              staffGateway: emptyStaffGateway(),
+              noticeGateway: const NoopNoticeGateway(),
+              repairController: noopRepairController(),
+              undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+              scheduleStore: (scheduleRulesInMemory(
+                database,
+                actingAs: 'rn-1',
+              )).store,
+            ),
             access: database.accessFor('rn-1'),
-            rules: scheduleRulesInMemory(database, actingAs: 'rn-1'),
             month: DateTime(2026, 9),
             staffMemberId: 'rn-1',
-            onCalendarFeed: () => calendarOpens++,
             onSignOut: () {},
           ),
         ),
@@ -172,7 +181,10 @@ void main() {
       expect(find.text('Manage Shift codes'), findsNothing);
       await tester.tap(find.text('My calendar'));
       await tester.pumpAndSettle();
-      expect(calendarOpens, 1);
+      expect(find.byType(CalendarFeedPage), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
 
       await tester.tap(find.byTooltip('Schedule actions'));
       await tester.pumpAndSettle();
@@ -191,17 +203,20 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          swapStore: emptySwapStore(),
-          giveawayStore: emptyGiveawayStore(),
-          staffGateway: emptyStaffGateway(),
-          noticeGateway: const NoopNoticeGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+          dependencies: appDependencies(
+            swapStore: emptySwapStore(),
+            giveawayStore: emptyGiveawayStore(),
+            staffGateway: emptyStaffGateway(),
+            noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (scheduleRulesInMemory(
+              database,
+              actingAs: 'manager',
+            )).store,
+          ),
           access: database.accessFor('manager'),
-          rules: scheduleRulesInMemory(database, actingAs: 'manager'),
           month: DateTime(2026, 9),
-          onCalendarFeed: () {},
-          onManageStaff: () async {},
           onSignOut: () {},
         ),
       ),

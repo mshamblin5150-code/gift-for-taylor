@@ -24,19 +24,22 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
-          maintainerRepairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-          scheduleRules: rules,
-          noticeGateway: const NoopNoticeGateway(),
+          dependencies: appDependencies(
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (rules).store,
+            noticeGateway: const NoopNoticeGateway(),
+            signInFailureLog: FakeSignInFailureLog(),
+            ticketGateway: InMemoryTicketGateway(),
+          ),
+          onCalendarFeed: () {},
+          onManageStaff: () async {},
+          onOpenStaffDetails: (_) async {},
           access: Access(
             grants: Grants(),
             maintainer: true,
             ownStaffMemberId: 'maintainer',
           ),
-          signInFailureLog: FakeSignInFailureLog(),
-          onCalendarFeed: () {},
-          onManageStaff: () async {},
-          ticketGateway: InMemoryTicketGateway(),
         ),
       ),
     );
@@ -44,14 +47,14 @@ void main() {
     expect(find.text('Unit'), findsNothing);
     expect(find.text('Manager controls'), findsOneWidget);
     expect(find.text('Tickets'), findsOneWidget);
+    expect(find.text('My calendar'), findsOneWidget);
     await tester.drag(find.byType(ListView), const Offset(0, -500));
     await tester.pumpAndSettle();
-    expect(find.text('Sections'), findsOneWidget);
+    expect(find.text('Sections'), findsNothing);
     expect(
       find.text('Requires a Repair — tap to break the glass'),
       findsWidgets,
     );
-    expect(find.text('My calendar'), findsOneWidget);
     expect(find.text('Sign-in failures'), findsNothing);
   });
 
@@ -78,10 +81,16 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
-          maintainerRepairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-          scheduleRules: rules,
-          noticeGateway: const NoopNoticeGateway(),
+          dependencies: appDependencies(
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (rules).store,
+            noticeGateway: const NoopNoticeGateway(),
+            signInFailureLog: failureLog,
+          ),
+          onCalendarFeed: () {},
+          onManageStaff: () async {},
+          onOpenStaffDetails: (_) async {},
           access: Access(
             grants: Grants(),
             maintainer: true,
@@ -93,7 +102,6 @@ void main() {
               expiresAt: openedAt.add(const Duration(hours: 1)),
             ),
           ),
-          signInFailureLog: failureLog,
         ),
       ),
     );
@@ -135,9 +143,15 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
-          maintainerRepairController: noopRepairController(),
-          scheduleRules: rules,
-          noticeGateway: const NoopNoticeGateway(),
+          dependencies: appDependencies(
+            repairController: noopRepairController(),
+            scheduleStore: (rules).store,
+            noticeGateway: const NoopNoticeGateway(),
+            undeliveredInvitationLog: log,
+          ),
+          onCalendarFeed: () {},
+          onManageStaff: () async {},
+          onOpenStaffDetails: (_) async {},
           access: Access(
             grants: Grants(),
             maintainer: true,
@@ -149,7 +163,6 @@ void main() {
               expiresAt: openedAt.add(const Duration(hours: 1)),
             ),
           ),
-          undeliveredInvitationLog: log,
         ),
       ),
     );

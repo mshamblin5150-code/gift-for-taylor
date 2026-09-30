@@ -7,21 +7,18 @@ import 'package:intl/intl.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../app_dependencies.dart';
+import '../calendar/calendar_feed_page.dart';
 import '../help/help_page.dart';
-import '../auth/sign_in_failure_log.dart';
-import '../calendar/undelivered_invitation_log.dart';
-import '../notifications/notice_gateway.dart';
 import '../maintainer/maintainer_repair.dart';
-import '../maintainer/repair_controller.dart';
 import '../notifications/notices_page.dart';
 import '../schedule_theme.dart';
-import '../staff/staff_gateway.dart';
+import '../staff/staff_details_page.dart';
+import '../staff/staff_list_page.dart';
 import '../settings/settings_page.dart';
-import '../settings/settings_history.dart';
 import '../tickets/ticket_context.dart';
-import '../tickets/ticket_gateway.dart';
-import '../tickets/ticket_pages.dart';
 import '../tickets/ticket_activity.dart';
+import '../tickets/ticket_pages.dart';
 import '../tickets/ticket_refusal.dart';
 
 import 'announce_sheet.dart';
@@ -30,10 +27,8 @@ import 'book_page_printing.dart';
 import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
 import 'coverage_settings_page.dart';
-import 'messages_composer.dart';
 import 'month_session.dart';
 import 'print_wording_dialog.dart';
-import 'print_wording_gateway.dart';
 import 'swaps_page.dart';
 import 'open_shifts_page.dart';
 import 'pending_work.dart';
@@ -70,7 +65,7 @@ final class _ScheduleAction {
 class MonthGridPage extends StatefulWidget {
   const MonthGridPage({
     super.key,
-    required this.rules,
+    required this.dependencies,
     required this.access,
     required this.month,
     this.onAccessRejected,
@@ -78,27 +73,11 @@ class MonthGridPage extends StatefulWidget {
     this.staffMemberId,
     this.swapStaffMemberId,
     this.onSignOut,
-    this.onCalendarFeed,
-    this.onManageStaff,
-    this.onOpenStaffDetails,
     this.onManagerTransferred,
-    this.messagesComposer,
-    required this.swapStore,
-    required this.giveawayStore,
-    this.openShiftStore,
-    required this.noticeGateway,
-    required this.staffGateway,
-    this.bookPagePresenter,
-    this.printWordingGateway,
-    this.settingsHistory,
-    this.signInFailureLog,
-    required this.undeliveredInvitationLog,
-    required this.repairController,
-    this.ticketGateway,
     this.now,
   });
 
-  final ScheduleRules rules;
+  final AppDependencies dependencies;
   final Access access;
   final DateTime month;
   final VoidCallback? onAccessRejected;
@@ -108,24 +87,7 @@ class MonthGridPage extends StatefulWidget {
   final String? staffMemberId;
   final String? swapStaffMemberId;
   final VoidCallback? onSignOut;
-  final VoidCallback? onCalendarFeed;
-  final Future<void> Function()? onManageStaff;
-  final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
   final VoidCallback? onManagerTransferred;
-  final MessagesComposer? messagesComposer;
-  final SwapStore swapStore;
-  final GiveawayStore giveawayStore;
-  final OpenShiftStore? openShiftStore;
-  final NoticeGateway noticeGateway;
-  final StaffGateway staffGateway;
-
-  final BookPagePresenter? bookPagePresenter;
-  final PrintWordingGateway? printWordingGateway;
-  final SettingsHistory? settingsHistory;
-  final SignInFailureLog? signInFailureLog;
-  final UndeliveredInvitationLog undeliveredInvitationLog;
-  final RepairController repairController;
-  final TicketGateway? ticketGateway;
   final DateTime Function()? now;
 
   @override
@@ -155,12 +117,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
   void initState() {
     super.initState();
     _pendingWork = PendingWork(
-      rules: widget.rules,
+      rules: widget.dependencies.rules,
       access: widget.access,
-      swapStore: widget.swapStore,
-      giveawayStore: widget.giveawayStore,
-      openShiftStore: widget.openShiftStore,
-      staffGateway: widget.staffGateway,
+      swapStore: widget.dependencies.swapStore,
+      giveawayStore: widget.dependencies.giveawayStore,
+      openShiftStore: widget.dependencies.openShiftStore,
+      staffGateway: widget.dependencies.staffGateway,
       swapStaffMemberId: widget.swapStaffMemberId,
     );
     _session = _createSession();
@@ -171,11 +133,11 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   MonthSession _createSession() => MonthSession(
-    rules: widget.rules,
+    rules: widget.dependencies.rules,
     access: widget.access,
-    openShiftStore: widget.openShiftStore,
-    swapStore: widget.swapStore,
-    giveawayStore: widget.giveawayStore,
+    openShiftStore: widget.dependencies.openShiftStore,
+    swapStore: widget.dependencies.swapStore,
+    giveawayStore: widget.dependencies.giveawayStore,
     month: _month,
     now: widget.now,
     onAccessRejected: widget.onAccessRejected,
@@ -207,8 +169,41 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _openStaffDetails(String staffMemberId) async {
-    await widget.onOpenStaffDetails?.call(staffMemberId);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => StaffDetailsPage(
+          staffMemberId: staffMemberId,
+          gateway: widget.dependencies.staffGateway,
+          rules: widget.dependencies.rules,
+          inviteComposer: widget.dependencies.inviteComposer,
+          onAccessRejected: widget.onAccessRejected,
+        ),
+      ),
+    );
     if (mounted) await _session.refresh();
+  }
+
+  Future<void> _manageStaff() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => StaffListPage(
+          gateway: widget.dependencies.staffGateway,
+          rules: widget.dependencies.rules,
+          inviteComposer: widget.dependencies.inviteComposer,
+          onAccessRejected: widget.onAccessRejected,
+        ),
+      ),
+    );
+    if (mounted) await _session.refresh();
+  }
+
+  void _openCalendarFeed() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) =>
+            CalendarFeedPage(gateway: widget.dependencies.calendarFeedGateway),
+      ),
+    );
   }
 
   Future<void> _announce(ChangeAnnouncement announcement) async {
@@ -217,7 +212,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         : await showAnnounceSheet(
             context,
             announcement: announcement,
-            messagesComposer: widget.messagesComposer,
+            messagesComposer: widget.dependencies.messagesComposer,
           );
     if (draftOpenedStaffMemberIds == null) return;
     final outcome = await _session.announce(
@@ -323,8 +318,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
     if (requesterId == null || grid == null) return;
     final choice = await showSwapProposalDialog(
       context,
-      rules: widget.rules,
-      swapStore: widget.swapStore,
+      rules: widget.dependencies.rules,
+      swapStore: widget.dependencies.swapStore,
       initialGrid: grid,
       requesterId: requesterId,
       now: widget.now ?? DateTime.now,
@@ -349,8 +344,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
           context,
           swap: swap,
           colleague: choice.colleague,
-          swapStore: widget.swapStore,
-          messagesComposer: widget.messagesComposer,
+          swapStore: widget.dependencies.swapStore,
+          messagesComposer: widget.dependencies.messagesComposer,
         );
         _pendingWork.refresh();
       case SwapProposeRefused(:final reason):
@@ -376,7 +371,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     if (giverId == null || grid == null) return;
     final choice = await showGiveawayProposalDialog(
       context,
-      rules: widget.rules,
+      rules: widget.dependencies.rules,
       eligibleColleagues: _session.eligibleGiveawayColleagues,
       initialGrid: grid,
       giverId: giverId,
@@ -401,7 +396,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           giveaway: giveaway,
           colleague: choice.colleague,
           cellNumber: cellNumber,
-          messagesComposer: widget.messagesComposer,
+          messagesComposer: widget.dependencies.messagesComposer,
         );
         _pendingWork.refresh();
       case GiveawayProposeRefused(:final reason):
@@ -532,8 +527,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
     CoverageWindow window,
     DateTime date,
   ) async {
-    final rules = widget.openShiftStore;
-    if (!_access.canRunSchedule || rules == null) return;
+    final rules = widget.dependencies.openShiftStore;
+    if (!_access.canRunSchedule) return;
     final staffing = _staffingOn(_session.state.staffing, pool, window, date);
     if (staffing == null) return;
     final changed = await showStaffingSheet(
@@ -544,8 +539,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
       staffing: staffing,
       reading: _session.state.coverage!.day(pool, date).window(window),
       onStandingMinimums: () => _open(
-        (context) =>
-            CoverageSettingsPage(rules: rules, scheduleRules: widget.rules),
+        (context) => CoverageSettingsPage(
+          rules: rules,
+          scheduleRules: widget.dependencies.rules,
+        ),
         refreshMonth: true,
       ),
     );
@@ -555,8 +552,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _print(BookPagePresenter presenter) async {
     try {
       final page = await BookPagePrinting(
-        widget.rules,
-        widget.printWordingGateway,
+        widget.dependencies.rules,
+        widget.dependencies.printWordingGateway,
       ).prepare(_month);
       if (!mounted) return;
       await showDialog<void>(
@@ -631,13 +628,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<PrintWording> _wordingForMonth() async {
-    final gateway = widget.printWordingGateway;
-    return await gateway?.readForMonth(_month) ?? const PrintWording();
+    final gateway = widget.dependencies.printWordingGateway;
+    return gateway.readForMonth(_month);
   }
 
   Future<void> _changePrintWording() async {
-    final gateway = widget.printWordingGateway;
-    if (gateway == null) return;
+    final gateway = widget.dependencies.printWordingGateway;
     try {
       final current = await gateway.read();
       if (!mounted) return;
@@ -657,8 +653,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _correctMonthPrintWording() async {
-    final gateway = widget.printWordingGateway;
-    if (gateway == null) return;
+    final gateway = widget.dependencies.printWordingGateway;
     final current = await gateway.readForMonth(_month);
     if (!mounted) return;
     final next = await showPrintWordingDialog(
@@ -840,34 +835,25 @@ class _MonthGridPageState extends State<MonthGridPage> {
         if (!context.mounted) return;
         _open(
           (context) => SettingsPage(
-            scheduleRules: widget.rules,
-            openShiftStore: widget.openShiftStore,
-            noticeGateway: widget.noticeGateway,
-            printWordingGateway: widget.printWordingGateway,
-            onCalendarFeed: widget.onCalendarFeed,
-            onManageStaff: widget.onManageStaff,
-            onOpenStaffDetails: widget.onOpenStaffDetails,
-            staffGateway: widget.staffGateway,
+            dependencies: widget.dependencies,
+            onCalendarFeed: _openCalendarFeed,
+            onManageStaff: _manageStaff,
+            onOpenStaffDetails: _openStaffDetails,
             onManagerTransferred: widget.onManagerTransferred,
             onAccessRejected: widget.onAccessRejected,
             access: _access,
-            settingsHistory: widget.settingsHistory,
-            signInFailureLog: widget.signInFailureLog,
-            undeliveredInvitationLog: widget.undeliveredInvitationLog,
-            maintainerRepairController: widget.repairController,
-            ticketGateway: widget.ticketGateway,
           ),
         );
       },
     ),
-    if (_access.ownStaffMemberId != null && widget.ticketGateway != null)
+    if (_access.ownStaffMemberId != null)
       _ScheduleAction(
         label: 'Put in a ticket',
         icon: Icons.support_agent_outlined,
         secondary: true,
         onPressed: () => _open(
           (context) => PutInTicketPage(
-            gateway: widget.ticketGateway!,
+            gateway: widget.dependencies.ticketGateway,
             onAccessRejected: widget.onAccessRejected,
             attachedContext: captureTicketContext(
               screen: TicketScreen.schedule.label,
@@ -879,14 +865,14 @@ class _MonthGridPageState extends State<MonthGridPage> {
           ),
         ),
       ),
-    if (_access.ownStaffMemberId != null && widget.ticketGateway != null)
+    if (_access.ownStaffMemberId != null)
       _ScheduleAction(
         label: 'My tickets',
         icon: Icons.inbox_outlined,
         secondary: true,
         onPressed: () => _open(
           (context) => TicketsPage(
-            gateway: widget.ticketGateway!,
+            gateway: widget.dependencies.ticketGateway,
             maintainer: false,
             ownStaffMemberId: _access.ownStaffMemberId,
             onAccessRejected: widget.onAccessRejected,
@@ -930,32 +916,30 @@ class _MonthGridPageState extends State<MonthGridPage> {
         ),
       ),
     ),
-    if (_access.canRunSchedule && widget.openShiftStore != null)
+    if (_access.canRunSchedule)
       _ScheduleAction(
         label: 'Approval queue',
         icon: Icons.fact_check_outlined,
         badgeCount: pending.pendingApprovals,
         onPressed: () => _open(
           (context) => ApprovalQueuePage(
-            rules: widget.rules,
-            swapStore: widget.swapStore,
-            giveawayStore: widget.giveawayStore,
-            openShiftStore: widget.openShiftStore!,
-            staffGateway: widget.staffGateway,
+            rules: widget.dependencies.rules,
+            swapStore: widget.dependencies.swapStore,
+            giveawayStore: widget.dependencies.giveawayStore,
+            openShiftStore: widget.dependencies.openShiftStore,
+            staffGateway: widget.dependencies.staffGateway,
             onAccessRejected: widget.onAccessRejected,
           ),
         ),
       ),
-    if (!_access.canRunSchedule &&
-        _access.ownStaffMemberId != null &&
-        widget.openShiftStore != null)
+    if (!_access.canRunSchedule && _access.ownStaffMemberId != null)
       _ScheduleAction(
         label: 'Open shifts',
         icon: Icons.add_circle_outline,
         onPressed: () => _open(
           (context) => OpenShiftsPage(
-            rules: widget.openShiftStore!,
-            scheduleRules: widget.rules,
+            rules: widget.dependencies.openShiftStore,
+            scheduleRules: widget.dependencies.rules,
             month: _month,
             staffMemberId: widget.swapStaffMemberId,
             isManager: _access.canRunSchedule,
@@ -969,12 +953,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
         badgeCount: pending.pendingSwaps,
         onPressed: () => _open(
           (context) => SwapsPage(
-            rules: widget.rules,
-            swapStore: widget.swapStore,
+            rules: widget.dependencies.rules,
+            swapStore: widget.dependencies.swapStore,
             month: _month,
             staffMemberId: widget.swapStaffMemberId,
             isManager: _access.canRunSchedule,
-            messagesComposer: widget.messagesComposer,
+            messagesComposer: widget.dependencies.messagesComposer,
             onAccessRejected: widget.onAccessRejected,
           ),
         ),
@@ -985,8 +969,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
         icon: Icons.card_giftcard,
         onPressed: () => _open(
           (context) => GiveawaysPage(
-            rules: widget.rules,
-            giveawayStore: widget.giveawayStore,
+            rules: widget.dependencies.rules,
+            giveawayStore: widget.dependencies.giveawayStore,
             month: _month,
             staffMemberId: widget.swapStaffMemberId,
             onAccessRejected: widget.onAccessRejected,
@@ -998,15 +982,16 @@ class _MonthGridPageState extends State<MonthGridPage> {
         label: 'Notices',
         icon: Icons.notifications_outlined,
         secondary: true,
-        onPressed: () =>
-            _open((context) => NoticesPage(gateway: widget.noticeGateway)),
+        onPressed: () => _open(
+          (context) => NoticesPage(gateway: widget.dependencies.noticeGateway),
+        ),
       ),
-    if (_access.ownStaffMemberId != null && widget.onCalendarFeed != null)
+    if (_access.ownStaffMemberId != null)
       _ScheduleAction(
         label: 'My calendar',
         icon: Icons.calendar_month_outlined,
         secondary: true,
-        onPressed: widget.onCalendarFeed,
+        onPressed: _openCalendarFeed,
       ),
     if (!_access.canRunSchedule && _access.ownStaffMemberId != null)
       _ScheduleAction(
@@ -1015,7 +1000,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
         badgeCount: pending.unreadRequestsOff,
         onPressed: () => _open(
           (context) => RequestsOffPage(
-            rules: widget.rules,
+            rules: widget.dependencies.rules,
             isManager: _access.canRunSchedule,
           ),
         ),
@@ -1029,8 +1014,10 @@ class _MonthGridPageState extends State<MonthGridPage> {
             label: 'Requests off',
             icon: Icons.event_busy_outlined,
             onPressed: () => _open(
-              (context) =>
-                  RequestsOffPage(rules: widget.rules, isManager: true),
+              (context) => RequestsOffPage(
+                rules: widget.dependencies.rules,
+                isManager: true,
+              ),
             ),
           ),
           _ScheduleAction(
@@ -1038,12 +1025,12 @@ class _MonthGridPageState extends State<MonthGridPage> {
             icon: Icons.swap_horiz,
             onPressed: () => _open(
               (context) => SwapsPage(
-                rules: widget.rules,
-                swapStore: widget.swapStore,
+                rules: widget.dependencies.rules,
+                swapStore: widget.dependencies.swapStore,
                 month: _month,
                 staffMemberId: widget.swapStaffMemberId,
                 isManager: true,
-                messagesComposer: widget.messagesComposer,
+                messagesComposer: widget.dependencies.messagesComposer,
                 onAccessRejected: widget.onAccessRejected,
               ),
             ),
@@ -1053,35 +1040,35 @@ class _MonthGridPageState extends State<MonthGridPage> {
             icon: Icons.card_giftcard,
             onPressed: () => _open(
               (context) => GiveawaysPage(
-                rules: widget.rules,
-                giveawayStore: widget.giveawayStore,
+                rules: widget.dependencies.rules,
+                giveawayStore: widget.dependencies.giveawayStore,
                 month: _month,
                 staffMemberId: widget.swapStaffMemberId,
                 onAccessRejected: widget.onAccessRejected,
               ),
             ),
           ),
-          if (widget.openShiftStore != null)
-            _ScheduleAction(
-              label: 'Open shifts',
-              icon: Icons.add_circle_outline,
-              onPressed: () => _open(
-                (context) => OpenShiftsPage(
-                  rules: widget.openShiftStore!,
-                  scheduleRules: widget.rules,
-                  month: _month,
-                  staffMemberId: widget.swapStaffMemberId,
-                  isManager: true,
-                  onApprovalSettings: () => _open(
-                    (context) =>
-                        ApprovalDefaultPage(rules: widget.openShiftStore!),
+          _ScheduleAction(
+            label: 'Open shifts',
+            icon: Icons.add_circle_outline,
+            onPressed: () => _open(
+              (context) => OpenShiftsPage(
+                rules: widget.dependencies.openShiftStore,
+                scheduleRules: widget.dependencies.rules,
+                month: _month,
+                staffMemberId: widget.swapStaffMemberId,
+                isManager: true,
+                onApprovalSettings: () => _open(
+                  (context) => ApprovalDefaultPage(
+                    rules: widget.dependencies.openShiftStore,
                   ),
                 ),
               ),
             ),
+          ),
         ],
       ),
-    if (_access.canManageUnit && widget.openShiftStore != null)
+    if (_access.canManageUnit)
       _ScheduleAction(
         label: 'Unit coverage settings',
         icon: Icons.tune,
@@ -1089,8 +1076,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
           await Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (context) => CoverageSettingsPage(
-                rules: widget.openShiftStore!,
-                scheduleRules: widget.rules,
+                rules: widget.dependencies.openShiftStore,
+                scheduleRules: widget.dependencies.rules,
               ),
             ),
           );
@@ -1106,7 +1093,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           await Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (context) => ShiftCodesPage(
-                rules: widget.rules,
+                rules: widget.dependencies.rules,
                 onAccessRejected: widget.onAccessRejected,
               ),
             ),
@@ -1120,38 +1107,38 @@ class _MonthGridPageState extends State<MonthGridPage> {
         icon: Icons.history,
         secondary: true,
         onPressed: () => _open(
-          (context) => ChangeLogPage(rules: widget.rules, month: _month),
+          (context) =>
+              ChangeLogPage(rules: widget.dependencies.rules, month: _month),
         ),
       ),
-    if (widget.bookPagePresenter case final presenter?)
-      _ScheduleAction(
-        label: _wording?.tooltip ?? 'Loading print wording',
-        icon: Icons.print_outlined,
-        onPressed: _wording == null ? null : () => _print(presenter),
-      ),
-    if (_access.canManageUnit && widget.printWordingGateway != null)
+    _ScheduleAction(
+      label: _wording?.tooltip ?? 'Loading print wording',
+      icon: Icons.print_outlined,
+      onPressed: _wording == null
+          ? null
+          : () => _print(widget.dependencies.bookPagePresenter),
+    ),
+    if (_access.canManageUnit)
       _ScheduleAction(
         label: 'Change print wording',
         icon: Icons.text_fields_outlined,
         onPressed: _wording == null ? null : _changePrintWording,
       ),
     if (_access.canManageUnit &&
-        _session.state.grid?.status == MonthStatus.released &&
-        widget.printWordingGateway != null)
+        _session.state.grid?.status == MonthStatus.released)
       _ScheduleAction(
         label: 'Correct this month’s print wording',
         icon: Icons.edit_note_outlined,
         secondary: true,
         onPressed: _correctMonthPrintWording,
       ),
-    if (widget.onManageStaff != null)
+    if (_access.canManageStaff)
       _ScheduleAction(
         label: 'Manage Staff list',
         icon: Icons.people_outline,
         secondary: true,
         onPressed: () async {
-          await widget.onManageStaff?.call();
-          if (mounted) await _session.refresh();
+          await _manageStaff();
         },
       ),
     if (widget.onSignOut != null)
@@ -1164,8 +1151,8 @@ class _MonthGridPageState extends State<MonthGridPage> {
   ];
 
   MaintainerRepairPage _maintainerRepairPage() => MaintainerRepairPage(
-    controller: widget.repairController,
-    ticketGateway: widget.ticketGateway,
+    controller: widget.dependencies.repairController,
+    ticketGateway: widget.dependencies.ticketGateway,
   );
 
   PopupMenuItem<_ScheduleAction> _actionMenuItem(_ScheduleAction action) =>
@@ -1337,7 +1324,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _open(
                   (context) => ChangeLogPage(
-                    rules: widget.rules,
+                    rules: widget.dependencies.rules,
                     month: unreached.month,
                     unreachedOnly: true,
                     weekStart: _session.state.today,
@@ -1350,7 +1337,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
                 child: TextButton.icon(
                   onPressed: () => _open(
                     (context) => ShiftCodesPage(
-                      rules: widget.rules,
+                      rules: widget.dependencies.rules,
                       readOnly: true,
                       onAccessRejected: widget.onAccessRejected,
                     ),
@@ -1398,9 +1385,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
           dragEnabled:
               grid.status != MonthStatus.notStarted &&
               !_session.state.savingDrop,
-          onOpenStaffDetails: widget.onOpenStaffDetails == null
-              ? null
-              : _openStaffDetails,
+          onOpenStaffDetails: _access.canManageStaff ? _openStaffDetails : null,
           staffMemberId: widget.staffMemberId,
         ),
         ScheduleView.day => _DayView(

@@ -96,18 +96,23 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          rules: scheduleRulesInMemory(schedule, actingAs: 'requester'),
+          dependencies: appDependencies(
+            scheduleStore: (scheduleRulesInMemory(
+              schedule,
+              actingAs: 'requester',
+            )).store,
+            swapStore: swaps.storeFor('requester'),
+            giveawayStore: emptyGiveawayStore('requester'),
+            staffGateway: emptyStaffGateway(),
+            messagesComposer: messages,
+            noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+          ),
           access: schedule.accessFor('requester'),
           month: month,
           staffMemberId: 'requester',
           swapStaffMemberId: 'requester',
-          swapStore: swaps.storeFor('requester'),
-          giveawayStore: emptyGiveawayStore('requester'),
-          staffGateway: emptyStaffGateway(),
-          messagesComposer: messages,
-          noticeGateway: const NoopNoticeGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           now: () => now,
         ),
       ),
@@ -122,15 +127,20 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          rules: scheduleRulesInMemory(schedule, actingAs: 'requester'),
+          dependencies: appDependencies(
+            scheduleStore: (scheduleRulesInMemory(
+              schedule,
+              actingAs: 'requester',
+            )).store,
+            swapStore: swaps.storeFor('requester'),
+            giveawayStore: emptyGiveawayStore('requester'),
+            staffGateway: emptyStaffGateway(),
+            noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+          ),
           access: schedule.accessFor('requester'),
           month: month,
-          swapStore: swaps.storeFor('requester'),
-          giveawayStore: emptyGiveawayStore('requester'),
-          staffGateway: emptyStaffGateway(),
-          noticeGateway: const NoopNoticeGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
           now: () => now,
         ),
       ),

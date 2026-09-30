@@ -330,16 +330,18 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          noticeGateway: const NoopNoticeGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+          dependencies: appDependencies(
+            noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (manager).store,
+            swapStore: swaps,
+            giveawayStore: giveaways,
+            staffGateway: emptyStaffGateway(),
+            openShiftStore: pickups,
+          ),
           access: db.accessFor('manager'),
-          rules: manager,
           month: month,
-          swapStore: swaps,
-          giveawayStore: giveaways,
-          staffGateway: emptyStaffGateway(),
-          openShiftStore: pickups,
           now: () => DateTime(2026, 9, 19),
         ),
       ),
@@ -473,18 +475,20 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MonthGridPage(
-          noticeGateway: const NoopNoticeGateway(),
-          repairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+          dependencies: appDependencies(
+            noticeGateway: const NoopNoticeGateway(),
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (scheduleRulesInMemory(db, actingAs: 'alice')).store,
+            swapStore: _Swaps(),
+            giveawayStore: emptyGiveawayStore('alice'),
+            staffGateway: emptyStaffGateway(),
+            openShiftStore: _Pickups(),
+          ),
           access: db.accessFor('alice'),
-          rules: scheduleRulesInMemory(db, actingAs: 'alice'),
           month: month,
           staffMemberId: 'alice',
           swapStaffMemberId: 'alice',
-          swapStore: _Swaps(),
-          giveawayStore: emptyGiveawayStore('alice'),
-          staffGateway: emptyStaffGateway(),
-          openShiftStore: _Pickups(),
         ),
       ),
     );

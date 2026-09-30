@@ -1498,15 +1498,20 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
-          maintainerRepairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-          scheduleRules: rules,
-          noticeGateway: const NoopNoticeGateway(),
+          dependencies: appDependencies(
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (rules).store,
+            noticeGateway: const NoopNoticeGateway(),
+            staffGateway: gateway,
+          ),
+          onCalendarFeed: () {},
+          onManageStaff: () async {},
+          onOpenStaffDetails: (_) async {},
           access: Access(
             grants: Grants(manager: true),
             ownStaffMemberId: 'current-manager',
           ),
-          staffGateway: gateway,
         ),
       ),
     );
@@ -1590,16 +1595,20 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: SettingsPage(
-            maintainerRepairController: noopRepairController(),
-            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-            scheduleRules: rules,
-            noticeGateway: const NoopNoticeGateway(),
+            dependencies: appDependencies(
+              repairController: noopRepairController(),
+              undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+              scheduleStore: (rules).store,
+              noticeGateway: const NoopNoticeGateway(),
+              staffGateway: gateway,
+            ),
+            onCalendarFeed: () {},
+            onManageStaff: () async => staffListOpenCount++,
+            onOpenStaffDetails: (_) async {},
             access: Access(
               grants: Grants(manager: true),
               ownStaffMemberId: 'current-manager',
             ),
-            staffGateway: gateway,
-            onManageStaff: () async => staffListOpenCount++,
           ),
         ),
       );
@@ -1642,13 +1651,17 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
-          maintainerRepairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-          scheduleRules: rules,
-          noticeGateway: const NoopNoticeGateway(),
-          access: Access(grants: Grants(manager: true)),
-          staffGateway: gateway,
+          dependencies: appDependencies(
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (rules).store,
+            noticeGateway: const NoopNoticeGateway(),
+            staffGateway: gateway,
+          ),
+          onCalendarFeed: () {},
+          onManageStaff: () async {},
           onOpenStaffDetails: (id) async => openedStaffMemberId = id,
+          access: Access(grants: Grants(manager: true)),
         ),
       ),
     );
@@ -1741,19 +1754,29 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
-          maintainerRepairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-          scheduleRules: rules,
-          noticeGateway: const NoopNoticeGateway(),
+          dependencies: appDependencies(
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (rules).store,
+            noticeGateway: const NoopNoticeGateway(),
+            staffGateway: gateway,
+          ),
+          onCalendarFeed: () {},
+          onManageStaff: () async {},
+          onOpenStaffDetails: (_) async {},
           access: Access(
             grants: Grants(),
             maintainer: true,
             ownStaffMemberId: 'maintainer',
             activeRepair: gateway.activeRepair,
           ),
-          staffGateway: gateway,
         ),
       ),
+    );
+    await tester.scrollUntilVisible(
+      find.text('Transfer Manager'),
+      200,
+      scrollable: find.byType(Scrollable),
     );
     await tester.tap(find.text('Transfer Manager'));
     await tester.pumpAndSettle();

@@ -79,10 +79,15 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
-          maintainerRepairController: noopRepairController(),
-          undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-          scheduleRules: ScheduleRules(_scheduleStore(const [])),
-          noticeGateway: const NoopNoticeGateway(),
+          dependencies: appDependencies(
+            repairController: noopRepairController(),
+            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
+            scheduleStore: (ScheduleRules(_scheduleStore(const []))).store,
+            noticeGateway: const NoopNoticeGateway(),
+          ),
+          onCalendarFeed: () {},
+          onManageStaff: () async {},
+          onOpenStaffDetails: (_) async {},
           access: Access(grants: Grants()),
         ),
       ),
