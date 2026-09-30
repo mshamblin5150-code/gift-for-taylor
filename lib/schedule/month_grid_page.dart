@@ -380,6 +380,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
       eligibleColleagues: _session.eligibleGiveawayColleagues,
       initialGrid: grid,
       giverId: giverId,
+      codes: _session.state.shiftCodes,
       now: widget.now ?? DateTime.now,
       initialDate: initialDate,
     );

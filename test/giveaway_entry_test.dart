@@ -69,6 +69,7 @@ void main() {
     await rules.store.saveShiftCode(
       const LegendCode('7A', hours: '7A–7P', isWorking: true),
     );
+    final codes = await rules.store.shiftCodes();
     final grid = await rules.monthGrid(DateTime(2027, 10));
     final giveaways = InMemoryGiveawayDatabase(
       shifts: {('giver', date): '7A'},
@@ -91,6 +92,7 @@ void main() {
                 eligibleColleagues: giveaways.eligibleColleagues,
                 initialGrid: grid,
                 giverId: 'giver',
+                codes: codes,
                 now: () => DateTime(2027, 9, 1),
                 initialDate: date,
               ),
@@ -135,6 +137,7 @@ void main() {
           ),
         ]);
     final rules = scheduleRulesInMemory(schedule, actingAs: 'giver');
+    final codes = await rules.store.shiftCodes();
     final grid = await rules.monthGrid(DateTime(2027, 10));
 
     await tester.pumpWidget(
@@ -148,6 +151,7 @@ void main() {
                 eligibleColleagues: (_) async => const [],
                 initialGrid: grid,
                 giverId: 'giver',
+                codes: codes,
                 now: () => DateTime(2027, 9, 1),
                 initialDate: date,
               ),
@@ -165,5 +169,131 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('Choose a smaller set'), findsNothing);
+  });
+
+  testWidgets('Giveaway picker excludes a Unit non-working Shift code', (
+    tester,
+  ) async {
+    final offDate = DateTime(2027, 10, 4);
+    final workingDate = DateTime(2027, 10, 5);
+    final schedule = InMemoryScheduleDatabase(
+      sections: [const ScheduleSection(id: 'rn', name: 'RN')],
+      rows: const [
+        ScheduleRow(
+          staffMemberId: 'giver',
+          displayName: 'Giver RN',
+          sectionId: 'rn',
+        ),
+      ],
+      shiftCodes: const [
+        LegendCode('ZZ', isWorking: false),
+        LegendCode('7A', hours: '7A–7P', isWorking: true),
+      ],
+      releasedMonths: {DateTime(2027, 10)},
+    );
+    final manager = scheduleRulesInMemory(schedule, actingAs: 'manager');
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'giver',
+        sectionId: 'rn',
+        date: offDate,
+        shiftCode: 'ZZ',
+      ),
+    );
+    await manager.saveCell(
+      SaveCell(
+        staffMemberId: 'giver',
+        sectionId: 'rn',
+        date: workingDate,
+        shiftCode: '7A',
+      ),
+    );
+    final rules = scheduleRulesInMemory(schedule, actingAs: 'giver');
+    final codes = await rules.store.shiftCodes();
+    final grid = await rules.monthGrid(DateTime(2027, 10));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () => showGiveawayProposalDialog(
+                context,
+                rules: rules,
+                eligibleColleagues: (_) async => const [],
+                initialGrid: grid,
+                giverId: 'giver',
+                codes: codes,
+                now: () => DateTime(2027, 9, 1),
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add my shift'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Oct 4 — ZZ'), findsNothing);
+    expect(find.text('Oct 5 — 7A'), findsOneWidget);
+  });
+
+  testWidgets('Giveaway picker reports a failed month load', (tester) async {
+    final schedule = InMemoryScheduleDatabase(
+      sections: [const ScheduleSection(id: 'rn', name: 'RN')],
+      rows: const [
+        ScheduleRow(
+          staffMemberId: 'giver',
+          displayName: 'Giver RN',
+          sectionId: 'rn',
+        ),
+      ],
+      releasedMonths: {DateTime(2027, 10)},
+    );
+    final rules = scheduleRulesInMemory(schedule, actingAs: 'giver');
+    final codes = await rules.store.shiftCodes();
+    final grid = await rules.monthGrid(DateTime(2027, 10));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () => showGiveawayProposalDialog(
+                context,
+                rules: rules,
+                eligibleColleagues: (_) async => const [],
+                initialGrid: grid,
+                giverId: 'giver',
+                codes: codes,
+                now: () => DateTime(2027, 9, 1),
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add my shift'));
+    await tester.pumpAndSettle();
+
+    schedule.failNext(InMemoryStoreCall.sections, Exception('offline'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog).last,
+        matching: find.byIcon(Icons.chevron_right),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('This month could not be loaded. Try again.'),
+      findsOneWidget,
+    );
   });
 }
