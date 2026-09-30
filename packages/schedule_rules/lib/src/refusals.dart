@@ -152,6 +152,15 @@ enum TicketThreadRefusal implements Refusal {
   final String code;
 }
 
+enum RepairOpenRefusal implements Refusal {
+  anotherRepairOpen('P2850'),
+  detailInvalid('P2851');
+
+  const RepairOpenRefusal(this.code);
+  @override
+  final String code;
+}
+
 final class Refused implements Exception {
   const Refused(this.refusal);
 
@@ -172,6 +181,7 @@ const knownRefusals = <Refusal>[
   ...TicketUnavailable.values,
   ...TicketMutationRefusal.values,
   ...TicketThreadRefusal.values,
+  ...RepairOpenRefusal.values,
 ];
 
 const retiredRefusalCodes = <String>{};

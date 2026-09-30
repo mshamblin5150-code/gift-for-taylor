@@ -49,6 +49,63 @@ void main() {
     expect(gateway.currentUserId, isNull);
   });
 
+  test('Repair open translates another open Repair refusal', () async {
+    final error = PostgrestException(
+      message: 'Close the current Repair before opening another',
+      code: 'P2850',
+    );
+
+    await expectLater(
+      SupabaseRepairGateway(_FailingDatabase(error, guard))
+          .open(RepairReasonCategory.investigation, null),
+      throwsA(
+        isA<Refused>().having(
+          (value) => value.refusal,
+          'refusal',
+          RepairOpenRefusal.anotherRepairOpen,
+        ),
+      ),
+    );
+  });
+
+  test('Repair open translates invalid detail refusal', () async {
+    final error = PostgrestException(
+      message: 'Repair detail must be 3-240 characters',
+      code: 'P2851',
+    );
+
+    await expectLater(
+      SupabaseRepairGateway(_FailingDatabase(error, guard))
+          .open(RepairReasonCategory.unitSettings, 'x'),
+      throwsA(
+        isA<Refused>().having(
+          (value) => value.refusal,
+          'refusal',
+          RepairOpenRefusal.detailInvalid,
+        ),
+      ),
+    );
+  });
+
+  test('Repair open translates Maintainer access rejection', () async {
+    final error = PostgrestException(
+      message: 'Only the Maintainer can open a Repair',
+      code: '42501',
+    );
+
+    await expectLater(
+      SupabaseRepairGateway(_FailingDatabase(error, guard))
+          .open(RepairReasonCategory.investigation, null),
+      throwsA(
+        isA<AccessRejected>().having(
+          (value) => value.cause,
+          'cause',
+          same(error),
+        ),
+      ),
+    );
+  });
+
   final adapterCalls = <String, AdapterCall>{
     'sign-in failure log': (database) async {
       await SupabaseSignInFailureLog(database).read();

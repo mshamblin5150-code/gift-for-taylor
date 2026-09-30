@@ -42,6 +42,13 @@ select is((select count(*)::integer from public.staff_accounts
   'the Maintainer Auth user can also hold a Staff account');
 
 set local role authenticated;
+select throws_ok($$select public.open_maintainer_repair(
+  'investigation', null)$$,
+  '42501', 'Only the Maintainer can open a Repair',
+  'a non-Maintainer cannot open a Repair');
+select throws_ok($$select public.close_maintainer_repair()$$,
+  '42501', 'Only the Maintainer can close a Repair',
+  'a non-Maintainer cannot close a Repair');
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000002190","role":"authenticated"}', true);
 select is(public.current_access_role(), 'maintainer',
@@ -64,15 +71,23 @@ select ok(not public.can_edit_schedule(),
 
 select throws_ok($$select public.open_maintainer_repair(
   'something_else', null)$$,
-  'Something else requires repair detail (3-240 characters)',
+  'P2851', 'Something else requires repair detail (3-240 characters)',
   'Something else cannot hide an unspecified reason');
 select throws_ok($$select public.open_maintainer_repair(
-  'unit_settings', 'x')$$,
-  'Repair detail must be 3-240 characters',
+  'unit_settings', 'xx')$$,
+  'P2851', 'Repair detail must be 3-240 characters',
   'short optional detail is refused');
+select throws_ok($$select public.open_maintainer_repair(
+  'unit_settings', repeat('x', 241))$$,
+  'P2851', 'Repair detail must be 3-240 characters',
+  'long optional detail is refused');
 select lives_ok($$select public.open_maintainer_repair(
   'unit_settings', 'Correct the unit print heading')$$,
   'the Maintainer can break the glass without a request header');
+select throws_ok($$select public.open_maintainer_repair(
+  'investigation', null)$$,
+  'P2850', 'Close the current Repair before opening another',
+  'a second Repair cannot be opened while one is active');
 select is(public.current_staff_role()::text, 'manager',
   'an open Repair grants Manager authority');
 select ok(public.can_manage_staff(), 'an open Repair enables Staff management');
