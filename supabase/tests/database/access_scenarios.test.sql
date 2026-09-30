@@ -14,9 +14,11 @@ select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('00000000-0000-0000-0000-000000000b00', 'access-scenario-0@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('00000000-0000-0000-0000-000000000c00', 'Access scenario 0', 'staff_member', true);
+
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
   values ('00000000-0000-0000-0000-000000000c00', '00000000-0000-0000-0000-000000000b00', 'access-scenario-0@example.test', now());
+
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000b00","role":"authenticated"}', true);
 set local role authenticated;
 select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), false, 'plain Staff member: can_edit_section(nights)');
@@ -37,9 +39,11 @@ select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('00000000-0000-0000-0000-000000000b01', 'access-scenario-1@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('00000000-0000-0000-0000-000000000c01', 'Access scenario 1', 'manager', true);
+
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
   values ('00000000-0000-0000-0000-000000000c01', '00000000-0000-0000-0000-000000000b01', 'access-scenario-1@example.test', now());
+
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000b01","role":"authenticated"}', true);
 set local role authenticated;
 select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), true, 'Manager: can_edit_section(nights)');
@@ -60,9 +64,11 @@ select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('00000000-0000-0000-0000-000000000b02', 'access-scenario-2@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('00000000-0000-0000-0000-000000000c02', 'Access scenario 2', 'administrator', true);
+
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
   values ('00000000-0000-0000-0000-000000000c02', '00000000-0000-0000-0000-000000000b02', 'access-scenario-2@example.test', now());
+
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000b02","role":"authenticated"}', true);
 set local role authenticated;
 select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), false, 'Administrator: can_edit_section(nights)');
@@ -83,10 +89,12 @@ select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('00000000-0000-0000-0000-000000000b03', 'access-scenario-3@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('00000000-0000-0000-0000-000000000c03', 'Access scenario 3', 'night_scheduler', true);
+
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
   values ('00000000-0000-0000-0000-000000000c03', '00000000-0000-0000-0000-000000000b03', 'access-scenario-3@example.test', now());
 insert into public.night_scheduler_sections(staff_member_id, section_id) values ('00000000-0000-0000-0000-000000000c03', '00000000-0000-0000-0000-000000000a04');
+
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000b03","role":"authenticated"}', true);
 set local role authenticated;
 select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), true, 'Night scheduler for one Section: can_edit_section(nights)');
@@ -107,10 +115,12 @@ select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('00000000-0000-0000-0000-000000000b04', 'access-scenario-4@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('00000000-0000-0000-0000-000000000c04', 'Access scenario 4', 'administrator', true);
+
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
   values ('00000000-0000-0000-0000-000000000c04', '00000000-0000-0000-0000-000000000b04', 'access-scenario-4@example.test', now());
 insert into public.night_scheduler_sections(staff_member_id, section_id) values ('00000000-0000-0000-0000-000000000c04', '00000000-0000-0000-0000-000000000a04');
+
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000b04","role":"authenticated"}', true);
 set local role authenticated;
 select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), true, 'Administrator plus Night scheduler: can_edit_section(nights)');
@@ -131,9 +141,12 @@ select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('00000000-0000-0000-0000-000000000b05', 'access-scenario-5@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('00000000-0000-0000-0000-000000000c05', 'Access scenario 5', 'staff_member', true);
+delete from public.staff_accounts where auth_user_id = '00000000-0000-0000-0000-000000000a02';
+
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
   values ('00000000-0000-0000-0000-000000000c05', '00000000-0000-0000-0000-000000000a02', 'access-scenario-5@example.test', now());
+
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000a02","role":"authenticated"}', true);
 set local role authenticated;
 select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), false, 'Maintainer without a Repair: can_edit_section(nights)');
@@ -154,19 +167,22 @@ select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('00000000-0000-0000-0000-000000000b06', 'access-scenario-6@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('00000000-0000-0000-0000-000000000c06', 'Access scenario 6', 'staff_member', true);
+delete from public.staff_accounts where auth_user_id = '00000000-0000-0000-0000-000000000a02';
+
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
   values ('00000000-0000-0000-0000-000000000c06', '00000000-0000-0000-0000-000000000a02', 'access-scenario-6@example.test', now());
-select public.open_maintainer_repair('investigation', null);
+
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000a02","role":"authenticated"}', true);
 set local role authenticated;
+select public.open_maintainer_repair('investigation', null);
 select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), true, 'Maintainer inside a Repair: can_edit_section(nights)');
 select is(public.can_edit_section('00000000-0000-0000-0000-000000000a05'), true, 'Maintainer inside a Repair: can_edit_section(days)');
 select is(public.can_edit_schedule(), true, 'Maintainer inside a Repair: can_edit_schedule');
 select is(public.can_manage_staff(), true, 'Maintainer inside a Repair: can_manage_staff');
 select is(public.can_manage_unit(), true, 'Maintainer inside a Repair: can_manage_unit');
 select is(public.can_read_change_log(), true, 'Maintainer inside a Repair: can_read_change_log');
-select ok((select manager is not distinct from false from public.current_access()), 'Maintainer inside a Repair: current_access.manager');
+select ok((select manager is not distinct from true from public.current_access()), 'Maintainer inside a Repair: current_access.manager');
 select ok((select administrator is not distinct from false from public.current_access()), 'Maintainer inside a Repair: current_access.administrator');
 select ok((select maintainer is not distinct from true from public.current_access()), 'Maintainer inside a Repair: current_access.maintainer');
 select ok((select staff_member_id is not distinct from '00000000-0000-0000-0000-000000000c06'::uuid from public.current_access()), 'Maintainer inside a Repair: current_access.staff_member_id');
@@ -178,9 +194,11 @@ select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('00000000-0000-0000-0000-000000000b07', 'access-scenario-7@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('00000000-0000-0000-0000-000000000c07', 'Access scenario 7', 'staff_member', true);
+
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
   values ('00000000-0000-0000-0000-000000000c07', '00000000-0000-0000-0000-000000000b07', 'access-scenario-7@example.test', now());
+
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000b07","role":"authenticated"}', true);
 set local role authenticated;
 select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), false, 'former Manager after handover to Staff member: can_edit_section(nights)');
@@ -201,9 +219,11 @@ select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('00000000-0000-0000-0000-000000000b08', 'access-scenario-8@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('00000000-0000-0000-0000-000000000c08', 'Access scenario 8', 'staff_member', false);
+
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
   values ('00000000-0000-0000-0000-000000000c08', '00000000-0000-0000-0000-000000000b08', 'access-scenario-8@example.test', now());
+
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000b08","role":"authenticated"}', true);
 set local role authenticated;
 select is(public.can_edit_section('00000000-0000-0000-0000-000000000a04'), false, 'revoked or Last-day person: can_edit_section(nights)');

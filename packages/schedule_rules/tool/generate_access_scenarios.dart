@@ -42,6 +42,9 @@ insert into private.maintainer_identity(auth_user_id) values ('$maintainerAuth')
         ? 'night_scheduler'
         : 'staff_member';
     final auth = maintainer ? maintainerAuth : staffAuth;
+    final maintainerAccountResetSql = maintainer
+        ? "delete from public.staff_accounts where auth_user_id = '$maintainerAuth';\n"
+        : '';
     final sectionSql = sections.contains('nights')
         ? "insert into public.night_scheduler_sections(staff_member_id, section_id) values ('$staffId', '$nights');\n"
         : '';
@@ -51,19 +54,19 @@ select set_config('request.jwt.claims', '{}', true);
 insert into auth.users(id, email) values ('$staffAuth', 'access-scenario-$index@example.test');
 insert into public.staff_members(id, display_name, role, active)
   values ('$staffId', 'Access scenario $index', '$role', $active);
+$maintainerAccountResetSql
 insert into public.staff_accounts
   (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
   values ('$staffId', '$auth', 'access-scenario-$index@example.test', now());
-$sectionSql''');
+$sectionSql
+select set_config('request.jwt.claims', '{"sub":"$auth","role":"authenticated"}', true);
+set local role authenticated;
+''');
     if (repair) {
       sql.writeln(
         "select public.open_maintainer_repair('investigation', null);",
       );
     }
-    sql.writeln(
-      "select set_config('request.jwt.claims', '{\"sub\":\"$auth\",\"role\":\"authenticated\"}', true);",
-    );
-    sql.writeln('set local role authenticated;');
     final answers = <String, String>{
       'can_edit_section(nights)': "public.can_edit_section('$nights')",
       'can_edit_section(days)': "public.can_edit_section('$days')",
@@ -86,7 +89,7 @@ $sectionSql''');
       );
     }
     final columns = <String, String>{
-      'manager': '$manager',
+      'manager': '${manager || repair}',
       'administrator': '$administrator',
       'maintainer': '$maintainer',
       'staff_member_id': scenario['staffMemberId'] == null
