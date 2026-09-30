@@ -61,6 +61,8 @@ The nearest ancestor is correct by construction, including for dialogs and back 
 
 **Ticket Refusals are full Refusals, but Ticket pages do not offer a Ticket.** Offering "put in a ticket about this" on the put-in form would loop. On a Ticket's own page, the sender already has the thread. `TicketScreen` has no Ticket-page values, so the presenter cannot be used there.
 
+**Pages only the Maintainer reaches do not offer a Ticket either** (added 2026-09-30, grilled in #387). A Ticket tells the designer something; on the break-glass page the sender would be the designer, who is also its only reader. Its Refusals are full Refusals with codes, shown as a plain sentence. The page has no `TicketScope` and `TicketScreen` has no value for it, which is the same mechanism as the Ticket pages.
+
 **Bare `raise exception` is ratcheted out, not swept.**
 - **Authority checks.** A check about who may act raises 42501, so the guard makes it `AccessRejected` and it needs no wording.
 - **Rule checks.** A rule check gets its own Refusal code.
