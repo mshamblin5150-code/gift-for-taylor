@@ -1,236 +1,257 @@
-import 'package:schedule_rules_testing/schedule_rules_testing.dart';
-import 'package:er_schedule/schedule/month_grid_page.dart';
-import 'package:er_schedule/calendar/calendar_feed_page.dart';
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:er_schedule/schedule/pending_work.dart';
+import 'package:er_schedule/schedule/schedule_destinations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/app_dependencies.dart';
-import 'support/repair.dart';
 
 void main() {
-  late InMemoryScheduleDatabase database;
+  final scenarios = (jsonDecode(
+    File('packages/schedule_rules/test/fixtures/access_scenarios.json')
+        .readAsStringSync(),
+  ) as List<dynamic>).cast<Map<String, dynamic>>();
 
-  setUp(() {
-    database = InMemoryScheduleDatabase(
-      sections: const [ScheduleSection(id: 'days', name: 'State dayshift RN')],
-      rows: const [
-        ScheduleRow(
-          staffMemberId: 'rn-1',
-          displayName: 'Day RN',
-          sectionId: 'days',
+  for (final scenario in scenarios) {
+    test('${scenario['name']} is offered the expected destinations', () {
+      final access = _accessFrom(scenario);
+      final entries = scheduleDestinations(
+        dependencies: appDependencies(),
+        access: access,
+        pending: const PendingWorkState(
+          pendingApprovals: 2,
+          pendingSwaps: 3,
+          unreadRequestsOff: 4,
         ),
-      ],
-      grants: {'manager': Grants(manager: true)},
-      releasedMonths: {
-        DateTime(2026, 8),
-        DateTime(2026, 9),
-        DateTime(2026, 10),
+      );
+
+      expect(entries.map((entry) => entry.id).toSet(), _expectedIds(access));
+      expect(
+        entries
+            .where((entry) => entry.menu != DestinationMenu.none)
+            .map((entry) => entry.id)
+            .toSet(),
+        _expectedMenuIds(access).toSet(),
+      );
+      expect(
+        entries
+            .where((entry) => entry.settings != null)
+            .map((entry) => entry.id)
+            .toSet(),
+        _expectedSettingsIds(access).toSet(),
+      );
+      expect(
+        entries
+            .where((entry) => entry.group == DestinationGroup.browseRequests)
+            .map((entry) => entry.id),
+        access.canRunSchedule
+            ? [
+                'requestsOffManager',
+                'swapsManager',
+                'giveawaysManager',
+                'openShiftsManager',
+              ]
+            : isEmpty,
+      );
+      expect(
+        entries
+            .where((entry) => entry.id == 'approvalQueue')
+            .map((entry) => entry.badgeCount),
+        access.canRunSchedule ? [2] : isEmpty,
+      );
+      expect(
+        entries
+            .where((entry) => entry.id == 'swapsStaff')
+            .map((entry) => entry.badgeCount),
+        access.canAskAsStaffMember ? [3] : isEmpty,
+      );
+      expect(
+        entries
+            .where((entry) => entry.id == 'myRequestsOff')
+            .map((entry) => entry.badgeCount),
+        access.canAskAsStaffMember ? [4] : isEmpty,
+      );
+    });
+  }
+
+  test('catalog owns the unified labels and reload behavior', () {
+    final entries = scheduleDestinations(
+      dependencies: appDependencies(),
+      access: Access(
+        grants: Grants(manager: true),
+        maintainer: true,
+        ownStaffMemberId: 'staff',
+      ),
+      pending: const PendingWorkState(),
+    );
+    String label(String id) =>
+        entries.singleWhere((entry) => entry.id == id).label;
+
+    expect(label('notices'), 'Notices');
+    expect(label('staffingMinimums'), 'Staffing minimums');
+    expect(label('shiftCodes'), 'Shift codes');
+    expect(label('staffList'), 'Staff list');
+    expect(label('maintainerRepairs'), 'Maintainer repairs');
+    expect(
+      entries
+          .where((entry) => entry.reloadMonth)
+          .map((entry) => entry.id)
+          .toSet(),
+      {'staffingMinimums', 'shiftCodes', 'staffList'},
+    );
+  });
+
+  test('locked Settings rows are derived from Repair destinations', () {
+    final dependencies = appDependencies();
+    final maintainer = Access(
+      grants: Grants(),
+      maintainer: true,
+      ownStaffMemberId: 'staff',
+    );
+    final repairing = _repairingMaintainer();
+
+    expect(
+      lockedSettingsDestinations(
+        dependencies: dependencies,
+        access: maintainer,
+        pending: const PendingWorkState(),
+      ).map((entry) => entry.id).toSet(),
+      {
+        'signInFailures',
+        'undeliveredInvitations',
+        'transferManager',
+        'staffingMinimums',
+        'openShiftPickupApproval',
+        'printWording',
+        'shiftCodes',
+        'sections',
+        'permissionAssignments',
+        'settingsHistory',
       },
     );
-  });
-
-  testWidgets('Manager can use month arrows and actions at 320 px', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(320, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    var signOuts = 0;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MonthGridPage(
-          dependencies: appDependencies(
-            swapStore: emptySwapStore(),
-            giveawayStore: emptyGiveawayStore(),
-            staffGateway: emptyStaffGateway(),
-            noticeGateway: const NoopNoticeGateway(),
-            repairController: noopRepairController(),
-            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-            scheduleStore: (scheduleRulesInMemory(
-              database,
-              actingAs: 'manager',
-            )).store,
-          ),
-          access: database.accessFor('manager'),
-          month: DateTime(2026, 9),
-          onSignOut: () => signOuts++,
-        ),
+    expect(
+      lockedSettingsDestinations(
+        dependencies: dependencies,
+        access: repairing,
+        pending: const PendingWorkState(),
       ),
+      isEmpty,
     );
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-
-    await tester.tap(find.byTooltip('Next month'));
-    await tester.pumpAndSettle();
-    expect(find.text('October 2026'), findsOneWidget);
-    await tester.tap(find.byTooltip('Previous month'));
-    await tester.pumpAndSettle();
-    expect(find.text('September 2026'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Schedule actions'));
-    await tester.pumpAndSettle();
-    expect(find.text('My calendar'), findsNothing);
-    await tester.tap(find.text('Sign out'));
-    await tester.pumpAndSettle();
-    expect(signOuts, 1);
-  });
-
-  for (final width in [375.0, 390.0, 428.0]) {
-    testWidgets('Manager month controls stay reachable at $width px', (
-      tester,
-    ) async {
-      tester.view.physicalSize = Size(width, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MonthGridPage(
-            dependencies: appDependencies(
-              swapStore: emptySwapStore(),
-              giveawayStore: emptyGiveawayStore(),
-              staffGateway: emptyStaffGateway(),
-              noticeGateway: const NoopNoticeGateway(),
-              repairController: noopRepairController(),
-              undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-              scheduleStore: (scheduleRulesInMemory(
-                database,
-                actingAs: 'manager',
-              )).store,
-            ),
-            access: database.accessFor('manager'),
-            month: DateTime(2026, 9),
-            onSignOut: () {},
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-
-      final previous = tester.getRect(find.byTooltip('Previous month'));
-      final next = tester.getRect(find.byTooltip('Next month'));
-      final actions = tester.getRect(find.byTooltip('Schedule actions'));
-      for (final rect in [previous, next, actions]) {
-        expect(rect.left, greaterThanOrEqualTo(0));
-        expect(rect.right, lessThanOrEqualTo(width));
-        expect(rect.width, greaterThanOrEqualTo(24));
-        expect(rect.height, greaterThanOrEqualTo(24));
-      }
-      expect(previous.overlaps(actions), isFalse);
-      expect(next.overlaps(actions), isFalse);
-
-      await tester.tap(find.byTooltip('Next month'));
-      await tester.pumpAndSettle();
-      expect(find.text('October 2026'), findsOneWidget);
-      await tester.tap(find.byTooltip('Previous month'));
-      await tester.pumpAndSettle();
-      expect(find.text('September 2026'), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Schedule actions'));
-      await tester.pumpAndSettle();
-      expect(find.text('Browse requests'), findsOneWidget);
-      await tester.tap(find.text('Requests off'));
-      await tester.pumpAndSettle();
-      expect(find.text('Request off approval queue'), findsOneWidget);
-    });
-  }
-
-  for (final width in [320.0, 375.0, 390.0, 428.0]) {
-    testWidgets('Staff member actions stay reachable at $width px', (
-      tester,
-    ) async {
-      tester.view.physicalSize = Size(width, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MonthGridPage(
-            dependencies: appDependencies(
-              swapStore: emptySwapStore(),
-              giveawayStore: emptyGiveawayStore(),
-              staffGateway: emptyStaffGateway(),
-              noticeGateway: const NoopNoticeGateway(),
-              repairController: noopRepairController(),
-              undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-              scheduleStore: (scheduleRulesInMemory(
-                database,
-                actingAs: 'rn-1',
-              )).store,
-            ),
-            access: database.accessFor('rn-1'),
-            month: DateTime(2026, 9),
-            onSignOut: () {},
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-
-      await tester.tap(find.byTooltip('Next month'));
-      await tester.pumpAndSettle();
-      expect(find.text('October 2026'), findsOneWidget);
-      await tester.tap(find.byTooltip('Previous month'));
-      await tester.pumpAndSettle();
-      expect(find.text('September 2026'), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Schedule actions'));
-      await tester.pumpAndSettle();
-      expect(find.text('Manage Shift codes'), findsNothing);
-      await tester.tap(find.text('My calendar'));
-      await tester.pumpAndSettle();
-      expect(find.byType(CalendarFeedPage), findsOneWidget);
-
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byTooltip('Schedule actions'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('My Requests off'));
-      await tester.pumpAndSettle();
-      expect(find.text('My Requests off'), findsWidgets);
-    });
-  }
-
-  testWidgets('wide Schedule keeps direct actions and Browse requests', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(900, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MonthGridPage(
-          dependencies: appDependencies(
-            swapStore: emptySwapStore(),
-            giveawayStore: emptyGiveawayStore(),
-            staffGateway: emptyStaffGateway(),
-            noticeGateway: const NoopNoticeGateway(),
-            repairController: noopRepairController(),
-            undeliveredInvitationLog: FakeUndeliveredInvitationLog(),
-            scheduleStore: (scheduleRulesInMemory(
-              database,
-              actingAs: 'manager',
-            )).store,
-          ),
-          access: database.accessFor('manager'),
-          month: DateTime(2026, 9),
-          onSignOut: () {},
-        ),
+    expect(
+      lockedSettingsDestinations(
+        dependencies: dependencies,
+        access: Access(grants: Grants(), ownStaffMemberId: 'staff'),
+        pending: const PendingWorkState(),
       ),
+      isEmpty,
     );
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    expect(find.byTooltip('Schedule actions'), findsNothing);
-
-    await tester.tap(find.byTooltip('More destinations'));
-    await tester.pumpAndSettle();
-    expect(find.text('My calendar'), findsNothing);
-    await tester.tapAt(const Offset(20, 400));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Browse requests'));
-    await tester.pumpAndSettle();
-    expect(find.text('Requests off'), findsOneWidget);
   });
 }
+
+Set<String> _expectedIds(Access access) => {
+  'settings',
+  'help',
+  'addErSchedule',
+  if (access.ownStaffMemberId != null) ...{
+    'putInTicket',
+    'myTickets',
+    'notices',
+    'myCalendar',
+  },
+  if (access.maintainer) 'tickets',
+  if (access.maintainer && !access.isRepairAccess) 'maintainerRepairs',
+  if (access.maintainer && access.isRepairAccess) ...{
+    'signInFailures',
+    'undeliveredInvitations',
+  },
+  if (access.canAskAsStaffMember) ...{
+    'openShiftsStaff',
+    'swapsStaff',
+    'giveawaysStaff',
+    'myRequestsOff',
+  },
+  if (access.canRunSchedule) ...{
+    'approvalQueue',
+    'requestsOffManager',
+    'swapsManager',
+    'giveawaysManager',
+    'openShiftsManager',
+    'transferManager',
+  },
+  if (access.canManageUnit) ...{
+    'staffingMinimums',
+    'openShiftPickupApproval',
+    'printWording',
+    'shiftCodes',
+    'sections',
+    'permissionAssignments',
+    'settingsHistory',
+  },
+  if (access.canReadChangeLog) 'changeLog',
+  if (access.canManageStaff) 'staffList',
+};
+
+Iterable<String> _expectedMenuIds(Access access) => _expectedIds(access).where(
+  (id) => !{
+    'tickets',
+    'signInFailures',
+    'undeliveredInvitations',
+    'addErSchedule',
+    'openShiftPickupApproval',
+    'printWording',
+    'sections',
+    'permissionAssignments',
+    'transferManager',
+    'settingsHistory',
+  }.contains(id),
+);
+
+Iterable<String> _expectedSettingsIds(Access access) => _expectedIds(access)
+    .where(
+      (id) => {
+        'tickets',
+        'maintainerRepairs',
+        'signInFailures',
+        'undeliveredInvitations',
+        'notices',
+        'myCalendar',
+        'addErSchedule',
+        'staffingMinimums',
+        'openShiftPickupApproval',
+        'printWording',
+        'shiftCodes',
+        'sections',
+        'permissionAssignments',
+        'transferManager',
+        'settingsHistory',
+      }.contains(id),
+    );
+
+Access _accessFrom(Map<String, dynamic> scenario) => Access(
+  grants: Grants(
+    manager: scenario['manager'] as bool,
+    administrator: scenario['administrator'] as bool,
+    nightSchedulerSectionIds: (scenario['sections'] as List<dynamic>)
+        .cast<String>()
+        .toSet(),
+  ),
+  maintainer: scenario['maintainer'] as bool,
+  ownStaffMemberId: scenario['staffMemberId'] as String?,
+  activeRepair: (scenario['repair'] as bool? ?? false)
+      ? _repairingMaintainer().activeRepair
+      : null,
+);
+
+Access _repairingMaintainer() => Access(
+  grants: Grants(),
+  maintainer: true,
+  ownStaffMemberId: 'staff',
+  activeRepair: MaintainerRepair(
+    id: 'repair',
+    category: RepairReasonCategory.investigation,
+    openedAt: DateTime.utc(2026, 9, 24, 12),
+    expiresAt: DateTime.utc(2026, 9, 24, 13),
+  ),
+);

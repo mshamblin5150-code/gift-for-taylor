@@ -48,14 +48,17 @@ void main() {
     expect(find.text('Manager controls'), findsOneWidget);
     expect(find.text('Tickets'), findsOneWidget);
     expect(find.text('My calendar'), findsOneWidget);
-    await tester.drag(find.byType(ListView), const Offset(0, -500));
-    await tester.pumpAndSettle();
-    expect(find.text('Sections'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Sections'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Sections'), findsOneWidget);
     expect(
       find.text('Requires a Repair — tap to break the glass'),
       findsWidgets,
     );
-    expect(find.text('Sign-in failures'), findsNothing);
+    expect(find.text('Sign-in failures'), findsOneWidget);
   });
 
   testWidgets('Maintainer can read a recorded sign-in provider failure', (

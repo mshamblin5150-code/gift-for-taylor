@@ -91,7 +91,7 @@ const helpTopics = <HelpTopic>[
     title: 'Settings',
     who: 'Everyone; Unit choices require Manager, Administrator, or Maintainer access',
     what: 'Settings is the directory for choices that affect future behavior. Personal choices belong to you or this device. Unit choices govern the department.',
-    how: '1. Open Schedule actions, then Settings. On a wide screen use More destinations.\n2. Choose a Personal item for yourself or this device. Staff can use My calendar and Notifications.\n3. Managers and Administrators can choose a Unit item. The Maintainer first chooses a locked, marked Manager control and opens a Repair.\nResult: Personal choices affect you or this device; Unit choices affect the department.',
+    how: '1. Open Schedule actions, then Settings. On a wide screen use More destinations.\n2. Choose a Personal item for yourself or this device. Staff can use My calendar and Notices.\n3. Managers and Administrators can choose a Unit item. The Maintainer first chooses a locked, marked Manager control and opens a Repair.\nResult: Personal choices affect you or this device; Unit choices affect the department.',
     searchTerms:
         'appearance dark light theme install app calendar notifications',
   ),
@@ -148,10 +148,10 @@ const helpTopics = <HelpTopic>[
   HelpTopic(
     title: 'Allow notifications',
     who: 'A confirmed Staff member in each place',
-    what: 'Notifications can tell you about Schedule changes and other notices. Permission is separate in every browser or installed app.',
+    what: 'Notices can tell you about Schedule changes and other events. Permission is separate in every browser or installed app.',
     how:
         '1. Wait for the Manager to confirm your Invite.\n'
-        '2. In each place, open Settings > Notifications.\n'
+        '2. In each place, open Settings > Notices.\n'
         '3. Tap Allow notifications.\n'
         '4. Choose Allow when the browser or app asks. Notices can now reach that place.\n'
         'If you denied permission earlier, change it in that place’s browser or app settings. On iPhone or iPad, first add the web app to the Home Screen and open its icon; Web Push requires iOS or iPadOS 16.4 or later.',
@@ -182,7 +182,7 @@ const helpTopics = <HelpTopic>[
     title: 'Shift code legend',
     who: 'Everyone',
     what: 'Need to know what a code on the Schedule means? The Shift code legend shows its hours and whether it counts as a worked shift.',
-    how: 'Open Shift code legend from the Schedule and find the code. You can read it without changing anything. The Manager maintains the codes separately in Manage Shift codes.',
+    how: 'Open Shift code legend from the Schedule and find the code. You can read it without changing anything. The Manager maintains the codes separately in Shift codes.',
     searchTerms: 'what does a code mean hours worked shift',
   ),
   HelpTopic(
@@ -387,10 +387,10 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
-    title: 'Manage Shift codes',
-    who: 'Manager only; Night schedulers and Administrators can read this guidance',
-    what: 'Manage Shift codes controls which codes editors can put on the Schedule, what they mean, their hours, and whether they count as worked shifts.',
-    how: 'Manager only: open Manage Shift codes from the Schedule. Add a code or tap an existing one to edit it. Enter no more than 5 characters for the code and 40 for its meaning; set its hours and worked status, then save. Check the Shift code legend to see what Staff members will read.',
+    title: 'Shift codes',
+    who: 'Manager and Administrator; Night schedulers can read this guidance',
+    what: 'Shift codes controls which codes editors can put on the Schedule, what they mean, their hours, and whether they count as worked shifts.',
+    how: 'Manager or Administrator: open Shift codes from the Schedule. Add a code or tap an existing one to edit it. Enter no more than 5 characters for the code and 40 for its meaning; set its hours and worked status, then save. Check the Shift code legend to see what Staff members will read.',
     searchTerms: 'legend meaning code character limit too long',
     roles: _manager,
   ),

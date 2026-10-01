@@ -2,60 +2,117 @@ import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import '../app_dependencies.dart';
-import '../auth/sign_in_failures_page.dart';
-import '../calendar/undelivered_invitations_page.dart';
-import '../maintainer/maintainer_repair.dart';
-import '../notifications/notices_page.dart';
-import '../help/help_page.dart';
 import '../schedule/print_wording_dialog.dart';
 import '../schedule/print_wording_gateway.dart';
-import '../schedule/shift_codes_page.dart';
-import '../schedule/coverage_settings_page.dart';
+import '../schedule/pending_work.dart';
+import '../schedule/schedule_destinations.dart';
 import 'appearance.dart';
-import '../setup/app_setup_page.dart';
-import 'manager_handover_page.dart';
 import 'settings_history.dart';
-import '../tickets/ticket_pages.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
     super.key,
     required this.dependencies,
     required this.access,
-    required this.onCalendarFeed,
-    required this.onManageStaff,
-    required this.onOpenStaffDetails,
+    this.month,
+    this.pending = const PendingWorkState(),
+    this.destinationCallbacks = const ScheduleDestinationCallbacks(),
+    this.onCalendarFeed,
+    this.onManageStaff,
+    this.onOpenStaffDetails,
     this.onManagerTransferred,
     this.onAccessRejected,
   });
 
   final AppDependencies dependencies;
   final Access access;
-  final VoidCallback onCalendarFeed;
-  final Future<void> Function() onManageStaff;
-  final Future<void> Function(String staffMemberId) onOpenStaffDetails;
+  final DateTime? month;
+  final PendingWorkState pending;
+  final ScheduleDestinationCallbacks destinationCallbacks;
+  final VoidCallback? onCalendarFeed;
+  final Future<void> Function()? onManageStaff;
+  final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
   final VoidCallback? onManagerTransferred;
   final VoidCallback? onAccessRejected;
 
   @override
   Widget build(BuildContext context) {
-    void open(Widget page) {
-      Navigator.push(context, MaterialPageRoute<void>(builder: (_) => page));
+    final shownMonth =
+        month ?? DateTime(DateTime.now().year, DateTime.now().month);
+    final callbacks = ScheduleDestinationCallbacks(
+      onAccessRejected:
+          destinationCallbacks.onAccessRejected ?? onAccessRejected,
+      onManagerTransferred:
+          destinationCallbacks.onManagerTransferred ?? onManagerTransferred,
+      ticketContext: destinationCallbacks.ticketContext,
+      onManageStaff: destinationCallbacks.onManageStaff ?? onManageStaff,
+      onOpenStaffDetails:
+          destinationCallbacks.onOpenStaffDetails ?? onOpenStaffDetails,
+    );
+    final destinations = scheduleDestinations(
+      dependencies: dependencies,
+      access: access,
+      pending: pending,
+      callbacks: callbacks,
+    );
+    final locked = lockedSettingsDestinations(
+      dependencies: dependencies,
+      access: access,
+      pending: pending,
+      callbacks: callbacks,
+    );
+    final repair = destinations
+        .where((entry) => entry.id == 'maintainerRepairs')
+        .firstOrNull;
+
+    Future<void> open(ScheduleDestination destination) async {
+      final result = await Navigator.push<Object?>(
+        context,
+        MaterialPageRoute<Object?>(
+          builder: (routeContext) =>
+              destination.pageBuilder(routeContext, shownMonth),
+        ),
+      );
+      if (context.mounted) {
+        await destination.onReturned?.call(context, result);
+      }
     }
 
-    void openRepair() => open(
-      MaintainerRepairPage(
-        controller: dependencies.repairController,
-        ticketGateway: dependencies.ticketGateway,
-      ),
+    ListTile tile(ScheduleDestination destination) => ListTile(
+      leading: Icon(destination.icon),
+      title: Text(destination.label),
+      subtitle: destination.subtitle == null
+          ? null
+          : Text(destination.subtitle!),
+      onTap: switch (destination.id) {
+        'myCalendar' when onCalendarFeed != null => onCalendarFeed,
+        'sections' || 'permissionAssignments' when onManageStaff != null =>
+          () => onManageStaff!.call(),
+        _ => () => open(destination),
+      },
     );
 
-    ListTile repairRequired(String title, IconData icon) => ListTile(
-      leading: Icon(icon),
-      title: Text(title),
+    ListTile repairRequired(ScheduleDestination destination) => ListTile(
+      leading: Icon(destination.icon),
+      title: Text(destination.label),
       subtitle: const Text('Requires a Repair — tap to break the glass'),
       trailing: const Icon(Icons.lock_outline),
-      onTap: openRepair,
+      onTap: repair == null ? null : () => open(repair),
+    );
+
+    final personal =
+        destinations
+            .where((entry) => entry.settings == DestinationSettings.personal)
+            .toList()
+          ..sort(
+            (first, second) =>
+                first.settingsOrder.compareTo(second.settingsOrder),
+          );
+    final transfer = destinations.where(
+      (entry) => entry.settings == DestinationSettings.transfer,
+    );
+    final unit = destinations.where(
+      (entry) => entry.settings == DestinationSettings.unit,
     );
 
     return Scaffold(
@@ -64,183 +121,15 @@ class SettingsPage extends StatelessWidget {
         children: [
           const _SectionHeading('Personal'),
           const AppearanceTile(),
-          ListTile(
-            leading: const Icon(Icons.install_mobile_outlined),
-            title: const Text('Add ER Schedule'),
-            subtitle: const Text('Install on a phone or computer'),
-            onTap: () => open(
-              AppSetupPage(
-                noticeGateway: dependencies.noticeGateway,
-                canAllowNotifications: access.ownStaffMemberId != null,
-                helpRoles: helpRolesFor(access),
-              ),
-            ),
-          ),
-          if (access.canUseOwnSettings)
-            ListTile(
-              leading: const Icon(Icons.calendar_month_outlined),
-              title: const Text('My calendar'),
-              subtitle: const Text('Choose calendar invitations or a feed'),
-              onTap: onCalendarFeed,
-            ),
-          if (access.canUseOwnSettings)
-            ListTile(
-              leading: const Icon(Icons.notifications_outlined),
-              title: const Text('Notifications'),
-              subtitle: const Text('Allow notices in this place'),
-              onTap: () =>
-                  open(NoticesPage(gateway: dependencies.noticeGateway)),
-            ),
-          if (access.maintainer)
-            ListTile(
-              leading: const Icon(Icons.build_outlined),
-              title: const Text('Maintainer repairs'),
-              subtitle: Text(
-                access.isRepairAccess
-                    ? 'A Repair is open'
-                    : 'Break the glass for marked Manager controls',
-              ),
-              onTap: access.isRepairAccess ? null : openRepair,
-            ),
-          if (access.maintainer)
-            ListTile(
-              leading: const Icon(Icons.inbox_outlined),
-              title: const Text('Tickets'),
-              subtitle: const Text('Private messages from Staff'),
-              onTap: () => open(
-                TicketsPage(
-                  gateway: dependencies.ticketGateway,
-                  maintainer: true,
-                  onAccessRejected: onAccessRejected,
-                ),
-              ),
-            ),
-          if (access.maintainer && access.isRepairAccess)
-            ListTile(
-              leading: const Icon(Icons.mark_email_unread_outlined),
-              title: const Text('Sign-in failures'),
-              subtitle: const Text('Code emails the provider could not send'),
-              onTap: () =>
-                  open(SignInFailuresPage(log: dependencies.signInFailureLog)),
-            ),
-          if (access.maintainer && access.isRepairAccess)
-            ListTile(
-              leading: const Icon(Icons.event_busy_outlined),
-              title: const Text('Undelivered invitations'),
-              subtitle: const Text(
-                'Calendar emails the provider could not send',
-              ),
-              onTap: () => open(
-                UndeliveredInvitationsPage(
-                  log: dependencies.undeliveredInvitationLog,
-                ),
-              ),
-            ),
-          if (access.maintainer && !access.isRepairAccess) ...[
+          for (final destination in personal) tile(destination),
+          if (locked.isNotEmpty) ...[
             const _SectionHeading('Manager controls'),
-            repairRequired('Transfer Manager', Icons.manage_accounts_outlined),
-            repairRequired('Staffing minimums', Icons.people_outline),
-            repairRequired(
-              'Open shift pickup approval',
-              Icons.fact_check_outlined,
-            ),
-            repairRequired('Print wording', Icons.text_fields_outlined),
-            repairRequired('Shift codes', Icons.schedule_outlined),
-            if (access.canManageStaff) ...[
-              repairRequired('Sections', Icons.view_list_outlined),
-              repairRequired(
-                'Permission assignments',
-                Icons.admin_panel_settings_outlined,
-              ),
-            ],
+            for (final destination in locked) repairRequired(destination),
           ],
-          if (access.canTransferManager)
-            ListTile(
-              leading: const Icon(Icons.manage_accounts_outlined),
-              title: const Text('Transfer Manager'),
-              subtitle: Text(
-                access.isRepairAccess
-                    ? 'Choose a new Manager for repair'
-                    : 'Choose the next Manager and your access after handover',
-              ),
-              onTap: () async {
-                final transferred = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ManagerHandoverPage(
-                      gateway: dependencies.staffGateway,
-                      isMaintainer: access.isRepairAccess,
-                      onManageStaff: onManageStaff,
-                      onOpenStaffDetails: onOpenStaffDetails,
-                      onAccessRejected: onAccessRejected,
-                    ),
-                  ),
-                );
-                if (transferred == true && context.mounted) {
-                  Navigator.pop(context);
-                  onManagerTransferred?.call();
-                }
-              },
-            ),
-          if (access.canManageUnit) ...[
+          for (final destination in transfer) tile(destination),
+          if (unit.isNotEmpty) ...[
             const _SectionHeading('Unit'),
-            ListTile(
-              leading: const Icon(Icons.people_outline),
-              title: const Text('Staffing minimums'),
-              subtitle: const Text('Coverage pools and standing weekday rules'),
-              onTap: () => open(
-                CoverageSettingsPage(
-                  rules: dependencies.openShiftStore,
-                  scheduleRules: dependencies.rules,
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.fact_check_outlined),
-              title: const Text('Open shift pickup approval'),
-              subtitle: const Text('Default for newly posted shifts'),
-              onTap: () =>
-                  open(ApprovalDefaultPage(rules: dependencies.openShiftStore)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.text_fields_outlined),
-              title: const Text('Print wording'),
-              subtitle: const Text('Default for draft and future months'),
-              onTap: () => open(
-                _PrintWordingPage(gateway: dependencies.printWordingGateway),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.schedule_outlined),
-              title: const Text('Shift codes'),
-              onTap: () => open(
-                ShiftCodesPage(
-                  rules: dependencies.rules,
-                  onAccessRejected: onAccessRejected,
-                ),
-              ),
-            ),
-            if (access.canManageStaff) ...[
-              ListTile(
-                leading: const Icon(Icons.view_list_outlined),
-                title: const Text('Sections'),
-                subtitle: const Text('Edit on the Staff list'),
-                onTap: onManageStaff,
-              ),
-              ListTile(
-                leading: const Icon(Icons.admin_panel_settings_outlined),
-                title: const Text('Permission assignments'),
-                subtitle: const Text('Open a person on the Staff list'),
-                onTap: onManageStaff,
-              ),
-            ],
-            ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('Settings history'),
-              onTap: () => open(
-                _SettingsHistoryPage(history: dependencies.settingsHistory),
-              ),
-            ),
+            for (final destination in unit) tile(destination),
           ],
         ],
       ),
@@ -303,14 +192,14 @@ class _ApprovalDefaultPageState extends State<ApprovalDefaultPage> {
   );
 }
 
-class _PrintWordingPage extends StatefulWidget {
-  const _PrintWordingPage({required this.gateway});
+class PrintWordingPage extends StatefulWidget {
+  const PrintWordingPage({super.key, required this.gateway});
   final PrintWordingGateway gateway;
   @override
-  State<_PrintWordingPage> createState() => _PrintWordingPageState();
+  State<PrintWordingPage> createState() => _PrintWordingPageState();
 }
 
-class _PrintWordingPageState extends State<_PrintWordingPage> {
+class _PrintWordingPageState extends State<PrintWordingPage> {
   late Future<PrintWording> _wording = widget.gateway.read();
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -353,15 +242,15 @@ class _PrintWordingPageState extends State<_PrintWordingPage> {
   );
 }
 
-class _SettingsHistoryPage extends StatefulWidget {
-  const _SettingsHistoryPage({required this.history});
+class SettingsHistoryPage extends StatefulWidget {
+  const SettingsHistoryPage({super.key, required this.history});
   final SettingsHistory history;
 
   @override
-  State<_SettingsHistoryPage> createState() => _SettingsHistoryPageState();
+  State<SettingsHistoryPage> createState() => _SettingsHistoryPageState();
 }
 
-class _SettingsHistoryPageState extends State<_SettingsHistoryPage> {
+class _SettingsHistoryPageState extends State<SettingsHistoryPage> {
   late final Future<List<SettingsHistoryEntry>> _entries = widget.history
       .read();
 

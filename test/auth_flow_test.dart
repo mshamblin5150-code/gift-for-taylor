@@ -383,7 +383,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('More destinations'));
     await tester.pumpAndSettle();
-    expect(find.text('Manage Staff list'), findsNothing);
+    expect(find.text('Staff list'), findsNothing);
 
     staffGateway.actorRole = 'manager';
     await tester.pumpWidget(const SizedBox.shrink());
@@ -399,7 +399,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('More destinations'));
     await tester.pumpAndSettle();
-    expect(find.text('Manage Staff list'), findsOneWidget);
+    expect(find.text('Staff list'), findsOneWidget);
   });
 
   testWidgets('signed-in Staff member opens their own month first', (
