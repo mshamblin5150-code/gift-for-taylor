@@ -1,4 +1,6 @@
 import 'package:er_schedule/schedule/month_grid_page.dart';
+import 'package:er_schedule/schedule/schedule_destinations.dart';
+import 'package:er_schedule/settings/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
@@ -60,5 +62,43 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('7A'), findsOneWidget);
+  });
+
+  testWidgets('returning from a Settings editor requests a month reload', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    var reloads = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          dependencies: appDependencies(),
+          access: Access(
+            grants: Grants(manager: true),
+            ownStaffMemberId: 'manager',
+          ),
+          destinationCallbacks: ScheduleDestinationCallbacks(
+            onReloadMonth: () async => reloads += 1,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Sections'),
+      200,
+      scrollable: find.byType(Scrollable),
+    );
+    await tester.tap(find.text('Sections'));
+    await tester.pumpAndSettle();
+    expect(find.text('Staff list'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(reloads, 1);
   });
 }

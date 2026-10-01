@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../app_dependencies.dart';
 import '../schedule_theme.dart';
 import '../staff/staff_details_page.dart';
+import '../staff/staff_list_page.dart';
 import '../tickets/ticket_context.dart';
 import '../tickets/ticket_activity.dart';
 import '../tickets/ticket_refusal.dart';
@@ -160,6 +161,20 @@ class _MonthGridPageState extends State<MonthGridPage> {
       MaterialPageRoute<void>(
         builder: (context) => StaffDetailsPage(
           staffMemberId: staffMemberId,
+          gateway: widget.dependencies.staffGateway,
+          rules: widget.dependencies.rules,
+          inviteComposer: widget.dependencies.inviteComposer,
+          onAccessRejected: widget.onAccessRejected,
+        ),
+      ),
+    );
+    if (mounted) await _session.refresh();
+  }
+
+  Future<void> _manageStaff() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StaffListPage(
           gateway: widget.dependencies.staffGateway,
           rules: widget.dependencies.rules,
           inviteComposer: widget.dependencies.inviteComposer,
@@ -787,25 +802,31 @@ class _MonthGridPageState extends State<MonthGridPage> {
   }
 
   Future<void> _openDestination(ScheduleDestination destination) async {
-    final result = await Navigator.of(context).push<Object?>(
+    await Navigator.of(context).push<Object?>(
       MaterialPageRoute<Object?>(
         builder: (routeContext) =>
             destination.pageBuilder(routeContext, _month),
       ),
     );
     if (!mounted) return;
-    await destination.onReturned?.call(context, result);
     if (destination.reloadMonth && mounted) await _session.refresh();
   }
 
   List<_ScheduleAction> _catalogActions(PendingWorkState pending) {
-    final destinations = scheduleDestinations(
+    late final List<ScheduleDestination> destinations;
+    Future<void> openDestination(ScheduleDestinationId id) =>
+        _openDestination(destinations.singleWhere((entry) => entry.id == id));
+    destinations = scheduleDestinations(
       dependencies: widget.dependencies,
       access: _access,
       pending: pending,
       callbacks: ScheduleDestinationCallbacks(
         onAccessRejected: widget.onAccessRejected,
         onManagerTransferred: widget.onManagerTransferred,
+        onManageStaff: _manageStaff,
+        onOpenStaffDetails: _openStaffDetails,
+        onOpenDestination: openDestination,
+        onReloadMonth: () => _session.refresh(),
         ticketContext: (month) => captureTicketContext(
           screen: TicketScreen.schedule.label,
           month: month,
@@ -871,7 +892,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
     }
 
     for (final entry in menuEntries) {
-      if (entry.id == 'staffList') addMonthActions();
+      if (entry.id == ScheduleDestinationId.staffList) addMonthActions();
       if (entry.group == DestinationGroup.browseRequests) {
         if (!addedBrowseRequests) {
           addedBrowseRequests = true;

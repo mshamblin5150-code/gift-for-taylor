@@ -17,11 +17,6 @@ class SettingsPage extends StatelessWidget {
     this.month,
     this.pending = const PendingWorkState(),
     this.destinationCallbacks = const ScheduleDestinationCallbacks(),
-    this.onCalendarFeed,
-    this.onManageStaff,
-    this.onOpenStaffDetails,
-    this.onManagerTransferred,
-    this.onAccessRejected,
   });
 
   final AppDependencies dependencies;
@@ -29,40 +24,25 @@ class SettingsPage extends StatelessWidget {
   final DateTime? month;
   final PendingWorkState pending;
   final ScheduleDestinationCallbacks destinationCallbacks;
-  final VoidCallback? onCalendarFeed;
-  final Future<void> Function()? onManageStaff;
-  final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
-  final VoidCallback? onManagerTransferred;
-  final VoidCallback? onAccessRejected;
 
   @override
   Widget build(BuildContext context) {
     final shownMonth =
         month ?? DateTime(DateTime.now().year, DateTime.now().month);
-    final callbacks = ScheduleDestinationCallbacks(
-      onAccessRejected:
-          destinationCallbacks.onAccessRejected ?? onAccessRejected,
-      onManagerTransferred:
-          destinationCallbacks.onManagerTransferred ?? onManagerTransferred,
-      ticketContext: destinationCallbacks.ticketContext,
-      onManageStaff: destinationCallbacks.onManageStaff ?? onManageStaff,
-      onOpenStaffDetails:
-          destinationCallbacks.onOpenStaffDetails ?? onOpenStaffDetails,
-    );
     final destinations = scheduleDestinations(
       dependencies: dependencies,
       access: access,
       pending: pending,
-      callbacks: callbacks,
+      callbacks: destinationCallbacks,
     );
     final locked = lockedSettingsDestinations(
       dependencies: dependencies,
       access: access,
       pending: pending,
-      callbacks: callbacks,
+      callbacks: destinationCallbacks,
     );
     final repair = destinations
-        .where((entry) => entry.id == 'maintainerRepairs')
+        .where((entry) => entry.id == ScheduleDestinationId.maintainerRepairs)
         .firstOrNull;
 
     Future<void> open(ScheduleDestination destination) async {
@@ -73,8 +53,16 @@ class SettingsPage extends StatelessWidget {
               destination.pageBuilder(routeContext, shownMonth),
         ),
       );
-      if (context.mounted) {
-        await destination.onReturned?.call(context, result);
+      if (!context.mounted) return;
+      if (destination.reloadMonth) {
+        await destinationCallbacks.onReloadMonth?.call();
+      }
+      if (result == true &&
+          destination.resultAction ==
+              DestinationResultAction.managerTransferred &&
+          context.mounted) {
+        Navigator.pop(context);
+        destinationCallbacks.onManagerTransferred?.call();
       }
     }
 
@@ -84,12 +72,7 @@ class SettingsPage extends StatelessWidget {
       subtitle: destination.subtitle == null
           ? null
           : Text(destination.subtitle!),
-      onTap: switch (destination.id) {
-        'myCalendar' when onCalendarFeed != null => onCalendarFeed,
-        'sections' || 'permissionAssignments' when onManageStaff != null =>
-          () => onManageStaff!.call(),
-        _ => () => open(destination),
-      },
+      onTap: () => open(destination),
     );
 
     ListTile repairRequired(ScheduleDestination destination) => ListTile(

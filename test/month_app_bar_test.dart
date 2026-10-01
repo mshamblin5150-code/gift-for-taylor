@@ -27,25 +27,28 @@ void main() {
         ),
       );
 
-      expect(entries.map((entry) => entry.id).toSet(), _expectedIds(access));
+      expect(
+        entries.map((entry) => entry.id.name).toSet(),
+        _expectedIds(access),
+      );
       expect(
         entries
             .where((entry) => entry.menu != DestinationMenu.none)
-            .map((entry) => entry.id)
+            .map((entry) => entry.id.name)
             .toSet(),
         _expectedMenuIds(access).toSet(),
       );
       expect(
         entries
             .where((entry) => entry.settings != null)
-            .map((entry) => entry.id)
+            .map((entry) => entry.id.name)
             .toSet(),
         _expectedSettingsIds(access).toSet(),
       );
       expect(
         entries
             .where((entry) => entry.group == DestinationGroup.browseRequests)
-            .map((entry) => entry.id),
+            .map((entry) => entry.id.name),
         access.canRunSchedule
             ? [
                 'requestsOffManager',
@@ -57,19 +60,19 @@ void main() {
       );
       expect(
         entries
-            .where((entry) => entry.id == 'approvalQueue')
+            .where((entry) => entry.id == ScheduleDestinationId.approvalQueue)
             .map((entry) => entry.badgeCount),
         access.canRunSchedule ? [2] : isEmpty,
       );
       expect(
         entries
-            .where((entry) => entry.id == 'swapsStaff')
+            .where((entry) => entry.id == ScheduleDestinationId.swapsStaff)
             .map((entry) => entry.badgeCount),
         access.canAskAsStaffMember ? [3] : isEmpty,
       );
       expect(
         entries
-            .where((entry) => entry.id == 'myRequestsOff')
+            .where((entry) => entry.id == ScheduleDestinationId.myRequestsOff)
             .map((entry) => entry.badgeCount),
         access.canAskAsStaffMember ? [4] : isEmpty,
       );
@@ -86,20 +89,29 @@ void main() {
       ),
       pending: const PendingWorkState(),
     );
-    String label(String id) =>
+    String label(ScheduleDestinationId id) =>
         entries.singleWhere((entry) => entry.id == id).label;
 
-    expect(label('notices'), 'Notices');
-    expect(label('staffingMinimums'), 'Staffing minimums');
-    expect(label('shiftCodes'), 'Shift codes');
-    expect(label('staffList'), 'Staff list');
-    expect(label('maintainerRepairs'), 'Maintainer repairs');
+    expect(label(ScheduleDestinationId.notices), 'Notices');
+    expect(label(ScheduleDestinationId.staffingMinimums), 'Staffing minimums');
+    expect(label(ScheduleDestinationId.shiftCodes), 'Shift codes');
+    expect(label(ScheduleDestinationId.staffList), 'Staff list');
+    expect(
+      label(ScheduleDestinationId.maintainerRepairs),
+      'Maintainer repairs',
+    );
     expect(
       entries
           .where((entry) => entry.reloadMonth)
-          .map((entry) => entry.id)
+          .map((entry) => entry.id.name)
           .toSet(),
-      {'staffingMinimums', 'shiftCodes', 'staffList'},
+      {
+        'staffingMinimums',
+        'shiftCodes',
+        'sections',
+        'permissionAssignments',
+        'staffList',
+      },
     );
   });
 
@@ -117,7 +129,7 @@ void main() {
         dependencies: dependencies,
         access: maintainer,
         pending: const PendingWorkState(),
-      ).map((entry) => entry.id).toSet(),
+      ).map((entry) => entry.id.name).toSet(),
       {
         'signInFailures',
         'undeliveredInvitations',

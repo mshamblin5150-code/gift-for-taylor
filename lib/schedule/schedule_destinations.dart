@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
@@ -13,7 +11,6 @@ import '../notifications/notices_page.dart';
 import '../settings/manager_handover_page.dart';
 import '../settings/settings_page.dart';
 import '../setup/app_setup_page.dart';
-import '../staff/staff_details_page.dart';
 import '../staff/staff_list_page.dart';
 import '../tickets/ticket_context.dart';
 import '../tickets/ticket_gateway.dart';
@@ -34,14 +31,44 @@ enum DestinationSettings { personal, transfer, unit }
 
 enum DestinationGroup { browseRequests }
 
+enum DestinationResultAction { managerTransferred }
+
+enum ScheduleDestinationId {
+  settings,
+  help,
+  putInTicket,
+  myTickets,
+  tickets,
+  maintainerRepairs,
+  signInFailures,
+  undeliveredInvitations,
+  approvalQueue,
+  openShiftsStaff,
+  swapsStaff,
+  giveawaysStaff,
+  myRequestsOff,
+  requestsOffManager,
+  swapsManager,
+  giveawaysManager,
+  openShiftsManager,
+  notices,
+  myCalendar,
+  addErSchedule,
+  staffingMinimums,
+  openShiftPickupApproval,
+  printWording,
+  shiftCodes,
+  changeLog,
+  staffList,
+  sections,
+  permissionAssignments,
+  transferManager,
+  settingsHistory,
+}
+
 typedef DestinationPageBuilder = Widget Function(
   BuildContext context,
   DateTime month,
-);
-
-typedef DestinationReturned = FutureOr<void> Function(
-  BuildContext context,
-  Object? result,
 );
 
 final class ScheduleDestination {
@@ -58,10 +85,10 @@ final class ScheduleDestination {
     this.badgeCount = 0,
     this.reloadMonth = false,
     this.group,
-    this.onReturned,
+    this.resultAction,
   });
 
-  final String id;
+  final ScheduleDestinationId id;
   final String label;
   final IconData icon;
   final DestinationPageBuilder pageBuilder;
@@ -73,7 +100,7 @@ final class ScheduleDestination {
   final int badgeCount;
   final bool reloadMonth;
   final DestinationGroup? group;
-  final DestinationReturned? onReturned;
+  final DestinationResultAction? resultAction;
 
   String get menuLabel => badgeCount > 0 ? '$label ($badgeCount)' : label;
 }
@@ -85,6 +112,8 @@ final class ScheduleDestinationCallbacks {
     this.ticketContext,
     this.onManageStaff,
     this.onOpenStaffDetails,
+    this.onOpenDestination,
+    this.onReloadMonth,
   });
 
   final VoidCallback? onAccessRejected;
@@ -92,6 +121,8 @@ final class ScheduleDestinationCallbacks {
   final TicketContext Function(DateTime month)? ticketContext;
   final Future<void> Function()? onManageStaff;
   final Future<void> Function(String staffMemberId)? onOpenStaffDetails;
+  final Future<void> Function(ScheduleDestinationId id)? onOpenDestination;
+  final Future<void> Function()? onReloadMonth;
 }
 
 List<ScheduleDestination> scheduleDestinations({
@@ -102,30 +133,12 @@ List<ScheduleDestination> scheduleDestinations({
 }) {
   final ownStaffMemberId = access.ownStaffMemberId;
 
-  Future<void> openStaffList(BuildContext context) =>
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => StaffListPage(
-            gateway: dependencies.staffGateway,
-            rules: dependencies.rules,
-            inviteComposer: dependencies.inviteComposer,
-            onAccessRejected: callbacks.onAccessRejected,
-          ),
-        ),
-      );
-
-  Future<void> openStaffDetails(BuildContext context, String staffMemberId) =>
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => StaffDetailsPage(
-            staffMemberId: staffMemberId,
-            gateway: dependencies.staffGateway,
-            rules: dependencies.rules,
-            inviteComposer: dependencies.inviteComposer,
-            onAccessRejected: callbacks.onAccessRejected,
-          ),
-        ),
-      );
+  Widget staffListPage() => StaffListPage(
+    gateway: dependencies.staffGateway,
+    rules: dependencies.rules,
+    inviteComposer: dependencies.inviteComposer,
+    onAccessRejected: callbacks.onAccessRejected,
+  );
 
   Widget repairPage() => MaintainerRepairPage(
     controller: dependencies.repairController,
@@ -134,7 +147,7 @@ List<ScheduleDestination> scheduleDestinations({
 
   return [
     ScheduleDestination(
-      id: 'settings',
+      id: ScheduleDestinationId.settings,
       label: 'Settings',
       icon: Icons.settings_outlined,
       menu: DestinationMenu.secondary,
@@ -148,7 +161,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     ),
     ScheduleDestination(
-      id: 'help',
+      id: ScheduleDestinationId.help,
       label: 'Help',
       icon: Icons.help_outline,
       menu: DestinationMenu.secondary,
@@ -157,7 +170,7 @@ List<ScheduleDestination> scheduleDestinations({
     ),
     if (ownStaffMemberId != null)
       ScheduleDestination(
-        id: 'putInTicket',
+        id: ScheduleDestinationId.putInTicket,
         label: 'Put in a ticket',
         icon: Icons.support_agent_outlined,
         menu: DestinationMenu.secondary,
@@ -172,7 +185,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (ownStaffMemberId != null)
       ScheduleDestination(
-        id: 'myTickets',
+        id: ScheduleDestinationId.myTickets,
         label: 'My tickets',
         icon: Icons.inbox_outlined,
         menu: DestinationMenu.secondary,
@@ -186,7 +199,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.maintainer)
       ScheduleDestination(
-        id: 'tickets',
+        id: ScheduleDestinationId.tickets,
         label: 'Tickets',
         icon: Icons.inbox_outlined,
         settings: DestinationSettings.personal,
@@ -200,7 +213,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.maintainer && !access.isRepairAccess)
       ScheduleDestination(
-        id: 'maintainerRepairs',
+        id: ScheduleDestinationId.maintainerRepairs,
         label: 'Maintainer repairs',
         icon: Icons.build_outlined,
         menu: DestinationMenu.secondary,
@@ -212,7 +225,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.maintainer && access.isRepairAccess)
       ScheduleDestination(
-        id: 'signInFailures',
+        id: ScheduleDestinationId.signInFailures,
         label: 'Sign-in failures',
         icon: Icons.mark_email_unread_outlined,
         settings: DestinationSettings.personal,
@@ -223,7 +236,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.maintainer && access.isRepairAccess)
       ScheduleDestination(
-        id: 'undeliveredInvitations',
+        id: ScheduleDestinationId.undeliveredInvitations,
         label: 'Undelivered invitations',
         icon: Icons.event_busy_outlined,
         settings: DestinationSettings.personal,
@@ -235,7 +248,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canRunSchedule)
       ScheduleDestination(
-        id: 'approvalQueue',
+        id: ScheduleDestinationId.approvalQueue,
         label: 'Approval queue',
         icon: Icons.fact_check_outlined,
         menu: DestinationMenu.immediate,
@@ -252,7 +265,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canAskAsStaffMember)
       ScheduleDestination(
-        id: 'openShiftsStaff',
+        id: ScheduleDestinationId.openShiftsStaff,
         label: 'Open shifts',
         icon: Icons.add_circle_outline,
         menu: DestinationMenu.immediate,
@@ -267,7 +280,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canAskAsStaffMember)
       ScheduleDestination(
-        id: 'swapsStaff',
+        id: ScheduleDestinationId.swapsStaff,
         label: 'Swaps',
         icon: Icons.swap_horiz,
         menu: DestinationMenu.immediate,
@@ -285,7 +298,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canAskAsStaffMember)
       ScheduleDestination(
-        id: 'giveawaysStaff',
+        id: ScheduleDestinationId.giveawaysStaff,
         label: 'Giveaways',
         icon: Icons.card_giftcard,
         menu: DestinationMenu.immediate,
@@ -300,7 +313,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canAskAsStaffMember)
       ScheduleDestination(
-        id: 'myRequestsOff',
+        id: ScheduleDestinationId.myRequestsOff,
         label: 'My Requests off',
         icon: Icons.event_busy_outlined,
         menu: DestinationMenu.immediate,
@@ -311,7 +324,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canRunSchedule)
       ScheduleDestination(
-        id: 'requestsOffManager',
+        id: ScheduleDestinationId.requestsOffManager,
         label: 'Requests off',
         icon: Icons.event_busy_outlined,
         menu: DestinationMenu.immediate,
@@ -322,7 +335,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canRunSchedule)
       ScheduleDestination(
-        id: 'swapsManager',
+        id: ScheduleDestinationId.swapsManager,
         label: 'Swaps',
         icon: Icons.swap_horiz,
         menu: DestinationMenu.immediate,
@@ -340,7 +353,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canRunSchedule)
       ScheduleDestination(
-        id: 'giveawaysManager',
+        id: ScheduleDestinationId.giveawaysManager,
         label: 'Giveaways',
         icon: Icons.card_giftcard,
         menu: DestinationMenu.immediate,
@@ -356,29 +369,28 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canRunSchedule)
       ScheduleDestination(
-        id: 'openShiftsManager',
+        id: ScheduleDestinationId.openShiftsManager,
         label: 'Open shifts',
         icon: Icons.add_circle_outline,
         menu: DestinationMenu.immediate,
         menuOrder: 130,
         group: DestinationGroup.browseRequests,
-        pageBuilder: (context, month) => OpenShiftsPage(
+        pageBuilder: (_, month) => OpenShiftsPage(
           rules: dependencies.openShiftStore,
           scheduleRules: dependencies.rules,
           month: month,
           staffMemberId: ownStaffMemberId,
           isManager: true,
-          onApprovalSettings: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  ApprovalDefaultPage(rules: dependencies.openShiftStore),
-            ),
-          ),
+          onApprovalSettings: callbacks.onOpenDestination == null
+              ? null
+              : () => callbacks.onOpenDestination!(
+                  ScheduleDestinationId.openShiftPickupApproval,
+                ),
         ),
       ),
     if (ownStaffMemberId != null)
       ScheduleDestination(
-        id: 'notices',
+        id: ScheduleDestinationId.notices,
         label: 'Notices',
         icon: Icons.notifications_outlined,
         menu: DestinationMenu.secondary,
@@ -390,7 +402,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (ownStaffMemberId != null)
       ScheduleDestination(
-        id: 'myCalendar',
+        id: ScheduleDestinationId.myCalendar,
         label: 'My calendar',
         icon: Icons.calendar_month_outlined,
         menu: DestinationMenu.secondary,
@@ -402,7 +414,7 @@ List<ScheduleDestination> scheduleDestinations({
             CalendarFeedPage(gateway: dependencies.calendarFeedGateway),
       ),
     ScheduleDestination(
-      id: 'addErSchedule',
+      id: ScheduleDestinationId.addErSchedule,
       label: 'Add ER Schedule',
       icon: Icons.install_mobile_outlined,
       settings: DestinationSettings.personal,
@@ -416,7 +428,7 @@ List<ScheduleDestination> scheduleDestinations({
     ),
     if (access.canManageUnit)
       ScheduleDestination(
-        id: 'staffingMinimums',
+        id: ScheduleDestinationId.staffingMinimums,
         label: 'Staffing minimums',
         icon: Icons.people_outline,
         menu: DestinationMenu.immediate,
@@ -432,7 +444,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canManageUnit)
       ScheduleDestination(
-        id: 'openShiftPickupApproval',
+        id: ScheduleDestinationId.openShiftPickupApproval,
         label: 'Open shift pickup approval',
         icon: Icons.fact_check_outlined,
         settings: DestinationSettings.unit,
@@ -443,7 +455,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canManageUnit)
       ScheduleDestination(
-        id: 'printWording',
+        id: ScheduleDestinationId.printWording,
         label: 'Print wording',
         icon: Icons.text_fields_outlined,
         settings: DestinationSettings.unit,
@@ -454,7 +466,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canManageUnit)
       ScheduleDestination(
-        id: 'shiftCodes',
+        id: ScheduleDestinationId.shiftCodes,
         label: 'Shift codes',
         icon: Icons.schedule_outlined,
         menu: DestinationMenu.secondary,
@@ -469,7 +481,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canReadChangeLog)
       ScheduleDestination(
-        id: 'changeLog',
+        id: ScheduleDestinationId.changeLog,
         label: 'Change log',
         icon: Icons.history,
         menu: DestinationMenu.secondary,
@@ -479,78 +491,57 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     if (access.canManageStaff)
       ScheduleDestination(
-        id: 'staffList',
+        id: ScheduleDestinationId.staffList,
         label: 'Staff list',
         icon: Icons.people_outline,
         menu: DestinationMenu.secondary,
         menuOrder: 170,
         reloadMonth: true,
-        pageBuilder: (_, _) => StaffListPage(
-          gateway: dependencies.staffGateway,
-          rules: dependencies.rules,
-          inviteComposer: dependencies.inviteComposer,
-          onAccessRejected: callbacks.onAccessRejected,
-        ),
+        pageBuilder: (_, _) => staffListPage(),
       ),
     if (access.canManageUnit)
       ScheduleDestination(
-        id: 'sections',
+        id: ScheduleDestinationId.sections,
         label: 'Sections',
         icon: Icons.view_list_outlined,
         settings: DestinationSettings.unit,
         settingsOrder: 50,
         subtitle: 'Edit on the Staff list',
-        pageBuilder: (_, _) => StaffListPage(
-          gateway: dependencies.staffGateway,
-          rules: dependencies.rules,
-          inviteComposer: dependencies.inviteComposer,
-          onAccessRejected: callbacks.onAccessRejected,
-        ),
+        reloadMonth: true,
+        pageBuilder: (_, _) => staffListPage(),
       ),
     if (access.canManageUnit)
       ScheduleDestination(
-        id: 'permissionAssignments',
+        id: ScheduleDestinationId.permissionAssignments,
         label: 'Permission assignments',
         icon: Icons.admin_panel_settings_outlined,
         settings: DestinationSettings.unit,
         settingsOrder: 60,
         subtitle: 'Open a person on the Staff list',
-        pageBuilder: (_, _) => StaffListPage(
-          gateway: dependencies.staffGateway,
-          rules: dependencies.rules,
-          inviteComposer: dependencies.inviteComposer,
-          onAccessRejected: callbacks.onAccessRejected,
-        ),
+        reloadMonth: true,
+        pageBuilder: (_, _) => staffListPage(),
       ),
     if (access.canTransferManager)
       ScheduleDestination(
-        id: 'transferManager',
+        id: ScheduleDestinationId.transferManager,
         label: 'Transfer Manager',
         icon: Icons.manage_accounts_outlined,
         settings: DestinationSettings.transfer,
         subtitle: access.isRepairAccess
             ? 'Choose a new Manager for repair'
             : 'Choose the next Manager and your access after handover',
-        pageBuilder: (context, _) => ManagerHandoverPage(
+        pageBuilder: (_, _) => ManagerHandoverPage(
           gateway: dependencies.staffGateway,
           isMaintainer: access.isRepairAccess,
-          onManageStaff:
-              callbacks.onManageStaff ?? () => openStaffList(context),
-          onOpenStaffDetails:
-              callbacks.onOpenStaffDetails ??
-              (id) => openStaffDetails(context, id),
+          onManageStaff: callbacks.onManageStaff,
+          onOpenStaffDetails: callbacks.onOpenStaffDetails,
           onAccessRejected: callbacks.onAccessRejected,
         ),
-        onReturned: (context, result) {
-          if (result == true) {
-            Navigator.maybePop(context);
-            callbacks.onManagerTransferred?.call();
-          }
-        },
+        resultAction: DestinationResultAction.managerTransferred,
       ),
     if (access.canManageUnit)
       ScheduleDestination(
-        id: 'settingsHistory',
+        id: ScheduleDestinationId.settingsHistory,
         label: 'Settings history',
         icon: Icons.history,
         settings: DestinationSettings.unit,

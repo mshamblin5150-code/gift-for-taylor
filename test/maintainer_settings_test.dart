@@ -32,9 +32,6 @@ void main() {
             signInFailureLog: FakeSignInFailureLog(),
             ticketGateway: InMemoryTicketGateway(),
           ),
-          onCalendarFeed: () {},
-          onManageStaff: () async {},
-          onOpenStaffDetails: (_) async {},
           access: Access(
             grants: Grants(),
             maintainer: true,
@@ -91,9 +88,6 @@ void main() {
             noticeGateway: const NoopNoticeGateway(),
             signInFailureLog: failureLog,
           ),
-          onCalendarFeed: () {},
-          onManageStaff: () async {},
-          onOpenStaffDetails: (_) async {},
           access: Access(
             grants: Grants(),
             maintainer: true,
@@ -152,9 +146,6 @@ void main() {
             noticeGateway: const NoopNoticeGateway(),
             undeliveredInvitationLog: log,
           ),
-          onCalendarFeed: () {},
-          onManageStaff: () async {},
-          onOpenStaffDetails: (_) async {},
           access: Access(
             grants: Grants(),
             maintainer: true,
