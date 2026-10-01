@@ -211,10 +211,10 @@ void main() {
     expect(find.text('Edit the Schedule'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'manage shift codes');
     await tester.pump();
-    expect(find.text('Manage Shift codes'), findsOneWidget);
-    await tester.tap(find.text('Manage Shift codes'));
+    expect(find.text('Shift codes'), findsOneWidget);
+    await tester.tap(find.text('Shift codes'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Manager only:'), findsWidgets);
+    expect(find.textContaining('Manager or Administrator:'), findsWidgets);
   });
 
   testWidgets(

@@ -10,6 +10,7 @@ import 'package:er_schedule/staff/staff_details_page.dart';
 import 'package:er_schedule/staff/staff_list_page.dart';
 import 'package:er_schedule/staff/staff_contacts.dart';
 import 'package:er_schedule/settings/settings_page.dart';
+import 'package:er_schedule/schedule/schedule_destinations.dart';
 import 'package:er_schedule/settings/manager_handover_page.dart';
 import 'package:er_schedule/tickets/ticket_activity.dart';
 import 'package:flutter/material.dart';
@@ -1505,9 +1506,6 @@ void main() {
             noticeGateway: const NoopNoticeGateway(),
             staffGateway: gateway,
           ),
-          onCalendarFeed: () {},
-          onManageStaff: () async {},
-          onOpenStaffDetails: (_) async {},
           access: Access(
             grants: Grants(manager: true),
             ownStaffMemberId: 'current-manager',
@@ -1602,9 +1600,9 @@ void main() {
               noticeGateway: const NoopNoticeGateway(),
               staffGateway: gateway,
             ),
-            onCalendarFeed: () {},
-            onManageStaff: () async => staffListOpenCount++,
-            onOpenStaffDetails: (_) async {},
+            destinationCallbacks: ScheduleDestinationCallbacks(
+              onManageStaff: () async => staffListOpenCount++,
+            ),
             access: Access(
               grants: Grants(manager: true),
               ownStaffMemberId: 'current-manager',
@@ -1658,9 +1656,9 @@ void main() {
             noticeGateway: const NoopNoticeGateway(),
             staffGateway: gateway,
           ),
-          onCalendarFeed: () {},
-          onManageStaff: () async {},
-          onOpenStaffDetails: (id) async => openedStaffMemberId = id,
+          destinationCallbacks: ScheduleDestinationCallbacks(
+            onOpenStaffDetails: (id) async => openedStaffMemberId = id,
+          ),
           access: Access(grants: Grants(manager: true)),
         ),
       ),
@@ -1761,9 +1759,6 @@ void main() {
             noticeGateway: const NoopNoticeGateway(),
             staffGateway: gateway,
           ),
-          onCalendarFeed: () {},
-          onManageStaff: () async {},
-          onOpenStaffDetails: (_) async {},
           access: Access(
             grants: Grants(),
             maintainer: true,

@@ -147,8 +147,8 @@ void main() {
     ) async {
       await pumpAccess(tester, scenario.access);
       expect(
-        find.text('Manage Shift codes'),
-        scenario.run ? findsOneWidget : findsNothing,
+        find.text('Shift codes'),
+        scenario.access.canManageUnit ? findsOneWidget : findsNothing,
       );
       expect(
         find.text('Change log'),
@@ -167,16 +167,8 @@ void main() {
         scenario.own && !scenario.run ? findsOneWidget : findsNothing,
       );
       if (scenario.name == 'Maintainer without a Repair') {
-        expect(find.text('Maintainer repairs (break glass)'), findsOneWidget);
-        expect(
-          find.text('Schedule and Month controls (requires Repair)'),
-          findsOneWidget,
-        );
-        expect(find.text('Approvals (requires Repair)'), findsOneWidget);
-        expect(
-          find.text('Staff and Invite changes (requires Repair)'),
-          findsOneWidget,
-        );
+        expect(find.text('Maintainer repairs'), findsOneWidget);
+        expect(find.textContaining('requires Repair'), findsNothing);
       }
     });
   }

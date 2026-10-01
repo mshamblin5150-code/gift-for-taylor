@@ -8,37 +8,27 @@ import 'package:schedule_rules/schedule_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_dependencies.dart';
-import '../calendar/calendar_feed_page.dart';
-import '../help/help_page.dart';
-import '../maintainer/maintainer_repair.dart';
-import '../notifications/notices_page.dart';
 import '../schedule_theme.dart';
 import '../staff/staff_details_page.dart';
 import '../staff/staff_list_page.dart';
-import '../settings/settings_page.dart';
 import '../tickets/ticket_context.dart';
 import '../tickets/ticket_activity.dart';
-import '../tickets/ticket_pages.dart';
 import '../tickets/ticket_refusal.dart';
 
 import 'announce_sheet.dart';
-import 'approval_queue_page.dart';
 import 'book_page_printing.dart';
 import 'cell_edit_sheet.dart';
 import 'change_log_page.dart';
 import 'coverage_settings_page.dart';
 import 'month_session.dart';
 import 'print_wording_dialog.dart';
-import 'swaps_page.dart';
-import 'open_shifts_page.dart';
 import 'pending_work.dart';
-import 'requests_off_page.dart';
+import 'schedule_destinations.dart';
 import 'shift_codes_page.dart';
 import 'staffing_sheet.dart';
 import 'staff_cell_sheet.dart';
 import 'swap_proposal.dart';
 import 'giveaway_proposal.dart';
-import 'giveaways_page.dart';
 
 enum ScheduleView { month, day, person }
 
@@ -184,7 +174,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   Future<void> _manageStaff() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => StaffListPage(
+        builder: (_) => StaffListPage(
           gateway: widget.dependencies.staffGateway,
           rules: widget.dependencies.rules,
           inviteComposer: widget.dependencies.inviteComposer,
@@ -193,15 +183,6 @@ class _MonthGridPageState extends State<MonthGridPage> {
       ),
     );
     if (mounted) await _session.refresh();
-  }
-
-  void _openCalendarFeed() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) =>
-            CalendarFeedPage(gateway: widget.dependencies.calendarFeedGateway),
-      ),
-    );
   }
 
   Future<void> _announce(ChangeAnnouncement announcement) async {
@@ -820,337 +801,126 @@ class _MonthGridPageState extends State<MonthGridPage> {
     };
   }
 
-  List<_ScheduleAction> _appBarActions(
-    BuildContext context,
-    PendingWorkState pending,
-  ) => [
-    _ScheduleAction(
-      label: 'Settings',
-      icon: Icons.settings_outlined,
-      secondary: true,
-      onPressed: () async {
-        if (!context.mounted) return;
-        _open(
-          (context) => SettingsPage(
-            dependencies: widget.dependencies,
-            onCalendarFeed: _openCalendarFeed,
-            onManageStaff: _manageStaff,
-            onOpenStaffDetails: _openStaffDetails,
-            onManagerTransferred: widget.onManagerTransferred,
-            onAccessRejected: widget.onAccessRejected,
-            access: _access,
+  Future<void> _openDestination(ScheduleDestination destination) async {
+    await Navigator.of(context).push<Object?>(
+      MaterialPageRoute<Object?>(
+        builder: (routeContext) =>
+            destination.pageBuilder(routeContext, _month),
+      ),
+    );
+    if (!mounted) return;
+    if (destination.reloadMonth && mounted) await _session.refresh();
+  }
+
+  List<_ScheduleAction> _catalogActions(PendingWorkState pending) {
+    late final List<ScheduleDestination> destinations;
+    Future<void> openDestination(ScheduleDestinationId id) =>
+        _openDestination(destinations.singleWhere((entry) => entry.id == id));
+    destinations = scheduleDestinations(
+      dependencies: widget.dependencies,
+      access: _access,
+      pending: pending,
+      callbacks: ScheduleDestinationCallbacks(
+        onAccessRejected: widget.onAccessRejected,
+        onManagerTransferred: widget.onManagerTransferred,
+        onManageStaff: _manageStaff,
+        onOpenStaffDetails: _openStaffDetails,
+        onOpenDestination: openDestination,
+        onReloadMonth: () => _session.refresh(),
+        ticketContext: (month) => captureTicketContext(
+          screen: TicketScreen.schedule.label,
+          month: month,
+          recentActions:
+              TicketLauncherScope.maybeOf(context)?.actions.snapshot() ??
+              const [],
+        ),
+      ),
+    );
+    _ScheduleAction action(ScheduleDestination destination) => _ScheduleAction(
+      label: destination.label,
+      icon: destination.icon,
+      badgeCount: destination.badgeCount,
+      secondary: destination.menu == DestinationMenu.secondary,
+      onPressed: () => _openDestination(destination),
+    );
+
+    final menuEntries =
+        destinations
+            .where((entry) => entry.menu != DestinationMenu.none)
+            .toList()
+          ..sort(
+            (first, second) => first.menuOrder.compareTo(second.menuOrder),
+          );
+    final browseRequests = menuEntries
+        .where((entry) => entry.group == DestinationGroup.browseRequests)
+        .toList();
+    final result = <_ScheduleAction>[];
+    var addedBrowseRequests = false;
+    var addedMonthActions = false;
+
+    void addMonthActions() {
+      if (addedMonthActions) return;
+      addedMonthActions = true;
+      result.add(
+        _ScheduleAction(
+          label: _wording?.tooltip ?? 'Loading print wording',
+          icon: Icons.print_outlined,
+          onPressed: _wording == null
+              ? null
+              : () => _print(widget.dependencies.bookPagePresenter),
+        ),
+      );
+      if (_access.canManageUnit) {
+        result.add(
+          _ScheduleAction(
+            label: 'Change print wording',
+            icon: Icons.text_fields_outlined,
+            onPressed: _wording == null ? null : _changePrintWording,
           ),
         );
-      },
-    ),
-    if (_access.ownStaffMemberId != null)
-      _ScheduleAction(
-        label: 'Put in a ticket',
-        icon: Icons.support_agent_outlined,
-        secondary: true,
-        onPressed: () => _open(
-          (context) => PutInTicketPage(
-            gateway: widget.dependencies.ticketGateway,
-            onAccessRejected: widget.onAccessRejected,
-            attachedContext: captureTicketContext(
-              screen: TicketScreen.schedule.label,
-              month: _month,
-              recentActions:
-                  TicketLauncherScope.maybeOf(context)?.actions.snapshot() ??
-                  const [],
-            ),
-          ),
-        ),
-      ),
-    if (_access.ownStaffMemberId != null)
-      _ScheduleAction(
-        label: 'My tickets',
-        icon: Icons.inbox_outlined,
-        secondary: true,
-        onPressed: () => _open(
-          (context) => TicketsPage(
-            gateway: widget.dependencies.ticketGateway,
-            maintainer: false,
-            ownStaffMemberId: _access.ownStaffMemberId,
-            onAccessRejected: widget.onAccessRejected,
-          ),
-        ),
-      ),
-    if (_access.maintainer && !_access.isRepairAccess)
-      _ScheduleAction(
-        label: 'Maintainer repairs (break glass)',
-        icon: Icons.build_outlined,
-        secondary: true,
-        onPressed: () => _open((context) => _maintainerRepairPage()),
-      ),
-    if (_access.maintainer && !_access.isRepairAccess) ...[
-      _ScheduleAction(
-        label: 'Schedule and Month controls (requires Repair)',
-        icon: Icons.lock_outline,
-        secondary: true,
-        onPressed: () => _open((context) => _maintainerRepairPage()),
-      ),
-      _ScheduleAction(
-        label: 'Approvals (requires Repair)',
-        icon: Icons.lock_outline,
-        secondary: true,
-        onPressed: () => _open((context) => _maintainerRepairPage()),
-      ),
-      _ScheduleAction(
-        label: 'Staff and Invite changes (requires Repair)',
-        icon: Icons.lock_outline,
-        secondary: true,
-        onPressed: () => _open((context) => _maintainerRepairPage()),
-      ),
-    ],
-    _ScheduleAction(
-      label: 'Help',
-      icon: Icons.help_outline,
-      secondary: true,
-      onPressed: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (context) => HelpPage(roles: helpRolesFor(_access)),
-        ),
-      ),
-    ),
-    if (_access.canRunSchedule)
-      _ScheduleAction(
-        label: 'Approval queue',
-        icon: Icons.fact_check_outlined,
-        badgeCount: pending.pendingApprovals,
-        onPressed: () => _open(
-          (context) => ApprovalQueuePage(
-            rules: widget.dependencies.rules,
-            swapStore: widget.dependencies.swapStore,
-            giveawayStore: widget.dependencies.giveawayStore,
-            openShiftStore: widget.dependencies.openShiftStore,
-            staffGateway: widget.dependencies.staffGateway,
-            onAccessRejected: widget.onAccessRejected,
-          ),
-        ),
-      ),
-    if (_access.canAskAsStaffMember)
-      _ScheduleAction(
-        label: 'Open shifts',
-        icon: Icons.add_circle_outline,
-        onPressed: () => _open(
-          (context) => OpenShiftsPage(
-            rules: widget.dependencies.openShiftStore,
-            scheduleRules: widget.dependencies.rules,
-            month: _month,
-            staffMemberId: _signedInStaffMemberId,
-            isManager: _access.canRunSchedule,
-          ),
-        ),
-      ),
-    if (_access.canAskAsStaffMember)
-      _ScheduleAction(
-        label: 'Swaps',
-        icon: Icons.swap_horiz,
-        badgeCount: pending.pendingSwaps,
-        onPressed: () => _open(
-          (context) => SwapsPage(
-            rules: widget.dependencies.rules,
-            swapStore: widget.dependencies.swapStore,
-            month: _month,
-            staffMemberId: _signedInStaffMemberId,
-            isManager: _access.canRunSchedule,
-            messagesComposer: widget.dependencies.messagesComposer,
-            onAccessRejected: widget.onAccessRejected,
-          ),
-        ),
-      ),
-    if (_access.canAskAsStaffMember)
-      _ScheduleAction(
-        label: 'Giveaways',
-        icon: Icons.card_giftcard,
-        onPressed: () => _open(
-          (context) => GiveawaysPage(
-            rules: widget.dependencies.rules,
-            giveawayStore: widget.dependencies.giveawayStore,
-            month: _month,
-            staffMemberId: _signedInStaffMemberId,
-            onAccessRejected: widget.onAccessRejected,
-          ),
-        ),
-      ),
-    if (_access.ownStaffMemberId != null)
-      _ScheduleAction(
-        label: 'Notices',
-        icon: Icons.notifications_outlined,
-        secondary: true,
-        onPressed: () => _open(
-          (context) => NoticesPage(gateway: widget.dependencies.noticeGateway),
-        ),
-      ),
-    if (_access.ownStaffMemberId != null)
-      _ScheduleAction(
-        label: 'My calendar',
-        icon: Icons.calendar_month_outlined,
-        secondary: true,
-        onPressed: _openCalendarFeed,
-      ),
-    if (_access.canAskAsStaffMember)
-      _ScheduleAction(
-        label: 'My Requests off',
-        icon: Icons.event_busy_outlined,
-        badgeCount: pending.unreadRequestsOff,
-        onPressed: () => _open(
-          (context) => RequestsOffPage(
-            rules: widget.dependencies.rules,
-            isManager: _access.canRunSchedule,
-          ),
-        ),
-      ),
-    if (_access.canRunSchedule)
-      _ScheduleAction(
-        label: 'Browse requests',
-        icon: Icons.more_horiz,
-        children: [
-          _ScheduleAction(
-            label: 'Requests off',
-            icon: Icons.event_busy_outlined,
-            onPressed: () => _open(
-              (context) => RequestsOffPage(
-                rules: widget.dependencies.rules,
-                isManager: true,
-              ),
-            ),
-          ),
-          _ScheduleAction(
-            label: 'Swaps',
-            icon: Icons.swap_horiz,
-            onPressed: () => _open(
-              (context) => SwapsPage(
-                rules: widget.dependencies.rules,
-                swapStore: widget.dependencies.swapStore,
-                month: _month,
-                staffMemberId: _signedInStaffMemberId,
-                isManager: true,
-                messagesComposer: widget.dependencies.messagesComposer,
-                onAccessRejected: widget.onAccessRejected,
-              ),
-            ),
-          ),
-          _ScheduleAction(
-            label: 'Giveaways',
-            icon: Icons.card_giftcard,
-            onPressed: () => _open(
-              (context) => GiveawaysPage(
-                rules: widget.dependencies.rules,
-                giveawayStore: widget.dependencies.giveawayStore,
-                month: _month,
-                staffMemberId: _signedInStaffMemberId,
-                onAccessRejected: widget.onAccessRejected,
-              ),
-            ),
-          ),
-          _ScheduleAction(
-            label: 'Open shifts',
-            icon: Icons.add_circle_outline,
-            onPressed: () => _open(
-              (context) => OpenShiftsPage(
-                rules: widget.dependencies.openShiftStore,
-                scheduleRules: widget.dependencies.rules,
-                month: _month,
-                staffMemberId: _signedInStaffMemberId,
-                isManager: true,
-                onApprovalSettings: () => _open(
-                  (context) => ApprovalDefaultPage(
-                    rules: widget.dependencies.openShiftStore,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    if (_access.canManageUnit)
-      _ScheduleAction(
-        label: 'Unit coverage settings',
-        icon: Icons.tune,
-        onPressed: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (context) => CoverageSettingsPage(
-                rules: widget.dependencies.openShiftStore,
-                scheduleRules: widget.dependencies.rules,
-              ),
+        if (_session.state.grid?.status == MonthStatus.released) {
+          result.add(
+            _ScheduleAction(
+              label: 'Correct this month’s print wording',
+              icon: Icons.edit_note_outlined,
+              secondary: true,
+              onPressed: _correctMonthPrintWording,
             ),
           );
-          if (mounted) await _session.refresh();
-        },
-      ),
-    if (_access.canRunSchedule)
-      _ScheduleAction(
-        label: 'Manage Shift codes',
-        icon: Icons.schedule_outlined,
-        secondary: true,
-        onPressed: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (context) => ShiftCodesPage(
-                rules: widget.dependencies.rules,
-                onAccessRejected: widget.onAccessRejected,
-              ),
-            ),
-          );
-          if (mounted) await _session.refresh();
-        },
-      ),
-    if (_access.canReadChangeLog)
-      _ScheduleAction(
-        label: 'Change log',
-        icon: Icons.history,
-        secondary: true,
-        onPressed: () => _open(
-          (context) =>
-              ChangeLogPage(rules: widget.dependencies.rules, month: _month),
-        ),
-      ),
-    _ScheduleAction(
-      label: _wording?.tooltip ?? 'Loading print wording',
-      icon: Icons.print_outlined,
-      onPressed: _wording == null
-          ? null
-          : () => _print(widget.dependencies.bookPagePresenter),
-    ),
-    if (_access.canManageUnit)
-      _ScheduleAction(
-        label: 'Change print wording',
-        icon: Icons.text_fields_outlined,
-        onPressed: _wording == null ? null : _changePrintWording,
-      ),
-    if (_access.canManageUnit &&
-        _session.state.grid?.status == MonthStatus.released)
-      _ScheduleAction(
-        label: 'Correct this month’s print wording',
-        icon: Icons.edit_note_outlined,
-        secondary: true,
-        onPressed: _correctMonthPrintWording,
-      ),
-    if (_access.canManageStaff)
-      _ScheduleAction(
-        label: 'Manage Staff list',
-        icon: Icons.people_outline,
-        secondary: true,
-        onPressed: () async {
-          await _manageStaff();
-        },
-      ),
-    if (widget.onSignOut != null)
-      _ScheduleAction(
-        label: 'Sign out',
-        icon: Icons.logout,
-        secondary: true,
-        onPressed: widget.onSignOut,
-      ),
-  ];
+        }
+      }
+    }
 
-  MaintainerRepairPage _maintainerRepairPage() => MaintainerRepairPage(
-    controller: widget.dependencies.repairController,
-    ticketGateway: widget.dependencies.ticketGateway,
-  );
+    for (final entry in menuEntries) {
+      if (entry.id == ScheduleDestinationId.staffList) addMonthActions();
+      if (entry.group == DestinationGroup.browseRequests) {
+        if (!addedBrowseRequests) {
+          addedBrowseRequests = true;
+          result.add(
+            _ScheduleAction(
+              label: 'Browse requests',
+              icon: Icons.more_horiz,
+              children: browseRequests.map(action).toList(),
+            ),
+          );
+        }
+      } else {
+        result.add(action(entry));
+      }
+    }
+    addMonthActions();
+    if (widget.onSignOut != null) {
+      result.add(
+        _ScheduleAction(
+          label: 'Sign out',
+          icon: Icons.logout,
+          secondary: true,
+          onPressed: widget.onSignOut,
+        ),
+      );
+    }
+    return result;
+  }
 
   PopupMenuItem<_ScheduleAction> _actionMenuItem(_ScheduleAction action) =>
       PopupMenuItem<_ScheduleAction>(
@@ -1225,7 +995,7 @@ class _MonthGridPageState extends State<MonthGridPage> {
   );
 
   Widget _buildPage(BuildContext context) {
-    final appBarActions = _appBarActions(context, _pendingWork.state);
+    final appBarActions = _catalogActions(_pendingWork.state);
     final secondaryActions = appBarActions
         .where((action) => action.secondary)
         .toList();
