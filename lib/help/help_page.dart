@@ -6,11 +6,70 @@ import '../setup/install_guidance.dart';
 /// Help is shipped as source with the PWA: searching and reading never needs
 /// a network request. Update the corresponding topic when a capability changes.
 enum HelpRole {
+  guest,
   staffMember,
   nightScheduler,
   administrator,
   manager,
   maintainer,
+}
+
+enum HelpTopicId {
+  maintainerRepairs,
+  settings,
+  help,
+  settingsHistory,
+  acceptInvite,
+  installOnPhone,
+  installOnComputer,
+  allowNotifications,
+  monthView,
+  dayView,
+  personView,
+  shiftCodeLegend,
+  requestOff,
+  approvalQueue,
+  requestOffApprovals,
+  swap,
+  approveSwap,
+  giveaway,
+  approveGiveaway,
+  openShift,
+  openShiftPickupApprovals,
+  changeAnnouncements,
+  notices,
+  calendarInvitations,
+  calendarFeed,
+  editSchedule,
+  unannouncedChanges,
+  staffingMinimums,
+  coveragePools,
+  postOpenShifts,
+  monthRelease,
+  startMonth,
+  loadPrintedSchedule,
+  shiftCodes,
+  changeLog,
+  nightSchedulerRole,
+  administratorAccess,
+  printScheduleBookPage,
+  changePrintWording,
+  staffList,
+  pastStaff,
+  invite,
+  inviteCellMismatch,
+  manageSections,
+  reorderStaffMembers,
+  staffMemberDetails,
+  lastDay,
+  changeSectionOrJobRole,
+  addStaffMemberToPhoneContacts,
+  putInTicket,
+  myTickets,
+  tickets,
+  transferManager,
+  signInFailures,
+  undeliveredInvitations,
 }
 
 Set<HelpRole> helpRolesFor(Access access) => {
@@ -24,10 +83,17 @@ Set<HelpRole> helpRolesFor(Access access) => {
       access.grants.nightSchedulerSectionIds.isEmpty &&
       access.ownStaffMemberId != null)
     HelpRole.staffMember,
+  if (!access.maintainer &&
+      !access.grants.manager &&
+      !access.grants.administrator &&
+      access.grants.nightSchedulerSectionIds.isEmpty &&
+      access.ownStaffMemberId == null)
+    HelpRole.guest,
 };
 
 class HelpTopic {
   const HelpTopic({
+    required this.id,
     required this.title,
     required this.who,
     required this.what,
@@ -42,6 +108,7 @@ class HelpTopic {
     },
   });
 
+  final HelpTopicId id;
   final String title;
   final String who;
   final String what;
@@ -75,11 +142,20 @@ const _staffReaders = {
   HelpRole.administrator,
   HelpRole.manager,
 };
+const _allReaders = {
+  HelpRole.guest,
+  HelpRole.staffMember,
+  HelpRole.nightScheduler,
+  HelpRole.administrator,
+  HelpRole.manager,
+  HelpRole.maintainer,
+};
 
-/// One topic per reader task. Keep this catalog aligned with the Schedule
-/// views and the pages linked from the Schedule and Staff list.
+/// One topic per reader task. The destination-to-topic contract is checked in
+/// `test/help_page_test.dart`.
 const helpTopics = <HelpTopic>[
   HelpTopic(
+    id: HelpTopicId.maintainerRepairs,
     title: 'Maintainer repairs',
     who: 'Maintainer only',
     what: 'The Maintainer hat can temporarily use Manager controls to investigate and repair the app. The Staff Manager still makes ED decisions.',
@@ -88,14 +164,31 @@ const helpTopics = <HelpTopic>[
     roles: {HelpRole.maintainer},
   ),
   HelpTopic(
+    id: HelpTopicId.help,
+    title: 'Search Help',
+    who: 'Everyone',
+    what: 'Help is the searchable guide to ER Schedule. It works without a network connection.',
+    how:
+        '1. Open Help from Schedule actions. On a wide screen, open More destinations, then Help.\n'
+        '2. Type the task or words you use for it in Search Help.\n'
+        '3. Open the matching topic.\n'
+        '4. Follow its steps.\n'
+        'Result: you can read the answer and return to the Schedule when you are done.',
+    searchTerms: 'guide instructions how do I search offline',
+    roles: _allReaders,
+  ),
+  HelpTopic(
+    id: HelpTopicId.settings,
     title: 'Settings',
     who: 'Everyone; Unit choices require Manager, Administrator, or Maintainer access',
     what: 'Settings is the directory for choices that affect future behavior. Personal choices belong to you or this device. Unit choices govern the department.',
     how: '1. Open Schedule actions, then Settings. On a wide screen use More destinations.\n2. Choose a Personal item for yourself or this device. Staff can use My calendar and Notices.\n3. Managers and Administrators can choose a Unit item. The Maintainer first chooses a locked, marked Manager control and opens a Repair.\nResult: Personal choices affect you or this device; Unit choices affect the department.',
     searchTerms:
         'appearance dark light theme install app calendar notifications',
+    roles: _allReaders,
   ),
   HelpTopic(
+    id: HelpTopicId.settingsHistory,
     title: 'Settings history',
     who: 'Manager, Administrator, or Maintainer',
     what: 'Settings history shows who changed a Unit setting, when, and what it was before and after.',
@@ -107,6 +200,105 @@ const helpTopics = <HelpTopic>[
     roles: {HelpRole.manager, HelpRole.administrator, HelpRole.maintainer},
   ),
   HelpTopic(
+    id: HelpTopicId.putInTicket,
+    title: 'Put in a ticket',
+    who: 'A current Staff member',
+    what: 'A Ticket privately tells the Maintainer that something is wrong, shares an idea, or asks a question about the app.',
+    how:
+        '1. Open Schedule actions, then Put in a ticket. On a wide screen, open More destinations, then Put in a ticket.\n'
+        '2. Choose the kind that matches what you want to say.\n'
+        '3. Write what you want the Maintainer to know.\n'
+        '4. Check the attached context.\n'
+        '5. Tap Send Ticket.\n'
+        'Result: the Ticket appears in My tickets as Sent and only the Maintainer can read it.',
+    searchTerms:
+        'something wrong idea question contact designer send private support',
+  ),
+  HelpTopic(
+    id: HelpTopicId.myTickets,
+    title: 'My tickets',
+    who: 'A current Staff member',
+    what: 'My tickets shows what you sent to the Maintainer and whether each Ticket is Sent, Seen, Waiting on you, Done, or Won’t do.',
+    how:
+        '1. Open Schedule actions, then My tickets. On a wide screen, open More destinations, then My tickets.\n'
+        '2. Open a Ticket to read its status, close reason, or a question from the Maintainer.\n'
+        '3. If it says Waiting on you, write your answer.\n'
+        '4. Tap Send answer.\n'
+        'Result: your answer stays private with the Ticket, and its latest status remains visible here.',
+    searchTerms:
+        'ticket status sent seen waiting answer done won\'t do private message',
+  ),
+  HelpTopic(
+    id: HelpTopicId.tickets,
+    title: 'Tickets',
+    who: 'Maintainer only',
+    what: 'Tickets is the Maintainer’s private list of app problems, ideas, and questions sent by Staff members.',
+    how:
+        '1. Open Settings, then Tickets.\n'
+        '2. Read the first line and status to choose a Ticket.\n'
+        '3. Open it to read its text, attached context, status, and private thread.\n'
+        'Result: you can review what the Staff member sent and the Ticket’s current state without opening a Repair.',
+    searchTerms: 'maintainer staff messages private triage sender status',
+    roles: {HelpRole.maintainer},
+  ),
+  HelpTopic(
+    id: HelpTopicId.transferManager,
+    title: 'Transfer Manager',
+    who: 'Manager, or Maintainer during an open Repair; Night schedulers and Administrators can read this guidance',
+    what: 'Transfer Manager makes an eligible Staff member the Manager immediately and ends the current Manager’s Manager access.',
+    how:
+        'Manager:\n'
+        '1. Open Settings.\n'
+        '2. Open Transfer Manager.\n'
+        '3. Resolve any eligibility step shown beside the person who should become Manager.\n'
+        '4. Choose that person.\n'
+        '5. Choose the Staff access you will keep after handover.\n'
+        '6. Tap Transfer Manager.\n'
+        '7. Read the confirmation.\n'
+        '8. Confirm the transfer.\n'
+        'Result: the chosen person is Manager immediately and your selected Staff access remains.\n'
+        'Maintainer during an open Repair:\n'
+        '1. Open Settings.\n'
+        '2. Open Transfer Manager.\n'
+        '3. Resolve any eligibility step shown beside the person who should become Manager.\n'
+        '4. Choose that person.\n'
+        '5. Tap Transfer Manager.\n'
+        '6. Read the confirmation.\n'
+        '7. Confirm the transfer.\n'
+        'Result: the chosen person is Manager immediately, the previous Manager becomes a Staff member, and the Maintainer hat is unchanged.',
+    searchTerms: 'handover successor new manager keep administrator night scheduler access',
+    roles: _manager,
+  ),
+  HelpTopic(
+    id: HelpTopicId.signInFailures,
+    title: 'Sign-in failures',
+    who: 'Maintainer during an open Repair',
+    what: 'Sign-in failures shows recent sign-in code emails that the provider could not send.',
+    how:
+        '1. While a Repair is open, open Settings.\n'
+        '2. Under Personal, open Sign-in failures.\n'
+        '3. Read the provider code, time, HTTP status when present, and message for the failed send.\n'
+        'Result: you have the provider details needed to investigate why the sign-in email was not delivered.',
+    searchTerms:
+        'login sign in code email not sent provider HTTP delivery error',
+    roles: {HelpRole.maintainer},
+  ),
+  HelpTopic(
+    id: HelpTopicId.undeliveredInvitations,
+    title: 'Undelivered invitations',
+    who: 'Maintainer during an open Repair',
+    what: 'Undelivered invitations lists Calendar invitations that were not marked sent after a failed or uncertain delivery attempt.',
+    how:
+        '1. While a Repair is open, open Settings.\n'
+        '2. Under Personal, open Undelivered invitations.\n'
+        '3. Find the Staff member, work date, and Shift code.\n'
+        '4. Read the recipient, method, attempt count, and any available provider or delivery details.\n'
+        'Result: you can identify the Calendar invitation and read the available delivery details for investigation.',
+    searchTerms: 'calendar email not delivered might not have sent failed uncertain SMTP recipient attempts provider',
+    roles: {HelpRole.maintainer},
+  ),
+  HelpTopic(
+    id: HelpTopicId.acceptInvite,
     title: 'Accept your Invite',
     who: 'A Staff member who received an Invite text',
     what: 'An Invite links your personal email to the Staff list after the Manager confirms who accepted it.',
@@ -123,14 +315,17 @@ const helpTopics = <HelpTopic>[
     roles: _staffReaders,
   ),
   HelpTopic(
+    id: HelpTopicId.installOnPhone,
     title: 'Install on a phone',
     who: 'Everyone using a phone or tablet',
     what:
         'Add ER Schedule to your phone or tablet for its own Home Screen icon.',
     how: phoneInstallGuidance,
     searchTerms: 'install app download app home screen iphone ipad android safari chrome icon',
+    roles: _allReaders,
   ),
   HelpTopic(
+    id: HelpTopicId.installOnComputer,
     title: 'Install on a computer',
     who: 'Everyone using a computer',
     what: 'ER Schedule can have its own icon on your computer as well as your phone.',
@@ -146,6 +341,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'install app download app computer desktop windows mac edge chrome safari dock bookmark',
   ),
   HelpTopic(
+    id: HelpTopicId.allowNotifications,
     title: 'Allow notifications',
     who: 'A confirmed Staff member in each place',
     what: 'Notices can tell you about Schedule changes and other events. Permission is separate in every browser or installed app.',
@@ -159,12 +355,14 @@ const helpTopics = <HelpTopic>[
     roles: _staffReaders,
   ),
   HelpTopic(
+    id: HelpTopicId.monthView,
     title: 'Month view',
     who: 'Everyone',
     what: 'Month view shows the Schedule one month at a time. Each Staff row sits in a Section, and each day has a Shift code. A highlighted code means that shift changed.',
     how: 'On the Schedule, choose Month. Use the arrows beside the month to move to another month. If a new month is missing for Staff members, the Manager has not released it yet.',
   ),
   HelpTopic(
+    id: HelpTopicId.dayView,
     title: 'Day view',
     who: 'Everyone',
     what: 'Need to see who is working with you? Day view lists the Staff members and Shift codes for one date, with any uncovered Short shifts.',
@@ -172,6 +370,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'who is working who am I working with colleagues today',
   ),
   HelpTopic(
+    id: HelpTopicId.personView,
     title: 'Person view',
     who: 'Everyone',
     what: 'Person view puts one Staff member’s month on a single screen. Highlighted Shift codes show changes to their Schedule.',
@@ -179,6 +378,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'my shifts when am I working',
   ),
   HelpTopic(
+    id: HelpTopicId.shiftCodeLegend,
     title: 'Shift code legend',
     who: 'Everyone',
     what: 'Need to know what a code on the Schedule means? The Shift code legend shows its hours and whether it counts as a worked shift.',
@@ -186,6 +386,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'what does a code mean hours worked shift',
   ),
   HelpTopic(
+    id: HelpTopicId.requestOff,
     title: 'Request off',
     who: 'Staff members, including Night schedulers',
     what: 'Need a day off? A Request off asks the Manager to decide specific dates. Approval puts R/O on those days in the Schedule.',
@@ -199,6 +400,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'day off days off time off vacation leave requests off',
   ),
   HelpTopic(
+    id: HelpTopicId.approvalQueue,
     title: 'Approval queue',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'The Approval queue is where the Manager makes pending decisions. It includes Requests off, accepted Swaps and Giveaways, Open shift pickups needing approval, and accepted Invites waiting for identity confirmation. Managers and Administrators can also confirm Invites from the Staff list.',
@@ -207,6 +409,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.requestOffApprovals,
     title: 'Request off approvals',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'A Request off changes the Schedule only after the Manager approves it. The email copy is a separate step the Staff member marks after sending.',
@@ -214,6 +417,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.swap,
     title: 'Swap',
     who: 'Staff members, including Night schedulers',
     what: 'Want to trade shifts? A Swap exchanges your shift with a colleague’s. It does not change the Schedule until that person accepts and the Manager approves.',
@@ -221,6 +425,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'swaps exchange shifts trade',
   ),
   HelpTopic(
+    id: HelpTopicId.approveSwap,
     title: 'Approve a Swap',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'The Manager decides an accepted Swap before either shift changes. A proposal that the colleague has not accepted is not ready for this decision.',
@@ -228,6 +433,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.giveaway,
     title: 'Giveaway',
     who: 'Staff members, including Night schedulers',
     what: 'Want a named colleague to take one or more of your shifts without trading one back? A Giveaway moves the whole selected set only after the colleague accepts and the Manager approves.',
@@ -235,6 +441,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'give shift away giveaway cover colleague withdraw',
   ),
   HelpTopic(
+    id: HelpTopicId.approveGiveaway,
     title: 'Approve a Giveaway',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'The Manager decides an accepted Giveaway before any shift moves. Every selected shift moves together or none do.',
@@ -243,6 +450,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.openShift,
     title: 'Open shift',
     who: 'Staff members, including Night schedulers',
     what: 'An Open shift is a shift offered for pickup. Nursing shifts can be picked up by an RN or LPN; CNA and Unit clerk shifts stay within their Job role.',
@@ -250,6 +458,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'open shifts extra shift pickup',
   ),
   HelpTopic(
+    id: HelpTopicId.openShiftPickupApprovals,
     title: 'Open shift pickup approvals',
     who: 'Manager for pickup decisions; Manager or Administrator for the Unit default',
     what: 'Some Open shift pickups wait for the Manager; others take effect when a Staff member picks them up. The listing shows which rule applies.',
@@ -257,6 +466,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.changeAnnouncements,
     title: 'Change announcements',
     who: 'Everyone',
     what: 'A Change announcement tells affected Staff members that a released Schedule changed. The changed Shift code is also highlighted in the app.',
@@ -264,6 +474,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'changed shift notice push alert',
   ),
   HelpTopic(
+    id: HelpTopicId.notices,
     title: 'Notices',
     who: 'Everyone',
     what: 'Notices keep Schedule messages in the app, including Month releases and Change announcements. Phone alerts can also tell you a new Notice arrived.',
@@ -271,6 +482,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'push messages alerts',
   ),
   HelpTopic(
+    id: HelpTopicId.calendarInvitations,
     title: 'Calendar invitations',
     who: 'Everyone',
     what: 'Calendar invitations email each working shift to your personal address. A changed shift replaces its invitation, and a removed shift is withdrawn. You do not need to reply.',
@@ -278,6 +490,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'my calendar email invite invitation missing shift',
   ),
   HelpTopic(
+    id: HelpTopicId.calendarFeed,
     title: 'Calendar feed',
     who: 'Everyone',
     what: 'A Calendar feed shows your working shifts in a separate calendar. Your calendar app chooses when to refresh it, so the Schedule remains the place to check a recent change.',
@@ -291,6 +504,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'my calendar subscribe subscription sync refresh android google calendar link',
   ),
   HelpTopic(
+    id: HelpTopicId.editSchedule,
     title: 'Edit the Schedule',
     who: 'Manager; Night scheduler in Sections the Manager allows',
     what: 'An editor changes a Shift code in a Schedule cell. The Manager can edit the whole Schedule; a Night scheduler can edit only allowed Sections.',
@@ -300,6 +514,7 @@ const helpTopics = <HelpTopic>[
     roles: _editors,
   ),
   HelpTopic(
+    id: HelpTopicId.unannouncedChanges,
     title: 'Unannounced changes',
     who: 'Manager; Night scheduler for their allowed edits',
     what: 'The Unannounced changes tray holds edits to a released Schedule until the affected Staff members are told. An edit is not an announcement by itself.',
@@ -308,6 +523,7 @@ const helpTopics = <HelpTopic>[
     roles: _editors,
   ),
   HelpTopic(
+    id: HelpTopicId.staffingMinimums,
     title: 'Staffing minimums',
     who: 'Manager and Administrator; Night schedulers can read this guidance',
     what: 'A Staffing minimum says how many people a Coverage pool needs in a Day or Night Coverage window, never for a Section. A pool can also require a floor for one member Job role. Standing weekday rules take effect from a chosen date; a single-date override belongs on that day’s staffing sheet.',
@@ -323,6 +539,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.coveragePools,
     title: 'Coverage pools',
     who: 'Manager and Administrator; Night schedulers can read this guidance',
     what: 'Coverage pools group Job roles for counting against Staffing minimums. The seeded pools are Nurses (RN and LPN), CNA, and Unit clerk. Moving a Job role changes coverage counting on the effective date; Open shift pickup eligibility stays based on Job role.',
@@ -337,6 +554,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.postOpenShifts,
     title: 'Post Open shifts',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'The Manager can offer one Open shift or the unposted gap for a Coverage pool and Coverage window. Staff members then see the offer in Open shifts. A rule change on a released Schedule can also post a reviewed batch; an eligible Staff member gets one notice linking to that batch.',
@@ -351,6 +569,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.monthRelease,
     title: 'Month release',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'Month release makes a prepared month visible to Staff members and announces it to everyone. Before release, Staff members cannot read that month.',
@@ -365,6 +584,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.startMonth,
     title: 'Start a month',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'Start a month creates a draft Schedule hidden from Staff members until Month release. You can start empty or copy the previous month by weekday.',
@@ -379,6 +599,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.loadPrintedSchedule,
     title: 'Load a printed Schedule',
     who: 'Manager only; Night schedulers and Administrators can read this guidance',
     what: 'The first month can be loaded from a printed Schedule outside the app. The Manager must proofread that loaded month before it becomes the live Schedule.',
@@ -387,6 +608,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.shiftCodes,
     title: 'Shift codes',
     who: 'Manager and Administrator; Night schedulers can read this guidance',
     what: 'Shift codes controls which codes editors can put on the Schedule, what they mean, their hours, and whether they count as worked shifts.',
@@ -395,6 +617,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.changeLog,
     title: 'Change log',
     who: 'Manager, Maintainer, Administrator, or Night scheduler',
     what: 'The Change log shows who changed a shift, when they changed it, and the old and new Shift codes. Night schedulers can see when the Manager changed one of their edits.',
@@ -404,6 +627,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.nightSchedulerRole,
     title: 'Night scheduler role',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'A Night scheduler is a Staff member allowed to edit selected Sections. This grant can be combined with Administrator access. The Manager can override their edits.',
@@ -411,6 +635,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.administratorAccess,
     title: 'Administrator access',
     who: 'Administrator; Manager or Administrator grants access',
     what: 'An Administrator manages the Staff list, Invites, access grants, and Unit settings. They can read unpublished Schedules and the Change log. Administrator access alone does not allow Schedule edits, Manager approvals, Month release, or Change announcements. A working Administrator can record a Call-in.',
@@ -419,6 +644,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.printScheduleBookPage,
     title: 'Print Schedule book page',
     who: 'Everyone',
     what: 'Print the current month when you need a paper page for the Schedule book.',
@@ -426,6 +652,7 @@ const helpTopics = <HelpTopic>[
     searchTerms: 'print paper small text warning legend readability',
   ),
   HelpTopic(
+    id: HelpTopicId.changePrintWording,
     title: 'Change print wording',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'Unit print wording sets the title, notice, and print button wording for draft and future Schedule book pages. Released months keep their wording.',
@@ -434,6 +661,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.staffList,
     title: 'Staff list',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'The Staff list holds each person’s name, Cell number, Section, and Job role. People who leave move to Past staff; their history remains connected.',
@@ -442,6 +670,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.pastStaff,
     title: 'Past staff',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'Past staff keeps a departed person’s Schedule history connected without keeping them active on the Staff list.',
@@ -449,6 +678,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.invite,
     title: 'Invite',
     who: 'Manager or Administrator can send and confirm',
     what: 'An Invite gets a Staff member into the app only after a Manager or Administrator confirms who accepted it. The link alone does not grant access.',
@@ -466,6 +696,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.inviteCellMismatch,
     title: 'Invite Cell mismatch',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'A Cell mismatch means someone opened an Invite but entered a number different from the Staff list. The Invite has not given them access.',
@@ -474,6 +705,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.manageSections,
     title: 'Manage Sections',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'Sections group Staff rows on the Schedule. Their order in the Staff list also sets the printed and on-screen Schedule order; a Section does not set Staffing minimums.',
@@ -482,6 +714,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.reorderStaffMembers,
     title: 'Reorder Staff members',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'The order of people within a Section in Staff list is the order you see on the Schedule.',
@@ -489,6 +722,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.staffMemberDetails,
     title: 'Staff member details',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'Staff details shows the person’s Cell number, Section, Job role, access role, personal email, and Last day. It is where the Manager or Administrator corrects a name or Cell number.',
@@ -497,6 +731,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.lastDay,
     title: 'Last day',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'A Last day ends a departing Staff member’s place on future Schedules. Shifts after that date become Short shifts that need coverage.',
@@ -504,6 +739,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.changeSectionOrJobRole,
     title: 'Change Section or Job role',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'A change to Section or Job role takes effect from the chosen date. Earlier Schedule history keeps the person’s earlier placement.',
@@ -511,6 +747,7 @@ const helpTopics = <HelpTopic>[
     roles: _manager,
   ),
   HelpTopic(
+    id: HelpTopicId.addStaffMemberToPhoneContacts,
     title: 'Add Staff member to phone contacts',
     who: 'Manager or Administrator; Night schedulers can read this guidance',
     what: 'The Manager or Administrator can copy a Staff member’s Cell number into phone contacts when a direct call or text is needed.',

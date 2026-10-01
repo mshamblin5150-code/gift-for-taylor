@@ -74,6 +74,7 @@ typedef DestinationPageBuilder = Widget Function(
 final class ScheduleDestination {
   const ScheduleDestination({
     required this.id,
+    required this.helpTopicId,
     required this.label,
     required this.icon,
     required this.pageBuilder,
@@ -89,6 +90,7 @@ final class ScheduleDestination {
   });
 
   final ScheduleDestinationId id;
+  final HelpTopicId helpTopicId;
   final String label;
   final IconData icon;
   final DestinationPageBuilder pageBuilder;
@@ -148,6 +150,7 @@ List<ScheduleDestination> scheduleDestinations({
   return [
     ScheduleDestination(
       id: ScheduleDestinationId.settings,
+      helpTopicId: HelpTopicId.settings,
       label: 'Settings',
       icon: Icons.settings_outlined,
       menu: DestinationMenu.secondary,
@@ -162,6 +165,7 @@ List<ScheduleDestination> scheduleDestinations({
     ),
     ScheduleDestination(
       id: ScheduleDestinationId.help,
+      helpTopicId: HelpTopicId.help,
       label: 'Help',
       icon: Icons.help_outline,
       menu: DestinationMenu.secondary,
@@ -171,6 +175,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (ownStaffMemberId != null)
       ScheduleDestination(
         id: ScheduleDestinationId.putInTicket,
+        helpTopicId: HelpTopicId.putInTicket,
         label: 'Put in a ticket',
         icon: Icons.support_agent_outlined,
         menu: DestinationMenu.secondary,
@@ -186,6 +191,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (ownStaffMemberId != null)
       ScheduleDestination(
         id: ScheduleDestinationId.myTickets,
+        helpTopicId: HelpTopicId.myTickets,
         label: 'My tickets',
         icon: Icons.inbox_outlined,
         menu: DestinationMenu.secondary,
@@ -200,6 +206,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.maintainer)
       ScheduleDestination(
         id: ScheduleDestinationId.tickets,
+        helpTopicId: HelpTopicId.tickets,
         label: 'Tickets',
         icon: Icons.inbox_outlined,
         settings: DestinationSettings.personal,
@@ -214,6 +221,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.maintainer && !access.isRepairAccess)
       ScheduleDestination(
         id: ScheduleDestinationId.maintainerRepairs,
+        helpTopicId: HelpTopicId.maintainerRepairs,
         label: 'Maintainer repairs',
         icon: Icons.build_outlined,
         menu: DestinationMenu.secondary,
@@ -226,6 +234,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.maintainer && access.isRepairAccess)
       ScheduleDestination(
         id: ScheduleDestinationId.signInFailures,
+        helpTopicId: HelpTopicId.signInFailures,
         label: 'Sign-in failures',
         icon: Icons.mark_email_unread_outlined,
         settings: DestinationSettings.personal,
@@ -237,6 +246,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.maintainer && access.isRepairAccess)
       ScheduleDestination(
         id: ScheduleDestinationId.undeliveredInvitations,
+        helpTopicId: HelpTopicId.undeliveredInvitations,
         label: 'Undelivered invitations',
         icon: Icons.event_busy_outlined,
         settings: DestinationSettings.personal,
@@ -249,6 +259,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canRunSchedule)
       ScheduleDestination(
         id: ScheduleDestinationId.approvalQueue,
+        helpTopicId: HelpTopicId.approvalQueue,
         label: 'Approval queue',
         icon: Icons.fact_check_outlined,
         menu: DestinationMenu.immediate,
@@ -266,6 +277,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canAskAsStaffMember)
       ScheduleDestination(
         id: ScheduleDestinationId.openShiftsStaff,
+        helpTopicId: HelpTopicId.openShift,
         label: 'Open shifts',
         icon: Icons.add_circle_outline,
         menu: DestinationMenu.immediate,
@@ -281,6 +293,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canAskAsStaffMember)
       ScheduleDestination(
         id: ScheduleDestinationId.swapsStaff,
+        helpTopicId: HelpTopicId.swap,
         label: 'Swaps',
         icon: Icons.swap_horiz,
         menu: DestinationMenu.immediate,
@@ -299,6 +312,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canAskAsStaffMember)
       ScheduleDestination(
         id: ScheduleDestinationId.giveawaysStaff,
+        helpTopicId: HelpTopicId.giveaway,
         label: 'Giveaways',
         icon: Icons.card_giftcard,
         menu: DestinationMenu.immediate,
@@ -314,6 +328,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canAskAsStaffMember)
       ScheduleDestination(
         id: ScheduleDestinationId.myRequestsOff,
+        helpTopicId: HelpTopicId.requestOff,
         label: 'My Requests off',
         icon: Icons.event_busy_outlined,
         menu: DestinationMenu.immediate,
@@ -325,6 +340,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canRunSchedule)
       ScheduleDestination(
         id: ScheduleDestinationId.requestsOffManager,
+        helpTopicId: HelpTopicId.requestOffApprovals,
         label: 'Requests off',
         icon: Icons.event_busy_outlined,
         menu: DestinationMenu.immediate,
@@ -336,6 +352,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canRunSchedule)
       ScheduleDestination(
         id: ScheduleDestinationId.swapsManager,
+        helpTopicId: HelpTopicId.approveSwap,
         label: 'Swaps',
         icon: Icons.swap_horiz,
         menu: DestinationMenu.immediate,
@@ -354,6 +371,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canRunSchedule)
       ScheduleDestination(
         id: ScheduleDestinationId.giveawaysManager,
+        helpTopicId: HelpTopicId.approveGiveaway,
         label: 'Giveaways',
         icon: Icons.card_giftcard,
         menu: DestinationMenu.immediate,
@@ -370,6 +388,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canRunSchedule)
       ScheduleDestination(
         id: ScheduleDestinationId.openShiftsManager,
+        helpTopicId: HelpTopicId.postOpenShifts,
         label: 'Open shifts',
         icon: Icons.add_circle_outline,
         menu: DestinationMenu.immediate,
@@ -391,6 +410,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (ownStaffMemberId != null)
       ScheduleDestination(
         id: ScheduleDestinationId.notices,
+        helpTopicId: HelpTopicId.notices,
         label: 'Notices',
         icon: Icons.notifications_outlined,
         menu: DestinationMenu.secondary,
@@ -403,6 +423,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (ownStaffMemberId != null)
       ScheduleDestination(
         id: ScheduleDestinationId.myCalendar,
+        helpTopicId: HelpTopicId.calendarInvitations,
         label: 'My calendar',
         icon: Icons.calendar_month_outlined,
         menu: DestinationMenu.secondary,
@@ -415,6 +436,7 @@ List<ScheduleDestination> scheduleDestinations({
       ),
     ScheduleDestination(
       id: ScheduleDestinationId.addErSchedule,
+      helpTopicId: HelpTopicId.installOnPhone,
       label: 'Add ER Schedule',
       icon: Icons.install_mobile_outlined,
       settings: DestinationSettings.personal,
@@ -429,6 +451,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canManageUnit)
       ScheduleDestination(
         id: ScheduleDestinationId.staffingMinimums,
+        helpTopicId: HelpTopicId.staffingMinimums,
         label: 'Staffing minimums',
         icon: Icons.people_outline,
         menu: DestinationMenu.immediate,
@@ -445,6 +468,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canManageUnit)
       ScheduleDestination(
         id: ScheduleDestinationId.openShiftPickupApproval,
+        helpTopicId: HelpTopicId.openShiftPickupApprovals,
         label: 'Open shift pickup approval',
         icon: Icons.fact_check_outlined,
         settings: DestinationSettings.unit,
@@ -456,6 +480,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canManageUnit)
       ScheduleDestination(
         id: ScheduleDestinationId.printWording,
+        helpTopicId: HelpTopicId.changePrintWording,
         label: 'Print wording',
         icon: Icons.text_fields_outlined,
         settings: DestinationSettings.unit,
@@ -467,6 +492,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canManageUnit)
       ScheduleDestination(
         id: ScheduleDestinationId.shiftCodes,
+        helpTopicId: HelpTopicId.shiftCodes,
         label: 'Shift codes',
         icon: Icons.schedule_outlined,
         menu: DestinationMenu.secondary,
@@ -482,6 +508,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canReadChangeLog)
       ScheduleDestination(
         id: ScheduleDestinationId.changeLog,
+        helpTopicId: HelpTopicId.changeLog,
         label: 'Change log',
         icon: Icons.history,
         menu: DestinationMenu.secondary,
@@ -492,6 +519,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canManageStaff)
       ScheduleDestination(
         id: ScheduleDestinationId.staffList,
+        helpTopicId: HelpTopicId.staffList,
         label: 'Staff list',
         icon: Icons.people_outline,
         menu: DestinationMenu.secondary,
@@ -502,6 +530,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canManageUnit)
       ScheduleDestination(
         id: ScheduleDestinationId.sections,
+        helpTopicId: HelpTopicId.manageSections,
         label: 'Sections',
         icon: Icons.view_list_outlined,
         settings: DestinationSettings.unit,
@@ -513,6 +542,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canManageUnit)
       ScheduleDestination(
         id: ScheduleDestinationId.permissionAssignments,
+        helpTopicId: HelpTopicId.administratorAccess,
         label: 'Permission assignments',
         icon: Icons.admin_panel_settings_outlined,
         settings: DestinationSettings.unit,
@@ -524,6 +554,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canTransferManager)
       ScheduleDestination(
         id: ScheduleDestinationId.transferManager,
+        helpTopicId: HelpTopicId.transferManager,
         label: 'Transfer Manager',
         icon: Icons.manage_accounts_outlined,
         settings: DestinationSettings.transfer,
@@ -542,6 +573,7 @@ List<ScheduleDestination> scheduleDestinations({
     if (access.canManageUnit)
       ScheduleDestination(
         id: ScheduleDestinationId.settingsHistory,
+        helpTopicId: HelpTopicId.settingsHistory,
         label: 'Settings history',
         icon: Icons.history,
         settings: DestinationSettings.unit,
