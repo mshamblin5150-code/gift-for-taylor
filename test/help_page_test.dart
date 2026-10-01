@@ -1,9 +1,46 @@
 import 'package:er_schedule/help/help_page.dart';
+import 'package:er_schedule/schedule/pending_work.dart';
+import 'package:er_schedule/schedule/schedule_destinations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
+import 'support/app_dependencies.dart';
+import 'support/access_scenarios.dart';
+
 void main() {
+  test('every Help topic has a unique stable id', () {
+    final ids = helpTopics.map((topic) => topic.id).toList();
+
+    expect(ids.toSet(), hasLength(ids.length));
+  });
+
+  final accessScenarios = loadAccessScenarios();
+
+  for (final scenario in accessScenarios) {
+    test('${scenario['name']} can read every offered destination topic', () {
+      final access = accessFromScenario(scenario);
+      final readableRoles = helpRolesFor(access);
+      final topicsById = {for (final topic in helpTopics) topic.id: topic};
+      final destinations = scheduleDestinations(
+        dependencies: appDependencies(),
+        access: access,
+        pending: const PendingWorkState(),
+      );
+
+      for (final destination in destinations) {
+        final topic = topicsById[destination.helpTopicId];
+        expect(topic, isNotNull, reason: destination.label);
+        expect(
+          topic!.roles.intersection(readableRoles),
+          isNotEmpty,
+          reason:
+              '${scenario['name']} is offered ${destination.label} but cannot read ${topic.title}',
+        );
+      }
+    });
+  }
+
   test('phone install Help covers every supported platform and recovery', () {
     final guidance = helpTopics
         .singleWhere((topic) => topic.title == 'Install on a phone')

@@ -1,22 +1,17 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:er_schedule/schedule/pending_work.dart';
 import 'package:er_schedule/schedule/schedule_destinations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schedule_rules/schedule_rules.dart';
 
 import 'support/app_dependencies.dart';
+import 'support/access_scenarios.dart';
 
 void main() {
-  final scenarios = (jsonDecode(
-    File('packages/schedule_rules/test/fixtures/access_scenarios.json')
-        .readAsStringSync(),
-  ) as List<dynamic>).cast<Map<String, dynamic>>();
+  final scenarios = loadAccessScenarios();
 
   for (final scenario in scenarios) {
     test('${scenario['name']} is offered the expected destinations', () {
-      final access = _accessFrom(scenario);
+      final access = accessFromScenario(scenario);
       final entries = scheduleDestinations(
         dependencies: appDependencies(),
         access: access,
@@ -122,7 +117,7 @@ void main() {
       maintainer: true,
       ownStaffMemberId: 'staff',
     );
-    final repairing = _repairingMaintainer();
+    final repairing = repairingMaintainer();
 
     expect(
       lockedSettingsDestinations(
@@ -240,30 +235,3 @@ Iterable<String> _expectedSettingsIds(Access access) => _expectedIds(access)
         'settingsHistory',
       }.contains(id),
     );
-
-Access _accessFrom(Map<String, dynamic> scenario) => Access(
-  grants: Grants(
-    manager: scenario['manager'] as bool,
-    administrator: scenario['administrator'] as bool,
-    nightSchedulerSectionIds: (scenario['sections'] as List<dynamic>)
-        .cast<String>()
-        .toSet(),
-  ),
-  maintainer: scenario['maintainer'] as bool,
-  ownStaffMemberId: scenario['staffMemberId'] as String?,
-  activeRepair: (scenario['repair'] as bool? ?? false)
-      ? _repairingMaintainer().activeRepair
-      : null,
-);
-
-Access _repairingMaintainer() => Access(
-  grants: Grants(),
-  maintainer: true,
-  ownStaffMemberId: 'staff',
-  activeRepair: MaintainerRepair(
-    id: 'repair',
-    category: RepairReasonCategory.investigation,
-    openedAt: DateTime.utc(2026, 9, 24, 12),
-    expiresAt: DateTime.utc(2026, 9, 24, 13),
-  ),
-);
