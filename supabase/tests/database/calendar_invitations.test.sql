@@ -1,6 +1,125 @@
 begin;
+set local timezone = 'America/New_York';
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(51);
+
+-- The account lifecycle and channel switches are the public seam for the date
+-- bound. Yesterday is deliberately dynamic so this exercises the exact edge.
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-000000000971', 'bounded@example.test');
+insert into public.sections (id, name, display_order) values
+  ('00000000-0000-0000-0000-000000000972', 'Bounded Calendar Section', 98);
+insert into public.staff_members (id, display_name) values
+  ('00000000-0000-0000-0000-000000000973', 'Bounded Calendar Staff');
+insert into public.schedule_months
+  (id, month_start, release_state, released_at,
+   released_by_staff_member_id)
+values
+  ('00000000-0000-0000-0000-000000000974',
+   (date_trunc('month', current_date) - interval '1 month')::date,
+   'released', now(), '00000000-0000-0000-0000-000000000973'),
+  ('00000000-0000-0000-0000-000000000975',
+   date_trunc('month', current_date)::date,
+   'released', now(), '00000000-0000-0000-0000-000000000973'),
+  ('00000000-0000-0000-0000-000000000976',
+   (date_trunc('month', current_date) + interval '1 month')::date,
+   'released', now(), '00000000-0000-0000-0000-000000000973');
+insert into public.schedule_cells
+  (schedule_month_id, staff_member_id, section_id, work_date, shift_code)
+values
+  ('00000000-0000-0000-0000-000000000974',
+   '00000000-0000-0000-0000-000000000973',
+   '00000000-0000-0000-0000-000000000972',
+   (date_trunc('month', current_date) - interval '1 month' + interval '1 day')::date,
+   '7A'),
+  ('00000000-0000-0000-0000-000000000975',
+   '00000000-0000-0000-0000-000000000973',
+   '00000000-0000-0000-0000-000000000972', current_date, '7A'),
+  ('00000000-0000-0000-0000-000000000976',
+   '00000000-0000-0000-0000-000000000973',
+   '00000000-0000-0000-0000-000000000972',
+   (date_trunc('month', current_date) + interval '1 month' + interval '1 day')::date,
+   '7A');
+insert into public.staff_accounts
+  (staff_member_id, auth_user_id, personal_email, accepted_invite_at)
+values ('00000000-0000-0000-0000-000000000973',
+  '00000000-0000-0000-0000-000000000971', 'bounded@example.test', now());
+select is((select count(*)::int from public.calendar_invitation_outbox
+  where staff_member_id = '00000000-0000-0000-0000-000000000973'
+    and method = 'REQUEST'), 2,
+  'account completion requests only work today and later');
+select is((select count(*)::int from public.calendar_invitation_outbox
+  where staff_member_id = '00000000-0000-0000-0000-000000000973'
+    and work_date < current_date), 0,
+  'account completion never requests work already performed');
+select is((select count(*)::int from public.calendar_invitation_outbox
+  where staff_member_id = '00000000-0000-0000-0000-000000000973'
+    and work_date = current_date), 1,
+  'the REQUEST bound includes work today');
+update public.schedule_cells set shift_code = '7P'
+where staff_member_id = '00000000-0000-0000-0000-000000000973'
+  and work_date < current_date;
+select is((select count(*)::int from public.calendar_invitation_outbox
+  where staff_member_id = '00000000-0000-0000-0000-000000000973'
+    and work_date < current_date), 0,
+  'editing a released historical cell cannot bypass the REQUEST bound');
+
+-- Model a past invitation that really was published before the bound existed.
+insert into public.calendar_invitation_outbox
+  (staff_member_id, work_date, recipient, method, shift_code, starts_at,
+   ends_at, sequence, sent_at, sender)
+values ('00000000-0000-0000-0000-000000000973',
+  (date_trunc('month', current_date) - interval '1 month' + interval '1 day')::date,
+  'bounded@example.test', 'REQUEST', '7A',
+  ((date_trunc('month', current_date) - interval '1 month' + interval '1 day')::date
+    + time '07:00') at time zone 'America/New_York',
+  ((date_trunc('month', current_date) - interval '1 month' + interval '1 day')::date
+    + time '19:00') at time zone 'America/New_York',
+  0, now(), 'no-reply@calendar.axion.healthcare');
+create temp table bounded_calendar_token (token text);
+grant select, insert on bounded_calendar_token to authenticated;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000971","role":"authenticated"}', true);
+insert into bounded_calendar_token
+  select public.create_calendar_subscription('Bound test')->>'token';
+set local role postgres;
+select is((select count(*)::int from (
+    select distinct on (work_date) method
+    from public.calendar_invitation_outbox
+    where staff_member_id = '00000000-0000-0000-0000-000000000973'
+    order by work_date, sequence desc
+  ) latest where method = 'CANCEL'), 3,
+  'switching to the Calendar feed withdraws every published date, including history');
+
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000971","role":"authenticated"}', true);
+select public.use_calendar_invitations();
+set local role postgres;
+select is((select count(*)::int from (
+    select distinct on (work_date) work_date, method
+    from public.calendar_invitation_outbox
+    where staff_member_id = '00000000-0000-0000-0000-000000000973'
+    order by work_date, sequence desc
+  ) latest where work_date >= current_date and method = 'REQUEST'), 2,
+  'switching back requests only work today and later');
+select is((select method from public.calendar_invitation_outbox
+  where staff_member_id = '00000000-0000-0000-0000-000000000973'
+    and work_date < current_date order by sequence desc limit 1), 'CANCEL',
+  'switching back leaves published history withdrawn');
+
+update public.staff_members set active = false
+where id = '00000000-0000-0000-0000-000000000973';
+select is((select count(*)::int from (
+    select distinct on (work_date) method
+    from public.calendar_invitation_outbox
+    where staff_member_id = '00000000-0000-0000-0000-000000000973'
+    order by work_date, sequence desc
+  ) latest where method = 'CANCEL'), 3,
+  'deactivation withdraws every invitation still published');
+delete from public.calendar_invitation_outbox
+where staff_member_id = '00000000-0000-0000-0000-000000000973';
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000981', 'calendar@example.test');
