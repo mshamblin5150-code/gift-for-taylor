@@ -33,7 +33,8 @@ jobs:
       - run: python3 scripts/check_bare_raise_exceptions.py
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: '2.107.0'
+      - run: supabase --version
       # Function deployment needs a Supabase access token and project ref.
       # Deploy send-push before db push: migrations can insert historical
       # staff_notices, and the current function skips rows with push_eligible=false.
